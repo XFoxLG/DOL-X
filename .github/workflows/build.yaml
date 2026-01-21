@@ -67,6 +67,12 @@ jobs:
       - name: List outputs
         run: ls -lah "${{ github.workspace }}/output/" || echo "No output files generated"
 
+      - name: Generate download page
+        run: |
+          VERSION=${{ github.ref_name }}
+          python main.py page --version "$VERSION" --versions-file "${{ github.workspace }}/base/versions.json" --output "output/$VERSION".md -v
+          cat "output/$VERSION".md
+
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -78,6 +84,12 @@ jobs:
         with:
           name: dol-builds-apk
           path: ${{ github.workspace }}/output/*.apk
+
+      - name: Upload download page artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: download-page
+          path: ${{ github.workspace }}/output/*.md
 
   release:
     runs-on: ubuntu-latest
@@ -114,20 +126,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/download-artifact@v7
         with:
-          python-version: "3.14"
-          cache: "pip"
-
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
-      - name: Generate download page
-        run: |
-          VERSION=${{ github.ref_name }}
-          python main.py page --version "$VERSION" --output "$VERSION".md -v
-          cat "$VERSION".md
+          name: download-page
+          path: ./
 
       - name: Clone hub repository
         uses: actions/checkout@v6
@@ -166,7 +168,7 @@ jobs:
     secrets: inherit
 
   call-deploy-hub:
-    uses: DoL-Lyra/hub/.github/workflows/hub-deploy.yaml@main
+    uses: DoL-Lyra/hub/.github/workflows/hub-deploy-call.yaml@main
     needs: release
     if: github.ref_type == 'tag'
     secrets: inherit
