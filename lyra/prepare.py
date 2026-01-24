@@ -429,7 +429,7 @@ class GamePreparer:
 
             # 添加其他 mod
             mods_to_add = []
-            for key in ["cheat", "csd"]:
+            for key in ["i18n", "cheat", "csd"]:
                 if key in extra_mods:
                     mods_to_add.append(extra_mods[key])
 
