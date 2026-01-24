@@ -169,6 +169,6 @@ jobs:
 
   call-deploy-hub:
     uses: DoL-Lyra/hub/.github/workflows/hub-deploy-call.yaml@main
-    needs: release
+    needs: deploy-download-page
     if: github.ref_type == 'tag'
     secrets: inherit
