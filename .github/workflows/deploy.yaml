@@ -120,6 +120,10 @@ jobs:
               manifest_file.truncate()
               manifest_file.write(json.dumps(manifest_json, indent=2))
 
+      - name: Remove gitignore from img
+        run: |
+          rm -f ./modloader-temp/img/.gitignore
+
       - name: Deploy to organization repo
         uses: crazy-max/ghaction-github-pages@v4
         env:
