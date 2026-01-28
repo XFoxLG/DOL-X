@@ -19,6 +19,7 @@ except ImportError:
 
 from .combo import CombinationCalculator, ModCombination
 from .config_loader import load_build_config
+from .config import ModCode
 from .version import VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
@@ -92,27 +93,31 @@ class DownloadPageConfig:
         tag = self.version
         return f"{self.mirror_base}/{self.github_owner}/{self.github_repo}/releases/download/{tag}/{filename}"
 
-    def get_filename(
-        self, display_name: str, ext: str, is_polyfill: bool = False
-    ) -> str:
-        """生成文件名"""
-        # 移除推荐标记和兼容版标记
-        feature_str = (
-            display_name.replace("***", "")
-            .replace("(推荐)", "")
-            .replace("(兼容版)", "")
-            .strip()
-        )
+    def get_filename(self, mod_code: int, ext: str, is_polyfill: bool = False) -> str:
+        """
+        生成文件名
 
-        # 如果是基础版本，不需要功能名
-        if feature_str == "基础":
-            polyfill_str = "-polyfill" if is_polyfill else ""
-            return f"DoL-{self.base_game_version}-Lyra-{self.chs_version}{polyfill_str}-{self.date_suffix}.{ext}"
+        使用 ModCode.get_suffix() 确保与构建时的文件名完全一致。
 
-        # 将 + 替换为 -，并转换为小写
-        feature_str = feature_str.replace("+", "-").lower()
-        polyfill_str = "-polyfill" if is_polyfill else ""
-        return f"DoL-{self.base_game_version}-Lyra-{self.chs_version}{polyfill_str}-{feature_str}-{self.date_suffix}.{ext}"
+        Args:
+            mod_code: MOD组合代码
+            ext: 文件扩展名 (zip/apk)
+            is_polyfill: 是否为 polyfill 版本
+
+        Returns:
+            生成的文件名
+        """
+        # 构建前缀
+        prefix = f"DoL-{self.base_game_version}-Lyra-{self.chs_version}"
+        if is_polyfill:
+            prefix += "-polyfill"
+
+        # 使用 ModCode.get_suffix() 生成 MOD 后缀，确保与构建时一致
+        mod_suffix = ModCode(mod_code).get_suffix()
+        if mod_suffix:
+            prefix += f"-{mod_suffix}"
+
+        return f"{prefix}-{self.date_suffix}.{ext}"
 
 
 class DownloadPageGenerator:
@@ -151,7 +156,7 @@ class DownloadPageGenerator:
 
         if self.config.include_zip:
             filename = self.config.get_filename(
-                combination.display_name, "zip", combination.is_polyfill
+                combination.code, "zip", combination.is_polyfill
             )
             github_url = self.config.get_download_url(filename)
             mirror_url = self.config.get_mirror_url(filename)
@@ -160,7 +165,7 @@ class DownloadPageGenerator:
 
         if self.config.include_apk:
             filename = self.config.get_filename(
-                combination.display_name, "apk", combination.is_polyfill
+                combination.code, "apk", combination.is_polyfill
             )
             github_url = self.config.get_download_url(filename)
             mirror_url = self.config.get_mirror_url(filename)
