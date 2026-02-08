@@ -262,7 +262,7 @@ def cmd_check(args) -> int:
         "chs_ver": chs_ver,
         "lyra_game_ver": lyra_game_ver,
         "lyra_chs_ver": lyra_chs_ver,
-        "new_tag": f"v{game_ver}-chs-{chs_ver}-{date_str}",
+        "new_tag": f"v{game_ver}-{chs_ver}-{date_str}",
     }
 
     if need_update:
