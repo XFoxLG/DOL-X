@@ -232,38 +232,49 @@ def cmd_check(args) -> int:
         return 1
 
     # 解析版本号
-    # 格式: DoL-ModLoader-X.X.X-chs-X.X.X
-    chs_ver = origin_tag.split("-")[2] if "-" in origin_tag else origin_tag
+    # 格式: v0.5.7.9-chs-5.1.0a
+    game_ver = origin_tag.split("-")[0].lstrip("v")
+    chs_ver = origin_tag.split("-")[2]
 
     # 获取本仓库最新 tag
     try:
         mods_url = f"https://api.github.com/repos/{args.github_owner}/{args.github_repo}/releases/latest"
         response = requests.get(mods_url, timeout=30)
         response.raise_for_status()
-        mods_ver = response.json().get("tag_name", "").split("-")[0].lstrip("v")
+        lyra_tag = response.json().get("tag_name", "")
+        lyra_game_ver = lyra_tag.split("-")[0].lstrip("v")
+        lyra_chs_ver = lyra_tag.split("-")[1]
     except Exception as e:
         logger.warning(f"获取本仓库版本失败（可能是首次发布）: {e}")
-        mods_ver = ""
 
-    need_update = chs_ver != mods_ver
+    need_update = chs_ver != lyra_chs_ver
+
+    from datetime import datetime, timezone, timedelta
+
+    # UTC+8 时间
+    tz = timezone(timedelta(hours=8))
+    date_str = datetime.now(tz).strftime("%m%d")
 
     result = {
         "need_update": need_update,
         "origin_tag": origin_tag,
+        "game_ver": game_ver,
         "chs_ver": chs_ver,
-        "mods_ver": mods_ver,
+        "lyra_game_ver": lyra_game_ver,
+        "lyra_chs_ver": lyra_chs_ver,
+        "new_tag": f"v{game_ver}-chs-{chs_ver}-{date_str}",
     }
 
     if need_update:
         logger.info("需要更新！")
-        logger.info(f"  汉化仓库版本: {chs_ver}")
-        logger.info(f"  本仓库版本: {mods_ver}")
+        logger.info(f"  汉化仓库: {origin_tag}")
+        logger.info(f"  本仓库: {lyra_tag}")
 
     if args.github_output:
         with open(args.github_output, "a") as f:
             f.write(f"need_update={'true' if need_update else 'false'}\n")
             f.write(f"origin_tag={origin_tag}\n")
-            f.write(f"chs_ver={chs_ver}\n")
+            f.write(f"new_tag={result['new_tag']}\n")
     else:
         print(json.dumps(result))
 
