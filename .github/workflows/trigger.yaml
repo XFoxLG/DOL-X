@@ -27,7 +27,7 @@ jobs:
 
       - name: Check for updates
         id: check
-        run: python scripts/ci.py check-update --github-output $GITHUB_OUTPUT -v
+        run: python main.py check --github-output $GITHUB_OUTPUT -v
 
       - name: Create tag
         if: steps.check.outputs.need_update == 'true'
