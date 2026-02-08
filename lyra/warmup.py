@@ -10,11 +10,10 @@ from pathlib import Path
 
 from .paths import BuildPaths
 from .version import VersionInfo, VersionRegistry
-from .config_loader import load_build_config
+from .config_loader import load_build_config, get_config_loader, ModloaderModConfig
 from .utils import (
     download_file,
     extract_tar_gz,
-    extract_zip,
     safe_remove,
     safe_move,
     get_gitgud_commit_hash,
@@ -39,9 +38,6 @@ class ResourceWarmer:
         "goose": ["dolp", "goosefem", "goosefemsubs"],
         "ucb": ["mysterious"],
     }
-
-    # AU 变体列表
-    AU_VARIANTS = ["female", "male", "androgynous"]
 
     def __init__(self, paths: BuildPaths):
         """
@@ -69,8 +65,8 @@ class ResourceWarmer:
         # 预热 DoL+ 图片包
         self._warmup_dolp_packs()
 
-        # 预热 AU 图片包
-        self._warmup_au_packs()
+        # 预热 modloader mod
+        self._warmup_modloader_mods()
 
         logger.info("========== 资源预热完成 ==========")
         self.registry.print_summary()
@@ -228,61 +224,59 @@ class ResourceWarmer:
         shoulder_lower = img_dir / "hair" / "sides" / "messy ponytail" / "shoulder.png"
         safe_move(shoulder_upper, shoulder_lower)
 
-    def _warmup_au_packs(self):
-        """预热 AU 图片包"""
-        logger.info("--- 预热 AU 图片包 ---")
+    def _warmup_modloader_mods(self):
+        """预热 modloader mod"""
+        if not self.config.modloader_mods:
+            return
 
-        for variant in self.AU_VARIANTS:
-            self._download_au_pack(variant)
+        logger.info("--- 预热 modloader mod ---")
+        config_loader = get_config_loader()
 
-    def _download_au_pack(self, variant: str):
+        for mod_config in self.config.modloader_mods:
+            self._download_modloader_mod(mod_config, config_loader)
+
+    def _download_modloader_mod(self, mod_config: ModloaderModConfig, config_loader):
         """
-        下载单个 AU 图片包
+        下载单个 modloader mod
 
         Args:
-            variant: 变体 (female/male/androgynous)
+            mod_config: mod 配置
+            config_loader: 配置加载器（用于查找 feature 信息）
         """
-        short_name = f"au_{variant[0]}"
-        dest_dir = self.paths.get_beautify_cache_dir(short_name)
+        feature = config_loader.get_feature_by_id(mod_config.feature_id)
+        display_name = feature.name if feature else mod_config.feature_id
+        cache_name = mod_config.feature_id.replace("-", "_")
+        dest_path = self.paths.get_mod_cache_path(cache_name)
 
         # 检查是否已存在
-        if dest_dir.exists() and (dest_dir / "img").exists():
-            logger.debug(f"  AU-{variant[0].upper()}: 已缓存")
+        if dest_path.exists():
+            logger.debug(f"  {display_name}: 已缓存")
             return
 
         # 获取资源信息
-        asset_pattern = f"AU{variant}.imgpack"
         asset = get_github_release_asset(
-            self.config.au_github_repo,
-            asset_pattern,
-            tag="mod",
+            mod_config.github_repo,
+            mod_config.asset_pattern,
+            tag=mod_config.release_tag,
         )
 
         if not asset:
-            logger.warning(f"  AU-{variant[0].upper()}: 无法获取下载信息")
+            logger.warning(f"  {display_name}: 无法获取下载信息")
             return
 
         # 记录版本信息
         self.registry.add(
             VersionInfo(
-                name=f"AU-{variant[0].upper()}",
+                name=display_name,
                 version=asset.version,
-                source=self.config.au_github_repo,
+                source=mod_config.github_repo,
                 filename=asset.name,
             )
         )
 
-        # 下载并解压
-        zip_path = self.paths.temp_dir / f"au-{variant}.zip"
-        download_file(asset.url, zip_path, quiet=True)
-
-        img_dir = dest_dir / "img"
-        img_dir.mkdir(parents=True, exist_ok=True)
-        extract_zip(zip_path, img_dir)
-
-        # 清理 zip 文件
-        # safe_remove(zip_path)
-        logger.info(f"  AU-{variant[0].upper()}: 下载完成 ({asset.version})")
+        # 下载 mod 文件
+        download_file(asset.url, dest_path, quiet=True)
+        logger.info(f"  {display_name}: 下载完成 ({asset.version})")
 
     def _copy_directory(self, src: Path, dest: Path):
         """复制目录内容"""

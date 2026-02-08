@@ -107,7 +107,7 @@ class BuildPaths:
         获取美化资源缓存目录
 
         Args:
-            name: 资源名称 (besc, hikari, goose, ucb, au_f, au_m, au_a)
+            name: 资源名称 (besc, hikari, goose, ucb)
 
         Returns:
             缓存目录路径
@@ -117,11 +117,20 @@ class BuildPaths:
             "hikari": "sideview_hikari",
             "goose": "sideview_goose",
             "ucb": "ucb",
-            "au_f": "sideview_au_f",
-            "au_m": "sideview_au_m",
-            "au_a": "sideview_au_a",
         }
         return self.temp_dir / dir_map.get(name, name)
+
+    def get_mod_cache_path(self, name: str) -> Path:
+        """
+        获取 modloader mod 缓存文件路径
+
+        Args:
+            name: mod 名称 (如 au_f, au_m, au_a)
+
+        Returns:
+            mod zip 文件路径
+        """
+        return self.temp_dir / f"{name}.mod.zip"
 
     # ========== 构建工作目录 ==========
 

@@ -17,6 +17,8 @@ from .paths import BuildPaths
 from .version import LyraVersion
 from .config import ModCode
 from .combo import CombinationCalculator
+from .config_loader import load_build_config, get_config_loader
+from .prepare import ModInjector
 from .utils import (
     extract_zip,
     create_zip,
@@ -131,6 +133,12 @@ class PackageBuilder(ABC):
         pass
 
     @property
+    @abstractmethod
+    def html_path(self) -> Path:
+        """HTML 文件路径（相对于工作目录）"""
+        pass
+
+    @property
     def work_dir(self) -> Path:
         """当前构建的工作目录"""
         return self.paths.get_build_work_dir(
@@ -180,9 +188,6 @@ class PackageBuilder(ABC):
             ModCode.SIDEVIEW_HIKARI: ("hikari", "Hikari"),
             ModCode.SIDEVIEW_GOOSE: ("goose", "Goose"),
             ModCode.UCB: ("ucb", "UCB"),
-            ModCode.AU_FEMALE: ("au_f", "AU-F"),
-            ModCode.AU_MALE: ("au_m", "AU-M"),
-            ModCode.AU_ANDROGYNOUS: ("au_a", "AU-A"),
         }
 
         # 按顺序处理美化
@@ -190,9 +195,6 @@ class PackageBuilder(ABC):
             ModCode.BESC,
             ModCode.SIDEVIEW_HIKARI,
             ModCode.SIDEVIEW_GOOSE,
-            ModCode.AU_FEMALE,
-            ModCode.AU_MALE,
-            ModCode.AU_ANDROGYNOUS,
             ModCode.UCB,  # UCB 最后处理
         ]
 
@@ -207,6 +209,45 @@ class PackageBuilder(ABC):
                         applied.append(display_name)
                     else:
                         logger.warning(f"美化资源不存在: {cache_dir}")
+
+        return applied
+
+    def _inject_modloader_mods(self) -> list[str]:
+        """
+        注入 modloader mod 到 HTML
+
+        根据配置，将匹配当前 mod_code 的 modloader mod 注入到
+        HTML 的 modDataValueZipList 中。
+
+        Returns:
+            注入的MOD名称列表
+        """
+        build_config = load_build_config()
+        if not build_config.modloader_mods:
+            return []
+
+        config_loader = get_config_loader()
+        mod_paths = []
+        applied = []
+
+        for mod_config in build_config.modloader_mods:
+            feature = config_loader.get_feature_by_id(mod_config.feature_id)
+            if not feature:
+                logger.warning(f"未找到 feature: {mod_config.feature_id}")
+                continue
+
+            if self.mod_code & feature.bit:
+                cache_name = mod_config.feature_id.replace("-", "_")
+                mod_path = self.paths.get_mod_cache_path(cache_name)
+                if mod_path.exists():
+                    mod_paths.append(mod_path)
+                    applied.append(feature.name)
+                else:
+                    logger.warning(f"mod 文件不存在: {mod_path}")
+
+        if mod_paths:
+            injector = ModInjector(self.paths)
+            injector.add_mods(self.html_path, mod_paths)
 
         return applied
 
@@ -226,6 +267,13 @@ class ZipBuilder(PackageBuilder):
     @property
     def img_path(self) -> Path:
         return self.work_dir / "img"
+
+    @property
+    def html_path(self) -> Path:
+        html_files = list(self.work_dir.glob("*.html"))
+        if html_files:
+            return html_files[0]
+        return self.work_dir / "index.html"
 
     def build(self) -> BuildResult:
         """构建ZIP包"""
@@ -252,6 +300,9 @@ class ZipBuilder(PackageBuilder):
 
             # 应用美化
             applied_mods = self._apply_beautify()
+
+            # 注入 modloader mod
+            applied_mods.extend(self._inject_modloader_mods())
 
             # 生成输出文件名
             output_name = self.get_output_name()
@@ -295,6 +346,10 @@ class ApkBuilder(PackageBuilder):
     def img_path(self) -> Path:
         return self.work_dir / "assets" / "www" / "img"
 
+    @property
+    def html_path(self) -> Path:
+        return self.work_dir / "assets" / "www" / "index.html"
+
     def build(self) -> BuildResult:
         """构建APK包"""
         try:
@@ -320,6 +375,9 @@ class ApkBuilder(PackageBuilder):
 
             # 应用美化
             applied_mods = self._apply_beautify()
+
+            # 注入 modloader mod
+            applied_mods.extend(self._inject_modloader_mods())
 
             # 重新编译
             tmp_apk = self._recompile()

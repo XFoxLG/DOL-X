@@ -8,9 +8,6 @@ uber_apk_signer = "https://github.com/patrickfav/uber-apk-signer/releases/downlo
 # DOLP 基础 URL
 dolp_base = "https://gitgud.io/Frostberg/degrees-of-lewdity-plus/-/archive/master/degrees-of-lewdity-plus-master.tar.gz?path=imagepacks"
 
-# AU 系列资源（从 GitHub Release 获取）
-au_github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-
 [paths]
 # 工作目录
 workspace = "workspace"
@@ -97,3 +94,23 @@ files_to_remove = [
     "img/sex/missionary/active/virginkiller/chest.png",
     "img/sex/missionary/active/virginkiller/waist.png",
 ]
+
+# Modloader mod 配置
+# 通过 feature_id 关联 features.toml 中的功能定义
+[[modloader_mods]]
+feature_id = "au-f"
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUfemale.model"
+release_tag = "mod"
+
+[[modloader_mods]]
+feature_id = "au-m"
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUmale.model"
+release_tag = "mod"
+
+[[modloader_mods]]
+feature_id = "au-a"
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUandrogynous.model"
+release_tag = "mod"

@@ -107,6 +107,25 @@ class ImagePackConfig:
 
 
 @dataclass
+class ModloaderModConfig:
+    """Modloader mod 配置"""
+
+    feature_id: str
+    github_repo: str
+    asset_pattern: str
+    release_tag: str = "latest"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ModloaderModConfig":
+        return cls(
+            feature_id=data["feature_id"],
+            github_repo=data["github_repo"],
+            asset_pattern=data["asset_pattern"],
+            release_tag=data.get("release_tag", "latest"),
+        )
+
+
+@dataclass
 class BuildConfiguration:
     """完整构建配置"""
 
@@ -114,7 +133,6 @@ class BuildConfiguration:
     apktool_url: str
     uber_apk_signer_url: str
     dolp_base_url: str
-    au_github_repo: str
 
     # Paths
     workspace_dir: str
@@ -135,6 +153,9 @@ class BuildConfiguration:
     # Image packs
     imagepacks: dict[str, ImagePackConfig] = field(default_factory=dict)
 
+    # Modloader mods
+    modloader_mods: list[ModloaderModConfig] = field(default_factory=list)
+
     @classmethod
     def from_dict(cls, data: dict) -> "BuildConfiguration":
         urls = data.get("urls", {})
@@ -151,11 +172,15 @@ class BuildConfiguration:
         for name, pack_data in data.get("imagepacks", {}).items():
             imagepacks[name] = ImagePackConfig.from_dict(name, pack_data, dolp_base)
 
+        # 解析 modloader mod 配置
+        modloader_mods = [
+            ModloaderModConfig.from_dict(m) for m in data.get("modloader_mods", [])
+        ]
+
         return cls(
             apktool_url=urls["apktool"],
             uber_apk_signer_url=urls["uber_apk_signer"],
             dolp_base_url=dolp_base,
-            au_github_repo=urls.get("au_github_repo", "AOKIUTAGE/UTAGEsDOL3.0"),
             workspace_dir=paths["workspace"],
             output_dir=paths["output"],
             extract_dir=paths["extract"],
@@ -167,6 +192,7 @@ class BuildConfiguration:
             github_repo=github["repo"],
             apk_replacements=replacements,
             imagepacks=imagepacks,
+            modloader_mods=modloader_mods,
         )
 
 
