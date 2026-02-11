@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import Optional
 
 from .paths import BuildPaths
-from .version import LyraVersion
+from .version import LyraVersion, VersionRegistry
 from .config import ModCode
+from .lyra_mod import build_lyra_mod
 from .combo import CombinationCalculator
 from .config_loader import load_build_config, get_config_loader
 from .prepare import ModInjector
@@ -251,6 +252,29 @@ class PackageBuilder(ABC):
 
         return applied
 
+    def _inject_lyra_mod(self):
+        """
+        构建并注入 Lyra 信息 mod
+
+        从 versions.json 加载完整版本信息（包含 prepare 和 warmup 阶段），
+        构建 Lyra mod 并注入到 HTML 中。
+        """
+        # 加载完整版本信息
+        registry = VersionRegistry.load(self.paths.versions_file)
+
+        # 获取 MOD 组合后缀
+        mod_suffix = self.mod_code.get_suffix()
+
+        # 构建 Lyra mod（使用任务唯一路径避免并行竞态）
+        lyra_mod_path = (
+            self.paths.temp_dir / f"Lyra-{self.pack_type}-{self.task.code_str}.mod.zip"
+        )
+        build_lyra_mod(lyra_mod_path, self.task.version, list(registry), mod_suffix)
+
+        # 注入到 HTML
+        injector = ModInjector(self.paths)
+        injector.add_mods(self.html_path, [lyra_mod_path])
+
     @abstractmethod
     def build(self) -> BuildResult:
         """执行构建"""
@@ -303,6 +327,9 @@ class ZipBuilder(PackageBuilder):
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
+
+            # 注入 Lyra 信息 mod
+            self._inject_lyra_mod()
 
             # 生成输出文件名
             output_name = self.get_output_name()
@@ -378,6 +405,9 @@ class ApkBuilder(PackageBuilder):
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
+
+            # 注入 Lyra 信息 mod
+            self._inject_lyra_mod()
 
             # 重新编译
             tmp_apk = self._recompile()

@@ -19,6 +19,7 @@ def build_lyra_mod(
     output_path: Path,
     version: Optional[LyraVersion] = None,
     version_info: Optional[list[VersionInfo]] = None,
+    mod_suffix: str = "",
 ) -> Path:
     """
     构建 Lyra 信息 mod
@@ -29,11 +30,14 @@ def build_lyra_mod(
         output_path: 输出文件路径
         version: Lyra 版本信息
         version_info: 资源版本信息列表
+        mod_suffix: MOD 组合后缀（如 "goose-ucb"）
 
     Returns:
         生成的 mod.zip 文件路径
     """
-    version_str = str(version) if version else "unknown"
+    version_str = str(version).lstrip("v") if version else "unknown"
+    if mod_suffix:
+        version_str = f"{version_str}-{mod_suffix}"
 
     # 构建 boot.json
     boot_json = {
@@ -65,6 +69,7 @@ def build_lyra_mod(
 def _generate_readme(
     version_str: str,
     version_info: list[VersionInfo],
+    mod_suffix: str = "",
 ) -> str:
     """
     生成 README.md 内容
@@ -72,12 +77,12 @@ def _generate_readme(
     Args:
         version_str: Lyra 版本字符串
         version_info: 资源版本信息列表
-
+        mod_suffix: MOD 组合后缀（如 "goose-ucb"）
     Returns:
         README.md 内容
     """
     lines = [
-        f"# Lyra {version_str}",
+        f"# Lyra {version_str} {mod_suffix}",
         "",
         "此 mod 为 Lyra 整合包的信息标识，不包含实质功能。",
         "",
@@ -88,23 +93,12 @@ def _generate_readme(
             [
                 "## 资源版本信息",
                 "",
-                "| 资源 | 版本 | 来源 |",
-                "|------|------|------|",
+                "| 资源 | 版本 |",
+                "|------|------|",
             ]
         )
 
         for v in version_info:
-            source = v.source or "-"
-            if "github.com" in source or "/" in source:
-                if "gitgud.io" in source:
-                    source_link = f"[{source}](https://{source})"
-                elif "/" in source and "http" not in source:
-                    source_link = f"[{source}](https://github.com/{source})"
-                else:
-                    source_link = source
-            else:
-                source_link = source
-
-            lines.append(f"| {v.name} | `{v.version}` | {source_link} |")
+            lines.append(f"| {v.name} | `{v.version}` |")
 
     return "\n".join(lines)

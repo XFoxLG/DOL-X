@@ -129,9 +129,6 @@ inject = "replace"
 replace_slot = 0                                  # 替换原始 ModLoader (slot 0)
 
 [[base_mods]]
-key = "lyra"
-
-[[base_mods]]
 key = "i18n"
 
 [[base_mods]]

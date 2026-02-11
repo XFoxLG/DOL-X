@@ -43,7 +43,6 @@ def cmd_prepare(args) -> int:
     """
     from lyra.downloader import Downloader, GamePreparer
     from lyra.prepare import GamePreparer as FullPreparer
-    from lyra.lyra_mod import build_lyra_mod
 
     setup_logging(args.verbose)
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
@@ -69,11 +68,6 @@ def cmd_prepare(args) -> int:
     # 处理 i18n mod (从下载的文件中)
     if "i18n" in downloaded_files:
         extra_mods["i18n"] = downloaded_files["i18n"]
-
-    # 构建 Lyra 信息 mod
-    lyra_mod_path = paths.base_dir / "mods" / "Lyra.mod.zip"
-    build_lyra_mod(lyra_mod_path, version, list(downloader.registry))
-    extra_mods["lyra"] = lyra_mod_path
 
     # 预处理
     preparer = FullPreparer(paths)
