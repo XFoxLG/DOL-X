@@ -126,6 +126,27 @@ class ModloaderModConfig:
 
 
 @dataclass
+class BaseModConfig:
+    """基础 mod 注入配置"""
+
+    key: str  # mod 标识，对应 extra_mods 字典中的键
+    feature_id: str = ""  # 关联的 feature ID（可选）
+    github_repo: str = ""  # GitHub 仓库，自动下载最新 .mod.zip（可选）
+    inject: str = "add"  # 注入方式: "add" 追加 / "replace" 替换指定 slot
+    replace_slot: int = 0  # 替换的 slot 索引（仅 inject="replace" 时有效）
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BaseModConfig":
+        return cls(
+            key=data["key"],
+            feature_id=data.get("feature_id", ""),
+            github_repo=data.get("github_repo", ""),
+            inject=data.get("inject", "add"),
+            replace_slot=data.get("replace_slot", 0),
+        )
+
+
+@dataclass
 class BuildConfiguration:
     """完整构建配置"""
 
@@ -133,6 +154,7 @@ class BuildConfiguration:
     apktool_url: str
     uber_apk_signer_url: str
     dolp_base_url: str
+    chs_repo_url: str
 
     # Paths
     workspace_dir: str
@@ -156,6 +178,9 @@ class BuildConfiguration:
     # Modloader mods
     modloader_mods: list[ModloaderModConfig] = field(default_factory=list)
 
+    # Base mods (injection order)
+    base_mods: list[BaseModConfig] = field(default_factory=list)
+
     @classmethod
     def from_dict(cls, data: dict) -> "BuildConfiguration":
         urls = data.get("urls", {})
@@ -177,10 +202,19 @@ class BuildConfiguration:
             ModloaderModConfig.from_dict(m) for m in data.get("modloader_mods", [])
         ]
 
+        # 解析基础 mod 配置
+        base_mods = [BaseModConfig.from_dict(m) for m in data.get("base_mods", [])]
+
+        dolp_base = urls["dolp_base"]
+        chs_repo = urls.get(
+            "chs_repo", "Eltirosto/Degrees-of-Lewdity-Chinese-Localization"
+        )
+
         return cls(
             apktool_url=urls["apktool"],
             uber_apk_signer_url=urls["uber_apk_signer"],
             dolp_base_url=dolp_base,
+            chs_repo_url=chs_repo,
             workspace_dir=paths["workspace"],
             output_dir=paths["output"],
             extract_dir=paths["extract"],
@@ -193,6 +227,7 @@ class BuildConfiguration:
             apk_replacements=replacements,
             imagepacks=imagepacks,
             modloader_mods=modloader_mods,
+            base_mods=base_mods,
         )
 
 

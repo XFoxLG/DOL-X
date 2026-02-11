@@ -346,30 +346,7 @@ class GamePreparer:
         # 注入 mod
         html_files = list(extract_dir.glob("*.html"))
         if html_files:
-            html_path = html_files[0]
-
-            # 替换 ModLoader 为 ModLoaderGui
-            if "modloader_gui" in extra_mods:
-                self.mod_injector.replace_mod(html_path, 0, extra_mods["modloader_gui"])
-
-            # 添加其他 mod
-            mods_to_add = []
-            for key in ["i18n", "cheat", "csd"]:
-                if key in extra_mods:
-                    mods_to_add.append(extra_mods[key])
-                elif key == "i18n" and "i18n" in extra_mods:
-                    mods_to_add.append(extra_mods["i18n"])
-
-            # 添加 i18n (从下载的文件)
-            if "i18n" in extra_mods:
-                # 已在上面处理
-                pass
-
-            if mods_to_add:
-                self.mod_injector.add_mods(html_path, mods_to_add)
-
-            # 修补 ModLoader 代码
-            self.mod_injector.patch_modloader_code(html_path)
+            self._inject_mods(html_files[0], extra_mods)
 
         # 创建基包
         base_zip = self.paths.get_base_zip(polyfill)
@@ -423,23 +400,39 @@ class GamePreparer:
         # 注入 mod
         html_path = apk_dir / "assets" / "www" / "index.html"
         if html_path.exists():
-            # 替换 ModLoader 为 ModLoaderGui
-            if "modloader_gui" in extra_mods:
-                self.mod_injector.replace_mod(html_path, 0, extra_mods["modloader_gui"])
-
-            # 添加其他 mod
-            mods_to_add = []
-            for key in ["i18n", "cheat", "csd"]:
-                if key in extra_mods:
-                    mods_to_add.append(extra_mods[key])
-
-            if mods_to_add:
-                self.mod_injector.add_mods(html_path, mods_to_add)
-
-            # 修补 ModLoader 代码
-            self.mod_injector.patch_modloader_code(html_path)
+            self._inject_mods(html_path, extra_mods)
 
         logger.info(f"  APK 目录已准备: {apk_dir}")
+
+    def _inject_mods(self, html_path: Path, extra_mods: dict[str, Path]):
+        """
+        向 HTML 文件注入所有基础 mod
+
+        按 build.toml 中 base_mods 的配置顺序处理，
+        根据 inject 字段决定替换（replace 指定 slot）或追加（add）。
+
+        Args:
+            html_path: HTML 文件路径
+            extra_mods: 额外的 mod 文件
+        """
+        build_config = load_build_config()
+
+        mods_to_add = []
+        for mod in build_config.base_mods:
+            if mod.key not in extra_mods:
+                continue
+            if mod.inject == "replace":
+                self.mod_injector.replace_mod(
+                    html_path, mod.replace_slot, extra_mods[mod.key]
+                )
+            else:
+                mods_to_add.append(extra_mods[mod.key])
+
+        if mods_to_add:
+            self.mod_injector.add_mods(html_path, mods_to_add)
+
+        # 修补 ModLoader 代码
+        self.mod_injector.patch_modloader_code(html_path)
 
     def _merge_image_pack(self, image_pack_path: Path, target_dir: Path):
         """合并图片包"""

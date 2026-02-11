@@ -12,6 +12,7 @@ import requests
 
 from .paths import BuildPaths
 from .version import LyraVersion, VersionInfo, VersionRegistry
+from .config_loader import load_build_config
 from .utils import download_file, extract_zip
 
 logger = logging.getLogger(__name__)
@@ -23,16 +24,6 @@ class Downloader:
 
     负责下载构建所需的各种资源文件。
     """
-
-    # 汉化仓库信息
-    CHS_REPO = "Eltirosto/Degrees-of-Lewdity-Chinese-Localization"
-
-    # 额外mod仓库
-    EXTRA_REPOS = {
-        "cheat": "DoL-Lyra/Cheat",
-        "csd": "DoL-Lyra/CombatStatusDisplay",
-        "modloader_gui": "DoL-Lyra/sugarcube-2-ModLoaderGui",
-    }
 
     def __init__(self, paths: BuildPaths):
         """
@@ -58,12 +49,15 @@ class Downloader:
         """
         logger.info("========== 从汉化仓库下载资源 ==========")
 
+        build_config = load_build_config()
+        chs_repo = build_config.chs_repo_url
+
         # 确定要获取的release tag
         if version:
             tag = f"v{version.dol_ver}-chs-{version.chs_ver}"
-            release_data = self._get_github_release(self.CHS_REPO, tag)
+            release_data = self._get_github_release(chs_repo, tag)
         else:
-            release_data = self._get_github_release(self.CHS_REPO, "latest")
+            release_data = self._get_github_release(chs_repo, "latest")
 
         if not release_data:
             raise RuntimeError("无法获取汉化仓库release信息")
@@ -74,7 +68,7 @@ class Downloader:
             VersionInfo(
                 name="汉化仓库",
                 version=release_tag,
-                source=self.CHS_REPO,
+                source=chs_repo,
             )
         )
         logger.info(f"汉化仓库版本: {release_tag}")
@@ -136,20 +130,27 @@ class Downloader:
         """
         下载额外的mod文件
 
+        从 build.toml 的 base_mods 配置中读取需要下载的 mod，
+        下载配置了 github_repo 的 mod 的最新 .mod.zip 文件。
+
         Returns:
             下载的mod文件路径字典
         """
         logger.info("========== 下载额外mod ==========")
 
+        build_config = load_build_config()
         downloaded_mods = {}
         download_dir = self.paths.base_dir / "mods"
         download_dir.mkdir(parents=True, exist_ok=True)
 
-        for key, repo in self.EXTRA_REPOS.items():
+        for mod in build_config.base_mods:
+            if not mod.github_repo:
+                continue
+
             try:
-                release_data = self._get_github_release(repo, "latest")
+                release_data = self._get_github_release(mod.github_repo, "latest")
                 if not release_data:
-                    logger.warning(f"无法获取 {repo} 的release信息")
+                    logger.warning(f"无法获取 {mod.github_repo} 的release信息")
                     continue
 
                 release_tag = release_data.get("tag_name", "unknown")
@@ -160,22 +161,22 @@ class Downloader:
                     if asset_name.endswith(".mod.zip"):
                         dest_path = download_dir / asset_name
                         download_file(asset.get("browser_download_url"), dest_path)
-                        downloaded_mods[key] = dest_path
+                        downloaded_mods[mod.key] = dest_path
 
                         # 记录版本信息
                         self.registry.add(
                             VersionInfo(
-                                name=key,
+                                name=mod.key,
                                 version=release_tag,
-                                source=repo,
+                                source=mod.github_repo,
                                 filename=asset_name,
                             )
                         )
-                        logger.info(f"  {key}: {asset_name} ({release_tag})")
+                        logger.info(f"  {mod.key}: {asset_name} ({release_tag})")
                         break
 
             except Exception as e:
-                logger.error(f"下载 {key} 失败: {e}")
+                logger.error(f"下载 {mod.key} 失败: {e}")
 
         return downloaded_mods
 

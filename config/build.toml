@@ -114,3 +114,32 @@ feature_id = "au-a"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUandrogynous.model"
 release_tag = "mod"
+
+# 基础 mod 注入配置（按列表顺序处理）
+# key: mod 标识，对应 extra_mods 字典中的键
+# github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）
+# feature_id: 关联的 feature ID（可选）
+# inject: 注入方式，"add" 追加（默认） / "replace" 替换指定 slot
+# replace_slot: 替换的 slot 索引（仅 inject="replace" 时有效）
+
+[[base_mods]]
+key = "modloader_gui"
+github_repo = "DoL-Lyra/sugarcube-2-ModLoaderGui"
+inject = "replace"
+replace_slot = 0                                  # 替换原始 ModLoader (slot 0)
+
+[[base_mods]]
+key = "lyra"
+
+[[base_mods]]
+key = "i18n"
+
+[[base_mods]]
+key = "cheat"
+feature_id = "cheat_csd"
+github_repo = "DoL-Lyra/Cheat"
+
+[[base_mods]]
+key = "csd"
+feature_id = "cheat_csd"
+github_repo = "DoL-Lyra/CombatStatusDisplay"
