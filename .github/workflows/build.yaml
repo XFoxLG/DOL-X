@@ -73,6 +73,30 @@ jobs:
           python main.py page --version "$VERSION" --versions-file "${{ github.workspace }}/base/versions.json" --output "output/$VERSION".md -v
           cat "output/$VERSION".md
 
+      - name: Pick sample outputs (non-tag)
+        if: github.ref_type != 'tag'
+        id: sample
+        run: |
+          ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)
+          APK_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)
+
+          echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "apk=$APK_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ZIP sample artifact (non-tag)
+        if: github.ref_type != 'tag' && steps.sample.outputs.zip != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: dol-builds-zip-sample
+          path: ${{ steps.sample.outputs.zip }}
+
+      - name: Upload APK sample artifact (non-tag)
+        if: github.ref_type != 'tag' && steps.sample.outputs.apk != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: dol-builds-apk-sample
+          path: ${{ steps.sample.outputs.apk }}
+
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6
         with:
