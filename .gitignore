@@ -54,4 +54,5 @@ my.secrets
 .vscode
 DoL-ModLoader*
 tests/
+!lyra/tests/
 base/

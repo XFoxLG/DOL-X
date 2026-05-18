@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+from packaging.version import parse as parse_version
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -335,23 +336,40 @@ def get_github_release_asset(
         release_tag = release_data.get("tag_name", tag)
         assets = release_data.get("assets", [])
 
-        # 查找匹配的资源
+        # 收集所有匹配的资源及其版本号
+        matched_assets: list[tuple[GitHubReleaseAsset, "parse_version"]] = []
+
         for asset in assets:
             name = asset.get("name", "")
             if asset_pattern in name:
                 download_url = asset.get("browser_download_url")
-                # 从文件名提取版本号（如 AUfemale.imgpack_v0.8.0.zip -> v0.8.0）
                 version = _extract_version_from_filename(name)
                 logger.debug(f"找到资源: {name} (version={version}) -> {download_url}")
-                return GitHubReleaseAsset(
-                    url=download_url,
-                    name=name,
-                    tag=release_tag,
-                    version=version,
+
+                matched_assets.append(
+                    (
+                        GitHubReleaseAsset(
+                            url=download_url,
+                            name=name,
+                            tag=release_tag,
+                            version=version,
+                        ),
+                        (
+                            parse_version(version)
+                            if version != "unknown"
+                            else parse_version("0")
+                        ),
+                    )
                 )
 
-        logger.warning(f"未找到匹配 '{asset_pattern}' 的资源")
-        return None
+        if not matched_assets:
+            logger.warning(f"未找到匹配 '{asset_pattern}' 的资源")
+            return None
+
+        # 选择版本号最高的资源
+        best_asset, best_version = max(matched_assets, key=lambda x: x[1])
+        logger.debug(f"选择最高版本: {best_asset.name} (version={best_version})")
+        return best_asset
 
     except Exception as e:
         logger.error(f"获取 GitHub Release 失败: {e}")

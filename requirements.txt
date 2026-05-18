@@ -6,6 +6,9 @@ requests>=2.32.5
 # 进度条显示
 tqdm>=4.67.1
 
+# 版本号比较
+packaging>=25.0
+
 # 类型检查（可选）
 typing-extensions>=4.15.0
 
