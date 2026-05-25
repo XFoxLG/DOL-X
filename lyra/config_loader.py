@@ -45,6 +45,8 @@ class Feature:
 class CombinationsConfig:
     """组合配置"""
 
+    build_codes: list[str] = field(default_factory=list)
+    base_code: int = 0
     recommended: list[int] = field(default_factory=list)
     whitelist: list[int] = field(default_factory=list)
     blacklist: list[int] = field(default_factory=list)
@@ -55,6 +57,8 @@ class CombinationsConfig:
     def from_dict(cls, data: dict) -> "CombinationsConfig":
         polyfill = data.get("polyfill", {})
         return cls(
+            build_codes=[str(code) for code in data.get("build_codes", [])],
+            base_code=data.get("base_code", 0),
             recommended=data.get("recommended", []),
             whitelist=data.get("whitelist", []),
             blacklist=data.get("blacklist", []),

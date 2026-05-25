@@ -67,12 +67,6 @@ jobs:
       - name: List outputs
         run: ls -lah "${{ github.workspace }}/output/" || echo "No output files generated"
 
-      - name: Generate download page
-        run: |
-          VERSION=${{ github.ref_name }}
-          python main.py page --version "$VERSION" --versions-file "${{ github.workspace }}/base/versions.json" --output "output/$VERSION".md -v
-          cat "output/$VERSION".md
-
       - name: Pick sample outputs (non-tag)
         if: github.ref_type != 'tag'
         id: sample
@@ -109,12 +103,6 @@ jobs:
           name: dol-builds-apk
           path: ${{ github.workspace }}/output/*.apk
 
-      - name: Upload download page artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: download-page
-          path: ${{ github.workspace }}/output/*.md
-
   release:
     runs-on: ubuntu-latest
     needs: build
@@ -142,57 +130,3 @@ jobs:
           file_glob: true
           make_latest: true
           release_name: ${{ github.ref_name }}
-
-  deploy-download-page:
-    runs-on: ubuntu-latest
-    needs: release
-    if: github.ref_type == 'tag'
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v7
-        with:
-          name: download-page
-          path: ./
-
-      - name: Clone hub repository
-        uses: actions/checkout@v6
-        with:
-          repository: DoL-Lyra/hub
-          path: hub-repo
-          token: ${{ secrets.GH_PAT_LYRA }}
-
-      - name: Copy download page to hub
-        run: |
-          VERSION=${{ github.ref_name }}
-          FILENAME="${VERSION}.md"
-
-          # 创建下载页面目录
-          mkdir -p hub-repo/content/posts/downloads
-
-          # 复制生成的 Markdown 文件
-          cp "$VERSION".md hub-repo/content/posts/downloads/"$FILENAME"
-
-          echo "Created: hub-repo/content/posts/downloads/$FILENAME"
-          cat hub-repo/content/posts/downloads/"$FILENAME"
-
-      - name: Push to hub repository
-        run: |
-          cd hub-repo
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "${{ github.ref_name }}" || echo "No changes to commit"
-          git push origin main
-
-  call-deploy:
-    uses: ./.github/workflows/deploy.yaml
-    needs: release
-    if: github.ref_type == 'tag'
-    secrets: inherit
-
-  call-deploy-hub:
-    uses: DoL-Lyra/hub/.github/workflows/hub-deploy-call.yaml@main
-    needs: deploy-download-page
-    if: github.ref_type == 'tag'
-    secrets: inherit
