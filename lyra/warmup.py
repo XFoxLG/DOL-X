@@ -8,6 +8,7 @@ import logging
 import shutil
 from pathlib import Path
 
+from .combo import CombinationCalculator
 from .paths import BuildPaths
 from .version import VersionInfo, VersionRegistry
 from .config_loader import load_build_config, get_config_loader, ModloaderModConfig
@@ -39,6 +40,13 @@ class ResourceWarmer:
         "ucb": ["mysterious"],
     }
 
+    BEAUTIFY_FEATURES = {
+        "besc": "besc",
+        "hikari": "hikari",
+        "goose": "goose",
+        "ucb": "ucb",
+    }
+
     def __init__(self, paths: BuildPaths):
         """
         初始化预热器
@@ -49,6 +57,19 @@ class ResourceWarmer:
         self.paths = paths
         self.config = load_build_config()
         self.registry = VersionRegistry()
+        self.required_feature_ids = self._get_required_feature_ids()
+
+    def _get_required_feature_ids(self) -> set[str]:
+        """根据当前构建列表推导需要预热的 feature。"""
+        calculator = CombinationCalculator()
+        feature_ids: set[str] = set()
+
+        for combination in calculator.calculate(include_polyfill=False):
+            for feature in calculator.features:
+                if combination.code & feature.bit:
+                    feature_ids.add(feature.id)
+
+        return feature_ids
 
     def warmup_all(self) -> VersionRegistry:
         """
@@ -77,9 +98,20 @@ class ResourceWarmer:
         """预热 DoL+ 图片包"""
         logger.info("--- 预热 DoL+ 图片包 ---")
 
-        # 收集所有需要的包
+        required_beautify = [
+            name
+            for name, feature_id in self.BEAUTIFY_FEATURES.items()
+            if feature_id in self.required_feature_ids
+        ]
+
+        if not required_beautify:
+            logger.info("  当前构建列表不需要 DoL+ 图片包")
+            return
+
+        # 收集当前构建列表需要的包
         all_packs = set()
-        for packs in self.DOLP_PACKS.values():
+        for name in required_beautify:
+            packs = self.DOLP_PACKS[name]
             all_packs.update(packs)
 
         # 获取 DoL+ commit hash 作为版本
@@ -99,11 +131,15 @@ class ResourceWarmer:
         for pack_name in sorted(all_packs):
             self._download_dolp_pack(pack_name)
 
-        # 处理各个美化包的合并和清理
-        self._process_besc()
-        self._process_hikari()
-        self._process_goose()
-        self._process_ucb()
+        # 仅处理当前构建列表会用到的美化包。
+        processors = {
+            "besc": self._process_besc,
+            "hikari": self._process_hikari,
+            "goose": self._process_goose,
+            "ucb": self._process_ucb,
+        }
+        for name in required_beautify:
+            processors[name]()
 
     def _download_dolp_pack(self, pack_name: str):
         """
@@ -233,6 +269,8 @@ class ResourceWarmer:
         config_loader = get_config_loader()
 
         for mod_config in self.config.modloader_mods:
+            if mod_config.feature_id not in self.required_feature_ids:
+                continue
             self._download_modloader_mod(mod_config, config_loader)
 
     def _download_modloader_mod(self, mod_config: ModloaderModConfig, config_loader):

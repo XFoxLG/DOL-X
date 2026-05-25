@@ -162,6 +162,9 @@ class CombinationCalculator:
 
     def _get_display_name(self, code: int) -> str:
         """获取组合的显示名称"""
+        if self.combinations_config.base_code and code == self.combinations_config.base_code:
+            return "基础"
+
         # 仅包含作弊CSD的基础版本
         cheat_feature = self._feature_map.get("cheat_csd")
         if cheat_feature and code == cheat_feature.bit:
@@ -194,6 +197,11 @@ class CombinationCalculator:
         """
         combinations = []
         config = self.combinations_config
+
+        # 自用/精简构建可通过 build_codes 显式指定最终产物，避免
+        # 自动组合规则在新增 feature 后生成不需要的版本。
+        if config.build_codes:
+            return self._calculate_explicit(include_polyfill=include_polyfill)
 
         # 遍历所有可能的组合
         max_value = 2**self.num_bits
@@ -229,6 +237,42 @@ class CombinationCalculator:
                 is_polyfill=True,
             )
             combinations.insert(0, polyfill_comb)
+
+        return combinations
+
+    def _calculate_explicit(self, include_polyfill: bool = True) -> list[ModCombination]:
+        """根据 combinations.toml 的 build_codes 生成精确构建列表。"""
+        config = self.combinations_config
+        combinations: list[ModCombination] = []
+        seen: set[tuple[int, bool]] = set()
+
+        for raw_code in config.build_codes:
+            code_str = str(raw_code)
+            is_polyfill = code_str.startswith("polyfill-")
+
+            if is_polyfill:
+                if not include_polyfill or not config.polyfill_enabled:
+                    continue
+                code_str = code_str[len("polyfill-") :]
+
+            code = int(code_str)
+            key = (code, is_polyfill)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            display_name = self._get_display_name(code)
+            if is_polyfill:
+                display_name += "(兼容版)"
+
+            combinations.append(
+                ModCombination(
+                    code=code,
+                    display_name=display_name,
+                    is_recommended=code in config.recommended,
+                    is_polyfill=is_polyfill,
+                )
+            )
 
         return combinations
 

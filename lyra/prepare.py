@@ -12,7 +12,7 @@ from typing import Optional
 
 from .paths import BuildPaths
 from .version import VersionRegistry
-from .config_loader import load_build_config
+from .config_loader import load_build_config, load_combinations_config
 from .utils import (
     run_command,
     extract_zip,
@@ -365,8 +365,12 @@ class GamePreparer:
 
         apk_path = downloaded_files["apk"]
 
-        # 处理普通版和 polyfill 版 APK
-        for polyfill in [False, True]:
+        polyfill_variants = [False]
+        if load_combinations_config().polyfill_enabled:
+            polyfill_variants.append(True)
+
+        # 处理普通版；仅在配置启用兼容版时才额外准备 polyfill APK。
+        for polyfill in polyfill_variants:
             self._process_apk_version(
                 apk_path,
                 downloaded_files.get("image_pack"),

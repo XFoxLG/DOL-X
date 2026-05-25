@@ -12,7 +12,7 @@ import requests
 
 from .paths import BuildPaths
 from .version import LyraVersion, VersionInfo, VersionRegistry
-from .config_loader import load_build_config
+from .config_loader import load_build_config, load_combinations_config
 from .utils import download_file, extract_zip
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ class Downloader:
         logger.info("========== 从汉化仓库下载资源 ==========")
 
         build_config = load_build_config()
+        combinations_config = load_combinations_config()
         chs_repo = build_config.chs_repo_url
 
         # 确定要获取的release tag
@@ -86,15 +87,19 @@ class Downloader:
                 and "polyfill" not in name.lower(),
             ),
             (
-                "polyfill_zip",
-                lambda name: name.endswith(".zip") and "polyfill" in name.lower(),
-            ),
-            (
                 "image_pack",
                 lambda name: "GameOriginalImagePack" in name and name.endswith(".zip"),
             ),
             ("i18n", lambda name: "ModI18N" in name and name.endswith(".zip")),
         ]
+
+        if combinations_config.polyfill_enabled:
+            required_patterns.append(
+                (
+                    "polyfill_zip",
+                    lambda name: name.endswith(".zip") and "polyfill" in name.lower(),
+                )
+            )
 
         # 从release assets中筛选需要的文件
         assets_to_download = {}
