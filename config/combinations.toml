@@ -1,15 +1,23 @@
 # MOD 组合配置
 
-# 推荐的组合（优先显示）
-recommended = [3, 35, 514, 1026]
+# 自用构建列表：构建 UCB 基础版，以及 AU + UCB + 作弊/CSD 三个组合。
+# 使用显式列表可以避免新增 feature 后自动膨胀出不需要的版本。
+build_codes = ["258", "1282", "2306", "4354"]
 
-# 白名单（额外添加的组合，即使不满足规则也会生成）
-whitelist = [770, 1282, 2306, 4354]
+# 基础版显示名称对应的组合：UCB + 作弊/CSD。
+base_code = 258
+
+# 推荐的组合（优先显示）
+recommended = [1282, 2306, 4354]
+
+# 白名单（额外添加的组合，即使不满足规则也会生成）。
+# 已改为 build_codes 精确控制，当前不再依赖白名单。
+whitelist = []
 
 # 黑名单（排除的组合）
 blacklist = []
 
 # Polyfill 配置
 [polyfill]
-enabled = true
+enabled = false
 code = 3
