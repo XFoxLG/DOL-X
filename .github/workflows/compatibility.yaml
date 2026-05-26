@@ -73,6 +73,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python tools/mod_audit.py --output-dir output
+
+      - name: Run cheatExtended replacement audit
+        id: cheat_extended_audit
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/cheat_extended_audit.py --output-dir output
       
       - name: Upload audit reports
         if: always()
@@ -82,6 +90,8 @@ jobs:
           path: |
             output/mod-compatibility-report.json
             output/mod-compatibility-report.md
+            output/cheat-extended-replacement-report.json
+            output/cheat-extended-replacement-report.md
       
       - name: Check audit results
         if: steps.audit.outcome == 'failure'
@@ -93,6 +103,14 @@ jobs:
             echo "::error::审计脚本未生成报告，请查看 Run mod audit 步骤日志"
           fi
           exit 1
+
+      - name: Check cheatExtended audit results
+        if: steps.cheat_extended_audit.outcome == 'failure'
+        run: |
+          echo "::warning::cheatExtended 替代性审计未完成，请查看 Run cheatExtended replacement audit 步骤日志"
+          if [ -f output/cheat-extended-replacement-report.md ]; then
+            cat output/cheat-extended-replacement-report.md
+          fi
       
       - name: Comment PR with audit summary
         if: github.event_name == 'pull_request' && always()

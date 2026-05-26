@@ -260,3 +260,83 @@ class TestModConfig:
             f"发现缺少显式 key 的共享 feature_id mod:\n" +
             "\n".join(f"  {feature}: {mods}" for feature, mods in conflicts.items())
         )
+
+    def test_cheat_extended_replacement_not_mixed_with_legacy_stack(self):
+        """验证 cheatExtended 替代方案不会和旧作弊栈同时启用"""
+        build_config = load_build_config()
+
+        cheat_extended_mods = [
+            mod
+            for mod in build_config.modloader_mods
+            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+            or mod.key in {"cheat_extended", "cheatExtended"}
+        ]
+        cheat_extended_enabled = any(mod.enabled for mod in cheat_extended_mods)
+
+        if not cheat_extended_enabled:
+            return
+
+        legacy_base_mods = [
+            mod.key
+            for mod in build_config.base_mods
+            if mod.key in {"cheat", "csd"} and mod.feature_id == "cheat_csd"
+        ]
+        legacy_modloader_mods = [
+            mod.key
+            for mod in build_config.modloader_mods
+            if mod.key in {"bjx_word_unlock", "bjx_portable_word", "bccm"}
+            and mod.enabled
+        ]
+
+        assert not legacy_base_mods and not legacy_modloader_mods, (
+            "cheatExtended 作为替代方案启用时，不应同时启用旧作弊栈\n"
+            f"旧 base_mods: {legacy_base_mods}\n"
+            f"旧 modloader_mods: {legacy_modloader_mods}"
+        )
+
+    def test_cheat_extended_framework_choice_is_exclusive(self):
+        """验证 cheatExtended 启用时只选择一个前置框架"""
+        build_config = load_build_config()
+
+        cheat_extended_enabled = any(
+            mod.enabled
+            for mod in build_config.modloader_mods
+            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+            or mod.key in {"cheat_extended", "cheatExtended"}
+        )
+
+        if not cheat_extended_enabled:
+            return
+
+        framework_repos = {
+            "MaplebirchLeaf/SCML-DOL-maplebirchframework",
+            "emicoto/SCMLSimpleFramework",
+        }
+        enabled_frameworks = [
+            mod.github_repo
+            for mod in build_config.modloader_mods
+            if mod.github_repo in framework_repos and mod.enabled
+        ]
+
+        assert len(enabled_frameworks) == 1, (
+            "cheatExtended 需要 maplebirch 或 Simple Framework 二选一，不能缺失或同时启用\n"
+            f"当前启用框架: {enabled_frameworks}"
+        )
+
+    def test_cheat_extended_uses_dedicated_feature_when_configured(self):
+        """验证 cheatExtended 候选配置不会复用 cheat_csd 旧 feature"""
+        build_config = load_build_config()
+
+        cheat_extended_mods = [
+            mod
+            for mod in build_config.modloader_mods
+            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+            or mod.key in {"cheat_extended", "cheatExtended"}
+        ]
+
+        for mod in cheat_extended_mods:
+            assert mod.key, "cheatExtended 必须配置显式 key，避免缓存覆盖"
+            assert mod.feature_id != "cheat_csd", (
+                "cheatExtended 是替代候选，不应绑定到旧 cheat_csd feature；"
+                "请使用独立 feature/canary 组合测试。"
+            )
