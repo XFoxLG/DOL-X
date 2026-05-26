@@ -116,6 +116,8 @@ class ModloaderModConfig:
 
     github_repo: str
     asset_pattern: str
+    enabled: bool = True
+    download_url: str = ""
     feature_id: str = ""
     release_tag: str = "latest"
     feature_ids: list[str] = field(default_factory=list)
@@ -144,6 +146,8 @@ class ModloaderModConfig:
         return cls(
             github_repo=data["github_repo"],
             asset_pattern=data["asset_pattern"],
+            enabled=data.get("enabled", True),
+            download_url=data.get("download_url", ""),
             feature_id=data.get("feature_id", ""),
             release_tag=data.get("release_tag", "latest"),
             feature_ids=data.get("feature_ids", []),

@@ -126,6 +126,45 @@ class TestModConfig:
                 f"Mod {mod.key} 的 asset_pattern 为空"
             )
 
+    def test_modloader_mods_have_download_source(self):
+        """验证每个 modloader mod 至少有一种下载来源"""
+        build_config = load_build_config()
+
+        for mod in build_config.modloader_mods:
+            assert mod.download_url or (mod.github_repo and mod.asset_pattern), (
+                f"Mod {mod.key or mod.asset_pattern} 缺少下载来源"
+            )
+
+    def test_modloader_enabled_flags_are_boolean(self):
+        """验证 modloader mod 的 enabled 开关是布尔值"""
+        build_config = load_build_config()
+
+        for mod in build_config.modloader_mods:
+            assert isinstance(mod.enabled, bool), (
+                f"Mod {mod.key or mod.asset_pattern} 的 enabled 必须是布尔值"
+            )
+
+    def test_cheat_extension_mods_exist(self):
+        """验证作弊/CSD 扩展 mod 配置存在并绑定到 cheat_csd"""
+        build_config = load_build_config()
+
+        expected_mods = {
+            "bjx_word_unlock": ("言灵解放", True),
+            "bjx_portable_word": ("随身言灵", True),
+            "bccm": ("随时施法", True),
+        }
+        mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
+
+        for key, (name, enabled) in expected_mods.items():
+            mod = mods_by_key.get(key)
+            assert mod is not None, f"缺少作弊/CSD 扩展 mod: {key}"
+            assert mod.name == name, f"{key} 名称错误: {mod.name}"
+            assert mod.feature_id == "cheat_csd", (
+                f"{key} 应绑定到 cheat_csd，当前: {mod.feature_id}"
+            )
+            assert mod.enabled is enabled, f"{key} 默认启用状态错误"
+            assert mod.download_url, f"{key} 应使用已确认的直链下载地址"
+
     def test_au_main_mods_exist(self):
         """验证 AU 主模组配置存在"""
         build_config = load_build_config()
@@ -198,26 +237,26 @@ class TestModConfig:
         )
 
     def test_no_conflicting_feature_assignments(self):
-        """验证没有冲突的 feature 分配"""
+        """验证同 feature 多 mod 时都使用显式 key 避免缓存冲突"""
         build_config = load_build_config()
         
-        # 检查是否有多个 mod 绑定同一个单独的 feature_id
-        # （feature_ids 列表除外，那是故意的共享）
+        # 多个扩展 mod 可以绑定同一个 feature_id，由 build.toml 的顺序决定加载顺序。
+        # 但它们必须有显式 key，否则 cache_name 会落到同一个 feature_id 导致互相覆盖。
         feature_to_mods = {}
         
         for mod in build_config.modloader_mods:
             if mod.feature_id:  # 单独 feature_id
                 if mod.feature_id not in feature_to_mods:
                     feature_to_mods[mod.feature_id] = []
-                feature_to_mods[mod.feature_id].append(mod.key or mod.asset_pattern)
+                feature_to_mods[mod.feature_id].append(mod)
         
         conflicts = {
-            feature: mods 
-            for feature, mods in feature_to_mods.items() 
-            if len(mods) > 1
+            feature: [mod.key or mod.asset_pattern for mod in mods]
+            for feature, mods in feature_to_mods.items()
+            if len(mods) > 1 and any(not mod.key for mod in mods)
         }
         
         assert len(conflicts) == 0, (
-            f"发现 feature_id 冲突:\n" +
+            f"发现缺少显式 key 的共享 feature_id mod:\n" +
             "\n".join(f"  {feature}: {mods}" for feature, mods in conflicts.items())
         )

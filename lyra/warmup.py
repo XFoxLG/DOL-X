@@ -269,6 +269,9 @@ class ResourceWarmer:
         config_loader = get_config_loader()
 
         for mod_config in self.config.modloader_mods:
+            if not mod_config.enabled:
+                continue
+
             if not any(
                 feature_id in self.required_feature_ids
                 for feature_id in mod_config.required_feature_ids
@@ -301,6 +304,20 @@ class ResourceWarmer:
         # 检查是否已存在
         if dest_path.exists():
             logger.debug(f"  {display_name}: 已缓存")
+            return
+
+        if mod_config.download_url:
+            filename = mod_config.asset_pattern or f"{mod_config.cache_name}.zip"
+            self.registry.add(
+                VersionInfo(
+                    name=display_name,
+                    version=mod_config.release_tag,
+                    source=mod_config.github_repo or mod_config.download_url,
+                    filename=filename,
+                )
+            )
+            download_file(mod_config.download_url, dest_path, quiet=True)
+            logger.info(f"  {display_name}: 下载完成 ({mod_config.release_tag})")
             return
 
         # 获取资源信息

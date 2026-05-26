@@ -232,6 +232,9 @@ class PackageBuilder(ABC):
         applied = []
 
         for mod_config in build_config.modloader_mods:
+            if not mod_config.enabled:
+                continue
+
             matching_features = []
             for feature_id in mod_config.required_feature_ids:
                 feature = config_loader.get_feature_by_id(feature_id)
