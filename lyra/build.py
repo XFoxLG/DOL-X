@@ -148,6 +148,28 @@ class PackageBuilder(ABC):
             self.task.is_polyfill,
         )
 
+    def _infer_output_version(self) -> Optional[tuple[str, str]]:
+        """从预处理记录中推断非 tag 构建的游戏与汉化版本。"""
+        registry = VersionRegistry.load(self.paths.versions_file)
+
+        for info in registry:
+            if info.name != "汉化仓库":
+                continue
+
+            release_tag = (info.version or "").strip()
+            if release_tag.startswith("v"):
+                release_tag = release_tag[1:]
+
+            marker = "-chs-"
+            if marker not in release_tag:
+                continue
+
+            dol_ver, chs_ver = release_tag.split(marker, 1)
+            if dol_ver and chs_ver:
+                return dol_ver, chs_ver
+
+        return None
+
     def get_output_name(self) -> str:
         """生成输出文件名"""
         if self.task.version:
@@ -155,13 +177,19 @@ class PackageBuilder(ABC):
             chs_ver = self.task.version.chs_ver
             date_str = self.task.version.date
         else:
-            dol_ver = "unknown"
-            chs_ver = "unknown"
+            inferred_version = self._infer_output_version()
+            if inferred_version:
+                dol_ver, chs_ver = inferred_version
+            else:
+                dol_ver = "unknown"
+                chs_ver = "unknown"
             tz = timezone(timedelta(hours=8))
             date_str = datetime.now(tz).strftime("%m%d")
 
         # 构建前缀
-        prefix = f"DoL-{dol_ver}-Lyra-{chs_ver}"
+        build_config = load_build_config()
+        identity = build_config.identity_name or "Lyra"
+        prefix = f"DoL-{dol_ver}-{identity}-{chs_ver}"
         if self.task.is_polyfill:
             prefix += "-polyfill"
 

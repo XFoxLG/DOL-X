@@ -41,12 +41,30 @@ python tools/mod_audit.py --no-cache
 - `output/mod-compatibility-report.md` - Markdown 格式报告
 - `output/cache/` - 下载缓存目录
 
+### 运行 cheatExtended 替代性审计
+
+```bash
+# 下载并审计 cheatExtended 最新 release，但不启用或替换现有 mod
+python tools/cheat_extended_audit.py --output-dir output
+```
+
+输出文件：
+- `output/cheat-extended-replacement-report.json` - JSON 格式报告
+- `output/cheat-extended-replacement-report.md` - Markdown 格式报告
+
+该审计会检查：
+- cheatExtended 的 release asset、boot.json、readme.md 和 SHA256
+- 对 Cheat / CSD / BJX / BCCM 的静态覆盖程度
+- `maplebirch` 与 `Simple Frameworks` 的二选一框架要求
+- 和当前配置中旧作弊栈、AU 面部扩展、UCB 的潜在冲突与耦合
+
 ## GitHub Actions
 
 每次推送到 `vega` 分支时自动运行：
 
 1. **配置与矩阵测试** - 验证构建组合、polyfill、mod 配置
 2. **Mod 资源审计** - 下载并检查所有 mod 资源
+3. **cheatExtended 替代性审计** - 评估其是否适合作为 Cheat/CSD/BJX/BCCM 的候选替代
 
 查看结果：
 - Actions 页面：https://github.com/XFoxLG/DOL-X/actions
@@ -73,6 +91,7 @@ python tools/mod_audit.py --no-cache
 - ✓ ZIP 文件完整性
 - ✓ Mod 结构验证
 - ✓ 风险等级评估
+- ✓ cheatExtended 替代性/框架/冲突审计
 
 ## 下一步
 
