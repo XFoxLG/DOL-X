@@ -1,9 +1,10 @@
 name: Compatibility Tests
 
 on:
-  push:
-    branches: [vega]
-  pull_request:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
     branches: [vega]
   workflow_dispatch:
     inputs:
@@ -17,6 +18,7 @@ jobs:
   config-tests:
     name: 配置与矩阵测试
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     steps:
       - name: Checkout
@@ -106,6 +108,32 @@ jobs:
               });
             }
 
+  download-build-artifacts:
+    name: 下载构建产物
+    runs-on: ubuntu-latest
+    needs: config-tests
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Download artifacts from Build workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: dol-builds-zip
+          path: build-artifacts/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded build artifacts:"
+          ls -lh build-artifacts/
+      
+      - name: Upload for next jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-for-test
+          path: build-artifacts/
+
   slow-tests:
     name: 慢速测试（可选）
     runs-on: ubuntu-latest
@@ -132,7 +160,7 @@ jobs:
   summary:
     name: 测试总结
     runs-on: ubuntu-latest
-    needs: [config-tests, mod-audit]
+    needs: [config-tests, mod-audit, download-build-artifacts]
     if: always()
     
     steps:
@@ -145,6 +173,10 @@ jobs:
           
           if [ "${{ needs.mod-audit.result }}" == "failure" ]; then
             echo "::warning::Mod 审计发现问题，但不阻断构建"
+          fi
+          
+          if [ "${{ needs.download-build-artifacts.result }}" == "success" ]; then
+            echo "✓ 构建产物已下载，可用于后续测试"
           fi
           
           echo "✓ 兼容性测试完成"
