@@ -124,6 +124,36 @@ github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUsDoL.facial.expansion.mod.zip"
 release_tag = "facemod"
 
+[[modloader_mods]]
+key = "bjx_word_unlock"
+name = "言灵解放"
+enabled = true
+feature_id = "cheat_csd"
+github_repo = "cphxj123/Dol-BJX-Mods"
+asset_pattern = "言灵解放1.1.0.zip"
+release_tag = "1.1.0"
+download_url = "https://github.com/cphxj123/Dol-BJX-Mods/raw/main/%E8%A8%80%E7%81%B5%E8%A7%A3%E6%94%BE1.1.0.zip"
+
+[[modloader_mods]]
+key = "bjx_portable_word"
+name = "随身言灵"
+enabled = true
+feature_id = "cheat_csd"
+github_repo = "cphxj123/Dol-BJX-Mods"
+asset_pattern = "随身言灵1.1.0.zip"
+release_tag = "1.1.0"
+download_url = "https://github.com/cphxj123/Dol-BJX-Mods/raw/main/%E9%9A%8F%E8%BA%AB%E8%A8%80%E7%81%B51.1.0.zip"
+
+[[modloader_mods]]
+key = "bccm"
+name = "随时施法"
+enabled = true
+feature_id = "cheat_csd"
+github_repo = "Tony70124/BetterCheatCommandManagement-for-DOL"
+asset_pattern = "BCCM_v2.1.4.zip"
+release_tag = "v2.1.4"
+download_url = "https://github.com/Tony70124/BetterCheatCommandManagement-for-DOL/releases/download/v2.1.4/BCCM_v2.1.4.zip"
+
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）

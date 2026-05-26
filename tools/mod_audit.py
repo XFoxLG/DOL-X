@@ -3,7 +3,7 @@
 Phase 2: Mod 资源审计工具
 
 功能：
-- 下载所有 modloader_mods 和 base_mods 的 GitHub release assets
+- 下载所有 modloader_mods 和 base_mods 的 GitHub release assets 或直链资源
 - 验证文件完整性（sha256）
 - 检查 zip 文件是否可解压
 - 生成兼容性报告（JSON + Markdown）
@@ -108,15 +108,20 @@ class ModAuditor:
         safe_print("=" * 70)
         safe_print()
         
-        # 审计 modloader_mods
-        safe_print(f"审计 {len(build_config.modloader_mods)} 个 modloader mods...")
-        for mod_config in tqdm(build_config.modloader_mods, desc="Modloader mods"):
+        # 审计启用的 modloader_mods；关闭的 mod 不应阻断 CI 兼容性检查。
+        enabled_modloader_mods = [
+            mod for mod in build_config.modloader_mods
+            if getattr(mod, "enabled", True)
+        ]
+        safe_print(f"审计 {len(enabled_modloader_mods)} 个已启用的 modloader mods...")
+        for mod_config in tqdm(enabled_modloader_mods, desc="Modloader mods"):
             result = self.audit_mod(
                 key=mod_config.key or mod_config.asset_pattern,
                 name=mod_config.name or mod_config.asset_pattern,
                 github_repo=mod_config.github_repo,
                 asset_pattern=mod_config.asset_pattern,
                 release_tag=mod_config.release_tag,
+                download_url=mod_config.download_url,
             )
             results.append(result)
         
@@ -147,6 +152,7 @@ class ModAuditor:
         github_repo: str,
         asset_pattern: str,
         release_tag: str,
+        download_url: str = "",
     ) -> ModAuditResult:
         """审计单个 mod"""
         result = ModAuditResult(
@@ -157,32 +163,36 @@ class ModAuditor:
             release_tag=release_tag,
             audit_timestamp=self._utc_now_iso(),
         )
-        
+
         # 1. 获取 release asset 信息
-        try:
-            asset_info = get_github_release_asset(
-                repo=github_repo,
-                asset_pattern=asset_pattern,
-                tag=release_tag,
-            )
-            
-            if not asset_info:
+        if download_url:
+            result.download_url = download_url
+            result.release_version = release_tag
+        else:
+            try:
+                asset_info = get_github_release_asset(
+                    repo=github_repo,
+                    asset_pattern=asset_pattern,
+                    tag=release_tag,
+                )
+
+                if not asset_info:
+                    result.download_success = False
+                    result.download_error = f"未找到匹配 '{asset_pattern}' 的 asset"
+                    result.risk_level = "high"
+                    result.risk_notes.append("Release asset 不存在或已被删除")
+                    return result
+
+                result.download_url = asset_info.url
+                result.release_version = asset_info.version
+
+            except Exception as e:
                 result.download_success = False
-                result.download_error = f"未找到匹配 '{asset_pattern}' 的 asset"
+                result.download_error = f"获取 release 信息失败: {str(e)}"
                 result.risk_level = "high"
-                result.risk_notes.append("Release asset 不存在或已被删除")
+                result.risk_notes.append(f"GitHub API 错误: {str(e)}")
                 return result
-            
-            result.download_url = asset_info.url
-            result.release_version = asset_info.version
-            
-        except Exception as e:
-            result.download_success = False
-            result.download_error = f"获取 release 信息失败: {str(e)}"
-            result.risk_level = "high"
-            result.risk_notes.append(f"GitHub API 错误: {str(e)}")
-            return result
-        
+
         # 2. 下载文件
         try:
             file_content = self._download_file(result.download_url, key)
@@ -200,7 +210,8 @@ class ModAuditor:
         result.sha256 = hashlib.sha256(file_content).hexdigest()
         
         # 4. 检查是否为 zip 并尝试解压
-        result.is_zip = asset_pattern.endswith('.zip') or asset_pattern.endswith('.mod.zip')
+        zip_hint = asset_pattern or result.download_url or ""
+        result.is_zip = zip_hint.endswith('.zip') or zip_hint.endswith('.mod.zip')
         
         if result.is_zip:
             try:
