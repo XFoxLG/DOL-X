@@ -50,9 +50,16 @@ dist/
 build/
 .venv/
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
 my.secrets
 .vscode
 DoL-ModLoader*
 tests/
 !lyra/tests/
+!tests/
 base/

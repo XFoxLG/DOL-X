@@ -14,3 +14,7 @@ typing-extensions>=4.15.0
 
 # 表格写入
 pytablewriter>=1.2.1
+
+# 测试框架
+pytest>=8.0.0
+pytest-cov>=4.1.0

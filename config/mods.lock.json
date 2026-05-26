@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
+  "last_updated": "2026-05-26T00:00:00Z",
+  "mods": {
+    "au_f": {
+      "name": "AU Female",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUfemale.model",
+      "release_tag": "mod",
+      "last_tested_version": null,
+      "last_tested_sha256": null,
+      "last_tested_dol_version": null,
+      "notes": []
+    },
+    "au_m": {
+      "name": "AU Male",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUmale.model",
+      "release_tag": "mod",
+      "last_tested_version": null,
+      "last_tested_sha256": null,
+      "last_tested_dol_version": null,
+      "notes": []
+    },
+    "au_a": {
+      "name": "AU Androgynous",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUandrogynous.model",
+      "release_tag": "mod",
+      "last_tested_version": null,
+      "last_tested_sha256": null,
+      "last_tested_dol_version": null,
+      "notes": []
+    },
+    "au_face": {
+      "name": "AU面部扩展",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUsDoL.facial.expansion.mod.zip",
+      "release_tag": "facemod",
+      "last_tested_version": null,
+      "last_tested_sha256": null,
+      "last_tested_dol_version": null,
+      "notes": [
+        "只注入 AU 三版本",
+        "依赖 AU 主模组"
+      ]
+    }
+  }
+}
