@@ -6,6 +6,7 @@
 
 import hashlib
 import logging
+import os
 import shutil
 import subprocess
 import tarfile
@@ -329,7 +330,12 @@ def get_github_release_asset(
             api_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
         logger.debug(f"获取 GitHub Release 信息: {api_url}")
 
-        response = requests.get(api_url, timeout=10)
+        headers = {"Accept": "application/vnd.github+json"}
+        github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if github_token:
+            headers["Authorization"] = f"Bearer {github_token}"
+
+        response = requests.get(api_url, headers=headers, timeout=10)
         response.raise_for_status()
 
         release_data = response.json()

@@ -69,6 +69,8 @@ jobs:
       - name: Run mod audit
         id: audit
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python tools/mod_audit.py --output-dir output
       
@@ -85,7 +87,11 @@ jobs:
         if: steps.audit.outcome == 'failure'
         run: |
           echo "::warning::Mod 审计发现高风险问题，请查看报告"
-          cat output/mod-compatibility-report.md
+          if [ -f output/mod-compatibility-report.md ]; then
+            cat output/mod-compatibility-report.md
+          else
+            echo "::error::审计脚本未生成报告，请查看 Run mod audit 步骤日志"
+          fi
           exit 1
       
       - name: Comment PR with audit summary
