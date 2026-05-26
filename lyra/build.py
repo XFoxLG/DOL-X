@@ -232,17 +232,25 @@ class PackageBuilder(ABC):
         applied = []
 
         for mod_config in build_config.modloader_mods:
-            feature = config_loader.get_feature_by_id(mod_config.feature_id)
-            if not feature:
-                logger.warning(f"未找到 feature: {mod_config.feature_id}")
-                continue
+            matching_features = []
+            for feature_id in mod_config.required_feature_ids:
+                feature = config_loader.get_feature_by_id(feature_id)
+                if not feature:
+                    logger.warning(f"未找到 feature: {feature_id}")
+                    continue
+                if self.mod_code & feature.bit:
+                    matching_features.append(feature)
 
-            if self.mod_code & feature.bit:
-                cache_name = mod_config.feature_id.replace("-", "_")
-                mod_path = self.paths.get_mod_cache_path(cache_name)
+            if matching_features:
+                mod_path = self.paths.get_mod_cache_path(mod_config.cache_name)
                 if mod_path.exists():
                     mod_paths.append(mod_path)
-                    applied.append(feature.name)
+                    if mod_config.name:
+                        applied.append(mod_config.name)
+                    elif len(matching_features) == 1:
+                        applied.append(matching_features[0].name)
+                    else:
+                        applied.append(mod_config.key or mod_config.asset_pattern)
                 else:
                     logger.warning(f"mod 文件不存在: {mod_path}")
 

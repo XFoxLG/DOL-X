@@ -96,7 +96,8 @@ files_to_remove = [
 ]
 
 # Modloader mod 配置
-# 通过 feature_id 关联 features.toml 中的功能定义
+# 通过 feature_id / feature_ids 关联 features.toml 中的功能定义。
+# feature_ids 表示命中任意一个 feature 时注入，key 用作唯一缓存名。
 [[modloader_mods]]
 feature_id = "au-f"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
@@ -114,6 +115,14 @@ feature_id = "au-a"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUandrogynous.model"
 release_tag = "mod"
+
+[[modloader_mods]]
+key = "au_face"
+name = "AU面部扩展"
+feature_ids = ["au-f", "au-m", "au-a"]
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUsDoL.facial.expansion.mod.zip"
+release_tag = "facemod"
 
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键

@@ -114,18 +114,41 @@ class ImagePackConfig:
 class ModloaderModConfig:
     """Modloader mod 配置"""
 
-    feature_id: str
     github_repo: str
     asset_pattern: str
+    feature_id: str = ""
     release_tag: str = "latest"
+    feature_ids: list[str] = field(default_factory=list)
+    key: str = ""
+    name: str = ""
+
+    @property
+    def required_feature_ids(self) -> list[str]:
+        """获取触发该 mod 注入的 feature ID 列表。"""
+        if self.feature_ids:
+            return self.feature_ids
+        if self.feature_id:
+            return [self.feature_id]
+        return []
+
+    @property
+    def cache_name(self) -> str:
+        """获取唯一缓存名，避免同一 feature 下多个 mod 互相覆盖。"""
+        name = self.key or self.feature_id or "_".join(self.feature_ids)
+        if not name:
+            name = self.asset_pattern
+        return name.replace("-", "_")
 
     @classmethod
     def from_dict(cls, data: dict) -> "ModloaderModConfig":
         return cls(
-            feature_id=data["feature_id"],
             github_repo=data["github_repo"],
             asset_pattern=data["asset_pattern"],
+            feature_id=data.get("feature_id", ""),
             release_tag=data.get("release_tag", "latest"),
+            feature_ids=data.get("feature_ids", []),
+            key=data.get("key", ""),
+            name=data.get("name", ""),
         )
 
 
