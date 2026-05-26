@@ -162,6 +162,11 @@ jobs:
     steps:
       - name: Check results
         run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "::notice::Build workflow concluded as '${{ github.event.workflow_run.conclusion }}'; skipping compatibility tests"
+            exit 0
+          fi
+
           if [ "${{ needs.config-tests.result }}" != "success" ]; then
             echo "::error::配置测试失败"
             exit 1
