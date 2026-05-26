@@ -1,0 +1,150 @@
+name: Compatibility Tests
+
+on:
+  push:
+    branches: [vega]
+  pull_request:
+    branches: [vega]
+  workflow_dispatch:
+    inputs:
+      run_slow_tests:
+        description: '运行慢速测试（需要网络请求）'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  config-tests:
+    name: 配置与矩阵测试
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run config tests
+        run: |
+          pytest tests/test_build_matrix.py tests/test_mod_config.py -v --tb=short
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-test-results
+          path: |
+            .pytest_cache/
+            output/
+
+  mod-audit:
+    name: Mod 资源审计
+    runs-on: ubuntu-latest
+    needs: config-tests
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run mod audit
+        id: audit
+        continue-on-error: true
+        run: |
+          python tools/mod_audit.py --output-dir output
+      
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod-audit-reports
+          path: |
+            output/mod-compatibility-report.json
+            output/mod-compatibility-report.md
+      
+      - name: Check audit results
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "::warning::Mod 审计发现高风险问题，请查看报告"
+          cat output/mod-compatibility-report.md
+          exit 1
+      
+      - name: Comment PR with audit summary
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportPath = 'output/mod-compatibility-report.md';
+            
+            if (fs.existsSync(reportPath)) {
+              const report = fs.readFileSync(reportPath, 'utf8');
+              const summary = report.split('## 详细列表')[0];
+              
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## Mod 兼容性审计报告\n\n${summary}\n\n完整报告见 artifacts。`
+              });
+            }
+
+  slow-tests:
+    name: 慢速测试（可选）
+    runs-on: ubuntu-latest
+    if: github.event.inputs.run_slow_tests == 'true' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run slow tests
+        run: |
+          pytest tests/ -v -m slow --tb=short
+
+  summary:
+    name: 测试总结
+    runs-on: ubuntu-latest
+    needs: [config-tests, mod-audit]
+    if: always()
+    
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.config-tests.result }}" != "success" ]; then
+            echo "::error::配置测试失败"
+            exit 1
+          fi
+          
+          if [ "${{ needs.mod-audit.result }}" == "failure" ]; then
+            echo "::warning::Mod 审计发现问题，但不阻断构建"
+          fi
+          
+          echo "✓ 兼容性测试完成"
