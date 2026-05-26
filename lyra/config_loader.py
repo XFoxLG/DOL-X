@@ -200,6 +200,11 @@ class BuildConfiguration:
     github_owner: str
     github_repo: str
 
+    # 自用整合包标识
+    identity_name: str = "Lyra"
+    identity_apk_name: str = "DoL Lyra"
+    identity_package: str = "com.vrelnir.dol.lyra"
+
     # APK replacements
     apk_replacements: list[Replacement] = field(default_factory=list)
 
@@ -217,6 +222,7 @@ class BuildConfiguration:
         urls = data.get("urls", {})
         paths = data.get("paths", {})
         github = data["github"]
+        identity = data.get("identity", {})
         apk = data.get("apk", {})
 
         # 解析 APK 替换规则
@@ -255,6 +261,9 @@ class BuildConfiguration:
             prepare_package_dir=paths["prepare_package"],
             github_owner=github["owner"],
             github_repo=github["repo"],
+            identity_name=identity.get("name", "Lyra"),
+            identity_apk_name=identity.get("apk_name", "DoL Lyra"),
+            identity_package=identity.get("package", "com.vrelnir.dol.lyra"),
             apk_replacements=replacements,
             imagepacks=imagepacks,
             modloader_mods=modloader_mods,

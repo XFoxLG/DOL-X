@@ -25,36 +25,42 @@ prepare_package = "prepare_package"
 owner = "sakarie9"
 repo = "DoL-Lyra"
 
+[identity]
+# 自用整合包标识，仅用于产物文件名、APK 显示名称和包名。
+name = "XFox"
+apk_name = "DoL XFox"
+package = "com.vrelnir.dol.xfox"
+
 # APK 包名替换规则
 [[apk.replacements]]
 file = "AndroidManifest.xml"
 pattern = '"com.vrelnir.dol"'
-replacement = '"com.vrelnir.dol.lyra"'
+replacement = '"com.vrelnir.dol.xfox"'
 
 [[apk.replacements]]
 file = "AndroidManifest.xml"
 pattern = '"com.vrelnir.dol_debug"'
-replacement = '"com.vrelnir.dol.lyra"'
+replacement = '"com.vrelnir.dol.xfox"'
 
 [[apk.replacements]]
 file = "AndroidManifest.xml"
 pattern = '"com.vrelnir.dol.androidx-startup"'
-replacement = '"com.vrelnir.dol.lyra.androidx-startup"'
+replacement = '"com.vrelnir.dol.xfox.androidx-startup"'
 
 [[apk.replacements]]
 file = "AndroidManifest.xml"
 pattern = '"com.vrelnir.dol_debug.androidx-startup"'
-replacement = '"com.vrelnir.dol.lyra.androidx-startup"'
+replacement = '"com.vrelnir.dol.xfox.androidx-startup"'
 
 [[apk.replacements]]
 file = "res/values/strings.xml"
 pattern = "DoL"
-replacement = "DoL Lyra"
+replacement = "DoL XFox"
 
 [[apk.replacements]]
 file = "res/values/strings.xml"
 pattern = "Degrees of Lewdity"
-replacement = "DoL Lyra"
+replacement = "DoL XFox"
 
 [[apk.replacements]]
 file = "assets/www/index.html"
