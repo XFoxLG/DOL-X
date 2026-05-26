@@ -269,7 +269,10 @@ class ResourceWarmer:
         config_loader = get_config_loader()
 
         for mod_config in self.config.modloader_mods:
-            if mod_config.feature_id not in self.required_feature_ids:
+            if not any(
+                feature_id in self.required_feature_ids
+                for feature_id in mod_config.required_feature_ids
+            ):
                 continue
             self._download_modloader_mod(mod_config, config_loader)
 
@@ -281,10 +284,19 @@ class ResourceWarmer:
             mod_config: mod 配置
             config_loader: 配置加载器（用于查找 feature 信息）
         """
-        feature = config_loader.get_feature_by_id(mod_config.feature_id)
-        display_name = feature.name if feature else mod_config.feature_id
-        cache_name = mod_config.feature_id.replace("-", "_")
-        dest_path = self.paths.get_mod_cache_path(cache_name)
+        features = [
+            config_loader.get_feature_by_id(feature_id)
+            for feature_id in mod_config.required_feature_ids
+        ]
+        valid_features = [feature for feature in features if feature]
+        if mod_config.name:
+            display_name = mod_config.name
+        elif len(valid_features) == 1:
+            display_name = valid_features[0].name
+        else:
+            display_name = mod_config.key or mod_config.asset_pattern
+
+        dest_path = self.paths.get_mod_cache_path(mod_config.cache_name)
 
         # 检查是否已存在
         if dest_path.exists():
