@@ -16,11 +16,12 @@ Phase 2: Mod 资源审计工具
 import argparse
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import zipfile
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +36,11 @@ from lyra.config_loader import load_build_config
 from lyra.utils import get_github_release_asset
 
 
+def safe_print(message: str = ""):
+    """输出日志，避免 Windows GBK 控制台无法编码符号导致崩溃。"""
+    print(message.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8"))
+
+
 @dataclass
 class ModAuditResult:
     """单个 mod 的审计结果"""
@@ -43,9 +49,9 @@ class ModAuditResult:
     github_repo: str
     asset_pattern: str
     release_tag: str
-    
+
     # 下载结果
-    download_success: bool
+    download_success: bool = False
     download_url: Optional[str] = None
     download_error: Optional[str] = None
     
@@ -81,19 +87,29 @@ class ModAuditor:
         self.use_cache = use_cache
         self.cache_dir = output_dir / "cache"
         self.cache_dir.mkdir(exist_ok=True)
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        """获取 UTC ISO 时间字符串。"""
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    @staticmethod
+    def _utc_now_display() -> str:
+        """获取用于 Markdown 报告的 UTC 时间字符串。"""
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     
     def audit_all_mods(self) -> list[ModAuditResult]:
         """审计所有 mod"""
         build_config = load_build_config()
         results = []
         
-        print("=" * 70)
-        print("DoL-X Mod 资源审计")
-        print("=" * 70)
-        print()
+        safe_print("=" * 70)
+        safe_print("DoL-X Mod 资源审计")
+        safe_print("=" * 70)
+        safe_print()
         
         # 审计 modloader_mods
-        print(f"审计 {len(build_config.modloader_mods)} 个 modloader mods...")
+        safe_print(f"审计 {len(build_config.modloader_mods)} 个 modloader mods...")
         for mod_config in tqdm(build_config.modloader_mods, desc="Modloader mods"):
             result = self.audit_mod(
                 key=mod_config.key or mod_config.asset_pattern,
@@ -111,13 +127,13 @@ class ModAuditor:
         ]
         
         if base_mods_with_repo:
-            print(f"\n审计 {len(base_mods_with_repo)} 个 base mods...")
+            safe_print(f"\n审计 {len(base_mods_with_repo)} 个 base mods...")
             for mod_config in tqdm(base_mods_with_repo, desc="Base mods"):
                 result = self.audit_mod(
                     key=mod_config.key,
                     name=mod_config.key,
                     github_repo=mod_config.github_repo,
-                    asset_pattern=mod_config.asset_pattern,
+                    asset_pattern=".mod.zip",
                     release_tag=getattr(mod_config, 'release_tag', 'latest'),
                 )
                 results.append(result)
@@ -139,7 +155,7 @@ class ModAuditor:
             github_repo=github_repo,
             asset_pattern=asset_pattern,
             release_tag=release_tag,
-            audit_timestamp=datetime.utcnow().isoformat() + "Z",
+            audit_timestamp=self._utc_now_iso(),
         )
         
         # 1. 获取 release asset 信息
@@ -243,7 +259,12 @@ class ModAuditor:
         if self.use_cache and cache_file.exists():
             return cache_file.read_bytes()
         
-        response = requests.get(url, timeout=30)
+        headers = {}
+        github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if github_token and "github.com" in url:
+            headers["Authorization"] = f"Bearer {github_token}"
+
+        response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         
         content = response.content
@@ -260,7 +281,7 @@ class ModAuditor:
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(
                 {
-                    "audit_timestamp": datetime.utcnow().isoformat() + "Z",
+                    "audit_timestamp": self._utc_now_iso(),
                     "total_mods": len(results),
                     "results": [asdict(r) for r in results],
                 },
@@ -269,19 +290,19 @@ class ModAuditor:
                 ensure_ascii=False,
             )
         
-        print(f"\n✓ JSON 报告: {json_path}")
+        safe_print(f"\n[OK] JSON 报告: {json_path}")
         
         # Markdown 报告
         md_path = self.output_dir / "mod-compatibility-report.md"
         with open(md_path, 'w', encoding='utf-8') as f:
             self._write_markdown_report(f, results)
         
-        print(f"✓ Markdown 报告: {md_path}")
+        safe_print(f"[OK] Markdown 报告: {md_path}")
     
     def _write_markdown_report(self, f, results: list[ModAuditResult]):
         """写入 Markdown 报告"""
         f.write("# DoL-X Mod 兼容性审计报告\n\n")
-        f.write(f"**审计时间**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+        f.write(f"**审计时间**: {self._utc_now_display()} UTC\n\n")
         f.write(f"**总计**: {len(results)} 个 mods\n\n")
         
         # 统计
@@ -372,10 +393,10 @@ def main():
     # 退出码
     high_risk_count = sum(1 for r in results if r.risk_level == "high")
     if high_risk_count > 0:
-        print(f"\n⚠️  发现 {high_risk_count} 个高风险 mod")
+        safe_print(f"\n[WARN] 发现 {high_risk_count} 个高风险 mod")
         sys.exit(1)
     else:
-        print("\n✓ 所有 mod 审计通过")
+        safe_print("\n[OK] 所有 mod 审计通过")
         sys.exit(0)
 
 
