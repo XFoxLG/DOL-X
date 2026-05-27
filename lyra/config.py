@@ -23,6 +23,8 @@ class ModCode(IntFlag):
     AU_FEMALE = 1024  # AU女性
     AU_MALE = 2048  # AU男性
     AU_ANDROGYNOUS = 4096  # AU双性
+    MORE_LOVE = 8192  # 更多恋人
+    CUSTOM_SPELLBOOK = 16384  # 自定义魔法书
 
     @classmethod
     def from_string(cls, code_str: str) -> tuple["ModCode", bool]:
@@ -66,6 +68,10 @@ class ModCode(IntFlag):
             suffix_parts.append("au-a")
         if self & ModCode.UCB:
             suffix_parts.append("ucb")
+        if self & ModCode.MORE_LOVE:
+            suffix_parts.append("more-love")
+        if self & ModCode.CUSTOM_SPELLBOOK:
+            suffix_parts.append("custom-spellbook")
 
         return "-".join(suffix_parts) if suffix_parts else ""
 

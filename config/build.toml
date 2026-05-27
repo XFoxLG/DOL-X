@@ -160,6 +160,26 @@ asset_pattern = "BCCM_v2.1.4.zip"
 release_tag = "v2.1.4"
 download_url = "https://github.com/Tony70124/BetterCheatCommandManagement-for-DOL/releases/download/v2.1.4/BCCM_v2.1.4.zip"
 
+[[modloader_mods]]
+key = "more_love"
+name = "更多恋人"
+enabled = true
+feature_id = "more_love"
+github_repo = "Nephthelana/DoL-More-Love-Interests-Mod"
+asset_pattern = "More.Love.Interests.Mod.mod.zip"
+release_tag = "More-Love-Interests-Mod-v0.1.6.0"
+download_url = "https://github.com/Nephthelana/DoL-More-Love-Interests-Mod/releases/download/More-Love-Interests-Mod-v0.1.6.0/More.Love.Interests.Mod.mod.zip"
+
+[[modloader_mods]]
+key = "custom_spellbook"
+name = "自定义魔法书"
+enabled = true
+feature_id = "custom_spellbook"
+github_repo = "ZeroRing233/DOL-Custom-Spellbook-Mod"
+asset_pattern = "Custom-Spellbook-1.0.0.mod.zip"
+release_tag = "1.0.0-alpha"
+download_url = "https://github.com/ZeroRing233/DOL-Custom-Spellbook-Mod/releases/download/1.0.0-alpha/Custom-Spellbook-1.0.0.mod.zip"
+
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）

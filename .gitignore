@@ -63,3 +63,9 @@ tests/
 !lyra/tests/
 !tests/
 base/
+
+# Local AI/Trellis tooling (do not publish project-local runtime/config drafts)
+.cursor/
+.trellis/
+AGENTS.md
+PROJECT_REVIEW.md
