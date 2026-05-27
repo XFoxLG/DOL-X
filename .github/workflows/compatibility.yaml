@@ -5,7 +5,9 @@ on:
     workflows: ["Build"]
     types:
       - completed
-    branches: [vega]
+    branches:
+      - vega
+      - "experiment/**"
   workflow_dispatch:
     inputs:
       run_slow_tests:
@@ -151,7 +153,7 @@ jobs:
   slow-tests:
     name: 慢速测试（可选）
     runs-on: ubuntu-latest
-    if: github.event.inputs.run_slow_tests == 'true' || github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_slow_tests == 'true' }}
     
     steps:
       - name: Checkout
