@@ -8,11 +8,12 @@ import hashlib
 import logging
 import os
 import shutil
+import stat
 import subprocess
 import tarfile
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 import requests
@@ -20,6 +21,61 @@ from packaging.version import parse as parse_version
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
+
+class ArchiveExtractionError(RuntimeError):
+    """Raised when an archive member would extract outside the target directory."""
+
+
+class GitHubReleaseError(RuntimeError):
+    """Raised when GitHub release metadata cannot be fetched."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        response_text: str = "",
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_text = response_text or ""
+
+    @property
+    def rate_limited(self) -> bool:
+        """Whether the error looks like a GitHub API rate-limit response."""
+        if self.status_code != 403:
+            return False
+        return "rate limit" in self.response_text.lower()
+
+
+def _safe_archive_target(dest_dir: Path, member_name: str) -> Path:
+    """Return a safe extraction target or raise on path traversal."""
+    normalized_name = str(member_name).replace("\\", "/")
+    archive_path = PurePosixPath(normalized_name)
+    parts = archive_path.parts
+
+    if not parts or archive_path.is_absolute():
+        raise ArchiveExtractionError(f"不安全的归档路径: {member_name}")
+    if any(part in {"", ".", ".."} or part.endswith(":") for part in parts):
+        raise ArchiveExtractionError(f"不安全的归档路径: {member_name}")
+
+    dest_resolved = dest_dir.resolve()
+    target = dest_dir.joinpath(*parts)
+    target_resolved = target.resolve(strict=False)
+
+    try:
+        target_resolved.relative_to(dest_resolved)
+    except ValueError as exc:
+        raise ArchiveExtractionError(f"归档路径越界: {member_name}") from exc
+
+    return target
+
+
+def _zip_info_is_symlink(info: zipfile.ZipInfo) -> bool:
+    """Detect Unix symlink entries in ZIP metadata."""
+    mode = info.external_attr >> 16
+    return stat.S_IFMT(mode) == stat.S_IFLNK
 
 
 def setup_logging(verbose: bool = False):
@@ -51,7 +107,7 @@ def download_file(url: str, dest: Path, quiet: bool = False) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"下载: {url}")
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, timeout=30)
     response.raise_for_status()
 
     total_size = int(response.headers.get("content-length", 0))
@@ -86,7 +142,18 @@ def extract_zip(zip_path: Path, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(dest_dir)
+        for info in zf.infolist():
+            if _zip_info_is_symlink(info):
+                raise ArchiveExtractionError(f"ZIP 不允许解压符号链接: {info.filename}")
+
+            target = _safe_archive_target(dest_dir, info.filename)
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info, "r") as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
 
     return dest_dir
 
@@ -131,14 +198,33 @@ def extract_tar_gz(tar_path: Path, dest_dir: Path, strip_components: int = 0) ->
 
     with tarfile.open(tar_path, "r:gz") as tf:
         for member in tf.getmembers():
+            if member.issym() or member.islnk() or member.isdev():
+                raise ArchiveExtractionError(f"tar.gz 不允许解压特殊文件: {member.name}")
+
+            member_name = member.name
             if strip_components > 0:
                 # 移除前N个路径组件
-                parts = Path(member.name).parts
+                parts = PurePosixPath(member_name.replace("\\", "/")).parts
                 if len(parts) <= strip_components:
                     continue
-                member.name = str(Path(*parts[strip_components:]))
+                member_name = str(PurePosixPath(*parts[strip_components:]))
 
-            tf.extract(member, dest_dir)
+            target = _safe_archive_target(dest_dir, member_name)
+
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+
+            if member.isfile():
+                extracted = tf.extractfile(member)
+                if extracted is None:
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with extracted, open(target, "wb") as dst:
+                    shutil.copyfileobj(extracted, dst)
+                continue
+
+            logger.debug(f"跳过不支持的 tar 成员: {member.name}")
 
     return dest_dir
 
@@ -323,63 +409,78 @@ def get_github_release_asset(
     Returns:
         GitHubReleaseAsset 对象，未找到返回None
     """
+    if tag == "latest":
+        api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+    else:
+        api_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+    logger.debug(f"获取 GitHub Release 信息: {api_url}")
+
+    headers = {"Accept": "application/vnd.github+json"}
+    github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if github_token:
+        headers["Authorization"] = f"Bearer {github_token}"
+
     try:
-        if tag == "latest":
-            api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-        else:
-            api_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
-        logger.debug(f"获取 GitHub Release 信息: {api_url}")
-
-        headers = {"Accept": "application/vnd.github+json"}
-        github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-        if github_token:
-            headers["Authorization"] = f"Bearer {github_token}"
-
         response = requests.get(api_url, headers=headers, timeout=10)
         response.raise_for_status()
-
         release_data = response.json()
-        release_tag = release_data.get("tag_name", tag)
-        assets = release_data.get("assets", [])
+    except requests.HTTPError as e:
+        response = e.response
+        status_code = response.status_code if response is not None else None
+        response_text = response.text if response is not None else ""
+        message = f"获取 GitHub Release 失败 ({repo}@{tag}): {e}"
+        logger.error(message)
+        raise GitHubReleaseError(
+            message,
+            status_code=status_code,
+            response_text=response_text,
+        ) from e
+    except requests.RequestException as e:
+        message = f"获取 GitHub Release 失败 ({repo}@{tag}): {e}"
+        logger.error(message)
+        raise GitHubReleaseError(message) from e
+    except ValueError as e:
+        message = f"解析 GitHub Release 响应失败 ({repo}@{tag}): {e}"
+        logger.error(message)
+        raise GitHubReleaseError(message) from e
 
-        # 收集所有匹配的资源及其版本号
-        matched_assets: list[tuple[GitHubReleaseAsset, "parse_version"]] = []
+    release_tag = release_data.get("tag_name", tag)
+    assets = release_data.get("assets", [])
 
-        for asset in assets:
-            name = asset.get("name", "")
-            if asset_pattern in name:
-                download_url = asset.get("browser_download_url")
-                version = _extract_version_from_filename(name)
-                logger.debug(f"找到资源: {name} (version={version}) -> {download_url}")
+    # 收集所有匹配的资源及其版本号
+    matched_assets: list[tuple[GitHubReleaseAsset, "parse_version"]] = []
 
-                matched_assets.append(
+    for asset in assets:
+        name = asset.get("name", "")
+        if asset_pattern in name:
+            download_url = asset.get("browser_download_url")
+            version = _extract_version_from_filename(name)
+            logger.debug(f"找到资源: {name} (version={version}) -> {download_url}")
+
+            matched_assets.append(
+                (
+                    GitHubReleaseAsset(
+                        url=download_url,
+                        name=name,
+                        tag=release_tag,
+                        version=version,
+                    ),
                     (
-                        GitHubReleaseAsset(
-                            url=download_url,
-                            name=name,
-                            tag=release_tag,
-                            version=version,
-                        ),
-                        (
-                            parse_version(version)
-                            if version != "unknown"
-                            else parse_version("0")
-                        ),
-                    )
+                        parse_version(version)
+                        if version != "unknown"
+                        else parse_version("0")
+                    ),
                 )
+            )
 
-        if not matched_assets:
-            logger.warning(f"未找到匹配 '{asset_pattern}' 的资源")
-            return None
-
-        # 选择版本号最高的资源
-        best_asset, best_version = max(matched_assets, key=lambda x: x[1])
-        logger.debug(f"选择最高版本: {best_asset.name} (version={best_version})")
-        return best_asset
-
-    except Exception as e:
-        logger.error(f"获取 GitHub Release 失败: {e}")
+    if not matched_assets:
+        logger.warning(f"未找到匹配 '{asset_pattern}' 的资源")
         return None
+
+    # 选择版本号最高的资源
+    best_asset, best_version = max(matched_assets, key=lambda x: x[1])
+    logger.debug(f"选择最高版本: {best_asset.name} (version={best_version})")
+    return best_asset
 
 
 def _extract_version_from_filename(filename: str) -> str:

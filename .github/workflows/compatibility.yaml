@@ -45,7 +45,7 @@ jobs:
       
       - name: Run config tests
         run: |
-          pytest tests/test_build_matrix.py tests/test_mod_config.py -v --tb=short
+          python -m pytest tests/ -v --tb=short -m "not slow"
       
       - name: Upload test results
         if: always()
@@ -148,21 +148,37 @@ jobs:
               });
             }
 
-  # TODO: Phase 3 - 下载构建产物用于 HTML smoke test
-  # download-build-artifacts:
-  #   name: 下载构建产物
-  #   runs-on: ubuntu-latest
-  #   needs: config-tests
-  #   if: ${{ github.event.workflow_run.conclusion == 'success' }}
-  #   
-  #   steps:
-  #     - name: Download artifacts from Build workflow
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: dol-builds-zip
-  #         path: build-artifacts/
-  #         run-id: ${{ github.event.workflow_run.id }}
-  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  html-smoke:
+    name: Phase 3 HTML smoke test
+    runs-on: ubuntu-latest
+    needs: config-tests
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    continue-on-error: true
+
+    steps:
+      - name: Checkout workflow run head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Download ZIP sample artifact from Build workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: dol-builds-zip-sample
+          path: build-artifacts/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run static HTML smoke test
+        run: |
+          python tools/html_smoke_test.py build-artifacts --output output/html-smoke-report.json
+
+      - name: Upload HTML smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-smoke-report
+          path: output/html-smoke-report.json
 
   slow-tests:
     name: 慢速测试（可选）
@@ -190,7 +206,7 @@ jobs:
   summary:
     name: 测试总结
     runs-on: ubuntu-latest
-    needs: [config-tests, mod-audit]
+    needs: [config-tests, mod-audit, html-smoke]
     if: always()
     
     steps:
@@ -209,6 +225,10 @@ jobs:
           if [ "${{ needs.mod-audit.result }}" == "failure" ]; then
             echo "::warning::Mod 审计发现问题，但不阻断构建"
           fi
+
+          if [ "${{ needs.html-smoke.result }}" == "failure" ]; then
+            echo "::warning::Phase 3 HTML smoke test 发现问题，请查看 html-smoke-report artifact"
+          fi
           
           echo "✓ Phase 1 & 2 兼容性测试完成"
-          echo "ℹ️ Phase 3 (HTML smoke test) 待实现"
+          echo "✓ Phase 3 静态 HTML smoke test 已启用（非阻断）"
