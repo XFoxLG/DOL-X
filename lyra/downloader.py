@@ -155,33 +155,50 @@ class Downloader:
             try:
                 release_data = self._get_github_release(mod.github_repo, "latest")
                 if not release_data:
-                    logger.warning(f"无法获取 {mod.github_repo} 的release信息")
+                    message = f"无法获取 {mod.github_repo} 的release信息"
+                    if mod.required:
+                        raise RuntimeError(message)
+                    logger.warning(message)
                     continue
 
                 release_tag = release_data.get("tag_name", "unknown")
+                selected_asset = None
 
                 # 查找mod.zip文件
                 for asset in release_data.get("assets", []):
                     asset_name = asset.get("name", "")
                     if asset_name.endswith(".mod.zip"):
-                        dest_path = download_dir / asset_name
-                        download_file(asset.get("browser_download_url"), dest_path)
-                        downloaded_mods[mod.key] = dest_path
-
-                        # 记录版本信息
-                        self.registry.add(
-                            VersionInfo(
-                                name=mod.key,
-                                version=release_tag,
-                                source=mod.github_repo,
-                                filename=asset_name,
-                            )
-                        )
-                        logger.info(f"  {mod.key}: {asset_name} ({release_tag})")
+                        selected_asset = asset
                         break
 
+                if not selected_asset:
+                    message = f"未找到 {mod.github_repo} 的 .mod.zip 资源"
+                    if mod.required:
+                        raise RuntimeError(message)
+                    logger.warning(message)
+                    continue
+
+                asset_name = selected_asset.get("name", "")
+                dest_path = download_dir / asset_name
+                download_file(selected_asset.get("browser_download_url"), dest_path)
+                downloaded_mods[mod.key] = dest_path
+
+                # 记录版本信息
+                self.registry.add(
+                    VersionInfo(
+                        name=mod.key,
+                        version=release_tag,
+                        source=mod.github_repo,
+                        filename=asset_name,
+                    )
+                )
+                logger.info(f"  {mod.key}: {asset_name} ({release_tag})")
+
             except Exception as e:
-                logger.error(f"下载 {mod.key} 失败: {e}")
+                message = f"下载 {mod.key} 失败: {e}"
+                if mod.required:
+                    raise RuntimeError(message) from e
+                logger.error(message)
 
         return downloaded_mods
 

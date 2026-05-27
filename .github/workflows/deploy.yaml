@@ -1,4 +1,8 @@
-name: Deploy Online
+name: Deploy Online (disabled)
+
+# DOL-X currently does not publish an online/PWA build. This legacy workflow is
+# kept as upstream reference only: it assumes Lyra/BESC/polyfill artifacts and
+# deploys to DoL-Lyra/dol-lyra.github.io, which is not valid for this fork.
 
 on:
   # release:
@@ -20,6 +24,7 @@ env:
 
 jobs:
   build:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -89,6 +94,7 @@ jobs:
           path: ${{ env.UPLOAD_ARTIFACT_FILEPATH }}
 
   deploy-github:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     needs: build
     steps:

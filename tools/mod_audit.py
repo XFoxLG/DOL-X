@@ -24,6 +24,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 import requests
 from tqdm import tqdm
@@ -33,7 +34,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from lyra.config_loader import load_build_config
-from lyra.utils import get_github_release_asset
+from lyra.utils import GitHubReleaseError, get_github_release_asset
 
 
 def safe_print(message: str = ""):
@@ -54,6 +55,7 @@ class ModAuditResult:
     download_success: bool = False
     download_url: Optional[str] = None
     download_error: Optional[str] = None
+    error_kind: Optional[str] = None
     
     # 文件信息
     file_size: Optional[int] = None
@@ -66,6 +68,7 @@ class ModAuditResult:
     zip_file_count: Optional[int] = None
     
     # 元数据
+    asset_name: Optional[str] = None
     release_version: Optional[str] = None
     audit_timestamp: Optional[str] = None
     
@@ -97,6 +100,17 @@ class ModAuditor:
     def _utc_now_display() -> str:
         """获取用于 Markdown 报告的 UTC 时间字符串。"""
         return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    @staticmethod
+    def _looks_like_zip(*hints: Optional[str]) -> bool:
+        """Return True if any filename or URL hint points to a ZIP archive."""
+        for hint in hints:
+            if not hint:
+                continue
+            parsed_path = urlsplit(hint).path or hint
+            if parsed_path.lower().endswith(".zip"):
+                return True
+        return False
     
     def audit_all_mods(self) -> list[ModAuditResult]:
         """审计所有 mod"""
@@ -178,16 +192,32 @@ class ModAuditor:
 
                 if not asset_info:
                     result.download_success = False
+                    result.error_kind = "asset_missing"
                     result.download_error = f"未找到匹配 '{asset_pattern}' 的 asset"
                     result.risk_level = "high"
                     result.risk_notes.append("Release asset 不存在或已被删除")
                     return result
 
                 result.download_url = asset_info.url
+                result.asset_name = asset_info.name
                 result.release_version = asset_info.version
+
+            except GitHubReleaseError as e:
+                result.download_success = False
+                result.error_kind = "rate_limited" if e.rate_limited else "api_error"
+                result.download_error = f"获取 release 信息失败: {str(e)}"
+                result.risk_level = "high"
+                if e.rate_limited:
+                    result.risk_notes.append(
+                        "GitHub API 速率限制，审计结果不确定（不是 asset 删除证据）"
+                    )
+                else:
+                    result.risk_notes.append(f"GitHub API 错误: {str(e)}")
+                return result
 
             except Exception as e:
                 result.download_success = False
+                result.error_kind = "api_error"
                 result.download_error = f"获取 release 信息失败: {str(e)}"
                 result.risk_level = "high"
                 result.risk_notes.append(f"GitHub API 错误: {str(e)}")
@@ -201,6 +231,7 @@ class ModAuditor:
             
         except Exception as e:
             result.download_success = False
+            result.error_kind = "download_error"
             result.download_error = f"下载失败: {str(e)}"
             result.risk_level = "high"
             result.risk_notes.append(f"下载错误: {str(e)}")
@@ -210,8 +241,11 @@ class ModAuditor:
         result.sha256 = hashlib.sha256(file_content).hexdigest()
         
         # 4. 检查是否为 zip 并尝试解压
-        zip_hint = asset_pattern or result.download_url or ""
-        result.is_zip = zip_hint.endswith('.zip') or zip_hint.endswith('.mod.zip')
+        result.is_zip = self._looks_like_zip(
+            asset_pattern,
+            result.asset_name,
+            result.download_url,
+        )
         
         if result.is_zip:
             try:
@@ -225,6 +259,7 @@ class ModAuditor:
                         bad_file = zf.testzip()
                         if bad_file:
                             result.zip_valid = False
+                            result.error_kind = "zip_error"
                             result.zip_error = f"损坏的文件: {bad_file}"
                             result.risk_level = "high"
                             result.risk_notes.append(f"ZIP 文件损坏: {bad_file}")
@@ -247,12 +282,14 @@ class ModAuditor:
             
             except zipfile.BadZipFile:
                 result.zip_valid = False
+                result.error_kind = "zip_error"
                 result.zip_error = "不是有效的 ZIP 文件"
                 result.risk_level = "high"
                 result.risk_notes.append("ZIP 格式错误")
             
             except Exception as e:
                 result.zip_valid = False
+                result.error_kind = "zip_error"
                 result.zip_error = f"解压测试失败: {str(e)}"
                 result.risk_level = "medium"
                 result.risk_notes.append(f"ZIP 测试异常: {str(e)}")
@@ -335,6 +372,8 @@ class ModAuditor:
                 f.write(f"- **Repo**: {r.github_repo}\n")
                 f.write(f"- **Asset**: {r.asset_pattern}\n")
                 f.write(f"- **Tag**: {r.release_tag}\n")
+                if r.error_kind:
+                    f.write(f"- **错误类型**: `{r.error_kind}`\n")
                 f.write(f"- **风险原因**:\n")
                 for note in r.risk_notes:
                     f.write(f"  - {note}\n")

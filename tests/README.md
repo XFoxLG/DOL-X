@@ -1,6 +1,6 @@
 # DoL-X 自动化测试
 
-Phase 1 和 Phase 2 的自动化测试已实现。
+Phase 1、Phase 2 和 Phase 3 静态 smoke 的自动化测试已实现。
 
 ## 本地运行
 
@@ -13,14 +13,17 @@ pip install -r requirements.txt
 ### 运行配置测试
 
 ```bash
-# 运行所有配置测试
-pytest tests/test_build_matrix.py tests/test_mod_config.py -v
+# 运行所有非 slow 测试（与 CI config-tests 一致）
+python -m pytest tests/ -v --tb=short -m "not slow"
+
+# 运行构建矩阵和 mod 配置测试
+python -m pytest tests/test_build_matrix.py tests/test_mod_config.py -v
 
 # 只运行构建矩阵测试
-pytest tests/test_build_matrix.py -v
+python -m pytest tests/test_build_matrix.py -v
 
 # 只运行 mod 配置测试
-pytest tests/test_mod_config.py -v
+python -m pytest tests/test_mod_config.py -v
 ```
 
 ### 运行 Mod 资源审计
@@ -58,6 +61,22 @@ python tools/cheat_extended_audit.py --output-dir output
 - `maplebirch` 与 `Simple Frameworks` 的二选一框架要求
 - 和当前配置中旧作弊栈、AU 面部扩展、UCB 的潜在冲突与耦合
 
+### 运行 Phase 3 静态 HTML smoke test
+
+```bash
+# 检查单个构建 ZIP、HTML，或递归检查目录内的 ZIP/HTML
+python tools/html_smoke_test.py output --output output/html-smoke-report.json
+```
+
+输出文件：
+- `output/html-smoke-report.json` - HTML smoke JSON 报告
+
+该静态 smoke test 不启动浏览器，主要检查：
+- 构建 ZIP 中存在 HTML；
+- HTML 内存在 `window.modDataValueZipList`；
+- 内嵌 mod 列表是有效 JSON 数组；
+- 内嵌 base64 mod payload 可解码并通过 ZIP 完整性检查。
+
 ## GitHub Actions
 
 每次推送到 `vega` 分支时自动运行：
@@ -65,6 +84,7 @@ python tools/cheat_extended_audit.py --output-dir output
 1. **配置与矩阵测试** - 验证构建组合、polyfill、mod 配置
 2. **Mod 资源审计** - 下载并检查所有 mod 资源
 3. **cheatExtended 替代性审计** - 评估其是否适合作为 Cheat/CSD/BJX/BCCM 的候选替代
+4. **Phase 3 静态 HTML smoke test** - 对构建 ZIP 样本做非阻断结构检查
 
 查看结果：
 - Actions 页面：https://github.com/XFoxLG/DOL-X/actions
@@ -92,10 +112,18 @@ python tools/cheat_extended_audit.py --output-dir output
 - ✓ Mod 结构验证
 - ✓ 风险等级评估
 - ✓ cheatExtended 替代性/框架/冲突审计
+- ✓ GitHub API 错误分类，rate limit 不再误报为 asset 删除
+
+### Phase 3: 静态 HTML smoke test
+
+- ✓ 构建产物中存在 HTML
+- ✓ HTML 内存在 ModLoader 的 `modDataValueZipList`
+- ✓ 内嵌 mod 列表可解析为 JSON 数组
+- ✓ 内嵌 base64 mod ZIP 可解码并通过完整性检查
 
 ## 下一步
 
-Phase 3: HTML 浏览器 smoke test（待实现）
+Phase 3 浏览器 smoke test（待实现）
 - 使用 Playwright 或 agent-browser-cli
 - 打开本地 HTML
 - 采集 console、network、截图
