@@ -165,6 +165,37 @@ class TestModConfig:
             assert mod.enabled is enabled, f"{key} 默认启用状态错误"
             assert mod.download_url, f"{key} 应使用已确认的直链下载地址"
 
+    def test_love_and_spellbook_mods_exist(self):
+        """验证已合入实验 mod 使用独立 feature 与直链资源。"""
+        build_config = load_build_config()
+
+        expected_mods = {
+            "more_love": {
+                "name": "更多恋人",
+                "feature_id": "more_love",
+                "github_repo": "Nephthelana/DoL-More-Love-Interests-Mod",
+                "asset_pattern": "More.Love.Interests.Mod.mod.zip",
+            },
+            "custom_spellbook": {
+                "name": "自定义魔法书",
+                "feature_id": "custom_spellbook",
+                "github_repo": "ZeroRing233/DOL-Custom-Spellbook-Mod",
+                "asset_pattern": "Custom-Spellbook-1.0.0.mod.zip",
+            },
+        }
+        mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
+
+        for key, expected in expected_mods.items():
+            mod = mods_by_key.get(key)
+            assert mod is not None, f"缺少已合入实验 mod: {key}"
+            assert mod.enabled is True, f"{key} 应默认启用"
+            assert mod.name == expected["name"]
+            assert mod.feature_id == expected["feature_id"]
+            assert mod.github_repo == expected["github_repo"]
+            assert mod.asset_pattern == expected["asset_pattern"]
+            assert mod.download_url, f"{key} 应使用已确认的直链下载地址"
+            assert mod.cache_name == key, f"{key} cache_name 应保持独立"
+
     def test_au_main_mods_exist(self):
         """验证 AU 主模组配置存在"""
         build_config = load_build_config()

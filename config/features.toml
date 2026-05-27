@@ -121,3 +121,21 @@ required = false
 skip = false
 depends_on = []
 conflicts_with = ["susato", "goose", "au-f", "au-m", "au-a"]
+
+[[features]]
+id = "more_love"
+name = "更多恋人"
+bit = 8192
+required = false
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "custom_spellbook"
+name = "自定义魔法书"
+bit = 16384
+required = false
+skip = false
+depends_on = []
+conflicts_with = []
