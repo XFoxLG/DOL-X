@@ -163,6 +163,7 @@ class BaseModConfig:
     key: str  # mod 标识，对应 extra_mods 字典中的键
     feature_id: str = ""  # 关联的 feature ID（可选）
     github_repo: str = ""  # GitHub 仓库，自动下载最新 .mod.zip（可选）
+    required: bool = True  # 缺失时是否中止 prepare，默认保护基础构建完整性
     inject: str = "add"  # 注入方式: "add" 追加 / "replace" 替换指定 slot
     replace_slot: int = 0  # 替换的 slot 索引（仅 inject="replace" 时有效）
 
@@ -172,6 +173,7 @@ class BaseModConfig:
             key=data["key"],
             feature_id=data.get("feature_id", ""),
             github_repo=data.get("github_repo", ""),
+            required=data.get("required", True),
             inject=data.get("inject", "add"),
             replace_slot=data.get("replace_slot", 0),
         )

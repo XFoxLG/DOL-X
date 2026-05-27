@@ -24,6 +24,10 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+class ModInjectionError(RuntimeError):
+    """Raised when a required built-in mod cannot be injected."""
+
+
 class ApkProcessor:
     """
     APK 处理器
@@ -135,8 +139,11 @@ class ModInjector:
         """
         import base64
 
-        # 过滤存在的 mod 文件
-        existing_mods = [p for p in mod_paths if p and p.exists()]
+        missing_mods = [str(p) for p in mod_paths if not p or not p.exists()]
+        if missing_mods:
+            raise ModInjectionError(f"mod 文件不存在: {', '.join(missing_mods)}")
+
+        existing_mods = list(mod_paths)
 
         if not existing_mods:
             logger.warning("没有可添加的 mod 文件")
@@ -152,8 +159,7 @@ class ModInjector:
         match = re.search(pattern, content, re.DOTALL)
 
         if not match:
-            logger.error("HTML 文件中未找到 modDataValueZipList")
-            return
+            raise ModInjectionError("HTML 文件中未找到 modDataValueZipList")
 
         existing_list = json.loads(match.group(1))
 
@@ -187,8 +193,7 @@ class ModInjector:
         import base64
 
         if not mod_path.exists():
-            logger.warning(f"mod 文件不存在: {mod_path}")
-            return
+            raise ModInjectionError(f"mod 文件不存在: {mod_path}")
 
         logger.info(f"替换 {html_path.name} 的 mod ID {mod_id}")
 
@@ -200,14 +205,14 @@ class ModInjector:
         match = re.search(pattern, content, re.DOTALL)
 
         if not match:
-            logger.error("HTML 文件中未找到 modDataValueZipList")
-            return
+            raise ModInjectionError("HTML 文件中未找到 modDataValueZipList")
 
         existing_list = json.loads(match.group(1))
 
         if mod_id < 0 or mod_id >= len(existing_list):
-            logger.error(f"无效的 mod ID: {mod_id}，有效范围: 0-{len(existing_list)-1}")
-            return
+            raise ModInjectionError(
+                f"无效的 mod ID: {mod_id}，有效范围: 0-{len(existing_list)-1}"
+            )
 
         # 加载新的 mod 文件
         with open(mod_path, "rb") as f:
@@ -420,6 +425,18 @@ class GamePreparer:
             extra_mods: 额外的 mod 文件
         """
         build_config = load_build_config()
+
+        missing_required = [
+            mod.key
+            for mod in build_config.base_mods
+            if mod.required
+            and (mod.key not in extra_mods or not extra_mods[mod.key].exists())
+        ]
+        if missing_required:
+            raise ModInjectionError(
+                "缺少 required base mods，无法生成完整基包: "
+                + ", ".join(missing_required)
+            )
 
         mods_to_add = []
         for mod in build_config.base_mods:

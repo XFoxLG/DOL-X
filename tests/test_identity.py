@@ -8,6 +8,7 @@ import pytest
 
 from lyra.build import BuildTask, ZipBuilder
 from lyra.config_loader import load_build_config
+from lyra.gen_page import DownloadPageConfig
 from lyra.version import LyraVersion
 
 
@@ -59,3 +60,16 @@ class TestIdentity:
 
         assert output_name == "DoL-0.5.8.10-XFox-3.1.3a-au-f-ucb-0401.zip"
         assert "-Lyra-" not in output_name
+
+    def test_download_page_filename_uses_xfox_identity(self):
+        """验证下载页链接文件名与构建产物 identity 保持一致"""
+        config = DownloadPageConfig(
+            version="v0.5.8.10-3.1.3a-0401",
+            github_owner="XFoxLG",
+            github_repo="DOL-X",
+        )
+
+        filename = config.get_filename(1282, "zip")
+
+        assert filename == "DoL-0.5.8.10-XFox-3.1.3a-au-f-ucb-0401.zip"
+        assert "-Lyra-" not in filename

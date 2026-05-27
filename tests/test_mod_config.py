@@ -216,6 +216,14 @@ class TestModConfig:
                 f"有效值: {valid_modes}"
             )
 
+    def test_stable_base_mods_are_required(self):
+        """验证当前稳定基底 mod 缺失时必须 fail fast"""
+        build_config = load_build_config()
+
+        required_keys = {mod.key for mod in build_config.base_mods if mod.required}
+
+        assert {"modloader_gui", "i18n", "cheat", "csd"}.issubset(required_keys)
+
     def test_modloader_gui_replaces_slot_0(self):
         """验证 modloader_gui 替换 slot 0"""
         build_config = load_build_config()
