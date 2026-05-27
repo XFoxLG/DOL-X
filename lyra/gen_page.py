@@ -47,9 +47,11 @@ class DownloadPageConfig:
     date_suffix: str = ""
     versions_file: Optional[Path] = None  # 版本信息文件路径
     version_info: list[VersionInfo] = field(default_factory=list)  # 版本信息列表
+    identity_name: str = ""
 
     def __post_init__(self):
         """如果没有指定 GitHub 信息，从配置文件加载"""
+        build_config = None
         if not self.github_owner or not self.github_repo:
             try:
                 build_config = load_build_config()
@@ -62,6 +64,18 @@ class DownloadPageConfig:
                     self.github_owner = "sakarie9"
                 if not self.github_repo:
                     self.github_repo = "DoL-Lyra"
+
+        if not self.identity_name:
+            if build_config is None:
+                try:
+                    build_config = load_build_config()
+                except Exception:
+                    build_config = None
+            self.identity_name = (
+                build_config.identity_name
+                if build_config and build_config.identity_name
+                else "Lyra"
+            )
 
         # 解析版本号，例如 v0.5.7.9-5.0.2a-0112
         if not self.base_game_version or not self.chs_version or not self.date_suffix:
@@ -108,7 +122,7 @@ class DownloadPageConfig:
             生成的文件名
         """
         # 构建前缀
-        prefix = f"DoL-{self.base_game_version}-Lyra-{self.chs_version}"
+        prefix = f"DoL-{self.base_game_version}-{self.identity_name}-{self.chs_version}"
         if is_polyfill:
             prefix += "-polyfill"
 
