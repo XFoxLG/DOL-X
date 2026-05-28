@@ -145,13 +145,21 @@ class TestModConfig:
             )
 
     def test_cheat_extension_mods_exist(self):
-        """验证作弊/CSD 扩展 mod 配置存在并绑定到 cheat_csd"""
+        """验证旧作弊/CSD 扩展 mod 配置存在并按实验栈启停"""
         build_config = load_build_config()
 
+        cheat_extended_enabled = any(
+            mod.enabled
+            for mod in build_config.modloader_mods
+            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+            or mod.key in {"cheat_extended", "cheatExtended"}
+        )
+        expected_enabled = not cheat_extended_enabled
+
         expected_mods = {
-            "bjx_word_unlock": ("言灵解放", True),
-            "bjx_portable_word": ("随身言灵", True),
-            "bccm": ("随时施法", True),
+            "bjx_word_unlock": ("言灵解放", expected_enabled),
+            "bjx_portable_word": ("随身言灵", expected_enabled),
+            "bccm": ("随时施法", expected_enabled),
         }
         mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
 
@@ -252,6 +260,18 @@ class TestModConfig:
         build_config = load_build_config()
 
         required_keys = {mod.key for mod in build_config.base_mods if mod.required}
+
+        cheat_extended_enabled = any(
+            mod.enabled
+            for mod in build_config.modloader_mods
+            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+            or mod.key in {"cheat_extended", "cheatExtended"}
+        )
+
+        if cheat_extended_enabled:
+            assert {"modloader_gui", "i18n"}.issubset(required_keys)
+            assert not {"cheat", "csd"} & required_keys
+            return
 
         assert {"modloader_gui", "i18n", "cheat", "csd"}.issubset(required_keys)
 
