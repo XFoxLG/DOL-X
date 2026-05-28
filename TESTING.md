@@ -159,11 +159,14 @@ python tools/browser_smoke_test.py output --output-dir output/browser-smoke --re
 输出：
 
 - `output/browser-smoke/browser-smoke-report.json`
+- `output/browser-smoke/browser-smoke-summary.json`
 - `output/browser-smoke/browser-smoke-report.md`
 - `output/browser-smoke/console.log`
 - `output/browser-smoke/network-failures.json`
 
-初期建议始终使用 `--report-only`。修复当前 Custom-Spellbook 已知运行时问题后，再考虑移除 `--report-only` 并升级为严格门禁。
+`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口。
+
+初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false` 或 high-risk issue 数量大于 0，仍代表存在运行时风险。修复当前 Custom-Spellbook 已知运行时问题后，再考虑移除 `--report-only` 并升级为严格门禁。
 
 ### 6. 查看报告
 
@@ -176,6 +179,9 @@ cat output/mod-compatibility-report.json
 
 # Phase 4 浏览器 smoke 报告
 cat output/browser-smoke/browser-smoke-report.md
+
+# Phase 4 精简摘要
+cat output/browser-smoke/browser-smoke-summary.json
 ```
 
 ## GitHub Actions 使用
@@ -205,6 +211,14 @@ git push origin vega
    - `mod-audit-reports` - Mod 审计报告
    - `html-smoke-report` - Phase 3 静态 HTML smoke 报告
    - `browser-smoke-report` - Phase 4 浏览器运行 smoke 报告（保留 3 天）
+
+`browser-smoke-report` artifact 中优先查看：
+
+1. `browser-smoke-report.md` - 人工阅读的完整摘要、high-risk、warning 和 observations；
+2. `browser-smoke-summary.json` - 快速判断 `success`、`report_only` 和 issue 计数；
+3. `console.log` / `network-failures.json` - 深入定位浏览器 console 与网络问题。
+
+注意：当前 Phase 4 是 report-only。Actions 成功不等于运行时无错误；请以 `browser-smoke-summary.json` 中的 `success` 和 `issue_counts.high` 为准。
 
 ### PR 集成
 
@@ -290,7 +304,7 @@ Phase 4 已作为 `browser-smoke` job 接入 `.github/workflows/compatibility.ya
 **当前目标**:
 - 通过本地 HTTP server 打开构建产物，避免 `file://` CORS 误报；
 - 采集 `console.error`、`pageerror` 和 failed network requests；
-- 输出 JSON、Markdown、console 和 network failure artifacts；
+- 输出完整 JSON、精简 summary JSON、Markdown、console 和 network failure artifacts；
 - 使用 `ucb-more-love-custom-spellbook` profile 检查当前主线必需 mod 与 Custom-Spellbook 入口。
 
 **已知高风险模式**:
