@@ -133,7 +133,7 @@ release_tag = "facemod"
 [[modloader_mods]]
 key = "bjx_word_unlock"
 name = "言灵解放"
-enabled = true
+enabled = false
 feature_id = "cheat_csd"
 github_repo = "cphxj123/Dol-BJX-Mods"
 asset_pattern = "言灵解放1.1.0.zip"
@@ -143,7 +143,7 @@ download_url = "https://github.com/cphxj123/Dol-BJX-Mods/raw/main/%E8%A8%80%E7%8
 [[modloader_mods]]
 key = "bjx_portable_word"
 name = "随身言灵"
-enabled = true
+enabled = false
 feature_id = "cheat_csd"
 github_repo = "cphxj123/Dol-BJX-Mods"
 asset_pattern = "随身言灵1.1.0.zip"
@@ -153,7 +153,7 @@ download_url = "https://github.com/cphxj123/Dol-BJX-Mods/raw/main/%E9%9A%8F%E8%B
 [[modloader_mods]]
 key = "bccm"
 name = "随时施法"
-enabled = true
+enabled = false
 feature_id = "cheat_csd"
 github_repo = "Tony70124/BetterCheatCommandManagement-for-DOL"
 asset_pattern = "BCCM_v2.1.4.zip"
@@ -180,6 +180,26 @@ asset_pattern = "Custom-Spellbook-1.0.0.mod.zip"
 release_tag = "1.0.0-alpha"
 download_url = "https://github.com/ZeroRing233/DOL-Custom-Spellbook-Mod/releases/download/1.0.0-alpha/Custom-Spellbook-1.0.0.mod.zip"
 
+[[modloader_mods]]
+key = "maplebirch"
+name = "maplebirch"
+enabled = true
+feature_id = "cheat_extended_maplebirch"
+github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchframework"
+asset_pattern = "maplebirch-0.5.8.10-v3.2.5.modpack"
+release_tag = "maplebirch-release-v3.2.5"
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v3.2.5/maplebirch-0.5.8.10-v3.2.5.modpack"
+
+[[modloader_mods]]
+key = "cheat_extended"
+name = "cheatExtended"
+enabled = true
+feature_id = "cheat_extended_maplebirch"
+github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+asset_pattern = "cheat_extended.mod.zip"
+release_tag = "V1.18(Dev20260325)"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.18%28Dev20260325%29/cheat_extended.mod.zip"
+
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）
@@ -195,13 +215,3 @@ replace_slot = 0                                  # 替换原始 ModLoader (slot
 
 [[base_mods]]
 key = "i18n"
-
-[[base_mods]]
-key = "cheat"
-feature_id = "cheat_csd"
-github_repo = "DoL-Lyra/Cheat"
-
-[[base_mods]]
-key = "csd"
-feature_id = "cheat_csd"
-github_repo = "DoL-Lyra/CombatStatusDisplay"
