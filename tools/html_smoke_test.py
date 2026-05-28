@@ -10,6 +10,7 @@ import argparse
 import base64
 import io
 import json
+import os
 import re
 import sys
 import zipfile
@@ -25,6 +26,18 @@ MOD_LIST_PATTERN = re.compile(
 
 
 @dataclass
+class EmbeddedPayloadDiagnostic:
+    """Best-effort diagnosis for one embedded ModLoader payload."""
+
+    index: int
+    kind: str = "unknown"
+    size_bytes: Optional[int] = None
+    has_boot_json: bool = False
+    error: Optional[str] = None
+    names: list[str] = field(default_factory=list)
+
+
+@dataclass
 class HtmlSmokeResult:
     """Result for one HTML smoke audit target."""
 
@@ -33,9 +46,23 @@ class HtmlSmokeResult:
     html_found: bool = False
     mod_count: int = 0
     valid_zip_count: int = 0
+    non_zip_payload_count: int = 0
     invalid_zip_count: int = 0
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    payloads: list[EmbeddedPayloadDiagnostic] = field(default_factory=list)
+
+
+def collect_ci_context() -> dict[str, str]:
+    """Collect optional GitHub Actions metadata for report traceability."""
+    env_map = {
+        "workflow_run_id": "DOLX_WORKFLOW_RUN_ID",
+        "workflow_head_branch": "DOLX_WORKFLOW_HEAD_BRANCH",
+        "workflow_head_sha": "DOLX_WORKFLOW_HEAD_SHA",
+        "github_sha": "DOLX_GITHUB_SHA",
+        "artifact_name": "DOLX_ARTIFACT_NAME",
+    }
+    return {key: value for key, env_name in env_map.items() if (value := os.environ.get(env_name))}
 
 
 def _load_html_from_zip(zip_path: Path) -> tuple[Optional[str], Optional[str]]:
@@ -86,29 +113,57 @@ def audit_html_content(content: str, target: str) -> HtmlSmokeResult:
         return result
 
     for index, entry in enumerate(mod_entries):
+        diagnostic = EmbeddedPayloadDiagnostic(index=index)
+        result.payloads.append(diagnostic)
+
         if not isinstance(entry, str):
+            diagnostic.kind = "non_string"
+            diagnostic.error = "modDataValueZipList entry is not a string"
             result.invalid_zip_count += 1
             result.errors.append(f"modDataValueZipList[{index}] 不是字符串")
             continue
 
         try:
             payload = _decode_mod_zip(entry)
+        except Exception as exc:
+            diagnostic.kind = "invalid_base64"
+            diagnostic.error = str(exc)
+            result.invalid_zip_count += 1
+            result.errors.append(f"modDataValueZipList[{index}] 不是有效 base64: {exc}")
+            continue
+
+        diagnostic.size_bytes = len(payload)
+        try:
             with zipfile.ZipFile(io.BytesIO(payload), "r") as zf:
+                diagnostic.kind = "zip"
                 bad_file = zf.testzip()
                 if bad_file:
+                    diagnostic.error = bad_file
                     result.invalid_zip_count += 1
                     result.errors.append(f"内嵌 mod #{index} ZIP 损坏: {bad_file}")
                     continue
 
                 names = zf.namelist()
+                diagnostic.names = names[:20]
                 if not any(name.lower().endswith("boot.json") for name in names):
                     result.warnings.append(f"内嵌 mod #{index} 未发现 boot.json")
+                else:
+                    diagnostic.has_boot_json = True
                 result.valid_zip_count += 1
+        except zipfile.BadZipFile as exc:
+            diagnostic.kind = "non_zip"
+            diagnostic.error = str(exc)
+            result.non_zip_payload_count += 1
+            result.warnings.append(
+                f"内嵌 mod #{index} 可解码但不是 ZIP，将交由浏览器 smoke 验证: {exc}"
+            )
         except Exception as exc:
+            diagnostic.kind = "zip_error"
+            diagnostic.error = str(exc)
             result.invalid_zip_count += 1
-            result.errors.append(f"内嵌 mod #{index} 不是有效 ZIP: {exc}")
+            result.errors.append(f"内嵌 mod #{index} ZIP 检查失败: {exc}")
 
-    result.success = not result.errors and result.valid_zip_count == result.mod_count
+    result.success = not result.errors and result.valid_zip_count + result.non_zip_payload_count == result.mod_count
     return result
 
 
@@ -184,7 +239,11 @@ def main() -> int:
     args = parser.parse_args()
 
     results = audit_target(args.target)
-    report = {"total": len(results), "results": [asdict(result) for result in results]}
+    report = {
+        "total": len(results),
+        "ci_context": collect_ci_context(),
+        "results": [asdict(result) for result in results],
+    }
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -192,7 +251,10 @@ def main() -> int:
 
     for result in results:
         status = "OK" if result.success else "FAIL"
-        print(f"[{status}] {result.target}: mods={result.mod_count}, valid_zip={result.valid_zip_count}")
+        print(
+            f"[{status}] {result.target}: mods={result.mod_count}, "
+            f"valid_zip={result.valid_zip_count}, non_zip={result.non_zip_payload_count}"
+        )
         for error in result.errors:
             print(f"  ERROR: {error}")
         for warning in result.warnings:

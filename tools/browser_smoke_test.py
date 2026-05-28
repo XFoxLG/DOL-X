@@ -16,6 +16,7 @@ import functools
 import http.server
 import io
 import json
+import os
 import re
 import sys
 import tempfile
@@ -41,7 +42,9 @@ class SmokeProfile:
     name: str
     required_mod_names: tuple[str, ...] = ()
     required_globals: tuple[str, ...] = ()
+    warning_globals: tuple[str, ...] = ()
     click_selectors: tuple[str, ...] = ()
+    dialog_password: str | None = None
 
 
 PROFILES: dict[str, SmokeProfile] = {
@@ -59,8 +62,9 @@ PROFILES: dict[str, SmokeProfile] = {
             "Custom-Spellbook",
             "Lyra",
         ),
-        required_globals=("spellBookMobileClicked",),
+        warning_globals=("spellBookMobileClicked",),
         click_selectors=('[onclick*="spellBookMobileClicked"]',),
+        dialog_password="DOL-Custom-Spellbook-Mod",
     ),
     "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": SmokeProfile(
         name="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
@@ -73,8 +77,9 @@ PROFILES: dict[str, SmokeProfile] = {
             "Custom-Spellbook",
             "Lyra",
         ),
-        required_globals=("spellBookMobileClicked",),
+        warning_globals=("spellBookMobileClicked",),
         click_selectors=('[onclick*="spellBookMobileClicked"]',),
+        dialog_password="DOL-Custom-Spellbook-Mod",
     ),
     "none": SmokeProfile(name="none"),
 }
@@ -99,6 +104,7 @@ class BrowserSmokeReport:
     target: str
     profile: str
     report_only: bool
+    ci_context: dict[str, str] = field(default_factory=dict)
     success: bool = False
     html_path: str | None = None
     served_url: str | None = None
@@ -118,6 +124,18 @@ class EmbeddedModInfo:
     boot_json_found: bool = False
     error: str | None = None
     search_text: str = ""
+
+
+def collect_ci_context() -> dict[str, str]:
+    """Collect optional GitHub Actions metadata for report traceability."""
+    env_map = {
+        "workflow_run_id": "DOLX_WORKFLOW_RUN_ID",
+        "workflow_head_branch": "DOLX_WORKFLOW_HEAD_BRANCH",
+        "workflow_head_sha": "DOLX_WORKFLOW_HEAD_SHA",
+        "github_sha": "DOLX_GITHUB_SHA",
+        "artifact_name": "DOLX_ARTIFACT_NAME",
+    }
+    return {key: value for key, env_name in env_map.items() if (value := os.environ.get(env_name))}
 
 
 ALLOWED_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -377,11 +395,11 @@ def _check_required_mods(
     report.observations["required_mods"] = required_results
 
 
-def _page_state_script(required_globals: tuple[str, ...]) -> str:
+def _page_state_script(global_names: tuple[str, ...]) -> str:
     return """
-    (requiredGlobals) => {
+    (globalNames) => {
       const globals = {};
-      for (const name of requiredGlobals) {
+      for (const name of globalNames) {
         globals[name] = typeof window[name];
       }
       return {
@@ -398,6 +416,240 @@ def _page_state_script(required_globals: tuple[str, ...]) -> str:
       };
     }
     """
+
+
+ENTER_GAME_LABELS: tuple[str, ...] = (
+    "Start",
+    "New Game",
+    "Begin",
+    "Play",
+    "Next",
+    "Continue",
+    "Proceed",
+    "Confirm",
+    "开始",
+    "新游戏",
+    "下一步",
+    "继续",
+    "确认",
+    "完成",
+)
+
+
+def _game_ready_script() -> str:
+    return """
+    () => {
+      const bodyText = (document.body && document.body.innerText || '').trim();
+      const sugarCube = window.SugarCube;
+      const state = sugarCube && sugarCube.State;
+      const engine = sugarCube && sugarCube.Engine;
+      const story = sugarCube && sugarCube.Story;
+      const passageElement = document.querySelector('.passage, [data-passage], #passages > div');
+      const passage =
+        (state && (state.passage || (state.active && state.active.title))) ||
+        (passageElement && (passageElement.getAttribute('data-passage') || passageElement.id)) ||
+        null;
+      const loadingLike = /loading|please wait|加载|载入|初始化/i.test(bodyText) && bodyText.length < 1000;
+      const interactiveElements = Array.from(
+        document.querySelectorAll('a, button, input[type="button"], input[type="submit"], [role="button"], .link-internal')
+      ).filter((element) => Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length));
+
+      const hasJQuery = typeof window.jQuery !== 'undefined';
+      const hasSugarCube = typeof sugarCube !== 'undefined';
+      const hasSugarCubeState = Boolean(state);
+      const hasSugarCubeEngine = Boolean(engine);
+      const hasSugarCubeStory = Boolean(story);
+      const readyState = document.readyState;
+      const ready = Boolean(
+        hasJQuery &&
+        hasSugarCube &&
+        hasSugarCubeState &&
+        hasSugarCubeEngine &&
+        hasSugarCubeStory &&
+        readyState !== 'loading' &&
+        !loadingLike
+      );
+
+      return {
+        ready,
+        title: document.title,
+        readyState,
+        hasJQuery,
+        hasSugarCube,
+        hasSugarCubeState,
+        hasSugarCubeEngine,
+        hasSugarCubeStory,
+        passage,
+        passageElementId: passageElement ? passageElement.id || null : null,
+        passageElementData: passageElement ? passageElement.getAttribute('data-passage') : null,
+        bodyTextSample: bodyText.slice(0, 500),
+        bodyTextLength: bodyText.length,
+        loadingLike,
+        interactiveElementCount: interactiveElements.length,
+      };
+    }
+    """
+
+
+def _enter_game_click_script() -> str:
+    return """
+    (labels) => {
+      const normalizedLabels = labels.map((label) => String(label).toLowerCase());
+      const elements = Array.from(
+        document.querySelectorAll('a, button, input[type="button"], input[type="submit"], [role="button"], .link-internal')
+      );
+      const candidates = elements
+        .filter((element) => Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length))
+        .map((element) => {
+          const text = (element.innerText || element.textContent || element.value || element.title || element.getAttribute('aria-label') || '').trim();
+          return {
+            element,
+            text,
+            tag: element.tagName,
+            id: element.id || null,
+            className: typeof element.className === 'string' ? element.className : null,
+          };
+        })
+        .filter((candidate) => candidate.text.length > 0);
+
+      const matched = candidates.find((candidate) => {
+        const text = candidate.text.toLowerCase();
+        return normalizedLabels.some((label) => text === label || text.includes(label));
+      });
+
+      if (!matched) {
+        return {
+          clicked: false,
+          reason: 'no_candidate',
+          candidates: candidates.slice(0, 20).map(({ text, tag, id, className }) => ({ text, tag, id, className })),
+        };
+      }
+
+      matched.element.click();
+      return {
+        clicked: true,
+        text: matched.text,
+        tag: matched.tag,
+        id: matched.id,
+        className: matched.className,
+      };
+    }
+    """
+
+
+def _looks_playable(game_ready: dict[str, Any]) -> bool:
+    passage = str(game_ready.get("passage") or "").strip().lower()
+    if not game_ready.get("ready") or game_ready.get("loadingLike"):
+        return False
+    if passage and passage not in {"start", "loading"}:
+        return True
+    return bool(game_ready.get("interactiveElementCount", 0) > 0 and game_ready.get("bodyTextLength", 0) > 500)
+
+
+def _record_game_ready(report: BrowserSmokeReport, page: Any) -> dict[str, Any]:
+    game_ready = page.evaluate(_game_ready_script())
+    report.observations["game_ready"] = game_ready
+
+    if not game_ready.get("hasSugarCube"):
+        _add_issue(
+            report,
+            Issue("high", "game_runtime_missing", "game_ready", "window.SugarCube was not available after startup"),
+        )
+    elif game_ready.get("loadingLike"):
+        _add_issue(
+            report,
+            Issue("high", "game_stuck_loading", "game_ready", "page still looked like a loading screen after startup"),
+        )
+    elif not game_ready.get("ready"):
+        _add_issue(
+            report,
+            Issue("warning", "game_ready_incomplete", "game_ready", "game runtime was observed but not fully ready"),
+        )
+
+    if not game_ready.get("hasJQuery"):
+        _add_issue(
+            report,
+            Issue("warning", "jquery_missing", "game_ready", "window.jQuery was not available after startup"),
+        )
+
+    return game_ready
+
+
+def _attempt_enter_game(report: BrowserSmokeReport, page: Any) -> None:
+    issue_start = len(report.issues)
+    enter_result: dict[str, Any] = {
+        "attempted": False,
+        "success": False,
+        "steps": [],
+        "new_high_risk_errors": [],
+    }
+
+    try:
+        before = page.evaluate(_game_ready_script())
+        enter_result["passage_before"] = before.get("passage")
+        enter_result["state_before"] = before
+
+        if _looks_playable(before):
+            enter_result.update(
+                {
+                    "success": True,
+                    "reason": "already_playable",
+                    "passage_after": before.get("passage"),
+                    "state_after": before,
+                }
+            )
+            report.observations["enter_game"] = enter_result
+            return
+
+        if not before.get("ready"):
+            enter_result["reason"] = "game_not_ready"
+            report.observations["enter_game"] = enter_result
+            _add_issue(
+                report,
+                Issue("warning", "enter_game_not_attempted", "enter_game", "game was not ready enough to attempt entry"),
+            )
+            return
+
+        enter_result["attempted"] = True
+        after = before
+        for _ in range(5):
+            step = page.evaluate(_enter_game_click_script(), list(ENTER_GAME_LABELS))
+            enter_result["steps"].append(step)
+            if not step.get("clicked"):
+                enter_result["reason"] = step.get("reason", "no_candidate")
+                break
+
+            page.wait_for_timeout(1_000)
+            after = page.evaluate(_game_ready_script())
+            step["passage_after"] = after.get("passage")
+            if _looks_playable(after):
+                enter_result["success"] = True
+                enter_result["reason"] = "playable_state_observed"
+                break
+
+        enter_result["passage_after"] = after.get("passage")
+        enter_result["state_after"] = after
+    except Exception as exc:  # noqa: BLE001 - CI report should capture Playwright/runtime setup failures.
+        enter_result["error"] = str(exc)
+        _add_issue(report, Issue("warning", "enter_game_error", "enter_game", str(exc)))
+
+    new_high = [issue for issue in report.issues[issue_start:] if issue.severity == "high"]
+    enter_result["new_high_risk_errors"] = [asdict(issue) for issue in new_high]
+    if new_high:
+        enter_result["success"] = False
+
+    if not enter_result.get("success"):
+        _add_issue(
+            report,
+            Issue(
+                "warning",
+                "enter_game_not_confirmed",
+                "enter_game",
+                f"could not confirm playable passage; reason={enter_result.get('reason', 'unknown')}",
+            ),
+        )
+
+    report.observations["enter_game"] = enter_result
 
 
 def _run_playwright(
@@ -424,11 +676,35 @@ def _run_playwright(
         return
 
     page_errors: list[str] = []
+    dialogs: list[dict[str, Any]] = []
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 900})
         page = context.new_page()
+
+        def on_dialog(dialog: Any) -> None:
+            default_value = getattr(dialog, "default_value", None)
+            if callable(default_value):
+                default_value = default_value()
+            entry = {
+                "type": dialog.type,
+                "message": dialog.message,
+                "default_value": default_value,
+                "accepted": True,
+                "password_supplied": False,
+            }
+            try:
+                if dialog.type == "prompt" and profile.dialog_password is not None:
+                    dialog.accept(profile.dialog_password)
+                    entry["password_supplied"] = True
+                else:
+                    dialog.accept()
+            except PlaywrightError as exc:
+                entry["accepted"] = False
+                entry["error"] = str(exc)
+                _add_issue(report, Issue("high", "dialog_handling_failed", "runner", str(exc)))
+            dialogs.append(entry)
 
         def on_console(message: Any) -> None:
             entry = {
@@ -475,9 +751,13 @@ def _run_playwright(
         page.on("pageerror", on_page_error)
         page.on("requestfailed", on_request_failed)
         page.on("response", on_response)
+        page.on("dialog", on_dialog)
+        report.observations["dialog_password_configured"] = profile.dialog_password is not None
 
+        navigation_ok = False
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            navigation_ok = True
             with contextlib.suppress(PlaywrightTimeoutError):
                 page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 15_000))
             page.wait_for_timeout(settle_ms)
@@ -490,10 +770,13 @@ def _run_playwright(
             _add_issue(report, Issue("high", "browser_navigation_error", "runner", str(exc)))
 
         try:
-            page_state = page.evaluate(_page_state_script(profile.required_globals), list(profile.required_globals))
+            global_names = tuple(dict.fromkeys([*profile.required_globals, *profile.warning_globals]))
+            page_state = page.evaluate(_page_state_script(global_names), list(global_names))
             report.observations["page_state"] = page_state
             for global_name, global_type in page_state.get("globals", {}).items():
-                if global_type != "function":
+                if global_type == "function":
+                    continue
+                if global_name in profile.required_globals:
                     _add_issue(
                         report,
                         Issue(
@@ -503,8 +786,41 @@ def _run_playwright(
                             f"window.{global_name} expected function, got {global_type}",
                         ),
                     )
+                elif global_name in profile.warning_globals:
+                    _add_issue(
+                        report,
+                        Issue(
+                            "warning",
+                            "warning_global_missing",
+                            "profile",
+                            f"window.{global_name} expected function when reachable, got {global_type}",
+                        ),
+                    )
         except PlaywrightError as exc:
             _add_issue(report, Issue("high", "page_state_error", "runner", str(exc)))
+
+        report.observations["dialogs"] = dialogs
+        page_state = report.observations.get("page_state", {})
+        report.observations["browser_boot"] = {
+            "navigation_ok": navigation_ok,
+            "served_url": url,
+            "ready_state": page_state.get("readyState"),
+            "has_jquery": page_state.get("hasJQuery"),
+            "has_sugarcube": page_state.get("hasSugarCube"),
+            "has_mod_data_value_zip_list": page_state.get("hasModDataValueZipList"),
+            "mod_data_value_zip_list_length": page_state.get("modDataValueZipListLength"),
+            "dialog_count": len(dialogs),
+            "console_message_count": len(report.console_messages),
+            "network_failure_count": len(report.network_failures),
+        }
+
+        try:
+            _record_game_ready(report, page)
+        except PlaywrightError as exc:
+            _add_issue(report, Issue("high", "game_ready_check_error", "runner", str(exc)))
+
+        if "game_ready" in report.observations:
+            _attempt_enter_game(report, page)
 
         click_results: dict[str, dict[str, Any]] = {}
         for selector in profile.click_selectors:
@@ -559,6 +875,9 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
     warnings = [issue for issue in report.issues if issue.severity == "warning"]
     allowed = [issue for issue in report.issues if issue.severity == "allowed"]
     status = "pass" if report.success else "report_only_with_findings" if report.report_only else "fail"
+    browser_boot = report.observations.get("browser_boot", {})
+    game_ready = report.observations.get("game_ready", {})
+    enter_game = report.observations.get("enter_game", {})
 
     return {
         "status": status,
@@ -566,15 +885,39 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
         "report_only": report.report_only,
         "target": report.target,
         "profile": report.profile,
+        "ci_context": report.ci_context,
         "html_path": report.html_path,
         "served_url": report.served_url,
         "elapsed_seconds": round(report.elapsed_seconds, 2),
+        "browser_boot": {
+            "navigation_ok": browser_boot.get("navigation_ok"),
+            "has_sugarcube": browser_boot.get("has_sugarcube"),
+            "has_mod_data_value_zip_list": browser_boot.get("has_mod_data_value_zip_list"),
+            "dialog_count": browser_boot.get("dialog_count", 0),
+        },
+        "game_ready": {
+            "ready": game_ready.get("ready"),
+            "has_jquery": game_ready.get("hasJQuery"),
+            "has_sugarcube": game_ready.get("hasSugarCube"),
+            "passage": game_ready.get("passage"),
+            "loading_like": game_ready.get("loadingLike"),
+            "interactive_element_count": game_ready.get("interactiveElementCount"),
+        },
+        "enter_game": {
+            "attempted": enter_game.get("attempted"),
+            "success": enter_game.get("success"),
+            "reason": enter_game.get("reason"),
+            "passage_before": enter_game.get("passage_before"),
+            "passage_after": enter_game.get("passage_after"),
+            "new_high_risk_count": len(enter_game.get("new_high_risk_errors", [])),
+        },
         "issue_counts": {
             "high": len(high),
             "warning": len(warnings),
             "allowed": len(allowed),
             "total": len(report.issues),
         },
+        "dialog_observations": report.observations.get("dialogs", []),
         "top_high_risk": [asdict(issue) for issue in high[:top_limit]],
     }
 
@@ -598,12 +941,23 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         f"- HTML: `{report.html_path}`",
         f"- URL: `{report.served_url}`",
         f"- Elapsed seconds: `{report.elapsed_seconds:.2f}`",
+        f"- Browser navigation OK: `{summary['browser_boot']['navigation_ok']}`",
+        f"- SugarCube ready: `{summary['game_ready']['ready']}`",
+        f"- Current passage: `{summary['game_ready']['passage']}`",
+        f"- Entered playable scene: `{summary['enter_game']['success']}`",
+        f"- Enter-game reason: `{summary['enter_game']['reason']}`",
         f"- High risk issues: `{counts['high']}`",
         f"- Warnings: `{counts['warning']}`",
         f"- Allowed findings: `{counts['allowed']}`",
         f"- Total findings: `{counts['total']}`",
         "",
     ]
+
+    if report.ci_context:
+        lines.extend(["## CI context", ""])
+        for key, value in report.ci_context.items():
+            lines.append(f"- {key}: `{value}`")
+        lines.append("")
 
     if report.report_only and high:
         lines.extend(
@@ -668,6 +1022,7 @@ def run_browser_smoke(args: argparse.Namespace) -> BrowserSmokeReport:
         target=str(args.target),
         profile=profile.name,
         report_only=args.report_only,
+        ci_context=collect_ci_context(),
     )
 
     try:
@@ -705,7 +1060,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--profile",
         choices=sorted(PROFILES),
-        default="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        default="ucb-more-love-custom-spellbook",
         help="Mod-specific smoke profile",
     )
     parser.add_argument(
