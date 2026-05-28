@@ -16,6 +16,10 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: compatibility-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   config-tests:
     name: 配置与矩阵测试
@@ -180,6 +184,60 @@ jobs:
           name: html-smoke-report
           path: output/html-smoke-report.json
 
+  browser-smoke:
+    name: Phase 4 browser smoke test
+    runs-on: ubuntu-latest
+    needs: html-smoke
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    continue-on-error: true
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout workflow run head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Download ZIP sample artifact from Build workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: dol-builds-zip-sample
+          path: build-artifacts/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install browser smoke dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Run browser smoke test in report-only mode
+        run: |
+          python tools/browser_smoke_test.py build-artifacts --output-dir output/browser-smoke --report-only
+
+      - name: Add browser smoke summary
+        if: always()
+        run: |
+          if [ -f output/browser-smoke/browser-smoke-report.md ]; then
+            cat output/browser-smoke/browser-smoke-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Phase 4 Browser Smoke" >> "$GITHUB_STEP_SUMMARY"
+            echo "browser-smoke-report.md was not generated; inspect job logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload browser smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-report
+          path: output/browser-smoke/
+          retention-days: 3
+
   slow-tests:
     name: 慢速测试（可选）
     runs-on: ubuntu-latest
@@ -206,7 +264,7 @@ jobs:
   summary:
     name: 测试总结
     runs-on: ubuntu-latest
-    needs: [config-tests, mod-audit, html-smoke]
+    needs: [config-tests, mod-audit, html-smoke, browser-smoke]
     if: always()
     
     steps:
@@ -229,6 +287,11 @@ jobs:
           if [ "${{ needs.html-smoke.result }}" == "failure" ]; then
             echo "::warning::Phase 3 HTML smoke test 发现问题，请查看 html-smoke-report artifact"
           fi
+
+          if [ "${{ needs.browser-smoke.result }}" == "failure" ]; then
+            echo "::warning::Phase 4 browser smoke test 发现运行时风险，请查看 browser-smoke-report artifact"
+          fi
           
           echo "✓ Phase 1 & 2 兼容性测试完成"
           echo "✓ Phase 3 静态 HTML smoke test 已启用（非阻断）"
+          echo "✓ Phase 4 浏览器运行 smoke test 已启用（report-only，非阻断）"
