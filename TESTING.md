@@ -130,8 +130,10 @@ python tools/html_smoke_test.py output --output output/html-smoke-report.json
 - 构建产物中存在 HTML；
 - HTML 内存在 `window.modDataValueZipList`；
 - 列表是有效 JSON 数组；
-- 内嵌 mod base64 payload 可解码为有效 ZIP；
-- 内嵌 ZIP 中缺失 `boot.json` 时给出 warning。
+- 内嵌 mod base64 payload 可解码；
+- 可识别 ZIP payload 的 `boot.json` 元数据；
+- 内嵌 ZIP 中缺失 `boot.json` 时给出 warning；
+- 可解码但不是 ZIP 的 payload 作为 warning/诊断保留，交由 Phase 4 浏览器 smoke 继续验证。
 
 ### 5. 运行 Phase 4 浏览器 smoke test（可选）
 
@@ -148,13 +150,15 @@ python -m playwright install chromium
 python tools/browser_smoke_test.py output --output-dir output/browser-smoke --report-only
 ```
 
-默认 profile 为 `ucb-more-love-custom-spellbook`，会检查：
+默认 profile 为稳定主线 `ucb-more-love-custom-spellbook`。检查 cheatExtended/maplebirch 实验分支产物时，显式加 `--profile ucb-more-love-custom-spellbook-cheat-extended-maplebirch`；Actions 会根据 `workflow_run.head_branch` 自动选择对应 profile。
 
-- 内嵌 mod 元数据中能观察到主线必需 mod；
-- `window.spellBookMobileClicked` 是否为函数；
-- `[onclick*="spellBookMobileClicked"]` 侧边栏入口如果存在，点击后是否产生新的 page error；
-- `ReferenceError`、`TypeError`、`Error [tw-user-script-*]` 等运行时错误；
-- `modList.json`、`usettings.js`、More Love 可选依赖、Custom-Spellbook 外部资源缺失等已知非致命/待定位告警。
+Phase 4 现在按分层 smoke 记录结果：
+
+- **Phase 4A / Browser boot**：通过本地 HTTP server 打开 HTML，处理 Custom Spellbook prompt 密码，观察 ModLoader 内嵌 mod 元数据，并捕获 `console.error`、`pageerror`、failed request 和 HTTP 4xx/5xx；
+- **Phase 4B / Game Ready**：检查 `window.jQuery`、`window.SugarCube`、`SugarCube.State`、`SugarCube.Engine`、`SugarCube.Story`、当前 passage、正文长度、loading-like 状态和可交互元素数量；
+- **Phase 4C / Enter Game**：在 runtime ready 后，用通用按钮/链接文本（Start、New Game、Continue、开始、继续等）最多尝试 5 步进入首个可玩场景，记录 `passage_before`、`passage_after`、点击步骤和进入过程中新增的 high-risk 错误；
+- **Phase 4D / Mod profile probes**：检查 profile 要求的 mod 名称、warning global、可选 UI selector 点击，以及 `ReferenceError`、`TypeError`、`Error [tw-user-script-*]` 等高风险运行时错误；
+- `modList.json`、`usettings.js`、More Love 可选依赖、Custom-Spellbook 外部资源缺失等仍作为已知非致命/待定位告警记录。
 
 输出：
 
@@ -164,9 +168,9 @@ python tools/browser_smoke_test.py output --output-dir output/browser-smoke --re
 - `output/browser-smoke/console.log`
 - `output/browser-smoke/network-failures.json`
 
-`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口。
+`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、`browser_boot`、`game_ready`、`enter_game`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口。
 
-初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false` 或 high-risk issue 数量大于 0，仍代表存在运行时风险。修复当前 Custom-Spellbook 已知运行时问题后，再考虑移除 `--report-only` 并升级为严格门禁。
+初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false`、`issue_counts.high` 大于 0，或 `enter_game.success=false`，仍代表存在运行时风险或需要人工复核。等 browser boot / game ready / enter game 在主线和实验分支上连续稳定后，再考虑移除 `--report-only` 并升级为严格门禁。
 
 ### 6. 查看报告
 
@@ -215,7 +219,7 @@ git push origin vega
 `browser-smoke-report` artifact 中优先查看：
 
 1. `browser-smoke-report.md` - 人工阅读的完整摘要、high-risk、warning 和 observations；
-2. `browser-smoke-summary.json` - 快速判断 `success`、`report_only` 和 issue 计数；
+2. `browser-smoke-summary.json` - 快速判断 `success`、`report_only`、`browser_boot`、`game_ready`、`enter_game` 和 issue 计数；
 3. `console.log` / `network-failures.json` - 深入定位浏览器 console 与网络问题。
 
 注意：当前 Phase 4 是 report-only。Actions 成功不等于运行时无错误；请以 `browser-smoke-summary.json` 中的 `success` 和 `issue_counts.high` 为准。
@@ -275,6 +279,9 @@ git push origin vega
 | Hash 变化 | Mod 审计 + lock 文件 | ⚡ 可检测变化 |
 | 依赖缺失 | Mod 审计 | ⚡ 可检测结构 |
 | HTML 内嵌 mod ZIP 损坏 | Phase 3 HTML smoke | ⚡ 非阻断报告 |
+| HTML 内嵌非 ZIP payload | Phase 3 HTML smoke | ⚡ 作为 warning 诊断，交由浏览器验证 |
+| 游戏 runtime 未加载/卡 loading | Phase 4 Game Ready | ⚡ report-only，后续可升级门禁 |
+| 无法确认进入可玩场景 | Phase 4 Enter Game | ⚡ report-only，需要人工复核 |
 | 浏览器运行时错误 | Phase 4 browser smoke | ⚡ report-only，后续可升级门禁 |
 | UI 入口函数缺失 | Phase 4 mod profile | ⚡ report-only，后续可升级门禁 |
 
@@ -290,7 +297,8 @@ Phase 3 静态 HTML smoke test 已实现第一版：
 **当前目标**:
 - 快速检查构建产物能否找到 HTML；
 - 检查 ModLoader 内嵌 mod 列表是否存在且格式正确；
-- 检查内嵌 mod ZIP 是否损坏。
+- 检查内嵌 mod ZIP 是否损坏；
+- 对 maplebirch/modpack 这类可解码但非 ZIP 的 payload 给出 warning，而不是误判为构建失败。
 
 ## Phase 4 当前状态：浏览器运行 smoke test（report-only）
 
@@ -298,14 +306,16 @@ Phase 4 已作为 `browser-smoke` job 接入 `.github/workflows/compatibility.ya
 
 **已实现文件**:
 - `tools/browser_smoke_test.py` - Playwright/Chromium 浏览器运行 smoke 工具
-- `tests/test_browser_smoke.py` - 嵌入 mod 元数据提取和错误分类测试
+- `tests/test_browser_smoke.py` - 嵌入 mod 元数据提取、错误分类、summary 分层输出测试
 - `.github/workflows/compatibility.yaml` - 非阻断 `browser-smoke` job
 
 **当前目标**:
 - 通过本地 HTTP server 打开构建产物，避免 `file://` CORS 误报；
-- 采集 `console.error`、`pageerror` 和 failed network requests；
+- 自动处理 Custom Spellbook prompt 密码并记录 dialogs；
+- 采集 `console.error`、`pageerror`、failed network requests 和 HTTP 4xx/5xx；
 - 输出完整 JSON、精简 summary JSON、Markdown、console 和 network failure artifacts；
-- 使用 `ucb-more-love-custom-spellbook` profile 检查当前主线必需 mod 与 Custom-Spellbook 入口。
+- 记录 `browser_boot`、`game_ready`、`enter_game` 三层结果，至少确认 HTML、ModLoader、SugarCube 能启动，并尽量自动进入首个可玩场景；
+- 使用 profile 检查当前主线或实验分支必需 mod 与 Custom-Spellbook 入口。
 
 **已知高风险模式**:
 - `spellBookMobileClicked is not defined`
@@ -321,11 +331,12 @@ Phase 4 已作为 `browser-smoke` job 接入 `.github/workflows/compatibility.ya
 - `style.css`、`img/misc/banner.png`：Custom-Spellbook 外部资源缺失，先报告，后续定位后再决定是否升为失败。
 
 **严格门禁切换条件**:
-1. 当前 `ucb-more-love-custom-spellbook` 构建不再出现 `spellBookMobileClicked is not defined`。
-2. 不再出现 `ev.preventDefault is not a function`。
-3. Custom-Spellbook 侧边栏入口可点击且不产生新的 `pageerror`。
-4. `style.css` / `banner.png` 已修复或明确记录为安全 allowlist。
-5. GitHub Actions 连续多次生成稳定报告后，再移除 `--report-only`。
+1. 主线 `ucb-more-love-custom-spellbook` 构建稳定满足 `browser_boot.navigation_ok=true`、`game_ready.ready=true`。
+2. 主线构建能稳定 `enter_game.success=true`，或已证明无法完全自动化且有明确人工复核流程。
+3. 当前构建不再出现 `spellBookMobileClicked is not defined`、`ev.preventDefault is not a function` 等 high-risk runtime error。
+4. Custom-Spellbook 侧边栏入口可点击且不产生新的 `pageerror`。
+5. `style.css` / `banner.png` 已修复或明确记录为安全 allowlist。
+6. GitHub Actions 连续多次生成稳定报告后，再移除 `--report-only`。
 
 ## 新增 mod 的 Phase 4 profile 策略
 
