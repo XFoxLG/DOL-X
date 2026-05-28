@@ -115,14 +115,44 @@ def test_browser_smoke_treats_actions_node_warning_as_warning():
 
 
 @pytest.mark.config
-def test_browser_smoke_default_profile_targets_cheat_experiment():
+def test_browser_smoke_default_profile_targets_mainline():
     args = parse_args(["dummy.zip"])
+    profile = PROFILES[args.profile]
+
+    assert args.profile == "ucb-more-love-custom-spellbook"
+    assert "BetterCheatCommandManagement" in profile.required_mod_names
+    assert "cheatExtended" not in profile.required_mod_names
+    assert "maplebirch" not in profile.required_mod_names
+    assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
+    assert "spellBookMobileClicked" in profile.warning_globals
+    assert "spellBookMobileClicked" not in profile.required_globals
+
+
+@pytest.mark.config
+def test_browser_smoke_can_select_cheat_experiment_profile():
+    args = parse_args(["dummy.zip", "--profile", "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"])
     profile = PROFILES[args.profile]
 
     assert args.profile == "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
     assert "cheatExtended" in profile.required_mod_names
     assert "maplebirch" in profile.required_mod_names
     assert "BetterCheatCommandManagement" not in profile.required_mod_names
+    assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
+    assert "spellBookMobileClicked" in profile.warning_globals
+    assert "spellBookMobileClicked" not in profile.required_globals
+
+
+@pytest.mark.config
+def test_browser_smoke_custom_spellbook_profiles_use_password_and_warning_global():
+    for profile_name in (
+        "ucb-more-love-custom-spellbook",
+        "ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+    ):
+        profile = PROFILES[profile_name]
+
+        assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
+        assert "spellBookMobileClicked" in profile.warning_globals
+        assert "spellBookMobileClicked" not in profile.required_globals
 
 
 @pytest.mark.config
@@ -131,9 +161,40 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
         target="build-artifacts/sample.zip",
         profile="ucb-more-love-custom-spellbook",
         report_only=True,
+        ci_context={
+            "workflow_run_id": "12345",
+            "workflow_head_branch": "experiment/cheat-extended-maplebirch",
+            "workflow_head_sha": "abcdef0",
+            "artifact_name": "dol-builds-zip-sample",
+        },
         html_path="Degrees of Lewdity.html",
         served_url="http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
     )
+    report.observations["dialogs"] = [
+        {"type": "prompt", "accepted": True, "password_supplied": True}
+    ]
+    report.observations["browser_boot"] = {
+        "navigation_ok": True,
+        "has_sugarcube": True,
+        "has_mod_data_value_zip_list": True,
+        "dialog_count": 1,
+    }
+    report.observations["game_ready"] = {
+        "ready": True,
+        "hasJQuery": True,
+        "hasSugarCube": True,
+        "passage": "Start",
+        "loadingLike": False,
+        "interactiveElementCount": 4,
+    }
+    report.observations["enter_game"] = {
+        "attempted": True,
+        "success": True,
+        "reason": "playable_state_observed",
+        "passage_before": "Start",
+        "passage_after": "Bedroom",
+        "new_high_risk_errors": [],
+    }
     report.issues.append(Issue("high", "type_error", "pageerror", "TypeError: boom"))
     report.issues.append(Issue("warning", "network_failure", "requestfailed", "optional asset missing"))
 
@@ -144,9 +205,33 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
 
     assert report.success is False
     assert summary["status"] == "report_only_with_findings"
+    assert summary["ci_context"]["workflow_head_branch"] == "experiment/cheat-extended-maplebirch"
+    assert summary["dialog_observations"][0]["password_supplied"] is True
+    assert summary["browser_boot"] == {
+        "navigation_ok": True,
+        "has_sugarcube": True,
+        "has_mod_data_value_zip_list": True,
+        "dialog_count": 1,
+    }
+    assert summary["game_ready"]["ready"] is True
+    assert summary["game_ready"]["has_jquery"] is True
+    assert summary["game_ready"]["has_sugarcube"] is True
+    assert summary["game_ready"]["passage"] == "Start"
+    assert summary["game_ready"]["interactive_element_count"] == 4
+    assert summary["enter_game"]["attempted"] is True
+    assert summary["enter_game"]["success"] is True
+    assert summary["enter_game"]["reason"] == "playable_state_observed"
+    assert summary["enter_game"]["passage_before"] == "Start"
+    assert summary["enter_game"]["passage_after"] == "Bedroom"
+    assert summary["enter_game"]["new_high_risk_count"] == 0
     assert summary["issue_counts"] == {"high": 1, "warning": 1, "allowed": 0, "total": 2}
     assert summary["top_high_risk"][0]["kind"] == "type_error"
     assert "REPORT ONLY - HIGH RISK FOUND" in markdown
+    assert "Browser navigation OK" in markdown
+    assert "SugarCube ready" in markdown
+    assert "Entered playable scene" in markdown
+    assert "## CI context" in markdown
+    assert "workflow_head_branch" in markdown
     assert "report-only" in markdown
 
 

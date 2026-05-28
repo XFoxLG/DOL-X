@@ -175,6 +175,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run static HTML smoke test
+        env:
+          DOLX_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          DOLX_WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DOLX_GITHUB_SHA: ${{ github.sha }}
+          DOLX_ARTIFACT_NAME: dol-builds-zip-sample
         run: |
           python tools/html_smoke_test.py build-artifacts --output output/html-smoke-report.json
 
@@ -218,8 +224,18 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Run browser smoke test in report-only mode
+        env:
+          DOLX_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          DOLX_WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DOLX_GITHUB_SHA: ${{ github.sha }}
+          DOLX_ARTIFACT_NAME: dol-builds-zip-sample
         run: |
-          python tools/browser_smoke_test.py build-artifacts --output-dir output/browser-smoke --report-only
+          PROFILE="ucb-more-love-custom-spellbook"
+          if [ "${DOLX_WORKFLOW_HEAD_BRANCH}" = "experiment/cheat-extended-maplebirch" ]; then
+            PROFILE="ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
+          fi
+          python tools/browser_smoke_test.py build-artifacts --output-dir output/browser-smoke --report-only --profile "${PROFILE}"
 
       - name: Add browser smoke summary
         if: always()
