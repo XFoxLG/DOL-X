@@ -139,3 +139,12 @@ required = false
 skip = false
 depends_on = []
 conflicts_with = []
+
+[[features]]
+id = "cheat_extended_maplebirch"
+name = "cheatExtended+maplebirch"
+bit = 32768
+required = false
+skip = false
+depends_on = []
+conflicts_with = []

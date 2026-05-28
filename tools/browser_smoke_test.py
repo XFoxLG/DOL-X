@@ -62,6 +62,20 @@ PROFILES: dict[str, SmokeProfile] = {
         required_globals=("spellBookMobileClicked",),
         click_selectors=('[onclick*="spellBookMobileClicked"]',),
     ),
+    "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": SmokeProfile(
+        name="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        required_mod_names=(
+            "ModLoaderGui",
+            "ModI18N",
+            "maplebirch",
+            "cheatExtended",
+            "More Love Interests Mod",
+            "Custom-Spellbook",
+            "Lyra",
+        ),
+        required_globals=("spellBookMobileClicked",),
+        click_selectors=('[onclick*="spellBookMobileClicked"]',),
+    ),
     "none": SmokeProfile(name="none"),
 }
 
@@ -691,7 +705,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--profile",
         choices=sorted(PROFILES),
-        default="ucb-more-love-custom-spellbook",
+        default="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
         help="Mod-specific smoke profile",
     )
     parser.add_argument(

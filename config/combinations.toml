@@ -1,14 +1,14 @@
 # MOD 组合配置
 
-# 自用构建列表：构建 UCB 基础版，以及 AU + UCB + 作弊/CSD 三个组合。
+# 实验构建列表：在当前 vega 自用组合上追加 cheatExtended+maplebirch。
 # 使用显式列表可以避免新增 feature 后自动膨胀出不需要的版本。
-build_codes = ["24834", "25858", "26882", "28930"]
+build_codes = ["57602", "58626", "59650", "61698"]
 
-# 基础版显示名称对应的组合：UCB + 作弊/CSD。
-base_code = 24834
+# 基础版显示名称对应的组合：UCB + more-love + spellbook + cheatExtended/maplebirch。
+base_code = 57602
 
 # 推荐的组合（优先显示）
-recommended = [25858, 26882, 28930]
+recommended = [58626, 59650, 61698]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。

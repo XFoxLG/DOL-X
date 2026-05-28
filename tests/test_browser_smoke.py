@@ -11,9 +11,11 @@ import pytest
 from tools.browser_smoke_test import (
     BrowserSmokeReport,
     Issue,
+    PROFILES,
     classify_message,
     extract_embedded_mods_from_html,
     main,
+    parse_args,
     write_outputs,
 )
 
@@ -110,6 +112,17 @@ def test_browser_smoke_treats_actions_node_warning_as_warning():
 
     assert issue.severity == "warning"
     assert issue.kind == "browser_warning"
+
+
+@pytest.mark.config
+def test_browser_smoke_default_profile_targets_cheat_experiment():
+    args = parse_args(["dummy.zip"])
+    profile = PROFILES[args.profile]
+
+    assert args.profile == "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
+    assert "cheatExtended" in profile.required_mod_names
+    assert "maplebirch" in profile.required_mod_names
+    assert "BetterCheatCommandManagement" not in profile.required_mod_names
 
 
 @pytest.mark.config
