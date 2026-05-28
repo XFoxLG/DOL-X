@@ -18,6 +18,10 @@ def _embedded_mod_zip() -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def _embedded_non_zip_payload() -> str:
+    return base64.b64encode(b"maplebirch modpack placeholder").decode("ascii")
+
+
 @pytest.mark.config
 def test_html_smoke_accepts_embedded_mod_zip(tmp_path):
     html_path = tmp_path / "index.html"
@@ -34,6 +38,27 @@ def test_html_smoke_accepts_embedded_mod_zip(tmp_path):
     assert result.html_found is True
     assert result.mod_count == 1
     assert result.valid_zip_count == 1
+
+
+@pytest.mark.config
+def test_html_smoke_warns_for_decodable_non_zip_payload(tmp_path):
+    html_path = tmp_path / "index.html"
+    html_path.write_text(
+        "<html><script>window.modDataValueZipList = "
+        + json.dumps([_embedded_mod_zip(), _embedded_non_zip_payload()])
+        + ";</script></html>",
+        encoding="utf-8",
+    )
+
+    result = audit_html(html_path)
+
+    assert result.success is True
+    assert result.mod_count == 2
+    assert result.valid_zip_count == 1
+    assert result.non_zip_payload_count == 1
+    assert result.invalid_zip_count == 0
+    assert result.payloads[1].kind == "non_zip"
+    assert any("不是 ZIP" in warning for warning in result.warnings)
 
 
 @pytest.mark.config
