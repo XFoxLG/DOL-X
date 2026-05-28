@@ -539,27 +539,71 @@ def _write_console_log(report: BrowserSmokeReport, output_dir: Path) -> None:
     (output_dir / "console.log").write_text("\n".join(lines), encoding="utf-8")
 
 
-def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None:
+def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str, Any]:
+    """Return a compact summary for CI step summaries and quick artifact checks."""
     high = [issue for issue in report.issues if issue.severity == "high"]
     warnings = [issue for issue in report.issues if issue.severity == "warning"]
     allowed = [issue for issue in report.issues if issue.severity == "allowed"]
-    status = "PASS" if report.success else "REPORT ONLY" if report.report_only else "FAIL"
+    status = "pass" if report.success else "report_only_with_findings" if report.report_only else "fail"
+
+    return {
+        "status": status,
+        "success": report.success,
+        "report_only": report.report_only,
+        "target": report.target,
+        "profile": report.profile,
+        "html_path": report.html_path,
+        "served_url": report.served_url,
+        "elapsed_seconds": round(report.elapsed_seconds, 2),
+        "issue_counts": {
+            "high": len(high),
+            "warning": len(warnings),
+            "allowed": len(allowed),
+            "total": len(report.issues),
+        },
+        "top_high_risk": [asdict(issue) for issue in high[:top_limit]],
+    }
+
+
+def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None:
+    summary = summarize_report(report)
+    high = [issue for issue in report.issues if issue.severity == "high"]
+    warnings = [issue for issue in report.issues if issue.severity == "warning"]
+    allowed = [issue for issue in report.issues if issue.severity == "allowed"]
+    status = "PASS" if report.success else "REPORT ONLY - HIGH RISK FOUND" if report.report_only else "FAIL"
+    counts = summary["issue_counts"]
 
     lines = [
         "# DoL-X Phase 4 Browser Smoke Report",
         "",
         f"- Status: `{status}`",
+        f"- Success: `{report.success}`",
+        f"- Report-only mode: `{report.report_only}`",
         f"- Target: `{report.target}`",
         f"- Profile: `{report.profile}`",
-        f"- Report only: `{report.report_only}`",
         f"- HTML: `{report.html_path}`",
         f"- URL: `{report.served_url}`",
         f"- Elapsed seconds: `{report.elapsed_seconds:.2f}`",
-        f"- High risk issues: `{len(high)}`",
-        f"- Warnings: `{len(warnings)}`",
-        f"- Allowed findings: `{len(allowed)}`",
+        f"- High risk issues: `{counts['high']}`",
+        f"- Warnings: `{counts['warning']}`",
+        f"- Allowed findings: `{counts['allowed']}`",
+        f"- Total findings: `{counts['total']}`",
         "",
     ]
+
+    if report.report_only and high:
+        lines.extend(
+            [
+                "> This job is currently report-only: high-risk runtime findings are recorded but do not fail CI.",
+                "",
+            ]
+        )
+
+    if high:
+        lines.extend(["## Top high-risk findings", ""])
+        for issue in high[:5]:
+            lines.append(f"- `{issue.kind}` from `{issue.source}`: {issue.message}")
+        lines.append("")
 
     def add_issue_section(title: str, issues: list[Issue]) -> None:
         lines.extend([f"## {title}", ""])
@@ -586,8 +630,13 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
 def write_outputs(report: BrowserSmokeReport, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     report.success = not any(issue.severity == "high" for issue in report.issues)
+    summary = summarize_report(report)
     (output_dir / "browser-smoke-report.json").write_text(
         json.dumps(asdict(report), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (output_dir / "browser-smoke-summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     (output_dir / "network-failures.json").write_text(
