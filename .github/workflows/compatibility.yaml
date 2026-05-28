@@ -29,16 +29,16 @@ jobs:
     steps:
       - name: Checkout workflow run head
         if: github.event_name == 'workflow_run'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Checkout selected ref
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -53,12 +53,13 @@ jobs:
       
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: config-test-results
           path: |
             .pytest_cache/
             output/
+          if-no-files-found: ignore
 
   mod-audit:
     name: Mod 资源审计
@@ -68,16 +69,16 @@ jobs:
     steps:
       - name: Checkout workflow run head
         if: github.event_name == 'workflow_run'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Checkout selected ref
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -104,7 +105,7 @@ jobs:
       
       - name: Upload audit reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mod-audit-reports
           path: |
@@ -161,12 +162,12 @@ jobs:
 
     steps:
       - name: Checkout workflow run head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download ZIP sample artifact from Build workflow
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: dol-builds-zip-sample
           path: build-artifacts/
@@ -179,7 +180,7 @@ jobs:
 
       - name: Upload HTML smoke report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: html-smoke-report
           path: output/html-smoke-report.json
@@ -194,12 +195,12 @@ jobs:
 
     steps:
       - name: Checkout workflow run head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download ZIP sample artifact from Build workflow
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: dol-builds-zip-sample
           path: build-artifacts/
@@ -207,7 +208,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -232,7 +233,7 @@ jobs:
 
       - name: Upload browser smoke report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: browser-smoke-report
           path: output/browser-smoke/
@@ -245,10 +246,10 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -295,3 +296,4 @@ jobs:
           echo "✓ Phase 1 & 2 兼容性测试完成"
           echo "✓ Phase 3 静态 HTML smoke test 已启用（非阻断）"
           echo "✓ Phase 4 浏览器运行 smoke test 已启用（report-only，非阻断）"
+          echo "INFO: Phase 4 成功仅表示报告已生成；运行时 high-risk 请查看 browser-smoke-report.md / browser-smoke-summary.json"
