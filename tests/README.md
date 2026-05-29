@@ -1,6 +1,6 @@
 # DoL-X 自动化测试
 
-Phase 1、Phase 2 和 Phase 3 静态 smoke 的自动化测试已实现。
+Phase 1、Phase 2、Phase 3 静态 smoke 和 Phase 4 浏览器 smoke helper 的自动化测试已实现。
 
 ## 本地运行
 
@@ -85,6 +85,7 @@ python tools/html_smoke_test.py output --output output/html-smoke-report.json
 2. **Mod 资源审计** - 下载并检查所有 mod 资源
 3. **cheatExtended 替代性审计** - 评估其是否适合作为 Cheat/CSD/BJX/BCCM 的候选替代
 4. **Phase 3 静态 HTML smoke test** - 对构建 ZIP 样本做非阻断结构检查
+5. **Phase 4 浏览器 smoke test** - 对构建 ZIP 样本做 report-only 浏览器运行检查
 
 查看结果：
 - Actions 页面：https://github.com/XFoxLG/DOL-X/actions
@@ -94,11 +95,12 @@ python tools/html_smoke_test.py output --output output/html-smoke-report.json
 
 ### Phase 1: 配置与矩阵测试
 
-- ✓ 只构建 4 个自用组合 (258, 1282, 2306, 4354)
+- ✓ 只构建 4 个稳定自用组合 (24834, 25858, 26882, 28930)
 - ✓ polyfill 已关闭
 - ✓ 基础版不包含 AU
 - ✓ AU 三版本包含对应 AU feature
-- ✓ 所有版本包含 UCB + 作弊/CSD
+- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 旧作弊/CSD
+- ✓ 默认版本不包含 cheatExtended/maplebirch 实验 feature
 - ✓ Mod 配置正确性
 - ✓ feature_ids 有效性
 - ✓ cache_name 唯一性
@@ -121,9 +123,10 @@ python tools/html_smoke_test.py output --output output/html-smoke-report.json
 - ✓ 内嵌 mod 列表可解析为 JSON 数组
 - ✓ 内嵌 base64 mod ZIP 可解码并通过完整性检查
 
-## 下一步
+### Phase 4: 浏览器 smoke test helper
 
-Phase 3 浏览器 smoke test（待实现）
-- 使用 Playwright 或 agent-browser-cli
-- 打开本地 HTML
-- 采集 console、network、截图
+- ✓ Playwright/Chromium report-only 运行路径
+- ✓ console、network、pageerror 和截图 artifact 输出
+- ✓ startup interaction、Game Ready、Enter Game、package identity 和 blocker 诊断摘要
+- ✓ 稳定主线与 cheatExtended/maplebirch 实验 profile 区分
+- ✓ AU face nested blush asset 高风险模式检测

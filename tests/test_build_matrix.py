@@ -2,11 +2,12 @@
 Phase 1: 构建矩阵配置测试
 
 验证：
-- build_codes 只包含 4 个自用组合
+- build_codes 只包含 4 个稳定自用组合
 - polyfill 已关闭
-- 基础版 (57602) 不注入 AU 扩展
-- AU 三版本 (58626/59650/61698) 注入 AU 扩展
-- 所有版本都包含 more_love、custom_spellbook 与 cheatExtended/maplebirch
+- 基础版 (24834) 不注入 AU 扩展
+- AU 三版本 (25858/26882/28930) 注入 AU 扩展
+- 所有版本都包含 more_love 与 custom_spellbook
+- 默认版本不包含 cheatExtended/maplebirch 实验 feature
 - 没有在线版相关配置
 """
 import pytest
@@ -34,7 +35,7 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"57602", "58626", "59650", "61698"}
+        expected_codes = {"24834", "25858", "26882", "28930"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,13 +53,13 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_57602(self):
-        """验证实验基础版代码为 57602"""
+    def test_base_code_is_24834(self):
+        """验证稳定基础版代码为 24834"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 57602, (
-            f"基础版代码应为 57602，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 24834, (
+            f"基础版代码应为 24834，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -83,10 +84,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (57602) 不包含 AU"""
+        """验证基础版 (24834) 不包含 AU"""
         config_loader = get_config_loader()
-        
-        base_code = 57602
+
+        base_code = 24834
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -103,9 +104,9 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         
         au_variants = [
-            (58626, "au-f"),
-            (59650, "au-m"),
-            (61698, "au-a"),
+            (25858, "au-f"),
+            (26882, "au-m"),
+            (28930, "au-a"),
         ]
         
         for code, feature_id in au_variants:
@@ -145,15 +146,14 @@ class TestBuildMatrix:
                 f"版本 {code} 应包含 cheat_csd (bit={cheat_feature.bit})"
             )
 
-    def test_all_versions_have_more_love_custom_spellbook_and_cheat_extended(self):
-        """验证所有版本都包含主线 mod 与本实验候选 mod"""
+    def test_all_versions_have_more_love_and_custom_spellbook(self):
+        """验证所有默认版本都包含稳定主线 mod。"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
         required_features = [
             "more_love",
             "custom_spellbook",
-            "cheat_extended_maplebirch",
         ]
         for feature_id in required_features:
             feature = config_loader.get_feature_by_id(feature_id)
@@ -164,6 +164,20 @@ class TestBuildMatrix:
                 assert (code & feature.bit), (
                     f"版本 {code} 应包含 {feature_id} (bit={feature.bit})"
                 )
+
+    def test_default_versions_exclude_cheat_extended_maplebirch(self):
+        """验证默认构建不包含 held cheatExtended/maplebirch 实验 feature。"""
+        config_loader = get_config_loader()
+        combinations_config = config_loader.combinations
+
+        feature = config_loader.get_feature_by_id("cheat_extended_maplebirch")
+        assert feature is not None, "feature cheat_extended_maplebirch 不存在"
+
+        for code_str in combinations_config.build_codes:
+            code = int(code_str)
+            assert not (code & feature.bit), (
+                f"默认版本 {code} 不应包含 cheat_extended_maplebirch (bit={feature.bit})"
+            )
 
     def test_combination_calculator_consistency(self):
         """验证 CombinationCalculator 与配置一致"""
