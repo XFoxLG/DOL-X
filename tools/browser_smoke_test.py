@@ -389,6 +389,19 @@ def _resolve_target(target: Path, temp_root: Path) -> tuple[Path, Path]:
 class QuietHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """HTTP handler that keeps CI logs focused on smoke findings."""
 
+    def do_GET(self) -> None:  # noqa: N802 - inherited HTTP verb hook.
+        request_path = self.path.split("?", 1)[0].split("#", 1)[0]
+        if request_path == "/modList.json" and not Path(self.translate_path(self.path)).exists():
+            payload = b"[]\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        super().do_GET()
+
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - inherited name.
         return
 
@@ -1181,6 +1194,22 @@ def _write_console_log(report: BrowserSmokeReport, output_dir: Path) -> None:
     (output_dir / "console.log").write_text("\n".join(lines), encoding="utf-8")
 
 
+def _is_successful_smoke(report: BrowserSmokeReport) -> bool:
+    if any(issue.severity == "high" for issue in report.issues):
+        return False
+
+    browser_boot = report.observations.get("browser_boot") or {}
+    if not browser_boot.get("navigation_ok") or not browser_boot.get("has_sugarcube"):
+        return False
+
+    enter_game = report.observations.get("enter_game") or {}
+    if enter_game.get("success"):
+        return True
+
+    game_ready = report.observations.get("game_ready") or {}
+    return _looks_playable(game_ready)
+
+
 def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str, Any]:
     """Return a compact summary for CI step summaries and quick artifact checks."""
     high = [issue for issue in report.issues if issue.severity == "high"]
@@ -1333,7 +1362,7 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
 
 def write_outputs(report: BrowserSmokeReport, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    report.success = not any(issue.severity == "high" for issue in report.issues)
+    report.success = _is_successful_smoke(report)
     summary = summarize_report(report)
     (output_dir / "browser-smoke-report.json").write_text(
         json.dumps(asdict(report), ensure_ascii=False, indent=2),
