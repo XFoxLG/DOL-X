@@ -163,6 +163,8 @@ Phase 4 现在按分层 smoke 记录结果：
 - **Phase 4E / Package identity**：检查分支、profile、package slug 是否一致。`vega` 应对应 `ucb-more-love-custom-spellbook`，且 slug 不应包含 `cheat-extended`/`maplebirch`；`experiment/cheat-extended-maplebirch` 应对应实验 profile。分支/profile 错配或主线 profile 下出现实验 slug token 会作为 high-risk finding 写入报告；
 - **Phase 4F / Static asset audit**：对打包目录做轻量资源审计，记录 `static_asset_audit.face_dir_exists`、`face_png_count`、`blush_png_count` 和 `required_face_assets`。当前会重点检查 `img/face/default/default/blush1.png`，用于自动复核 AU/BeautySelector 触发的 `Failed to load image ... for layer blush` 类问题；
 - 当目标目录内同时存在多个已解压 HTML 包或多个 ZIP 包时，Phase 4 会优先选择非 AU 基础包；AU 变体建议在基础包 boot/game-ready 通过后再单独跑一次实验 profile；
+- 本地 HTTP server 会在包内缺失 `/modList.json` 时返回空 JSON 数组 `[]`。这是为了模拟“没有远程附加 mod 列表”的正常状态，避免 ModLoader 把 404 HTML 当 JSON 解析并产生测试环境噪音；如果包内实际存在 `modList.json`，仍会按真实文件提供；
+- `success=true` 的含义是：没有 high-risk finding、browser boot 成功，并且已经确认 `enter_game.success=true` 或页面状态足够接近可玩场景。只有 browser boot 成功但 `game_ready.ready=false` / `enter_game.success=false` 时，即使 high-risk 数量为 0，也会保持 `success=false` 和 `report_only_with_findings`；
 - 图片层错误会被单独归类：`Failed to load image ... for layer ...` 记为 `image_layer_load_failed`，`img/face/...` 的 HTTP 4xx、`ERR_FILE_NOT_FOUND`、`ERR_FAILED`、`failed` 或 `not found` 记为 `face_image_asset_missing`；
 - `modList.json`、`usettings.js`、More Love 可选依赖、Custom-Spellbook 外部资源缺失等仍作为已知非致命/待定位告警记录。
 
@@ -177,7 +179,7 @@ Phase 4 现在按分层 smoke 记录结果：
 
 `browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、`browser_boot`、`game_ready`、`enter_game`、`package_identity`、`static_asset_audit`、`screenshot`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口；开头会显示 package slug、branch/profile match、profile/package slug match、截图路径和静态资产审计摘要。
 
-初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false`、`issue_counts.high` 大于 0，或 `enter_game.success=false`，仍代表存在运行时风险或需要人工复核。等 browser boot / game ready / enter game 在主线和实验分支上连续稳定后，再考虑移除 `--report-only` 并升级为严格门禁。
+初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false`、`issue_counts.high` 大于 0、`game_ready.ready=false`，或 `enter_game.success=false`，仍代表存在运行时风险或需要人工复核。等 browser boot / game ready / enter game 在主线和实验分支上连续稳定后，再考虑移除 `--report-only` 并升级为严格门禁。
 
 ### 6. 查看报告
 
