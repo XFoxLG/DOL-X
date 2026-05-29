@@ -150,14 +150,18 @@ python -m playwright install chromium
 python tools/browser_smoke_test.py output --output-dir output/browser-smoke --report-only
 ```
 
-默认 profile 为稳定主线 `ucb-more-love-custom-spellbook`。检查 cheatExtended/maplebirch 实验分支产物时，显式加 `--profile ucb-more-love-custom-spellbook-cheat-extended-maplebirch`；Actions 会根据 `workflow_run.head_branch` 自动选择对应 profile。
+默认 profile 为稳定主线 `ucb-more-love-custom-spellbook`。检查 cheatExtended/maplebirch 实验分支产物时，显式加 `--profile ucb-more-love-custom-spellbook-cheat-extended-maplebirch`；Actions 会根据 `workflow_run.head_branch` 自动选择对应 profile。报告会记录 `package_identity.package_slug`、`workflow_head_branch`、`expected_profile_for_branch`、`branch_profile_match`、`profile_slug_match` 和 `forbidden_slug_tokens_present`，用于区分 `vega` 主线 CI artifact 与手动/实验包，避免把主线报告和实验运行日志混看。
 
 Phase 4 现在按分层 smoke 记录结果：
 
 - **Phase 4A / Browser boot**：通过本地 HTTP server 打开 HTML，处理 Custom Spellbook prompt 密码，观察 ModLoader 内嵌 mod 元数据，并捕获 `console.error`、`pageerror`、failed request 和 HTTP 4xx/5xx；
 - **Phase 4B / Game Ready**：检查 `window.jQuery`、`window.SugarCube`、`SugarCube.State`、`SugarCube.Engine`、`SugarCube.Story`、当前 passage、正文长度、loading-like 状态和可交互元素数量；
 - **Phase 4C / Enter Game**：在 runtime ready 后，用通用按钮/链接文本（Start、New Game、Continue、开始、继续等）最多尝试 5 步进入首个可玩场景，记录 `passage_before`、`passage_after`、点击步骤和进入过程中新增的 high-risk 错误；
-- **Phase 4D / Mod profile probes**：检查 profile 要求的 mod 名称、warning global、可选 UI selector 点击，以及 `ReferenceError`、`TypeError`、`Error [tw-user-script-*]` 等高风险运行时错误；
+- **Phase 4D / Mod profile probes**：检查 profile 要求的 mod 名称、warning global、可选 UI selector 点击，以及 `ReferenceError`、`TypeError`、`Error [tw-user-script-*]`、`maplebirchFrameworks is not defined`、`ev.preventDefault is not a function`、`skinColourFullback`/`skincolourtext` 等高风险运行时错误；
+- **Phase 4E / Package identity**：检查分支、profile、package slug 是否一致。`vega` 应对应 `ucb-more-love-custom-spellbook`，且 slug 不应包含 `cheat-extended`/`maplebirch`；`experiment/cheat-extended-maplebirch` 应对应实验 profile。分支/profile 错配或主线 profile 下出现实验 slug token 会作为 high-risk finding 写入报告；
+- **Phase 4F / Static asset audit**：对打包目录做轻量资源审计，记录 `static_asset_audit.face_dir_exists`、`face_png_count`、`blush_png_count` 和 `required_face_assets`。当前会重点检查 `img/face/default/default/blush1.png`，用于自动复核 AU/BeautySelector 触发的 `Failed to load image ... for layer blush` 类问题；
+- 当目标目录内同时存在多个已解压 HTML 包或多个 ZIP 包时，Phase 4 会优先选择非 AU 基础包；AU 变体建议在基础包 boot/game-ready 通过后再单独跑一次实验 profile；
+- 图片层错误会被单独归类：`Failed to load image ... for layer ...` 记为 `image_layer_load_failed`，`img/face/...` 的 HTTP 4xx、`ERR_FILE_NOT_FOUND`、`ERR_FAILED`、`failed` 或 `not found` 记为 `face_image_asset_missing`；
 - `modList.json`、`usettings.js`、More Love 可选依赖、Custom-Spellbook 外部资源缺失等仍作为已知非致命/待定位告警记录。
 
 输出：
@@ -167,8 +171,9 @@ Phase 4 现在按分层 smoke 记录结果：
 - `output/browser-smoke/browser-smoke-report.md`
 - `output/browser-smoke/console.log`
 - `output/browser-smoke/network-failures.json`
+- `output/browser-smoke/browser-smoke-final.png`
 
-`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、`browser_boot`、`game_ready`、`enter_game`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口。
+`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、`browser_boot`、`game_ready`、`enter_game`、`package_identity`、`static_asset_audit`、`screenshot`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口；开头会显示 package slug、branch/profile match、profile/package slug match、截图路径和静态资产审计摘要。
 
 初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false`、`issue_counts.high` 大于 0，或 `enter_game.success=false`，仍代表存在运行时风险或需要人工复核。等 browser boot / game ready / enter game 在主线和实验分支上连续稳定后，再考虑移除 `--report-only` 并升级为严格门禁。
 
@@ -321,6 +326,10 @@ Phase 4 已作为 `browser-smoke` job 接入 `.github/workflows/compatibility.ya
 - `spellBookMobileClicked is not defined`
 - `ev.preventDefault is not a function`
 - `maplebirchFrameworks is not defined`
+- `Failed to load image ... for layer ...`
+- `img/face/...` 的 HTTP 4xx、`ERR_FILE_NOT_FOUND`、`ERR_FAILED`、`failed` 或 `not found`
+- `skinColourFullback` / `skincolourtext` 相关缺失
+- 分支/profile/package slug 身份错配，例如 `vega` 主线 profile 下出现 `cheat-extended` 或 `maplebirch` slug token
 - `Error [tw-user-script-*]`
 - `ReferenceError` / `TypeError` / `Uncaught`
 
