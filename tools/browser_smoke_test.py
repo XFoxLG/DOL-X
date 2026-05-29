@@ -643,6 +643,35 @@ ENTER_GAME_LABELS: tuple[str, ...] = (
 )
 
 
+MODAL_BLOCKER_SELECTORS: tuple[str, ...] = (
+    "dialog[open]",
+    ".swal2-container",
+    ".swal2-popup",
+    "[role='dialog']",
+    "[aria-modal='true']",
+    ".modal",
+    ".popup",
+    ".overlay",
+)
+
+
+BLOCKER_CONFIRM_LABELS: tuple[str, ...] = (
+    "OK",
+    "Ok",
+    "Confirm",
+    "Continue",
+    "Close",
+    "I agree",
+    "Yes",
+    "确定",
+    "确认",
+    "继续",
+    "关闭",
+    "同意",
+    "是",
+)
+
+
 def _game_ready_script() -> str:
     return """
     () => {
@@ -739,6 +768,124 @@ def _enter_game_click_script() -> str:
         tag: matched.tag,
         id: matched.id,
         className: matched.className,
+      };
+    }
+    """
+
+
+def _modal_blocker_script() -> str:
+    return r"""
+    (selectors) => {
+      const visible = (element) => Boolean(
+        element &&
+        (element.offsetWidth || element.offsetHeight || element.getClientRects().length) &&
+        window.getComputedStyle(element).visibility !== 'hidden' &&
+        window.getComputedStyle(element).display !== 'none'
+      );
+      const simpleSelector = (element) => {
+        if (!element) return null;
+        if (element.id) return `${element.tagName.toLowerCase()}#${element.id}`;
+        const classes = typeof element.className === 'string'
+          ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).join('.')
+          : '';
+        return classes ? `${element.tagName.toLowerCase()}.${classes}` : element.tagName.toLowerCase();
+      };
+      const unique = [];
+      const seen = new Set();
+      for (const selector of selectors) {
+        for (const element of Array.from(document.querySelectorAll(selector))) {
+          if (seen.has(element) || !visible(element)) continue;
+          seen.add(element);
+          unique.push({ selector, element });
+        }
+      }
+      const items = unique.slice(0, 10).map(({ selector, element }) => {
+        const style = window.getComputedStyle(element);
+        const text = (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim();
+        const buttons = Array.from(
+          element.querySelectorAll('button, a, input[type="button"], input[type="submit"], [role="button"]')
+        )
+          .filter(visible)
+          .map((button) => (
+            button.innerText || button.textContent || button.value || button.title || button.getAttribute('aria-label') || ''
+          ).replace(/\s+/g, ' ').trim())
+          .filter(Boolean)
+          .slice(0, 12);
+        return {
+          selector,
+          simpleSelector: simpleSelector(element),
+          tag: element.tagName,
+          id: element.id || null,
+          className: typeof element.className === 'string' ? element.className : null,
+          role: element.getAttribute('role'),
+          ariaModal: element.getAttribute('aria-modal'),
+          zIndex: style.zIndex,
+          textSample: text.slice(0, 500),
+          buttonTexts: buttons,
+        };
+      });
+      return { count: items.length, items };
+    }
+    """
+
+
+def _dismiss_blocker_script() -> str:
+    return r"""
+    (options) => {
+      const labels = options.labels.map((label) => String(label).trim().toLowerCase());
+      const selectors = options.selectors;
+      const allowGlobal = Boolean(options.allowGlobal);
+      const visible = (element) => Boolean(
+        element &&
+        (element.offsetWidth || element.offsetHeight || element.getClientRects().length) &&
+        window.getComputedStyle(element).visibility !== 'hidden' &&
+        window.getComputedStyle(element).display !== 'none'
+      );
+      const textOf = (element) => (
+        element.innerText || element.textContent || element.value || element.title || element.getAttribute('aria-label') || ''
+      ).replace(/\s+/g, ' ').trim();
+      const matches = (text) => {
+        const normalized = text.trim().toLowerCase();
+        return labels.some((label) => normalized === label || normalized.includes(label));
+      };
+      const roots = [];
+      const seenRoots = new Set();
+      for (const selector of selectors) {
+        for (const element of Array.from(document.querySelectorAll(selector))) {
+          if (seenRoots.has(element) || !visible(element)) continue;
+          seenRoots.add(element);
+          roots.push({ selector, element });
+        }
+      }
+      if (allowGlobal && roots.length === 0) {
+        roots.push({ selector: 'document', element: document });
+      }
+      const candidates = [];
+      for (const root of roots) {
+        for (const element of Array.from(
+          root.element.querySelectorAll('button, a, input[type="button"], input[type="submit"], [role="button"]')
+        )) {
+          if (!visible(element)) continue;
+          const text = textOf(element);
+          if (!text) continue;
+          candidates.push({ rootSelector: root.selector, element, text });
+        }
+      }
+      const matched = candidates.find((candidate) => matches(candidate.text));
+      if (!matched) {
+        return {
+          clicked: false,
+          reason: candidates.length ? 'no_matching_label' : 'no_candidate',
+          blockerCount: roots.length,
+          candidates: candidates.slice(0, 20).map(({ rootSelector, text }) => ({ rootSelector, text })),
+        };
+      }
+      matched.element.click();
+      return {
+        clicked: true,
+        text: matched.text,
+        rootSelector: matched.rootSelector,
+        blockerCount: roots.length,
       };
     }
     """
@@ -988,6 +1135,7 @@ def _run_playwright(
 
     page_errors: list[str] = []
     dialogs: list[dict[str, Any]] = []
+    browser_popups: list[dict[str, Any]] = []
 
     with sync_playwright() as playwright:
         browser = _launch_chromium_browser(playwright, report, PlaywrightError)
@@ -995,6 +1143,104 @@ def _run_playwright(
             return
         context = browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 900})
         page = context.new_page()
+        seen_popup_ids: set[int] = {id(page)}
+
+        def record_browser_popup(popup: Any, source: str) -> None:
+            popup_id = id(popup)
+            if popup_id in seen_popup_ids:
+                return
+            seen_popup_ids.add(popup_id)
+            entry: dict[str, Any] = {
+                "source": source,
+                "url": None,
+                "title": None,
+                "body_text_sample": None,
+                "closed": None,
+            }
+            try:
+                entry["url"] = popup.url
+                entry["closed"] = popup.is_closed()
+                if not entry["closed"]:
+                    with contextlib.suppress(PlaywrightTimeoutError, PlaywrightError):
+                        popup.wait_for_load_state("domcontentloaded", timeout=3_000)
+                    entry["url"] = popup.url
+                    entry["closed"] = popup.is_closed()
+                    if not entry["closed"]:
+                        with contextlib.suppress(PlaywrightError):
+                            entry["title"] = popup.title()
+                        with contextlib.suppress(PlaywrightError):
+                            entry["body_text_sample"] = popup.evaluate(
+                                "(document.body && document.body.innerText || '').slice(0, 500)"
+                            )
+            except PlaywrightError as exc:
+                entry["error"] = str(exc)
+            browser_popups.append(entry)
+
+        def observe_modal_blockers(stage: str) -> dict[str, Any]:
+            try:
+                result = page.evaluate(_modal_blocker_script(), list(MODAL_BLOCKER_SELECTORS))
+                if not isinstance(result, dict):
+                    result = {"count": 0, "items": [], "raw": result}
+                result["stage"] = stage
+                return result
+            except PlaywrightError as exc:
+                entry = {"stage": stage, "count": None, "items": [], "error": str(exc)}
+                _add_issue(report, Issue("warning", "modal_blocker_probe_failed", "runner", f"{stage}: {exc}"))
+                return entry
+
+        def dismiss_modal_blockers(initial_blockers: dict[str, Any]) -> dict[str, Any]:
+            dismissal: dict[str, Any] = {
+                "initial_count": initial_blockers.get("count"),
+                "final_count": initial_blockers.get("count"),
+                "attempts": [],
+            }
+            blockers_before = initial_blockers
+            for attempt_index in range(3):
+                if not blockers_before.get("count"):
+                    break
+
+                step: dict[str, Any] = {
+                    "attempt": attempt_index + 1,
+                    "blockers_before": blockers_before,
+                }
+                try:
+                    click = page.evaluate(
+                        _dismiss_blocker_script(),
+                        {
+                            "labels": list(BLOCKER_CONFIRM_LABELS),
+                            "selectors": list(MODAL_BLOCKER_SELECTORS),
+                            "allowGlobal": False,
+                        },
+                    )
+                    if not isinstance(click, dict):
+                        click = {"clicked": False, "reason": "unexpected_result", "raw": click}
+                except PlaywrightError as exc:
+                    click = {"clicked": False, "reason": "dismiss_error", "error": str(exc)}
+                    _add_issue(report, Issue("warning", "modal_blocker_dismiss_failed", "runner", str(exc)))
+
+                step["click"] = click
+                if not click.get("clicked"):
+                    dismissal["attempts"].append(step)
+                    break
+
+                page.wait_for_timeout(1_000)
+                blockers_after = observe_modal_blockers(f"after_dismissal_attempt_{attempt_index + 1}")
+                step["blockers_after"] = blockers_after
+                game_ready_after: dict[str, Any] = {}
+                with contextlib.suppress(PlaywrightError):
+                    game_ready_after = page.evaluate(_game_ready_script())
+                    step["game_ready_after"] = game_ready_after
+                dismissal["attempts"].append(step)
+                blockers_before = blockers_after
+                dismissal["final_count"] = blockers_after.get("count")
+                if game_ready_after.get("ready") or _looks_playable(game_ready_after):
+                    break
+
+            dismissal["clicked_count"] = sum(
+                1 for step in dismissal["attempts"] if (step.get("click") or {}).get("clicked")
+            )
+            dismissal["clicked"] = dismissal["clicked_count"] > 0
+            return dismissal
 
         def on_dialog(dialog: Any) -> None:
             default_value = getattr(dialog, "default_value", None)
@@ -1065,6 +1311,8 @@ def _run_playwright(
         page.on("requestfailed", on_request_failed)
         page.on("response", on_response)
         page.on("dialog", on_dialog)
+        page.on("popup", lambda popup: record_browser_popup(popup, "page.popup"))
+        context.on("page", lambda new_page: record_browser_popup(new_page, "context.page"))
         report.observations["dialog_password_configured"] = profile.dialog_password is not None
 
         navigation_ok = False
@@ -1123,14 +1371,22 @@ def _run_playwright(
             "has_mod_data_value_zip_list": page_state.get("hasModDataValueZipList"),
             "mod_data_value_zip_list_length": page_state.get("modDataValueZipListLength"),
             "dialog_count": len(dialogs),
+            "popup_count": len(browser_popups),
             "console_message_count": len(report.console_messages),
             "network_failure_count": len(report.network_failures),
         }
+
+        blockers_before_ready = observe_modal_blockers("before_game_ready")
+        report.observations["modal_blockers_before_ready"] = blockers_before_ready
+        report.observations["blocker_dismissal"] = dismiss_modal_blockers(blockers_before_ready)
 
         try:
             _record_game_ready(report, page)
         except PlaywrightError as exc:
             _add_issue(report, Issue("high", "game_ready_check_error", "runner", str(exc)))
+
+        modal_blockers_after_ready = observe_modal_blockers("after_game_ready")
+        report.observations["modal_blockers"] = modal_blockers_after_ready
 
         if "game_ready" in report.observations:
             _attempt_enter_game(report, page)
@@ -1166,6 +1422,7 @@ def _run_playwright(
                     Issue("high", "profile_click_failed", "profile", f"{selector}: {exc}"),
                 )
         report.observations["click_results"] = click_results
+        report.observations["browser_popups"] = browser_popups
 
         if screenshot_dir is not None:
             screenshot_path = screenshot_dir / "browser-smoke-final.png"
@@ -1221,6 +1478,19 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
     enter_game = report.observations.get("enter_game", {})
     package_identity = report.observations.get("package_identity", {})
     static_asset_audit = report.observations.get("static_asset_audit", {})
+    modal_blockers = report.observations.get("modal_blockers", {}) or {}
+    blocker_dismissal = report.observations.get("blocker_dismissal", {}) or {}
+    browser_popups = report.observations.get("browser_popups", []) or []
+    dismissal_attempts = blocker_dismissal.get("attempts", []) or []
+    blocker_samples = [
+        {
+            "selector": item.get("selector"),
+            "simple_selector": item.get("simpleSelector"),
+            "text_sample": item.get("textSample"),
+            "button_texts": item.get("buttonTexts", []),
+        }
+        for item in (modal_blockers.get("items") or [])[:3]
+    ]
 
     return {
         "status": status,
@@ -1269,6 +1539,17 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
             "passage_after": enter_game.get("passage_after"),
             "new_high_risk_count": len(enter_game.get("new_high_risk_errors", [])),
         },
+        "blockers": {
+            "modal_count": modal_blockers.get("count", 0),
+            "modal_samples": blocker_samples,
+            "popup_count": len(browser_popups),
+            "popup_samples": browser_popups[:3],
+            "dismissal_attempts": len(dismissal_attempts),
+            "dismissal_clicked": any((attempt.get("click") or {}).get("clicked") for attempt in dismissal_attempts),
+            "dismissal_clicked_count": blocker_dismissal.get("clicked_count", 0),
+            "dismissal_initial_count": blocker_dismissal.get("initial_count"),
+            "dismissal_final_count": blocker_dismissal.get("final_count"),
+        },
         "issue_counts": {
             "high": len(high),
             "warning": len(warnings),
@@ -1308,6 +1589,9 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         f"- Current passage: `{summary['game_ready']['passage']}`",
         f"- Entered playable scene: `{summary['enter_game']['success']}`",
         f"- Enter-game reason: `{summary['enter_game']['reason']}`",
+        f"- Browser popups observed: `{summary['blockers']['popup_count']}`",
+        f"- Modal blockers observed: `{summary['blockers']['modal_count']}`",
+        f"- Blocker dismissal clicked: `{summary['blockers']['dismissal_clicked']}`",
         f"- Face asset dir exists: `{summary['static_asset_audit']['face_dir_exists']}`",
         f"- Face PNG count: `{summary['static_asset_audit']['face_png_count']}`",
         f"- Blush PNG count: `{summary['static_asset_audit']['blush_png_count']}`",

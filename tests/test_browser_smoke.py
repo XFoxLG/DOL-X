@@ -321,6 +321,98 @@ def test_browser_smoke_outputs_pass_when_playable_without_high_risk(tmp_path):
 
 
 @pytest.mark.config
+def test_browser_smoke_summary_captures_blocker_diagnostics(tmp_path):
+    report = BrowserSmokeReport(
+        target="build-artifacts/sample.zip",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=True,
+        html_path="Degrees of Lewdity.html",
+        served_url="http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
+    )
+    report.observations["browser_boot"] = {
+        "navigation_ok": True,
+        "has_sugarcube": True,
+        "has_mod_data_value_zip_list": True,
+        "dialog_count": 0,
+        "popup_count": 1,
+    }
+    report.observations["game_ready"] = {
+        "ready": True,
+        "hasSugarCube": True,
+        "loadingLike": False,
+        "passage": "Bedroom",
+        "interactiveElementCount": 1,
+    }
+    report.observations["enter_game"] = {
+        "attempted": True,
+        "success": True,
+        "reason": "playable_state_observed",
+        "new_high_risk_errors": [],
+    }
+    report.observations["modal_blockers"] = {
+        "stage": "after_game_ready",
+        "count": 1,
+        "items": [
+            {
+                "selector": ".swal2-container",
+                "simpleSelector": "div.swal2-container",
+                "textSample": "Mod setup needs confirmation",
+                "buttonTexts": ["OK"],
+            }
+        ],
+    }
+    report.observations["blocker_dismissal"] = {
+        "initial_count": 1,
+        "final_count": 0,
+        "clicked_count": 1,
+        "clicked": True,
+        "attempts": [
+            {
+                "attempt": 1,
+                "click": {
+                    "clicked": True,
+                    "text": "OK",
+                    "rootSelector": ".swal2-container",
+                    "blockerCount": 1,
+                },
+            }
+        ],
+    }
+    report.observations["browser_popups"] = [
+        {
+            "source": "page.popup",
+            "url": "http://127.0.0.1:12345/popup.html",
+            "title": "Mod setup",
+            "body_text_sample": "Click OK to continue",
+            "closed": False,
+        }
+    ]
+
+    write_outputs(report, tmp_path)
+
+    summary = json.loads((tmp_path / "browser-smoke-summary.json").read_text(encoding="utf-8"))
+    markdown = (tmp_path / "browser-smoke-report.md").read_text(encoding="utf-8")
+
+    assert summary["blockers"]["modal_count"] == 1
+    assert summary["blockers"]["modal_samples"][0] == {
+        "selector": ".swal2-container",
+        "simple_selector": "div.swal2-container",
+        "text_sample": "Mod setup needs confirmation",
+        "button_texts": ["OK"],
+    }
+    assert summary["blockers"]["popup_count"] == 1
+    assert summary["blockers"]["popup_samples"][0]["source"] == "page.popup"
+    assert summary["blockers"]["dismissal_attempts"] == 1
+    assert summary["blockers"]["dismissal_clicked"] is True
+    assert summary["blockers"]["dismissal_clicked_count"] == 1
+    assert summary["blockers"]["dismissal_initial_count"] == 1
+    assert summary["blockers"]["dismissal_final_count"] == 0
+    assert "Browser popups observed" in markdown
+    assert "Modal blockers observed" in markdown
+    assert "Blocker dismissal clicked" in markdown
+
+
+@pytest.mark.config
 def test_browser_smoke_outputs_findings_when_game_never_ready(tmp_path):
     report = BrowserSmokeReport(
         target="build-artifacts/sample.zip",
