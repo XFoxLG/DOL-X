@@ -71,7 +71,10 @@ jobs:
         if: github.ref_type != 'tag'
         id: sample
         run: |
-          ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)
+          ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" ! -name "*-au-*" | sort | head -n 1)
+          if [[ -z "$ZIP_FILE" ]]; then
+            ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)
+          fi
           APK_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)
 
           echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
