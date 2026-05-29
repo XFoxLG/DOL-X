@@ -12,6 +12,9 @@ from tools.browser_smoke_test import (
     BrowserSmokeReport,
     Issue,
     PROFILES,
+    _find_preferred_html,
+    _record_package_identity,
+    _record_static_asset_audit,
     classify_message,
     extract_embedded_mods_from_html,
     main,
@@ -65,6 +68,21 @@ def test_browser_smoke_extracts_embedded_mod_names():
             "console.error",
             "Error [tw-user-script-0]: maplebirchFrameworks is not defined.",
             "maplebirch_framework_missing",
+        ),
+        (
+            "console.error",
+            "Failed to load image img/face/default/default/blush1.png for layer blush",
+            "image_layer_load_failed",
+        ),
+        (
+            "http_error",
+            "http://127.0.0.1/img/face/default/default/blush1.png HTTP 404",
+            "face_image_asset_missing",
+        ),
+        (
+            "pageerror",
+            "ReferenceError: skinColourFullback is not defined",
+            "skin_colour_fallback_missing",
         ),
     ],
 )
@@ -195,6 +213,26 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
         "passage_after": "Bedroom",
         "new_high_risk_errors": [],
     }
+    report.observations["package_identity"] = {
+        "package_slug": "DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-custom-spellbook-0528",
+        "workflow_head_branch": "vega",
+        "expected_profile_for_branch": "ucb-more-love-custom-spellbook",
+        "branch_profile_match": True,
+        "profile_slug_match": True,
+        "forbidden_slug_tokens_present": [],
+    }
+    report.observations["screenshot"] = {
+        "path": "output/browser-smoke/browser-smoke-final.png",
+        "full_page": True,
+    }
+    report.observations["static_asset_audit"] = {
+        "face_dir_exists": True,
+        "face_png_count": 1,
+        "blush_png_count": 1,
+        "required_face_assets": [
+            {"path": "img/face/default/default/blush1.png", "exists": True},
+        ],
+    }
     report.issues.append(Issue("high", "type_error", "pageerror", "TypeError: boom"))
     report.issues.append(Issue("warning", "network_failure", "requestfailed", "optional asset missing"))
 
@@ -224,15 +262,128 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
     assert summary["enter_game"]["passage_before"] == "Start"
     assert summary["enter_game"]["passage_after"] == "Bedroom"
     assert summary["enter_game"]["new_high_risk_count"] == 0
+    assert summary["package_identity"]["package_slug"].endswith("ucb-more-love-custom-spellbook-0528")
+    assert summary["package_identity"]["branch_profile_match"] is True
+    assert summary["package_identity"]["profile_slug_match"] is True
+    assert summary["screenshot"]["path"].endswith("browser-smoke-final.png")
+    assert summary["static_asset_audit"]["face_dir_exists"] is True
+    assert summary["static_asset_audit"]["required_face_assets"][0]["exists"] is True
     assert summary["issue_counts"] == {"high": 1, "warning": 1, "allowed": 0, "total": 2}
     assert summary["top_high_risk"][0]["kind"] == "type_error"
     assert "REPORT ONLY - HIGH RISK FOUND" in markdown
     assert "Browser navigation OK" in markdown
     assert "SugarCube ready" in markdown
     assert "Entered playable scene" in markdown
+    assert "Package slug" in markdown
+    assert "Branch/profile match" in markdown
+    assert "Screenshot" in markdown
+    assert "Face asset dir exists" in markdown
     assert "## CI context" in markdown
     assert "workflow_head_branch" in markdown
     assert "report-only" in markdown
+
+
+@pytest.mark.config
+def test_browser_smoke_records_static_asset_audit(tmp_path):
+    report = BrowserSmokeReport(
+        target=str(tmp_path),
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=True,
+    )
+    package_root = tmp_path / "package"
+    face_dir = package_root / "img" / "face" / "default" / "default"
+    face_dir.mkdir(parents=True)
+    (face_dir / "blush1.png").write_bytes(b"png")
+    (package_root / "other-blush.png").write_bytes(b"png")
+
+    audit = _record_static_asset_audit(report, package_root)
+
+    assert audit["face_dir_exists"] is True
+    assert audit["face_png_count"] == 1
+    assert audit["blush_png_count"] == 2
+    assert audit["required_face_assets"] == [
+        {"path": "img/face/default/default/blush1.png", "exists": True},
+    ]
+    assert not report.issues
+
+
+@pytest.mark.config
+def test_browser_smoke_warns_when_expected_face_assets_are_missing(tmp_path):
+    report = BrowserSmokeReport(
+        target=str(tmp_path),
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=True,
+    )
+    package_root = tmp_path / "package"
+    package_root.mkdir()
+
+    audit = _record_static_asset_audit(report, package_root)
+
+    assert audit["face_dir_exists"] is False
+    assert audit["required_face_assets"][0]["exists"] is False
+    assert [issue.kind for issue in report.issues] == [
+        "face_asset_directory_missing",
+        "face_blush_asset_not_packaged",
+    ]
+
+
+@pytest.mark.config
+def test_browser_smoke_prefers_base_html_before_au_variant(tmp_path):
+    base_dir = tmp_path / "DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-custom-spellbook-0528"
+    au_dir = tmp_path / "DoL-0.5.8.10-XFox-3.1.3a-au-a-ucb-more-love-custom-spellbook-0528"
+    base_dir.mkdir()
+    au_dir.mkdir()
+    base_html = base_dir / "Degrees of Lewdity.html"
+    au_html = au_dir / "Degrees of Lewdity.html"
+    au_html.write_text("<html>au</html>", encoding="utf-8")
+    base_html.write_text("<html>base</html>", encoding="utf-8")
+
+    assert _find_preferred_html(tmp_path) == base_html
+
+
+@pytest.mark.config
+def test_browser_smoke_records_package_identity_for_mainline(tmp_path):
+    report = BrowserSmokeReport(
+        target=str(tmp_path / "DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-custom-spellbook-0528.zip"),
+        profile="ucb-more-love-custom-spellbook",
+        report_only=True,
+        ci_context={"workflow_head_branch": "vega"},
+    )
+    html_dir = tmp_path / "DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-custom-spellbook-0528"
+    html_dir.mkdir()
+    html_path = html_dir / "Degrees of Lewdity.html"
+    html_path.write_text("", encoding="utf-8")
+
+    identity = _record_package_identity(report, PROFILES[report.profile], html_dir, html_path)
+
+    assert identity["package_slug"] == html_dir.name
+    assert identity["expected_profile_for_branch"] == "ucb-more-love-custom-spellbook"
+    assert identity["branch_profile_match"] is True
+    assert identity["profile_slug_match"] is True
+    assert not report.issues
+
+
+@pytest.mark.config
+def test_browser_smoke_flags_experiment_slug_under_mainline_profile(tmp_path):
+    report = BrowserSmokeReport(
+        target=str(tmp_path / "DoL-0.5.8.10-XFox-3.1.3a-au-a-ucb-more-love-custom-spellbook-cheat-extended-maplebirch-0528"),
+        profile="ucb-more-love-custom-spellbook",
+        report_only=True,
+        ci_context={"workflow_head_branch": "vega"},
+    )
+    html_dir = tmp_path / "DoL-0.5.8.10-XFox-3.1.3a-au-a-ucb-more-love-custom-spellbook-cheat-extended-maplebirch-0528"
+    html_dir.mkdir()
+    html_path = html_dir / "Degrees of Lewdity.html"
+    html_path.write_text("", encoding="utf-8")
+
+    identity = _record_package_identity(report, PROFILES[report.profile], html_dir, html_path)
+
+    assert identity["profile_slug_match"] is False
+    assert identity["forbidden_slug_tokens_present"] == ["cheat-extended", "maplebirch"]
+    assert [issue.kind for issue in report.issues] == [
+        "package_forbidden_slug_token_present",
+        "package_forbidden_slug_token_present",
+    ]
 
 
 @pytest.mark.config

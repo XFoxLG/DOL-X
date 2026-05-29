@@ -166,6 +166,17 @@ WARNING_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 HIGH_RISK_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
+        "image_layer_load_failed",
+        re.compile(r"Failed to load image\s+\S+\s+for layer\s+\w+", re.IGNORECASE),
+    ),
+    (
+        "face_image_asset_missing",
+        re.compile(
+            r"img/face/[^\s]+\.(?:png|jpe?g|webp|gif).*(?:HTTP 4\d\d|ERR_FILE_NOT_FOUND|ERR_FAILED|failed|not found)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "spellbook_missing_click_handler",
         re.compile(r"spellBookMobileClicked.*not defined", re.IGNORECASE),
     ),
@@ -178,12 +189,37 @@ HIGH_RISK_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"maplebirchFrameworks.*not defined", re.IGNORECASE),
     ),
     (
+        "skin_colour_fallback_missing",
+        re.compile(r"skinColourFullback|skincolourtext.*not defined", re.IGNORECASE),
+    ),
+    (
         "tw_user_script_error",
         re.compile(r"Error \[tw-user-script-[^\]]*\]", re.IGNORECASE),
     ),
     ("reference_error", re.compile(r"\bReferenceError\b", re.IGNORECASE)),
     ("type_error", re.compile(r"\bTypeError\b", re.IGNORECASE)),
     ("uncaught_error", re.compile(r"\bUncaught\b", re.IGNORECASE)),
+)
+
+
+PROFILE_SLUG_EXPECTATIONS: dict[str, dict[str, tuple[str, ...]]] = {
+    "ucb-more-love-custom-spellbook": {
+        "required": ("ucb", "more-love", "custom-spellbook"),
+        "forbidden": ("cheat-extended", "maplebirch"),
+    },
+    "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": {
+        "required": ("ucb", "more-love", "custom-spellbook", "cheat-extended", "maplebirch"),
+        "forbidden": (),
+    },
+}
+
+
+BRANCH_PROFILE_EXPECTATIONS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^vega$", re.IGNORECASE), "ucb-more-love-custom-spellbook"),
+    (
+        re.compile(r"^experiment/cheat-extended-maplebirch$", re.IGNORECASE),
+        "ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+    ),
 )
 
 
@@ -283,14 +319,30 @@ def classify_message(source: str, message: str) -> Issue:
     return Issue("warning", "browser_warning", source, message)
 
 
+def _artifact_path_preference(path: Path) -> tuple[bool, bool, str]:
+    normalized_path = str(path).lower().replace("_", "-")
+    normalized_name = path.name.lower().replace("_", "-")
+    # When an artifact directory contains multiple builds, smoke the smallest
+    # dependency surface first. AU variants get a dedicated pass after base boot.
+    return (
+        "-au-" in normalized_path,
+        "dol-" not in normalized_name and "degrees of lewdity" not in normalized_name,
+        normalized_path,
+    )
+
+
 def _find_preferred_html(root: Path) -> Path | None:
     candidates = sorted(root.rglob("*.html"), key=lambda item: str(item).lower())
     if not candidates:
         return None
     return sorted(
         candidates,
-        key=lambda item: ("degrees of lewdity" not in item.name.lower(), str(item).lower()),
+        key=lambda item: ("degrees of lewdity" not in item.name.lower(), *_artifact_path_preference(item)),
     )[0]
+
+
+def _zip_preference(zip_path: Path) -> tuple[bool, bool, str]:
+    return _artifact_path_preference(zip_path)
 
 
 def _safe_extract_zip(zip_path: Path, destination: Path) -> None:
@@ -327,7 +379,7 @@ def _resolve_target(target: Path, temp_root: Path) -> tuple[Path, Path]:
         if html_path is not None:
             return target, html_path
 
-        zip_candidates = sorted(target.rglob("*.zip"), key=lambda item: str(item).lower())
+        zip_candidates = sorted(target.rglob("*.zip"), key=_zip_preference)
         if zip_candidates:
             return _resolve_target(zip_candidates[0], temp_root)
 
@@ -365,6 +417,148 @@ def _add_issue(report: BrowserSmokeReport, issue: Issue, **updates: Any) -> None
     for key, value in updates.items():
         setattr(issue, key, value)
     report.issues.append(issue)
+
+
+def _package_slug_from_paths(target: Path, html_path: Path) -> str:
+    candidates = [html_path.parent.name]
+    if target.suffix.lower() == ".zip":
+        candidates.append(target.stem)
+    candidates.extend([target.name, target.stem])
+
+    for candidate in candidates:
+        if candidate and any(marker in candidate.lower() for marker in ("dol-", "xfox", "ucb", "lyra")):
+            return candidate
+    return next((candidate for candidate in candidates if candidate), "")
+
+
+def _expected_profile_for_branch(branch: str | None) -> str | None:
+    if not branch:
+        return None
+    for pattern, profile_name in BRANCH_PROFILE_EXPECTATIONS:
+        if pattern.search(branch):
+            return profile_name
+    return None
+
+
+def _record_package_identity(
+    report: BrowserSmokeReport,
+    profile: SmokeProfile,
+    target: Path,
+    html_path: Path,
+) -> dict[str, Any]:
+    package_slug = _package_slug_from_paths(target, html_path)
+    normalized_slug = package_slug.lower().replace("_", "-")
+    branch = report.ci_context.get("workflow_head_branch")
+    expected_profile = _expected_profile_for_branch(branch)
+    slug_expectations = PROFILE_SLUG_EXPECTATIONS.get(profile.name, {"required": (), "forbidden": ()})
+    required_tokens = slug_expectations.get("required", ())
+    forbidden_tokens = slug_expectations.get("forbidden", ())
+    missing_required = [token for token in required_tokens if token not in normalized_slug]
+    forbidden_present = [token for token in forbidden_tokens if token in normalized_slug]
+    branch_profile_match = expected_profile is None or expected_profile == profile.name
+    profile_slug_match = not missing_required and not forbidden_present
+
+    identity = {
+        "package_slug": package_slug,
+        "profile": profile.name,
+        "workflow_head_branch": branch,
+        "expected_profile_for_branch": expected_profile,
+        "branch_profile_match": branch_profile_match,
+        "required_slug_tokens": list(required_tokens),
+        "missing_required_slug_tokens": missing_required,
+        "forbidden_slug_tokens": list(forbidden_tokens),
+        "forbidden_slug_tokens_present": forbidden_present,
+        "profile_slug_match": profile_slug_match,
+    }
+    report.observations["package_identity"] = identity
+
+    if expected_profile is not None and expected_profile != profile.name:
+        _add_issue(
+            report,
+            Issue(
+                "high",
+                "branch_profile_mismatch",
+                "identity",
+                f"branch {branch!r} should use profile {expected_profile!r}, got {profile.name!r}",
+            ),
+        )
+    for token in missing_required:
+        _add_issue(
+            report,
+            Issue(
+                "warning",
+                "package_required_slug_token_missing",
+                "identity",
+                f"package slug {package_slug!r} does not include expected token {token!r} for profile {profile.name!r}",
+            ),
+        )
+    for token in forbidden_present:
+        _add_issue(
+            report,
+            Issue(
+                "high",
+                "package_forbidden_slug_token_present",
+                "identity",
+                f"package slug {package_slug!r} includes experiment token {token!r} while using profile {profile.name!r}",
+            ),
+        )
+
+    return identity
+
+
+def _relative_sample_paths(root: Path, candidates: list[Path], limit: int = 20) -> list[str]:
+    samples = []
+    for candidate in candidates[:limit]:
+        with contextlib.suppress(ValueError):
+            samples.append(candidate.relative_to(root).as_posix())
+    return samples
+
+
+def _record_static_asset_audit(report: BrowserSmokeReport, package_root: Path) -> dict[str, Any]:
+    face_dir = package_root / "img" / "face"
+    blush1_path = face_dir / "default" / "default" / "blush1.png"
+    face_pngs = sorted(face_dir.rglob("*.png"), key=lambda item: str(item).lower()) if face_dir.exists() else []
+    blush_pngs = sorted(package_root.rglob("*blush*.png"), key=lambda item: str(item).lower())
+
+    audit = {
+        "package_root": str(package_root),
+        "face_dir_exists": face_dir.exists(),
+        "face_png_count": len(face_pngs),
+        "face_png_samples": _relative_sample_paths(package_root, face_pngs),
+        "blush_png_count": len(blush_pngs),
+        "blush_png_samples": _relative_sample_paths(package_root, blush_pngs),
+        "required_face_assets": [
+            {
+                "path": "img/face/default/default/blush1.png",
+                "exists": blush1_path.exists(),
+            }
+        ],
+    }
+    report.observations["static_asset_audit"] = audit
+
+    if not face_dir.exists():
+        _add_issue(
+            report,
+            Issue(
+                "warning",
+                "face_asset_directory_missing",
+                "asset_audit",
+                "package does not contain img/face; AU/BeautySelector face layers may rely on embedded or missing assets",
+            ),
+        )
+
+    if not blush1_path.exists():
+        _add_issue(
+            report,
+            Issue(
+                "warning",
+                "face_blush_asset_not_packaged",
+                "asset_audit",
+                "expected face layer asset is not packaged: img/face/default/default/blush1.png",
+            ),
+        )
+
+    return audit
 
 
 def _check_required_mods(
@@ -652,12 +846,116 @@ def _attempt_enter_game(report: BrowserSmokeReport, page: Any) -> None:
     report.observations["enter_game"] = enter_result
 
 
+def _candidate_browser_paths() -> list[Path]:
+    candidates: list[Path] = []
+    if configured := os.environ.get("DOLX_BROWSER_EXECUTABLE"):
+        candidates.append(Path(configured))
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    program_files = os.environ.get("PROGRAMFILES")
+    program_files_x86 = os.environ.get("PROGRAMFILES(X86)")
+    for root, relative in (
+        (local_app_data, r"Microsoft\Edge\Application\msedge.exe"),
+        (program_files_x86, r"Microsoft\Edge\Application\msedge.exe"),
+        (program_files, r"Microsoft\Edge\Application\msedge.exe"),
+        (local_app_data, r"Google\Chrome\Application\chrome.exe"),
+        (program_files, r"Google\Chrome\Application\chrome.exe"),
+        (program_files_x86, r"Google\Chrome\Application\chrome.exe"),
+    ):
+        if root:
+            candidates.append(Path(root) / relative)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return unique
+
+
+def _launch_chromium_browser(
+    playwright: Any,
+    report: BrowserSmokeReport,
+    playwright_error_type: type[BaseException],
+) -> Any | None:
+    try:
+        browser = playwright.chromium.launch(headless=True)
+        report.observations["browser_executable"] = {"source": "playwright-bundled"}
+        return browser
+    except playwright_error_type as exc:
+        bundled_error = str(exc)
+
+    fallback_errors: list[dict[str, str]] = []
+    for channel in ("msedge", "chrome"):
+        try:
+            browser = playwright.chromium.launch(headless=True, channel=channel)
+            report.observations["browser_executable"] = {
+                "source": "system-channel",
+                "channel": channel,
+                "bundled_error": bundled_error,
+            }
+            _add_issue(
+                report,
+                Issue(
+                    "warning",
+                    "playwright_browser_fallback",
+                    "runner",
+                    f"Playwright bundled Chromium unavailable; using system browser channel {channel!r}",
+                ),
+            )
+            return browser
+        except playwright_error_type as exc:
+            fallback_errors.append({"channel": channel, "error": str(exc)})
+
+    for candidate in _candidate_browser_paths():
+        if not candidate.exists():
+            continue
+        try:
+            browser = playwright.chromium.launch(headless=True, executable_path=str(candidate))
+            report.observations["browser_executable"] = {
+                "source": "system-path",
+                "path": str(candidate),
+                "bundled_error": bundled_error,
+            }
+            _add_issue(
+                report,
+                Issue(
+                    "warning",
+                    "playwright_browser_fallback",
+                    "runner",
+                    f"Playwright bundled Chromium unavailable; using system browser at {candidate}",
+                ),
+            )
+            return browser
+        except playwright_error_type as exc:
+            fallback_errors.append({"path": str(candidate), "error": str(exc)})
+
+    report.observations["browser_executable"] = {
+        "source": None,
+        "bundled_error": bundled_error,
+        "fallback_errors": fallback_errors,
+    }
+    _add_issue(
+        report,
+        Issue(
+            "high",
+            "playwright_browser_missing",
+            "runner",
+            "Playwright is installed but no bundled or system Chromium browser could be launched",
+        ),
+    )
+    return None
+
+
 def _run_playwright(
     report: BrowserSmokeReport,
     profile: SmokeProfile,
     url: str,
     timeout_ms: int,
     settle_ms: int,
+    screenshot_dir: Path | None = None,
 ) -> None:
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -679,7 +977,9 @@ def _run_playwright(
     dialogs: list[dict[str, Any]] = []
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        browser = _launch_chromium_browser(playwright, report, PlaywrightError)
+        if browser is None:
+            return
         context = browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 900})
         page = context.new_page()
 
@@ -854,6 +1154,18 @@ def _run_playwright(
                 )
         report.observations["click_results"] = click_results
 
+        if screenshot_dir is not None:
+            screenshot_path = screenshot_dir / "browser-smoke-final.png"
+            try:
+                screenshot_dir.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(screenshot_path), full_page=True)
+                report.observations["screenshot"] = {
+                    "path": str(screenshot_path),
+                    "full_page": True,
+                }
+            except PlaywrightError as exc:
+                _add_issue(report, Issue("warning", "screenshot_failed", "runner", str(exc)))
+
         context.close()
         browser.close()
 
@@ -878,6 +1190,8 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
     browser_boot = report.observations.get("browser_boot", {})
     game_ready = report.observations.get("game_ready", {})
     enter_game = report.observations.get("enter_game", {})
+    package_identity = report.observations.get("package_identity", {})
+    static_asset_audit = report.observations.get("static_asset_audit", {})
 
     return {
         "status": status,
@@ -889,6 +1203,21 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
         "html_path": report.html_path,
         "served_url": report.served_url,
         "elapsed_seconds": round(report.elapsed_seconds, 2),
+        "screenshot": report.observations.get("screenshot"),
+        "static_asset_audit": {
+            "face_dir_exists": static_asset_audit.get("face_dir_exists"),
+            "face_png_count": static_asset_audit.get("face_png_count"),
+            "blush_png_count": static_asset_audit.get("blush_png_count"),
+            "required_face_assets": static_asset_audit.get("required_face_assets", []),
+        },
+        "package_identity": {
+            "package_slug": package_identity.get("package_slug"),
+            "workflow_head_branch": package_identity.get("workflow_head_branch"),
+            "expected_profile_for_branch": package_identity.get("expected_profile_for_branch"),
+            "branch_profile_match": package_identity.get("branch_profile_match"),
+            "profile_slug_match": package_identity.get("profile_slug_match"),
+            "forbidden_slug_tokens_present": package_identity.get("forbidden_slug_tokens_present", []),
+        },
         "browser_boot": {
             "navigation_ok": browser_boot.get("navigation_ok"),
             "has_sugarcube": browser_boot.get("has_sugarcube"),
@@ -938,14 +1267,21 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         f"- Report-only mode: `{report.report_only}`",
         f"- Target: `{report.target}`",
         f"- Profile: `{report.profile}`",
+        f"- Package slug: `{summary['package_identity']['package_slug']}`",
+        f"- Branch/profile match: `{summary['package_identity']['branch_profile_match']}`",
+        f"- Profile/package slug match: `{summary['package_identity']['profile_slug_match']}`",
         f"- HTML: `{report.html_path}`",
         f"- URL: `{report.served_url}`",
+        f"- Screenshot: `{(summary['screenshot'] or {}).get('path')}`",
         f"- Elapsed seconds: `{report.elapsed_seconds:.2f}`",
         f"- Browser navigation OK: `{summary['browser_boot']['navigation_ok']}`",
         f"- SugarCube ready: `{summary['game_ready']['ready']}`",
         f"- Current passage: `{summary['game_ready']['passage']}`",
         f"- Entered playable scene: `{summary['enter_game']['success']}`",
         f"- Enter-game reason: `{summary['enter_game']['reason']}`",
+        f"- Face asset dir exists: `{summary['static_asset_audit']['face_dir_exists']}`",
+        f"- Face PNG count: `{summary['static_asset_audit']['face_png_count']}`",
+        f"- Blush PNG count: `{summary['static_asset_audit']['blush_png_count']}`",
         f"- High risk issues: `{counts['high']}`",
         f"- Warnings: `{counts['warning']}`",
         f"- Allowed findings: `{counts['allowed']}`",
@@ -1033,11 +1369,13 @@ def run_browser_smoke(args: argparse.Namespace) -> BrowserSmokeReport:
             html_content = html_path.read_text(encoding="utf-8", errors="replace")
             embedded_mods = extract_embedded_mods_from_html(html_content)
             report.observations["embedded_mods"] = [asdict(info) for info in embedded_mods]
+            _record_package_identity(report, profile, Path(args.target), html_path)
+            _record_static_asset_audit(report, serve_dir)
 
             with _serve_directory(serve_dir) as server:
                 url = _relative_url(server, serve_dir, html_path)
                 report.served_url = url
-                _run_playwright(report, profile, url, args.timeout_ms, args.settle_ms)
+                _run_playwright(report, profile, url, args.timeout_ms, args.settle_ms, Path(args.output_dir))
 
             _check_required_mods(report, profile, embedded_mods)
     except Exception as exc:  # noqa: BLE001 - CI report must capture setup failures.
