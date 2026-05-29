@@ -11,9 +11,11 @@ import pytest
 
 from tools.browser_smoke_test import (
     BrowserSmokeReport,
+    ENTER_GAME_LABELS,
     Issue,
     PROFILES,
     _find_preferred_html,
+    _looks_playable,
     _record_package_identity,
     _record_static_asset_audit,
     _serve_directory,
@@ -67,6 +69,11 @@ def test_browser_smoke_extracts_embedded_mod_names():
             "prevent_default_type_error",
         ),
         (
+            "browser_dialog",
+            "TypeError: ev.preventDefault is not a function",
+            "prevent_default_type_error",
+        ),
+        (
             "console.error",
             "Error [tw-user-script-0]: maplebirchFrameworks is not defined.",
             "maplebirch_framework_missing",
@@ -102,6 +109,11 @@ def test_browser_smoke_classifies_high_risk_runtime_errors(source, message, expe
         ("requestfailed", "http://127.0.0.1/modList.json net::ERR_FAILED", "optional_remote_mod_list"),
         ("console.warning", "NPC Avatars Mod not found", "more_love_optional_dependency"),
         ("http_error", "http://127.0.0.1/style.css HTTP 404", "spellbook_external_asset"),
+        (
+            "console.error",
+            "http://127.0.0.1/style.css Failed to load resource: the server responded with a status of 404 (File not found)",
+            "spellbook_external_asset",
+        ),
         ("console.error", "usettings.js not active, this is normal", "usettings_inactive_normal"),
     ],
 )
@@ -173,6 +185,38 @@ def test_browser_smoke_custom_spellbook_profiles_use_password_and_warning_global
         assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
         assert "spellBookMobileClicked" in profile.warning_globals
         assert "spellBookMobileClicked" not in profile.required_globals
+
+
+@pytest.mark.config
+def test_browser_smoke_does_not_treat_start_passage_as_playable_scene():
+    start_state = {
+        "ready": True,
+        "loadingLike": False,
+        "passage": "Start",
+        "interactiveElementCount": 4,
+        "bodyTextLength": 5000,
+    }
+    start2_state = {
+        "ready": True,
+        "loadingLike": False,
+        "passage": "Start2",
+        "interactiveElementCount": 6,
+        "bodyTextLength": 5000,
+    }
+    bedroom_state = {
+        "ready": True,
+        "loadingLike": False,
+        "passage": "Bedroom",
+        "interactiveElementCount": 1,
+        "bodyTextLength": 500,
+    }
+
+    assert _looks_playable(start_state) is False
+    assert _looks_playable(start2_state) is False
+    assert _looks_playable(bedroom_state) is True
+    assert "(1) 开始游戏！" in ENTER_GAME_LABELS
+    assert "进入游戏" in ENTER_GAME_LABELS
+    assert "开始游戏" in ENTER_GAME_LABELS
 
 
 @pytest.mark.config
@@ -349,6 +393,74 @@ def test_browser_smoke_summary_captures_blocker_diagnostics(tmp_path):
         "reason": "playable_state_observed",
         "new_high_risk_errors": [],
     }
+    report.observations["startup_interactions"] = {
+        "attempted": True,
+        "success": True,
+        "reason": "playable_state_observed",
+        "step_count": 3,
+        "clicked_count": 3,
+        "password_supplied": True,
+        "consent_accepted_count": 2,
+        "final_passage": "Bedroom",
+        "last_action": "accept_consent_gate",
+        "startup_gate_after": {"has_gate": False, "reason": "no_startup_gate"},
+        "steps": [
+            {
+                "step": 1,
+                "passage_before": None,
+                "passage_after": "Start",
+                "playable_after": False,
+                "gate_before": {"has_gate": True, "reason": "custom_spellbook_sweetalert"},
+                "gate_after": {"has_gate": False, "reason": "no_startup_gate"},
+                "action": {
+                    "action": "fill_custom_spellbook_password",
+                    "clicked": True,
+                    "button_text": "OK",
+                    "password_supplied": True,
+                },
+            },
+            {
+                "step": 2,
+                "passage_before": "Start",
+                "passage_after": "Start",
+                "playable_after": False,
+                "gate_before": {
+                    "has_gate": True,
+                    "reason": "consent_label_visible",
+                    "consent_label": "我确定我已年满十八岁",
+                },
+                "gate_after": {
+                    "has_gate": True,
+                    "reason": "consent_label_visible",
+                    "consent_label": "我已阅读并理解上述说明",
+                },
+                "action": {
+                    "action": "accept_consent_gate",
+                    "clicked": True,
+                    "button_text": "进入游戏",
+                    "consent_label": "我确定我已年满十八岁",
+                },
+            },
+            {
+                "step": 3,
+                "passage_before": "Start",
+                "passage_after": "Bedroom",
+                "playable_after": True,
+                "gate_before": {
+                    "has_gate": True,
+                    "reason": "consent_label_visible",
+                    "consent_label": "我已阅读并理解上述说明",
+                },
+                "gate_after": {"has_gate": False, "reason": "no_startup_gate"},
+                "action": {
+                    "action": "accept_consent_gate",
+                    "clicked": True,
+                    "button_text": "我已知晓",
+                    "consent_label": "我已阅读并理解上述说明",
+                },
+            },
+        ],
+    }
     report.observations["modal_blockers"] = {
         "stage": "after_game_ready",
         "count": 1,
@@ -387,6 +499,14 @@ def test_browser_smoke_summary_captures_blocker_diagnostics(tmp_path):
             "closed": False,
         }
     ]
+    report.observations["dialogs"] = [
+        {
+            "type": "alert",
+            "message": "TypeError: ev.preventDefault is not a function",
+            "accepted": True,
+            "password_supplied": False,
+        }
+    ]
 
     write_outputs(report, tmp_path)
 
@@ -407,9 +527,28 @@ def test_browser_smoke_summary_captures_blocker_diagnostics(tmp_path):
     assert summary["blockers"]["dismissal_clicked_count"] == 1
     assert summary["blockers"]["dismissal_initial_count"] == 1
     assert summary["blockers"]["dismissal_final_count"] == 0
+    assert summary["startup_interactions"]["attempted"] is True
+    assert summary["startup_interactions"]["success"] is True
+    assert summary["startup_interactions"]["step_count"] == 3
+    assert summary["startup_interactions"]["clicked_count"] == 3
+    assert summary["startup_interactions"]["password_supplied"] is True
+    assert summary["startup_interactions"]["consent_accepted_count"] == 2
+    assert summary["startup_interactions"]["final_passage"] == "Bedroom"
+    assert summary["startup_interactions"]["startup_gate_after"] == {"has_gate": False, "reason": "no_startup_gate"}
+    assert summary["startup_interactions"]["browser_dialogs"][0]["type"] == "alert"
+    assert "ev.preventDefault" in summary["startup_interactions"]["browser_dialogs"][0]["message"]
+    assert summary["startup_interactions"]["steps"][0]["action"] == "fill_custom_spellbook_password"
+    assert summary["startup_interactions"]["steps"][0]["gate_before_reason"] == "custom_spellbook_sweetalert"
+    assert summary["startup_interactions"]["steps"][1]["consent_label"] == "我确定我已年满十八岁"
+    assert summary["startup_interactions"]["steps"][1]["gate_before_consent_label"] == "我确定我已年满十八岁"
     assert "Browser popups observed" in markdown
     assert "Modal blockers observed" in markdown
     assert "Blocker dismissal clicked" in markdown
+    assert "Startup interaction steps" in markdown
+    assert "Startup password supplied" in markdown
+    assert "Startup gate after" in markdown
+    assert "Startup browser dialogs" in markdown
+    assert "## Startup interactions" in markdown
 
 
 @pytest.mark.config
@@ -439,14 +578,43 @@ def test_browser_smoke_outputs_findings_when_game_never_ready(tmp_path):
         "reason": "game_not_ready",
         "new_high_risk_errors": [],
     }
+    report.observations["startup_interactions"] = {
+        "attempted": True,
+        "success": False,
+        "reason": "max_steps_reached",
+        "step_count": 15,
+        "clicked_count": 0,
+        "password_supplied": False,
+        "consent_accepted_count": 0,
+        "final_passage": None,
+        "last_action": "no_action",
+        "last_visible_text_sample": "ModLoader is still preparing the game.",
+        "last_visible_text_length": 38,
+        "recent_modloader_logs": ["[log] ModLoader still initializing"],
+        "steps": [
+            {
+                "step": 15,
+                "passage_before": None,
+                "passage_after": None,
+                "playable_after": False,
+                "action": {"action": "no_action", "clicked": False},
+            }
+        ],
+    }
     report.issues.append(Issue("warning", "game_ready_incomplete", "game_ready", "game runtime was observed but not fully ready"))
 
     write_outputs(report, tmp_path)
 
     summary = json.loads((tmp_path / "browser-smoke-summary.json").read_text(encoding="utf-8"))
+    markdown = (tmp_path / "browser-smoke-report.md").read_text(encoding="utf-8")
     assert report.success is False
     assert summary["status"] == "report_only_with_findings"
     assert summary["issue_counts"] == {"high": 0, "warning": 1, "allowed": 0, "total": 1}
+    assert summary["startup_interactions"]["reason"] == "max_steps_reached"
+    assert summary["startup_interactions"]["last_visible_text_sample"] == "ModLoader is still preparing the game."
+    assert summary["startup_interactions"]["recent_modloader_logs"] == ["[log] ModLoader still initializing"]
+    assert "Startup final visible text sample" in markdown
+    assert "Startup recent ModLoader logs" in markdown
 
 
 @pytest.mark.config
