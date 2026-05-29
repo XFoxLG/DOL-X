@@ -626,21 +626,32 @@ def _page_state_script(global_names: tuple[str, ...]) -> str:
 
 
 ENTER_GAME_LABELS: tuple[str, ...] = (
+    "(1) 开始游戏！",
+    "(1) 开始游戏!",
+    "开始游戏！",
+    "开始游戏!",
     "Start",
     "New Game",
     "Begin",
     "Play",
+    "Enter Game",
+    "Enter",
     "Next",
     "Continue",
     "Proceed",
     "Confirm",
     "开始",
+    "开始游戏",
+    "进入游戏",
     "新游戏",
     "下一步",
     "继续",
     "确认",
     "完成",
 )
+
+
+STARTUP_PASSAGES: frozenset[str] = frozenset({"start", "start2", "loading"})
 
 
 MODAL_BLOCKER_SELECTORS: tuple[str, ...] = (
@@ -669,6 +680,35 @@ BLOCKER_CONFIRM_LABELS: tuple[str, ...] = (
     "关闭",
     "同意",
     "是",
+)
+
+
+STARTUP_INTERACTION_MAX_STEPS = 45
+
+
+STARTUP_CONSENT_LABELS: tuple[str, ...] = (
+    "我确定我已年满十八岁",
+    "我已阅读并理解上述说明",
+    "I confirm I am at least 18",
+    "I have read and understand",
+)
+
+
+STARTUP_CONFIRM_LABELS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        [
+            *BLOCKER_CONFIRM_LABELS,
+            *ENTER_GAME_LABELS,
+            "Enter Game",
+            "Enter",
+            "I understand",
+            "I have read",
+            "进入游戏",
+            "开始游戏",
+            "我已知晓",
+            "我知道了",
+        ]
+    )
 )
 
 
@@ -731,11 +771,18 @@ def _enter_game_click_script() -> str:
     return """
     (labels) => {
       const normalizedLabels = labels.map((label) => String(label).toLowerCase());
+      const isIgnoredChrome = (element) => Boolean(
+        element && (
+          element.id === 'ui-bar-toggle' ||
+          element.closest('#ui-bar, #ui-bar-toggle, #story-caption, #menu, nav, header')
+        )
+      );
       const elements = Array.from(
         document.querySelectorAll('a, button, input[type="button"], input[type="submit"], [role="button"], .link-internal')
       );
       const candidates = elements
         .filter((element) => Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length))
+        .filter((element) => !isIgnoredChrome(element))
         .map((element) => {
           const text = (element.innerText || element.textContent || element.value || element.title || element.getAttribute('aria-label') || '').trim();
           return {
@@ -891,11 +938,299 @@ def _dismiss_blocker_script() -> str:
     """
 
 
+def _startup_gate_status_script() -> str:
+    return r"""
+    (options) => {
+      const modalSelectors = options.modalSelectors || [];
+      const consentLabels = (options.consentLabels || []).map((label) => String(label).trim()).filter(Boolean);
+      const visible = (element) => Boolean(
+        element &&
+        (element.offsetWidth || element.offsetHeight || element.getClientRects().length) &&
+        window.getComputedStyle(element).visibility !== 'hidden' &&
+        window.getComputedStyle(element).display !== 'none'
+      );
+      const textOf = (element) => (
+        element.innerText || element.textContent || element.value || element.title || element.getAttribute('aria-label') || ''
+      ).replace(/\s+/g, ' ').trim();
+      const bodyText = textOf(document.body || document.documentElement);
+      const consentLabel = consentLabels.find((label) => bodyText.includes(label));
+      if (consentLabel) {
+        return {
+          has_gate: true,
+          reason: 'consent_label_visible',
+          consent_label: consentLabel,
+          text_sample: bodyText.slice(0, 500),
+        };
+      }
+
+      const swal = Array.from(document.querySelectorAll('.swal2-container, .swal2-popup')).find(visible);
+      if (swal) {
+        const text = textOf(swal);
+        if (/Custom-Spellbook|Spellbook|密码|password/i.test(text)) {
+          return {
+            has_gate: true,
+            reason: 'custom_spellbook_sweetalert',
+            text_sample: text.slice(0, 500),
+          };
+        }
+      }
+
+      for (const selector of modalSelectors) {
+        for (const element of Array.from(document.querySelectorAll(selector))) {
+          if (!visible(element)) continue;
+          const text = textOf(element);
+          if (consentLabels.some((label) => text.includes(label)) || /年满十八岁|我已阅读|进入游戏|我已知晓/i.test(text)) {
+            return {
+              has_gate: true,
+              reason: 'startup_modal_visible',
+              selector,
+              text_sample: text.slice(0, 500),
+            };
+          }
+        }
+      }
+
+      return {
+        has_gate: false,
+        reason: 'no_startup_gate',
+        text_sample: bodyText.slice(0, 500),
+      };
+    }
+    """
+
+
+def _startup_interaction_script() -> str:
+    return r"""
+    (options) => {
+      const password = options.password || '';
+      const modalSelectors = options.modalSelectors || [];
+      const confirmLabels = (options.confirmLabels || []).map((label) => String(label).trim().toLowerCase());
+      const consentLabels = (options.consentLabels || []).map((label) => String(label).trim());
+      const visible = (element) => Boolean(
+        element &&
+        (element.offsetWidth || element.offsetHeight || element.getClientRects().length) &&
+        window.getComputedStyle(element).visibility !== 'hidden' &&
+        window.getComputedStyle(element).display !== 'none'
+      );
+      const textOf = (element) => (
+        element.innerText || element.textContent || element.value || element.title || element.getAttribute('aria-label') || ''
+      ).replace(/\s+/g, ' ').trim();
+      const bodyText = textOf(document.body || document.documentElement);
+      const simpleSelector = (element) => {
+        if (!element) return null;
+        if (element.id) return `${element.tagName.toLowerCase()}#${element.id}`;
+        const classes = typeof element.className === 'string'
+          ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).join('.')
+          : '';
+        return classes ? `${element.tagName.toLowerCase()}.${classes}` : element.tagName.toLowerCase();
+      };
+      const isIgnoredChrome = (element) => Boolean(
+        element && (
+          element.id === 'ui-bar-toggle' ||
+          element.closest('#ui-bar, #ui-bar-toggle, #story-caption, #menu, nav, header')
+        )
+      );
+      const matchesLabel = (text, labels = confirmLabels) => {
+        const normalized = String(text || '').trim().toLowerCase();
+        return labels.some((label) => normalized === label || normalized.includes(label));
+      };
+      const controlsIn = (root) => Array.from(
+        root.querySelectorAll('button, a, input[type="button"], input[type="submit"], [role="button"], .link-internal')
+      )
+        .filter((element) => visible(element) && !isIgnoredChrome(element))
+        .map((element) => ({
+          element,
+          text: textOf(element),
+          tag: element.tagName,
+          id: element.id || null,
+          className: typeof element.className === 'string' ? element.className : null,
+        }))
+        .filter((candidate) => candidate.text.length > 0);
+      const clickMatchingControl = (root, labels = confirmLabels) => {
+        const candidates = controlsIn(root);
+        const matched = candidates.find((candidate) => matchesLabel(candidate.text, labels));
+        if (!matched) {
+          return {
+            clicked: false,
+            reason: candidates.length ? 'no_matching_label' : 'no_candidate',
+            candidates: candidates.slice(0, 20).map(({ text, tag, id, className }) => ({ text, tag, id, className })),
+          };
+        }
+        if ('disabled' in matched.element && matched.element.disabled) {
+          matched.element.disabled = false;
+          matched.element.removeAttribute('disabled');
+        }
+        matched.element.click();
+        return {
+          clicked: true,
+          text: matched.text,
+          tag: matched.tag,
+          id: matched.id,
+          className: matched.className,
+        };
+      };
+      const firstVisibleModalWithText = (needle) => {
+        for (const selector of modalSelectors) {
+          const root = Array.from(document.querySelectorAll(selector))
+            .find((element) => visible(element) && textOf(element).includes(needle));
+          if (root) return root;
+        }
+        return document;
+      };
+      const setCheckboxChecked = (checkbox, labelElement = null) => {
+        if (!checkbox) return false;
+        if (!checkbox.checked) {
+          try {
+            checkbox.click();
+          } catch (_error) {
+            // Hidden custom-styled checkboxes can throw on click; setting checked still exercises listeners below.
+          }
+        }
+        if (!checkbox.checked && labelElement) {
+          try {
+            labelElement.click();
+          } catch (_error) {
+            // Ignore click failures and fall back to direct property updates.
+          }
+        }
+        if (!checkbox.checked) checkbox.checked = true;
+        checkbox.setAttribute('checked', 'checked');
+        checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        checkbox.dispatchEvent(new Event('click', { bubbles: true }));
+        return Boolean(checkbox.checked);
+      };
+
+      const swal = Array.from(document.querySelectorAll('.swal2-container, .swal2-popup')).find(visible);
+      if (swal) {
+        const swalText = textOf(swal);
+        const passwordInput = swal.querySelector('input.swal2-input, input[type="password"], input[type="text"], textarea');
+        if (passwordInput && password && /Custom-Spellbook|Spellbook|密码|password/i.test(swalText)) {
+          passwordInput.focus();
+          passwordInput.value = password;
+          passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+          passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+          const confirmButton = swal.querySelector('.swal2-confirm') || swal.querySelector('button, input[type="button"], input[type="submit"], [role="button"]');
+          const click = confirmButton && visible(confirmButton)
+            ? (() => {
+                const text = textOf(confirmButton) || 'swal2-confirm';
+                confirmButton.click();
+                return { clicked: true, text, tag: confirmButton.tagName, id: confirmButton.id || null };
+              })()
+            : clickMatchingControl(swal);
+          return {
+            action: 'fill_custom_spellbook_password',
+            clicked: Boolean(click.clicked),
+            password_supplied: true,
+            button_text: click.text || null,
+            root_selector: simpleSelector(swal),
+            text_sample: swalText.slice(0, 500),
+            click,
+          };
+        }
+
+        const click = clickMatchingControl(swal);
+        if (click.clicked) {
+          return {
+            action: 'dismiss_sweetalert',
+            clicked: true,
+            button_text: click.text || null,
+            root_selector: simpleSelector(swal),
+            text_sample: swalText.slice(0, 500),
+            click,
+          };
+        }
+      }
+
+      for (const consentLabel of consentLabels) {
+        if (!consentLabel || !bodyText.includes(consentLabel)) continue;
+        const gateRoot = firstVisibleModalWithText(consentLabel);
+        const rootText = textOf(gateRoot === document ? document.body || document.documentElement : gateRoot);
+        const labels = Array.from(gateRoot.querySelectorAll('label'))
+          .filter((label) => visible(label) || textOf(label).includes(consentLabel));
+        const labelElement = labels.find((label) => textOf(label).includes(consentLabel));
+        let checkbox = null;
+        if (labelElement) {
+          checkbox = labelElement.control || labelElement.querySelector('input[type="checkbox"]');
+          const forId = labelElement.getAttribute('for');
+          if (!checkbox && forId) checkbox = document.getElementById(forId);
+        }
+        if (!checkbox) {
+          const checkboxes = Array.from(gateRoot.querySelectorAll('input[type="checkbox"]'));
+          checkbox = checkboxes.find((input) => {
+            const root = input.closest('label, p, div, li, section, article, form, [role="dialog"], dialog') || input.parentElement;
+            return (root && textOf(root).includes(consentLabel)) || rootText.includes(consentLabel);
+          }) || checkboxes[0] || Array.from(document.querySelectorAll('input[type="checkbox"]'))[0] || null;
+        }
+        const checkboxChecked = setCheckboxChecked(checkbox, labelElement);
+
+        let click = clickMatchingControl(gateRoot, confirmLabels);
+        if (!click.clicked && gateRoot !== document) click = clickMatchingControl(document, confirmLabels);
+        return {
+          action: 'accept_consent_gate',
+          clicked: Boolean(click.clicked),
+          checkbox_checked: checkboxChecked,
+          consent_label: consentLabel,
+          button_text: click.text || null,
+          root_selector: simpleSelector(gateRoot === document ? document.body || document.documentElement : gateRoot),
+          text_sample: bodyText.slice(0, 500),
+          click,
+        };
+      }
+
+      const modalRoots = [];
+      const seenRoots = new Set();
+      for (const selector of modalSelectors) {
+        for (const element of Array.from(document.querySelectorAll(selector))) {
+          if (seenRoots.has(element) || !visible(element)) continue;
+          seenRoots.add(element);
+          modalRoots.push({ selector, element });
+        }
+      }
+      for (const root of modalRoots) {
+        const click = clickMatchingControl(root.element);
+        if (click.clicked) {
+          return {
+            action: 'dismiss_modal',
+            clicked: true,
+            button_text: click.text || null,
+            root_selector: root.selector,
+            simple_selector: simpleSelector(root.element),
+            text_sample: textOf(root.element).slice(0, 500),
+            click,
+          };
+        }
+      }
+
+      const pageClick = clickMatchingControl(document, confirmLabels);
+      if (pageClick.clicked) {
+        return {
+          action: 'click_startup_control',
+          clicked: true,
+          button_text: pageClick.text || null,
+          text_sample: bodyText.slice(0, 500),
+          click: pageClick,
+        };
+      }
+
+      return {
+        action: 'no_action',
+        clicked: false,
+        reason: pageClick.reason || 'no_candidate',
+        text_sample: bodyText.slice(0, 500),
+        candidates: pageClick.candidates || [],
+      };
+    }
+    """
+
+
 def _looks_playable(game_ready: dict[str, Any]) -> bool:
     passage = str(game_ready.get("passage") or "").strip().lower()
     if not game_ready.get("ready") or game_ready.get("loadingLike"):
         return False
-    if passage and passage not in {"start", "loading"}:
+    if passage in STARTUP_PASSAGES:
+        return False
+    if passage:
         return True
     return bool(game_ready.get("interactiveElementCount", 0) > 0 and game_ready.get("bodyTextLength", 0) > 500)
 
@@ -929,6 +1264,117 @@ def _record_game_ready(report: BrowserSmokeReport, page: Any) -> dict[str, Any]:
     return game_ready
 
 
+def _startup_diagnostic_console_tail(report: BrowserSmokeReport, limit: int = 50) -> list[str]:
+    keywords = ("modloader", "maplebirch", "custom-spellbook", "cheat extended", "sugarcube")
+    matches: list[str] = []
+    for message in report.console_messages:
+        text = str(message.get("text") or "")
+        if any(keyword in text.lower() for keyword in keywords):
+            matches.append(f"[{message.get('type', 'log')}] {text}")
+    return matches[-limit:]
+
+
+def _run_startup_interactions(report: BrowserSmokeReport, page: Any, profile: SmokeProfile) -> dict[str, Any]:
+    """Replay the real startup gates observed in a clean browser session."""
+    result: dict[str, Any] = {
+        "attempted": True,
+        "success": False,
+        "max_steps": STARTUP_INTERACTION_MAX_STEPS,
+        "steps": [],
+    }
+    options = {
+        "password": profile.dialog_password,
+        "modalSelectors": list(MODAL_BLOCKER_SELECTORS),
+        "confirmLabels": list(STARTUP_CONFIRM_LABELS),
+        "consentLabels": list(STARTUP_CONSENT_LABELS),
+    }
+
+    try:
+        consecutive_no_action = 0
+        state_after: dict[str, Any] = {}
+        for step_index in range(STARTUP_INTERACTION_MAX_STEPS):
+            state_before = page.evaluate(_game_ready_script())
+            gate_before = page.evaluate(_startup_gate_status_script(), options)
+            step: dict[str, Any] = {
+                "step": step_index + 1,
+                "passage_before": state_before.get("passage"),
+                "ready_before": state_before.get("ready"),
+                "playable_before": _looks_playable(state_before),
+                "gate_before": gate_before,
+            }
+            if _looks_playable(state_before) and not gate_before.get("has_gate"):
+                result.update(
+                    {
+                        "success": True,
+                        "reason": "already_playable_no_startup_gate",
+                        "final_passage": state_before.get("passage"),
+                        "state_after": state_before,
+                        "startup_gate_after": gate_before,
+                    }
+                )
+                break
+
+            action = page.evaluate(_startup_interaction_script(), options)
+            if not isinstance(action, dict):
+                action = {"action": "unexpected_result", "clicked": False, "raw": action}
+            step["action"] = action
+            result["steps"].append(step)
+
+            if not action.get("clicked") and action.get("action") == "no_action":
+                consecutive_no_action += 1
+                step["consecutive_no_action"] = consecutive_no_action
+                page.wait_for_timeout(1_500)
+            else:
+                consecutive_no_action = 0
+                step["consecutive_no_action"] = consecutive_no_action
+                page.wait_for_timeout(1_000)
+
+            state_after = page.evaluate(_game_ready_script())
+            gate_after = page.evaluate(_startup_gate_status_script(), options)
+            step["passage_after"] = state_after.get("passage")
+            step["ready_after"] = state_after.get("ready")
+            step["playable_after"] = _looks_playable(state_after)
+            step["gate_after"] = gate_after
+            if _looks_playable(state_after) and not gate_after.get("has_gate"):
+                result.update(
+                    {
+                        "success": True,
+                        "reason": "playable_state_observed_no_startup_gate",
+                        "final_passage": state_after.get("passage"),
+                        "state_after": state_after,
+                        "startup_gate_after": gate_after,
+                    }
+                )
+                break
+        else:
+            result["reason"] = "max_steps_reached"
+
+        if not result.get("success"):
+            final_state = state_after or page.evaluate(_game_ready_script())
+            result.setdefault("reason", "not_playable_after_startup_interactions")
+            result["final_passage"] = final_state.get("passage")
+            result["state_after"] = final_state
+            result["startup_gate_after"] = page.evaluate(_startup_gate_status_script(), options)
+            result["last_visible_text_sample"] = final_state.get("bodyTextSample")
+            result["last_visible_text_length"] = final_state.get("bodyTextLength")
+            result["recent_modloader_logs"] = _startup_diagnostic_console_tail(report)
+    except Exception as exc:  # noqa: BLE001 - keep CI report artifacts even if the page is mid-navigation.
+        result["error"] = str(exc)
+        result.setdefault("reason", "startup_interaction_error")
+        _add_issue(report, Issue("warning", "startup_interaction_error", "startup_interactions", str(exc)))
+
+    steps = result.get("steps", [])
+    result["step_count"] = len(steps)
+    result["clicked_count"] = sum(1 for step in steps if (step.get("action") or {}).get("clicked"))
+    result["password_supplied"] = any((step.get("action") or {}).get("password_supplied") for step in steps)
+    result["consent_accepted_count"] = sum(
+        1 for step in steps if (step.get("action") or {}).get("action") == "accept_consent_gate"
+    )
+    result["last_action"] = (steps[-1].get("action") or {}).get("action") if steps else None
+    report.observations["startup_interactions"] = result
+    return result
+
+
 def _attempt_enter_game(report: BrowserSmokeReport, page: Any) -> None:
     issue_start = len(report.issues)
     enter_result: dict[str, Any] = {
@@ -939,15 +1385,21 @@ def _attempt_enter_game(report: BrowserSmokeReport, page: Any) -> None:
     }
 
     try:
+        options = {
+            "modalSelectors": list(MODAL_BLOCKER_SELECTORS),
+            "consentLabels": list(STARTUP_CONSENT_LABELS),
+        }
         before = page.evaluate(_game_ready_script())
+        gate_before = page.evaluate(_startup_gate_status_script(), options)
         enter_result["passage_before"] = before.get("passage")
         enter_result["state_before"] = before
+        enter_result["startup_gate_before"] = gate_before
 
-        if _looks_playable(before):
+        if _looks_playable(before) and not gate_before.get("has_gate"):
             enter_result.update(
                 {
                     "success": True,
-                    "reason": "already_playable",
+                    "reason": "already_playable_no_startup_gate",
                     "passage_after": before.get("passage"),
                     "state_after": before,
                 }
@@ -975,14 +1427,17 @@ def _attempt_enter_game(report: BrowserSmokeReport, page: Any) -> None:
 
             page.wait_for_timeout(1_000)
             after = page.evaluate(_game_ready_script())
+            gate_after = page.evaluate(_startup_gate_status_script(), options)
             step["passage_after"] = after.get("passage")
-            if _looks_playable(after):
+            step["startup_gate_after"] = gate_after
+            if _looks_playable(after) and not gate_after.get("has_gate"):
                 enter_result["success"] = True
-                enter_result["reason"] = "playable_state_observed"
+                enter_result["reason"] = "playable_state_observed_no_startup_gate"
                 break
 
         enter_result["passage_after"] = after.get("passage")
         enter_result["state_after"] = after
+        enter_result["startup_gate_after"] = page.evaluate(_startup_gate_status_script(), options)
     except Exception as exc:  # noqa: BLE001 - CI report should capture Playwright/runtime setup failures.
         enter_result["error"] = str(exc)
         _add_issue(report, Issue("warning", "enter_game_error", "enter_game", str(exc)))
@@ -1246,13 +1701,17 @@ def _run_playwright(
             default_value = getattr(dialog, "default_value", None)
             if callable(default_value):
                 default_value = default_value()
+            message = str(dialog.message or "")
             entry = {
                 "type": dialog.type,
-                "message": dialog.message,
+                "message": message,
                 "default_value": default_value,
                 "accepted": True,
                 "password_supplied": False,
             }
+            dialog_issue = classify_message("browser_dialog", message)
+            if dialog_issue.severity == "high":
+                _add_issue(report, dialog_issue)
             try:
                 if dialog.type == "prompt" and profile.dialog_password is not None:
                     dialog.accept(profile.dialog_password)
@@ -1266,16 +1725,20 @@ def _run_playwright(
             dialogs.append(entry)
 
         def on_console(message: Any) -> None:
+            location = message.location or {}
+            text = str(message.text or "")
+            url = location.get("url") if isinstance(location, dict) else None
+            classified_text = f"{url} {text}" if url and "Failed to load resource" in text else text
             entry = {
                 "type": message.type,
-                "text": message.text,
-                "location": message.location,
+                "text": text,
+                "location": location,
             }
             report.console_messages.append(entry)
             if message.type in {"error", "warning"}:
                 source = "console.error" if message.type == "error" else "console.warning"
-                issue = classify_message(source, message.text)
-                _add_issue(report, issue, location=message.location)
+                issue = classify_message(source, classified_text)
+                _add_issue(report, issue, location=location)
 
         def on_page_error(error: Any) -> None:
             text = str(error)
@@ -1329,6 +1792,11 @@ def _run_playwright(
             )
         except PlaywrightError as exc:
             _add_issue(report, Issue("high", "browser_navigation_error", "runner", str(exc)))
+
+        try:
+            _run_startup_interactions(report, page, profile)
+        except PlaywrightError as exc:
+            _add_issue(report, Issue("warning", "startup_interaction_check_error", "runner", str(exc)))
 
         try:
             global_names = tuple(dict.fromkeys([*profile.required_globals, *profile.warning_globals]))
@@ -1476,6 +1944,7 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
     browser_boot = report.observations.get("browser_boot", {})
     game_ready = report.observations.get("game_ready", {})
     enter_game = report.observations.get("enter_game", {})
+    startup_interactions = report.observations.get("startup_interactions", {}) or {}
     package_identity = report.observations.get("package_identity", {})
     static_asset_audit = report.observations.get("static_asset_audit", {})
     modal_blockers = report.observations.get("modal_blockers", {}) or {}
@@ -1539,6 +2008,41 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
             "passage_after": enter_game.get("passage_after"),
             "new_high_risk_count": len(enter_game.get("new_high_risk_errors", [])),
         },
+        "startup_interactions": {
+            "attempted": startup_interactions.get("attempted", False),
+            "success": startup_interactions.get("success", False),
+            "reason": startup_interactions.get("reason"),
+            "step_count": startup_interactions.get("step_count", 0),
+            "clicked_count": startup_interactions.get("clicked_count", 0),
+            "browser_dialogs": report.observations.get("dialogs", [])[:20],
+            "password_supplied": startup_interactions.get("password_supplied", False),
+            "consent_accepted_count": startup_interactions.get("consent_accepted_count", 0),
+            "final_passage": startup_interactions.get("final_passage"),
+            "last_action": startup_interactions.get("last_action"),
+            "startup_gate_after": startup_interactions.get("startup_gate_after"),
+            "last_visible_text_sample": startup_interactions.get("last_visible_text_sample"),
+            "last_visible_text_length": startup_interactions.get("last_visible_text_length"),
+            "recent_modloader_logs": startup_interactions.get("recent_modloader_logs", [])[-50:],
+            "steps": [
+                {
+                    "step": step.get("step"),
+                    "action": (step.get("action") or {}).get("action"),
+                    "clicked": (step.get("action") or {}).get("clicked"),
+                    "button_text": (step.get("action") or {}).get("button_text"),
+                    "consent_label": (step.get("action") or {}).get("consent_label"),
+                    "passage_before": step.get("passage_before"),
+                    "passage_after": step.get("passage_after"),
+                    "playable_after": step.get("playable_after"),
+                    "gate_before_has_gate": (step.get("gate_before") or {}).get("has_gate"),
+                    "gate_before_reason": (step.get("gate_before") or {}).get("reason"),
+                    "gate_before_consent_label": (step.get("gate_before") or {}).get("consent_label"),
+                    "gate_after_has_gate": (step.get("gate_after") or {}).get("has_gate"),
+                    "gate_after_reason": (step.get("gate_after") or {}).get("reason"),
+                    "gate_after_consent_label": (step.get("gate_after") or {}).get("consent_label"),
+                }
+                for step in startup_interactions.get("steps", [])[:20]
+            ],
+        },
         "blockers": {
             "modal_count": modal_blockers.get("count", 0),
             "modal_samples": blocker_samples,
@@ -1589,6 +2093,14 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         f"- Current passage: `{summary['game_ready']['passage']}`",
         f"- Entered playable scene: `{summary['enter_game']['success']}`",
         f"- Enter-game reason: `{summary['enter_game']['reason']}`",
+        f"- Startup interaction steps: `{summary['startup_interactions']['step_count']}`",
+        f"- Startup interaction clicked: `{summary['startup_interactions']['clicked_count']}`",
+        f"- Startup password supplied: `{summary['startup_interactions']['password_supplied']}`",
+        f"- Startup consent accepted: `{summary['startup_interactions']['consent_accepted_count']}`",
+        f"- Startup final passage: `{summary['startup_interactions']['final_passage']}`",
+        f"- Startup gate after: `{(summary['startup_interactions'].get('startup_gate_after') or {}).get('reason')}`",
+        f"- Startup last visible text length: `{summary['startup_interactions']['last_visible_text_length']}`",
+        f"- Startup recent ModLoader log lines: `{len(summary['startup_interactions']['recent_modloader_logs'])}`",
         f"- Browser popups observed: `{summary['blockers']['popup_count']}`",
         f"- Modal blockers observed: `{summary['blockers']['modal_count']}`",
         f"- Blocker dismissal clicked: `{summary['blockers']['dismissal_clicked']}`",
@@ -1607,6 +2119,44 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         for key, value in report.ci_context.items():
             lines.append(f"- {key}: `{value}`")
         lines.append("")
+
+    startup_steps = summary["startup_interactions"].get("steps", [])
+    if startup_steps:
+        lines.extend(["## Startup interactions", ""])
+        for step in startup_steps:
+            lines.append(
+                "- "
+                f"Step `{step.get('step')}`: action=`{step.get('action')}`, "
+                f"clicked=`{step.get('clicked')}`, button=`{step.get('button_text')}`, "
+                f"consent=`{step.get('consent_label')}`, "
+                f"passage=`{step.get('passage_before')}` -> `{step.get('passage_after')}`, "
+                f"gate=`{step.get('gate_before_reason')}` -> `{step.get('gate_after_reason')}`"
+            )
+        lines.append("")
+
+    startup_dialogs = summary["startup_interactions"].get("browser_dialogs", [])
+    if startup_dialogs:
+        lines.extend(["## Startup browser dialogs", ""])
+        for dialog in startup_dialogs:
+            message = str(dialog.get("message") or "").replace("\n", " ")[:300]
+            lines.append(
+                "- "
+                f"type=`{dialog.get('type')}`, accepted=`{dialog.get('accepted')}`, "
+                f"password_supplied=`{dialog.get('password_supplied')}`, message=`{message}`"
+            )
+        lines.append("")
+
+    startup_text_sample = summary["startup_interactions"].get("last_visible_text_sample")
+    if startup_text_sample:
+        lines.extend(["## Startup final visible text sample", "", "```text"])
+        lines.append(startup_text_sample)
+        lines.extend(["```", ""])
+
+    startup_log_tail = summary["startup_interactions"].get("recent_modloader_logs") or []
+    if startup_log_tail:
+        lines.extend(["## Startup recent ModLoader logs", "", "```text"])
+        lines.extend(startup_log_tail)
+        lines.extend(["```", ""])
 
     if report.report_only and high:
         lines.extend(

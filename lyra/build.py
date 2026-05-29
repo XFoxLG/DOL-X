@@ -241,6 +241,51 @@ class PackageBuilder(ABC):
 
         return applied
 
+    def _has_au_feature(self) -> bool:
+        """当前构建是否包含任一 AU 体型资源。"""
+        return bool(
+            self.mod_code
+            & (ModCode.AU_FEMALE | ModCode.AU_MALE | ModCode.AU_ANDROGYNOUS)
+        )
+
+    def _apply_au_face_compatibility_aliases(self) -> list[str]:
+        """
+        为 AU facial expansion 补齐运行时请求的嵌套 blush 路径。
+
+        AU/BeautySelector 运行时会请求 img/face/default/default/blush*.png，
+        但当前打包结果只包含 img/face/default/blush*.png。这里在构建阶段
+        复制缺失目标，避免运行时 Failed to load image ... for layer blush。
+        """
+        if not self._has_au_feature():
+            return []
+
+        source_dir = self.img_path / "face" / "default"
+        target_dir = source_dir / "default"
+        if not source_dir.exists():
+            return []
+
+        copied = []
+        for source in sorted(
+            source_dir.glob("blush*.png"), key=lambda item: item.name.lower()
+        ):
+            if not source.is_file():
+                continue
+
+            target = target_dir / source.name
+            if target.exists():
+                continue
+
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            copied.append(target.relative_to(self.img_path).as_posix())
+
+        if copied:
+            logger.info(
+                "AU face compatibility aliases created: %s", ", ".join(copied)
+            )
+
+        return copied
+
     def _inject_modloader_mods(self) -> list[str]:
         """
         注入 modloader mod 到 HTML
@@ -364,6 +409,9 @@ class ZipBuilder(PackageBuilder):
             # 应用美化
             applied_mods = self._apply_beautify()
 
+            if self._apply_au_face_compatibility_aliases():
+                applied_mods.append("AU face compatibility aliases")
+
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
 
@@ -441,6 +489,9 @@ class ApkBuilder(PackageBuilder):
 
             # 应用美化
             applied_mods = self._apply_beautify()
+
+            if self._apply_au_face_compatibility_aliases():
+                applied_mods.append("AU face compatibility aliases")
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
