@@ -150,6 +150,8 @@ python -m playwright install chromium
 python tools/browser_smoke_test.py output --output-dir output/browser-smoke --report-only
 ```
 
+CI 的 `dol-builds-zip-sample` 用于快速验证基础运行路径：Build workflow 会优先选择不含 `-au-` 的基础 ZIP；如果当前构建没有基础 ZIP，才回退到排序后的第一个 ZIP。AU-F/AU-M/AU-A 变体仍会上传到完整 `dol-builds-zip` artifact，建议在基础包 browser boot / game-ready 稳定后再单独测试或扩展为后续矩阵。
+
 默认 profile 为稳定主线 `ucb-more-love-custom-spellbook`。检查 cheatExtended/maplebirch 实验分支产物时，显式加 `--profile ucb-more-love-custom-spellbook-cheat-extended-maplebirch`；Actions 会根据 `workflow_run.head_branch` 自动选择对应 profile。报告会记录 `package_identity.package_slug`、`workflow_head_branch`、`expected_profile_for_branch`、`branch_profile_match`、`profile_slug_match` 和 `forbidden_slug_tokens_present`，用于区分 `vega` 主线 CI artifact 与手动/实验包，避免把主线报告和实验运行日志混看。
 
 Phase 4 现在按分层 smoke 记录结果：
