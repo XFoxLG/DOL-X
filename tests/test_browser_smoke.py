@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import urllib.request
 from argparse import Namespace
 import zipfile
 
@@ -15,6 +16,7 @@ from tools.browser_smoke_test import (
     _find_preferred_html,
     _record_package_identity,
     _record_static_asset_audit,
+    _serve_directory,
     classify_message,
     extract_embedded_mods_from_html,
     main,
@@ -284,6 +286,78 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
 
 
 @pytest.mark.config
+def test_browser_smoke_outputs_pass_when_playable_without_high_risk(tmp_path):
+    report = BrowserSmokeReport(
+        target="build-artifacts/sample.zip",
+        profile="ucb-more-love-custom-spellbook",
+        report_only=True,
+        html_path="Degrees of Lewdity.html",
+        served_url="http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
+    )
+    report.observations["browser_boot"] = {
+        "navigation_ok": True,
+        "has_sugarcube": True,
+        "has_mod_data_value_zip_list": True,
+    }
+    report.observations["game_ready"] = {
+        "ready": True,
+        "hasSugarCube": True,
+        "loadingLike": False,
+        "passage": "Bedroom",
+        "interactiveElementCount": 1,
+    }
+    report.observations["enter_game"] = {
+        "attempted": True,
+        "success": True,
+        "reason": "playable_state_observed",
+        "new_high_risk_errors": [],
+    }
+
+    write_outputs(report, tmp_path)
+
+    summary = json.loads((tmp_path / "browser-smoke-summary.json").read_text(encoding="utf-8"))
+    assert report.success is True
+    assert summary["status"] == "pass"
+
+
+@pytest.mark.config
+def test_browser_smoke_outputs_findings_when_game_never_ready(tmp_path):
+    report = BrowserSmokeReport(
+        target="build-artifacts/sample.zip",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=True,
+        html_path="Degrees of Lewdity.html",
+        served_url="http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
+    )
+    report.observations["browser_boot"] = {
+        "navigation_ok": True,
+        "has_sugarcube": True,
+        "has_mod_data_value_zip_list": True,
+    }
+    report.observations["game_ready"] = {
+        "ready": False,
+        "hasSugarCube": True,
+        "loadingLike": False,
+        "passage": None,
+        "interactiveElementCount": 0,
+    }
+    report.observations["enter_game"] = {
+        "attempted": False,
+        "success": False,
+        "reason": "game_not_ready",
+        "new_high_risk_errors": [],
+    }
+    report.issues.append(Issue("warning", "game_ready_incomplete", "game_ready", "game runtime was observed but not fully ready"))
+
+    write_outputs(report, tmp_path)
+
+    summary = json.loads((tmp_path / "browser-smoke-summary.json").read_text(encoding="utf-8"))
+    assert report.success is False
+    assert summary["status"] == "report_only_with_findings"
+    assert summary["issue_counts"] == {"high": 0, "warning": 1, "allowed": 0, "total": 1}
+
+
+@pytest.mark.config
 def test_browser_smoke_records_static_asset_audit(tmp_path):
     report = BrowserSmokeReport(
         target=str(tmp_path),
@@ -339,6 +413,18 @@ def test_browser_smoke_prefers_base_html_before_au_variant(tmp_path):
     base_html.write_text("<html>base</html>", encoding="utf-8")
 
     assert _find_preferred_html(tmp_path) == base_html
+
+
+@pytest.mark.config
+def test_browser_smoke_server_stubs_missing_mod_list_json(tmp_path):
+    with _serve_directory(tmp_path) as server:
+        port = server.server_address[1]
+        response = urllib.request.urlopen(f"http://127.0.0.1:{port}/modList.json", timeout=5)
+        body = response.read().decode("utf-8")
+
+    assert response.status == 200
+    assert response.headers["Content-Type"] == "application/json; charset=utf-8"
+    assert body == "[]\n"
 
 
 @pytest.mark.config
