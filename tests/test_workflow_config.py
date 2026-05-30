@@ -12,7 +12,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_build_zip_sample_prefers_non_au_package_with_fallback():
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8")
 
-    assert 'find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" ! -name "*-au-*"' in workflow
+    assert (
+        'ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" '
+        '! -name "*-au-*" ! -name "*cheat-extended-maplebirch*" | sort | head -n 1)'
+        in workflow
+    )
     assert 'if [[ -z "$ZIP_FILE" ]]; then' in workflow
-    assert 'ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)' in workflow
+    assert (
+        'ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" '
+        '! -name "*cheat-extended-maplebirch*" | sort | head -n 1)'
+        in workflow
+    )
     assert 'echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"' in workflow
