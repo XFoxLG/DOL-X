@@ -14,7 +14,9 @@ from tools.browser_smoke_test import (
     ENTER_GAME_LABELS,
     Issue,
     PROFILES,
+    EmbeddedModInfo,
     _find_preferred_html,
+    _check_required_mods,
     _looks_playable,
     _record_package_identity,
     _record_static_asset_audit,
@@ -152,12 +154,46 @@ def test_browser_smoke_default_profile_targets_mainline():
     profile = PROFILES[args.profile]
 
     assert args.profile == "ucb-more-love-custom-spellbook"
-    assert "BetterCheatCommandManagement" in profile.required_mod_names
+    assert "ModLoaderGui" in profile.required_mod_names
+    assert "ModI18N" in profile.required_mod_names
+    assert "More Love Interests Mod" in profile.required_mod_names
+    assert "Custom-Spellbook" in profile.required_mod_names
+    assert "Lyra" in profile.required_mod_names
+    assert "Cheat-Lyra" not in profile.required_mod_names
+    assert "CombatStatusDisplay-Lyra" not in profile.required_mod_names
+    assert "BetterCheatCommandManagement" not in profile.required_mod_names
     assert "cheatExtended" not in profile.required_mod_names
     assert "maplebirch" not in profile.required_mod_names
     assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
     assert "spellBookMobileClicked" in profile.warning_globals
     assert "spellBookMobileClicked" not in profile.required_globals
+
+
+@pytest.mark.config
+def test_browser_smoke_mainline_required_mods_match_current_stable_metadata():
+    report = BrowserSmokeReport(
+        target="stable.zip",
+        profile="ucb-more-love-custom-spellbook",
+        report_only=True,
+    )
+    embedded_mods = [
+        EmbeddedModInfo(index=0, names=["ModLoaderGui"]),
+        EmbeddedModInfo(index=1, names=["ModI18N"]),
+        EmbeddedModInfo(index=2, names=["More Love Interests Mod"]),
+        EmbeddedModInfo(index=3, names=["Custom-Spellbook"]),
+        EmbeddedModInfo(index=4, names=["Lyra"]),
+    ]
+
+    _check_required_mods(report, PROFILES[report.profile], embedded_mods)
+
+    assert report.observations["required_mods"] == {
+        "ModLoaderGui": True,
+        "ModI18N": True,
+        "More Love Interests Mod": True,
+        "Custom-Spellbook": True,
+        "Lyra": True,
+    }
+    assert not report.issues
 
 
 @pytest.mark.config
@@ -172,6 +208,25 @@ def test_browser_smoke_can_select_cheat_experiment_profile():
     assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
     assert "spellBookMobileClicked" in profile.warning_globals
     assert "spellBookMobileClicked" not in profile.required_globals
+
+
+@pytest.mark.config
+def test_browser_smoke_can_select_stable_replacement_cheat_profile():
+    args = parse_args(["dummy.zip", "--profile", "ucb-cheat-extended-maplebirch"])
+    profile = PROFILES[args.profile]
+
+    assert args.profile == "ucb-cheat-extended-maplebirch"
+    assert "ModLoaderGui" in profile.required_mod_names
+    assert "ModI18N" in profile.required_mod_names
+    assert "cheatExtended" in profile.required_mod_names
+    assert "maplebirch" in profile.required_mod_names
+    assert "Lyra" in profile.required_mod_names
+    assert "More Love Interests Mod" not in profile.required_mod_names
+    assert "Custom-Spellbook" not in profile.required_mod_names
+    assert "BetterCheatCommandManagement" not in profile.required_mod_names
+    assert profile.dialog_password is None
+    assert "spellBookMobileClicked" not in profile.required_globals
+    assert "spellBookMobileClicked" not in profile.warning_globals
 
 
 @pytest.mark.config
