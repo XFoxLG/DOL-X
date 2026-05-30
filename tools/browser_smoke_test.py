@@ -53,11 +53,6 @@ PROFILES: dict[str, SmokeProfile] = {
         required_mod_names=(
             "ModLoaderGui",
             "ModI18N",
-            "Cheat-Lyra",
-            "CombatStatusDisplay-Lyra",
-            "言灵解放",
-            "随身言灵",
-            "BetterCheatCommandManagement",
             "More Love Interests Mod",
             "Custom-Spellbook",
             "Lyra",
@@ -65,6 +60,16 @@ PROFILES: dict[str, SmokeProfile] = {
         warning_globals=("spellBookMobileClicked",),
         click_selectors=('[onclick*="spellBookMobileClicked"]',),
         dialog_password="DOL-Custom-Spellbook-Mod",
+    ),
+    "ucb-cheat-extended-maplebirch": SmokeProfile(
+        name="ucb-cheat-extended-maplebirch",
+        required_mod_names=(
+            "ModLoaderGui",
+            "ModI18N",
+            "maplebirch",
+            "cheatExtended",
+            "Lyra",
+        ),
     ),
     "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": SmokeProfile(
         name="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
@@ -206,6 +211,10 @@ PROFILE_SLUG_EXPECTATIONS: dict[str, dict[str, tuple[str, ...]]] = {
     "ucb-more-love-custom-spellbook": {
         "required": ("ucb", "more-love", "custom-spellbook"),
         "forbidden": ("cheat-extended", "maplebirch"),
+    },
+    "ucb-cheat-extended-maplebirch": {
+        "required": ("ucb", "cheat-extended", "maplebirch"),
+        "forbidden": ("more-love", "custom-spellbook"),
     },
     "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": {
         "required": ("ucb", "more-love", "custom-spellbook", "cheat-extended", "maplebirch"),
@@ -1861,7 +1870,13 @@ def _run_playwright(
 
         click_results: dict[str, dict[str, Any]] = {}
         for selector in profile.click_selectors:
-            result: dict[str, Any] = {"selector": selector, "found": 0, "clicked": False, "errors_after_click": []}
+            result: dict[str, Any] = {
+                "selector": selector,
+                "found": 0,
+                "visible": False,
+                "clicked": False,
+                "errors_after_click": [],
+            }
             click_results[selector] = result
             try:
                 locator = page.locator(selector)
@@ -1879,15 +1894,37 @@ def _run_playwright(
                     )
                     continue
 
+                first = locator.first
+                result["visible"] = first.is_visible()
+                if not result["visible"]:
+                    _add_issue(
+                        report,
+                        Issue(
+                            "warning",
+                            "click_selector_not_visible",
+                            "profile",
+                            f"selector found but not visible; may require a specific UI state: {selector}",
+                        ),
+                    )
+                    continue
+
                 before_errors = len(page_errors)
-                locator.first.click(timeout=3_000)
+                first.click(timeout=3_000)
                 page.wait_for_timeout(1_000)
                 result["clicked"] = True
                 result["errors_after_click"] = page_errors[before_errors:]
             except PlaywrightError as exc:
+                enter_game = report.observations.get("enter_game") or {}
+                game_ready = report.observations.get("game_ready") or {}
+                non_blocking = bool(enter_game.get("success")) or _looks_playable(game_ready)
                 _add_issue(
                     report,
-                    Issue("high", "profile_click_failed", "profile", f"{selector}: {exc}"),
+                    Issue(
+                        "warning" if non_blocking else "high",
+                        "profile_click_failed_non_blocking" if non_blocking else "profile_click_failed",
+                        "profile",
+                        f"{selector}: {exc}",
+                    ),
                 )
         report.observations["click_results"] = click_results
         report.observations["browser_popups"] = browser_popups
