@@ -24,3 +24,14 @@ def test_build_zip_sample_prefers_non_au_package_with_fallback():
         in workflow
     )
     assert 'echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"' in workflow
+
+
+@pytest.mark.config
+def test_build_canary_browser_smoke_runs_in_dispatchable_workflow():
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8")
+
+    assert "Run cheatExtended/maplebirch canary browser smoke" in workflow
+    assert "--profile ucb-cheat-extended-maplebirch" in workflow
+    assert "--output-dir \"${{ github.workspace }}/output/cheat-canary-browser-smoke\"" in workflow
+    assert "name: cheat-canary-browser-smoke-report" in workflow
+    assert "path: ${{ github.workspace }}/output/cheat-canary-browser-smoke/" in workflow
