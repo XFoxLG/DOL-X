@@ -20,6 +20,7 @@ from tools.browser_smoke_test import (
     _looks_playable,
     _record_package_identity,
     _record_static_asset_audit,
+    _startup_instability_triggers,
     _serve_directory,
     classify_message,
     extract_embedded_mods_from_html,
@@ -400,6 +401,55 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
             {"path": "img/face/default/default/blush1.png", "exists": True},
         ],
     }
+    report.observations["navigation_events"] = [
+        {
+            "type": "framenavigated",
+            "url": "http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
+            "name": "",
+            "main_frame": True,
+        },
+        {
+            "type": "document_request_failed",
+            "url": "http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
+            "method": "GET",
+            "failure": "net::ERR_ABORTED",
+            "is_navigation_request": True,
+        },
+    ]
+    report.observations["pageerror_context"] = [
+        {
+            "message": "TypeError: boom",
+            "stack": "TypeError: boom\n    at startup.js:1:1",
+            "url": "http://127.0.0.1:12345/Degrees%20of%20Lewdity.html",
+            "ready_state": "interactive",
+            "recent_navigation_events": report.observations["navigation_events"],
+        }
+    ]
+    report.observations["startup_instability"] = {
+        "context_destroyed": True,
+        "document_abort": True,
+        "extra_navigation": False,
+        "main_frame_navigation_count": 1,
+        "should_retry": True,
+    }
+    report.observations["game_ready_stability_retry"] = {
+        "attempted": True,
+        "trigger": report.observations["startup_instability"],
+        "initial_ready": False,
+        "initial_has_sugarcube": False,
+        "page_state_after_wait": {
+            "readyState": "complete",
+            "hasSugarCube": True,
+        },
+        "game_ready_after_wait": {
+            "ready": True,
+            "hasSugarCube": True,
+        },
+    }
+    report.observations["final_page_state"] = {
+        "readyState": "complete",
+        "hasSugarCube": True,
+    }
     report.issues.append(Issue("high", "type_error", "pageerror", "TypeError: boom"))
     report.issues.append(Issue("warning", "network_failure", "requestfailed", "optional asset missing"))
 
@@ -418,6 +468,17 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
         "has_mod_data_value_zip_list": True,
         "dialog_count": 1,
     }
+    assert summary["browser_diagnostics"]["navigation_event_count"] == 2
+    assert summary["browser_diagnostics"]["document_abort_count"] == 1
+    assert summary["browser_diagnostics"]["main_frame_navigation_count"] == 1
+    assert summary["browser_diagnostics"]["pageerror_count"] == 1
+    assert summary["browser_diagnostics"]["pageerror_samples"][0]["stack"].startswith("TypeError: boom")
+    assert summary["browser_diagnostics"]["startup_instability"]["should_retry"] is True
+    assert summary["browser_diagnostics"]["stability_retry_attempted"] is True
+    assert summary["browser_diagnostics"]["stability_retry_ready_after_wait"] is True
+    assert summary["browser_diagnostics"]["stability_retry_has_sugarcube_after_wait"] is True
+    assert summary["browser_diagnostics"]["final_ready_state"] == "complete"
+    assert summary["browser_diagnostics"]["final_has_sugarcube"] is True
     assert summary["game_ready"]["ready"] is True
     assert summary["game_ready"]["has_jquery"] is True
     assert summary["game_ready"]["has_sugarcube"] is True
@@ -439,6 +500,10 @@ def test_browser_smoke_summary_and_outputs_capture_report_only_findings(tmp_path
     assert summary["top_high_risk"][0]["kind"] == "type_error"
     assert "REPORT ONLY - HIGH RISK FOUND" in markdown
     assert "Browser navigation OK" in markdown
+    assert "Browser startup diagnostics" in markdown
+    assert "Browser navigation events" in markdown
+    assert "Startup stability retry attempted" in markdown
+    assert "Final page readyState" in markdown
     assert "SugarCube ready" in markdown
     assert "Entered playable scene" in markdown
     assert "Package slug" in markdown
