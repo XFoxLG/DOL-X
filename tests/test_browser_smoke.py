@@ -208,6 +208,11 @@ def test_browser_smoke_can_select_cheat_experiment_profile():
     assert profile.dialog_password == "DOL-Custom-Spellbook-Mod"
     assert "spellBookMobileClicked" in profile.warning_globals
     assert "spellBookMobileClicked" not in profile.required_globals
+    assert profile.diagnostic_globals == (
+        "maplebirchFrameworks",
+        "CE_options",
+        "SCMLSimpleFramework",
+    )
 
 
 @pytest.mark.config
@@ -227,6 +232,11 @@ def test_browser_smoke_can_select_stable_replacement_cheat_profile():
     assert profile.dialog_password is None
     assert "spellBookMobileClicked" not in profile.required_globals
     assert "spellBookMobileClicked" not in profile.warning_globals
+    assert profile.diagnostic_globals == (
+        "maplebirchFrameworks",
+        "CE_options",
+        "SCMLSimpleFramework",
+    )
 
 
 @pytest.mark.config
@@ -562,6 +572,11 @@ def test_browser_smoke_summary_captures_blocker_diagnostics(tmp_path):
             "password_supplied": False,
         }
     ]
+    report.observations["runtime_globals"] = {
+        "maplebirchFrameworks": "undefined",
+        "CE_options": "undefined",
+        "SCMLSimpleFramework": "object",
+    }
 
     write_outputs(report, tmp_path)
 
@@ -596,7 +611,13 @@ def test_browser_smoke_summary_captures_blocker_diagnostics(tmp_path):
     assert summary["startup_interactions"]["steps"][0]["gate_before_reason"] == "custom_spellbook_sweetalert"
     assert summary["startup_interactions"]["steps"][1]["consent_label"] == "我确定我已年满十八岁"
     assert summary["startup_interactions"]["steps"][1]["gate_before_consent_label"] == "我确定我已年满十八岁"
+    assert summary["runtime_globals"] == {
+        "maplebirchFrameworks": "undefined",
+        "CE_options": "undefined",
+        "SCMLSimpleFramework": "object",
+    }
     assert "Browser popups observed" in markdown
+    assert "Runtime globals observed" in markdown
     assert "Modal blockers observed" in markdown
     assert "Blocker dismissal clicked" in markdown
     assert "Startup interaction steps" in markdown
