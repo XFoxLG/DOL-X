@@ -10,7 +10,6 @@ strict CI gate.
 from __future__ import annotations
 
 import argparse
-import base64
 import contextlib
 import functools
 import http.server
@@ -25,13 +24,16 @@ import time
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 from urllib.parse import quote
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-MOD_LIST_PATTERN = re.compile(
-    r"window\.modDataValueZipList\s*=\s*(\[.*?\]);",
-    re.DOTALL,
+from tools.artifact_inspection import (
+    collect_string_values,
+    decode_base64_payload,
+    parse_mod_data_value_zip_list,
 )
 
 
@@ -43,8 +45,16 @@ class SmokeProfile:
     required_mod_names: tuple[str, ...] = ()
     required_globals: tuple[str, ...] = ()
     warning_globals: tuple[str, ...] = ()
+    diagnostic_globals: tuple[str, ...] = ()
     click_selectors: tuple[str, ...] = ()
     dialog_password: str | None = None
+
+
+CHEAT_EXTENDED_RUNTIME_GLOBALS: tuple[str, ...] = (
+    "maplebirchFrameworks",
+    "CE_options",
+    "SCMLSimpleFramework",
+)
 
 
 PROFILES: dict[str, SmokeProfile] = {
@@ -70,6 +80,7 @@ PROFILES: dict[str, SmokeProfile] = {
             "cheatExtended",
             "Lyra",
         ),
+        diagnostic_globals=CHEAT_EXTENDED_RUNTIME_GLOBALS,
     ),
     "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": SmokeProfile(
         name="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
@@ -83,6 +94,7 @@ PROFILES: dict[str, SmokeProfile] = {
             "Lyra",
         ),
         warning_globals=("spellBookMobileClicked",),
+        diagnostic_globals=CHEAT_EXTENDED_RUNTIME_GLOBALS,
         click_selectors=('[onclick*="spellBookMobileClicked"]',),
         dialog_password="DOL-Custom-Spellbook-Mod",
     ),
@@ -232,41 +244,14 @@ BRANCH_PROFILE_EXPECTATIONS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def _decode_base64_zip(encoded: str) -> bytes:
-    payload = encoded.strip()
-    missing_padding = len(payload) % 4
-    if missing_padding:
-        payload += "=" * (4 - missing_padding)
-    return base64.b64decode(payload, validate=True)
-
-
-def _collect_string_values(value: Any) -> Iterable[str]:
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for item in value.values():
-            yield from _collect_string_values(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _collect_string_values(item)
-
-
 def extract_embedded_mods_from_html(content: str) -> list[EmbeddedModInfo]:
     """Extract best-effort embedded mod metadata from a built HTML file."""
-    match = MOD_LIST_PATTERN.search(content)
-    if not match:
-        return []
-
-    try:
-        mod_entries = json.loads(match.group(1))
-    except json.JSONDecodeError:
-        return []
-
-    if not isinstance(mod_entries, list):
+    parsed_mods = parse_mod_data_value_zip_list(content)
+    if parsed_mods.error_kind:
         return []
 
     embedded_mods: list[EmbeddedModInfo] = []
-    for index, entry in enumerate(mod_entries):
+    for index, entry in enumerate(parsed_mods.entries):
         info = EmbeddedModInfo(index=index)
         embedded_mods.append(info)
 
@@ -275,7 +260,7 @@ def extract_embedded_mods_from_html(content: str) -> list[EmbeddedModInfo]:
             continue
 
         try:
-            payload = _decode_base64_zip(entry)
+            payload = decode_base64_payload(entry)
             with zipfile.ZipFile(io.BytesIO(payload), "r") as zf:
                 boot_names = [name for name in zf.namelist() if name.lower().endswith("boot.json")]
                 if not boot_names:
@@ -287,7 +272,7 @@ def extract_embedded_mods_from_html(content: str) -> list[EmbeddedModInfo]:
                 info.search_text = boot_text
                 try:
                     boot_json = json.loads(boot_text)
-                    strings = list(_collect_string_values(boot_json))
+                    strings = list(collect_string_values(boot_json))
                     preferred_keys = ("name", "modName", "id", "nickName")
                     if isinstance(boot_json, dict):
                         for key in preferred_keys:
@@ -1808,10 +1793,18 @@ def _run_playwright(
             _add_issue(report, Issue("warning", "startup_interaction_check_error", "runner", str(exc)))
 
         try:
-            global_names = tuple(dict.fromkeys([*profile.required_globals, *profile.warning_globals]))
+            global_names = tuple(
+                dict.fromkeys(
+                    [*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals]
+                )
+            )
             page_state = page.evaluate(_page_state_script(global_names), list(global_names))
             report.observations["page_state"] = page_state
-            for global_name, global_type in page_state.get("globals", {}).items():
+            global_types = page_state.get("globals", {}) or {}
+            report.observations["runtime_globals"] = {
+                global_name: global_types.get(global_name) for global_name in profile.diagnostic_globals
+            }
+            for global_name, global_type in global_types.items():
                 if global_type == "function":
                     continue
                 if global_name in profile.required_globals:
@@ -1987,6 +1980,9 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
     modal_blockers = report.observations.get("modal_blockers", {}) or {}
     blocker_dismissal = report.observations.get("blocker_dismissal", {}) or {}
     browser_popups = report.observations.get("browser_popups", []) or []
+    runtime_globals = report.observations.get("runtime_globals")
+    if runtime_globals is None:
+        runtime_globals = (report.observations.get("page_state") or {}).get("globals", {})
     dismissal_attempts = blocker_dismissal.get("attempts", []) or []
     blocker_samples = [
         {
@@ -2023,6 +2019,7 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
             "profile_slug_match": package_identity.get("profile_slug_match"),
             "forbidden_slug_tokens_present": package_identity.get("forbidden_slug_tokens_present", []),
         },
+        "runtime_globals": runtime_globals or {},
         "browser_boot": {
             "navigation_ok": browser_boot.get("navigation_ok"),
             "has_sugarcube": browser_boot.get("has_sugarcube"),
@@ -2126,6 +2123,7 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         f"- Screenshot: `{(summary['screenshot'] or {}).get('path')}`",
         f"- Elapsed seconds: `{report.elapsed_seconds:.2f}`",
         f"- Browser navigation OK: `{summary['browser_boot']['navigation_ok']}`",
+        f"- Runtime globals observed: `{summary['runtime_globals']}`",
         f"- SugarCube ready: `{summary['game_ready']['ready']}`",
         f"- Current passage: `{summary['game_ready']['passage']}`",
         f"- Entered playable scene: `{summary['enter_game']['success']}`",

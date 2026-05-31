@@ -7,21 +7,22 @@ ModLoader data list, and that embedded mod ZIP payloads are readable.
 """
 
 import argparse
-import base64
 import io
 import json
 import os
-import re
 import sys
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-MOD_LIST_PATTERN = re.compile(
-    r"window\.modDataValueZipList\s*=\s*(\[.*?\]);",
-    re.DOTALL,
+from tools.artifact_inspection import (
+    decode_base64_payload,
+    load_preferred_html_from_zip,
+    parse_mod_data_value_zip_list,
 )
 
 
@@ -65,48 +66,22 @@ def collect_ci_context() -> dict[str, str]:
     return {key: value for key, env_name in env_map.items() if (value := os.environ.get(env_name))}
 
 
-def _load_html_from_zip(zip_path: Path) -> tuple[Optional[str], Optional[str]]:
-    """Return the first HTML member name and contents from a ZIP artifact."""
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        html_names = [name for name in zf.namelist() if name.lower().endswith(".html")]
-        if not html_names:
-            return None, None
-
-        preferred = sorted(
-            html_names,
-            key=lambda name: ("degrees of lewdity" not in name.lower(), name.lower()),
-        )[0]
-        return preferred, zf.read(preferred).decode("utf-8", errors="replace")
-
-
-def _decode_mod_zip(encoded: str) -> bytes:
-    """Decode a base64-encoded embedded mod ZIP payload."""
-    payload = encoded.strip()
-    missing_padding = len(payload) % 4
-    if missing_padding:
-        payload += "=" * (4 - missing_padding)
-    return base64.b64decode(payload, validate=True)
-
-
 def audit_html_content(content: str, target: str) -> HtmlSmokeResult:
     """Audit raw HTML content."""
     result = HtmlSmokeResult(target=target, html_found=True)
 
-    match = MOD_LIST_PATTERN.search(content)
-    if not match:
+    parsed_mods = parse_mod_data_value_zip_list(content)
+    if parsed_mods.error_kind == "missing":
         result.errors.append("HTML 文件中未找到 modDataValueZipList")
         return result
-
-    try:
-        mod_entries = json.loads(match.group(1))
-    except json.JSONDecodeError as exc:
-        result.errors.append(f"modDataValueZipList 不是有效 JSON: {exc}")
+    if parsed_mods.error_kind == "invalid_json":
+        result.errors.append(f"modDataValueZipList 不是有效 JSON: {parsed_mods.error}")
         return result
-
-    if not isinstance(mod_entries, list):
+    if parsed_mods.error_kind == "not_list":
         result.errors.append("modDataValueZipList 不是数组")
         return result
 
+    mod_entries = parsed_mods.entries
     result.mod_count = len(mod_entries)
     if not mod_entries:
         result.errors.append("modDataValueZipList 为空")
@@ -124,7 +99,7 @@ def audit_html_content(content: str, target: str) -> HtmlSmokeResult:
             continue
 
         try:
-            payload = _decode_mod_zip(entry)
+            payload = decode_base64_payload(entry)
         except Exception as exc:
             diagnostic.kind = "invalid_base64"
             diagnostic.error = str(exc)
@@ -191,7 +166,7 @@ def audit_zip_artifact(zip_path: Path) -> HtmlSmokeResult:
         )
 
     try:
-        html_name, content = _load_html_from_zip(zip_path)
+        html_name, content = load_preferred_html_from_zip(zip_path)
     except zipfile.BadZipFile as exc:
         return HtmlSmokeResult(
             target=str(zip_path),
