@@ -42,9 +42,21 @@ def test_canary_browser_smoke_runs_only_in_compatibility_workflow():
     assert "--output-dir \"${{ github.workspace }}/output/cheat-canary-browser-smoke\"" not in build_workflow
     assert "path: ${{ github.workspace }}/output/cheat-canary-browser-smoke/" not in build_workflow
 
+    assert "build_run_id:" in compatibility_workflow
+    assert "run_canary_browser_smoke:" in compatibility_workflow
+    assert "build_run_id is required when run_canary_browser_smoke is true" in compatibility_workflow
+    assert "github.event.workflow_run.id || github.event.inputs.build_run_id" in compatibility_workflow
+
+    assert "name: dol-builds-zip-sample" in compatibility_workflow
+    assert 'PROFILE="ucb-more-love-custom-spellbook"' in compatibility_workflow
+    assert '--profile "${PROFILE}"' in compatibility_workflow
+    assert "name: browser-smoke-report" in compatibility_workflow
+
     assert "cheat-canary-browser-smoke:" in compatibility_workflow
+    assert "github.event.inputs.run_canary_browser_smoke == 'true'" in compatibility_workflow
     assert "Download cheatExtended/maplebirch canary ZIP artifact from Build workflow" in compatibility_workflow
     assert "name: dol-builds-cheat-canary-zip" in compatibility_workflow
+    assert "DOLX_ARTIFACT_NAME: dol-builds-cheat-canary-zip" in compatibility_workflow
     assert "--output-dir output/cheat-canary-browser-smoke" in compatibility_workflow
     assert "--profile ucb-cheat-extended-maplebirch" in compatibility_workflow
     assert "name: cheat-canary-browser-smoke-report" in compatibility_workflow
