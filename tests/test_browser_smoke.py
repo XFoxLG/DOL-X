@@ -240,6 +240,62 @@ def test_browser_smoke_can_select_stable_replacement_cheat_profile():
 
 
 @pytest.mark.config
+@pytest.mark.parametrize("branch", ["experiment/cheat-extended-maplebirch", "vega"])
+def test_browser_smoke_canary_artifact_accepts_stable_replacement_profile(branch, tmp_path):
+    report = BrowserSmokeReport(
+        target="canary-artifacts",
+        profile="ucb-cheat-extended-maplebirch",
+        report_only=True,
+        ci_context={
+            "workflow_head_branch": branch,
+            "artifact_name": "dol-builds-cheat-canary-zip",
+        },
+    )
+    target = tmp_path / "canary-artifacts"
+    html_path = (
+        target
+        / "DoL-0.5.8.10-XFox-3.1.3a-ucb-cheat-extended-maplebirch-0531"
+        / "Degrees of Lewdity.html"
+    )
+
+    identity = _record_package_identity(report, PROFILES[report.profile], target, html_path)
+
+    assert identity["expected_profile_for_artifact"] == "ucb-cheat-extended-maplebirch"
+    assert identity["expected_profile_source"] == "artifact"
+    assert identity["branch_profile_match"] is True
+    assert identity["profile_slug_match"] is True
+    assert not [issue for issue in report.issues if issue.kind == "branch_profile_mismatch"]
+
+
+@pytest.mark.config
+def test_browser_smoke_non_canary_artifact_keeps_branch_profile_guard(tmp_path):
+    report = BrowserSmokeReport(
+        target="build-artifacts",
+        profile="ucb-cheat-extended-maplebirch",
+        report_only=True,
+        ci_context={
+            "workflow_head_branch": "experiment/cheat-extended-maplebirch",
+            "artifact_name": "dol-builds-zip-sample",
+        },
+    )
+    target = tmp_path / "build-artifacts"
+    html_path = (
+        target
+        / "DoL-0.5.8.10-XFox-3.1.3a-ucb-cheat-extended-maplebirch-0531"
+        / "Degrees of Lewdity.html"
+    )
+
+    identity = _record_package_identity(report, PROFILES[report.profile], target, html_path)
+
+    assert identity["expected_profile_for_branch"] == "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
+    assert identity["expected_profile_for_artifact"] is None
+    assert identity["expected_profile_source"] == "branch"
+    assert identity["branch_profile_match"] is False
+    assert identity["profile_slug_match"] is True
+    assert [issue.kind for issue in report.issues] == ["branch_profile_mismatch"]
+
+
+@pytest.mark.config
 def test_browser_smoke_custom_spellbook_profiles_use_password_and_warning_global():
     for profile_name in (
         "ucb-more-love-custom-spellbook",

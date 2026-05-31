@@ -244,6 +244,11 @@ BRANCH_PROFILE_EXPECTATIONS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
+ARTIFACT_PROFILE_EXPECTATIONS: dict[str, str] = {
+    "dol-builds-cheat-canary-zip": "ucb-cheat-extended-maplebirch",
+}
+
+
 def extract_embedded_mods_from_html(content: str) -> list[EmbeddedModInfo]:
     """Extract best-effort embedded mod metadata from a built HTML file."""
     parsed_mods = parse_mod_data_value_zip_list(content)
@@ -447,6 +452,12 @@ def _expected_profile_for_branch(branch: str | None) -> str | None:
     return None
 
 
+def _expected_profile_for_artifact(artifact_name: str | None) -> str | None:
+    if not artifact_name:
+        return None
+    return ARTIFACT_PROFILE_EXPECTATIONS.get(artifact_name)
+
+
 def _record_package_identity(
     report: BrowserSmokeReport,
     profile: SmokeProfile,
@@ -456,7 +467,11 @@ def _record_package_identity(
     package_slug = _package_slug_from_paths(target, html_path)
     normalized_slug = package_slug.lower().replace("_", "-")
     branch = report.ci_context.get("workflow_head_branch")
-    expected_profile = _expected_profile_for_branch(branch)
+    artifact_name = report.ci_context.get("artifact_name")
+    expected_profile_for_branch = _expected_profile_for_branch(branch)
+    expected_profile_for_artifact = _expected_profile_for_artifact(artifact_name)
+    expected_profile = expected_profile_for_artifact or expected_profile_for_branch
+    expected_profile_source = "artifact" if expected_profile_for_artifact else "branch" if expected_profile_for_branch else None
     slug_expectations = PROFILE_SLUG_EXPECTATIONS.get(profile.name, {"required": (), "forbidden": ()})
     required_tokens = slug_expectations.get("required", ())
     forbidden_tokens = slug_expectations.get("forbidden", ())
@@ -469,7 +484,11 @@ def _record_package_identity(
         "package_slug": package_slug,
         "profile": profile.name,
         "workflow_head_branch": branch,
-        "expected_profile_for_branch": expected_profile,
+        "artifact_name": artifact_name,
+        "expected_profile": expected_profile,
+        "expected_profile_for_branch": expected_profile_for_branch,
+        "expected_profile_for_artifact": expected_profile_for_artifact,
+        "expected_profile_source": expected_profile_source,
         "branch_profile_match": branch_profile_match,
         "required_slug_tokens": list(required_tokens),
         "missing_required_slug_tokens": missing_required,
