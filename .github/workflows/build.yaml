@@ -94,28 +94,6 @@ jobs:
             "${{ steps.cheat_canary.outputs.zip }}" \
             --output "${{ github.workspace }}/output/html-smoke-cheat-canary-stable-replacement-base.json"
 
-      - name: Install cheatExtended/maplebirch canary browser smoke dependencies
-        if: github.ref_name == 'experiment/cheat-extended-maplebirch' && steps.cheat_canary.outputs.zip != ''
-        run: |
-          python -m pip install playwright
-          python -m playwright install --with-deps chromium
-
-      - name: Run cheatExtended/maplebirch canary browser smoke
-        if: github.ref_name == 'experiment/cheat-extended-maplebirch' && steps.cheat_canary.outputs.zip != ''
-        continue-on-error: true
-        env:
-          DOLX_WORKFLOW_RUN_ID: ${{ github.run_id }}
-          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.ref_name }}
-          DOLX_WORKFLOW_HEAD_SHA: ${{ github.sha }}
-          DOLX_GITHUB_SHA: ${{ github.sha }}
-          DOLX_ARTIFACT_NAME: dol-builds-cheat-canary-zip
-        run: |
-          python tools/browser_smoke_test.py \
-            "${{ steps.cheat_canary.outputs.zip }}" \
-            --output-dir "${{ github.workspace }}/output/cheat-canary-browser-smoke" \
-            --report-only \
-            --profile ucb-cheat-extended-maplebirch
-
       - name: Pick sample outputs (non-tag)
         if: github.ref_type != 'tag'
         id: sample
@@ -159,14 +137,6 @@ jobs:
             ${{ github.workspace }}/output/cheat-extended-canary-stable-replacement-base-build.json
             ${{ github.workspace }}/output/html-smoke-cheat-canary-stable-replacement-base.json
           if-no-files-found: error
-
-      - name: Upload cheatExtended/maplebirch canary browser smoke report
-        if: always() && github.ref_name == 'experiment/cheat-extended-maplebirch'
-        uses: actions/upload-artifact@v6
-        with:
-          name: cheat-canary-browser-smoke-report
-          path: ${{ github.workspace }}/output/cheat-canary-browser-smoke/
-          if-no-files-found: warn
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6

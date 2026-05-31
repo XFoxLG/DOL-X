@@ -10,6 +10,7 @@ from tools.cheat_extended_canary import (
     CANARY_CODES,
     COMBINED_PROFILE,
     MANUAL_RUNTIME_BLOCKERS,
+    MaplebirchPayloadOverride,
     REPLACEMENT_PROFILE,
     ensure_canary_payloads,
     main,
@@ -148,6 +149,39 @@ def test_ensure_canary_payloads_downloads_only_canary_mods(tmp_path, monkeypatch
 
 
 @pytest.mark.config
+def test_ensure_canary_payloads_override_only_replaces_maplebirch_payload(tmp_path, monkeypatch):
+    plan = make_canary_plan("stable-replacement", "base")
+    downloaded: list[tuple[str, str]] = []
+
+    def fake_download(url, dest_path, quiet=False):
+        downloaded.append((url, dest_path.name))
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_bytes(f"payload:{url}".encode("utf-8"))
+
+    monkeypatch.setattr("tools.cheat_extended_canary.download_file", fake_download)
+
+    payloads = ensure_canary_payloads(
+        plan,
+        tmp_path,
+        MaplebirchPayloadOverride(
+            download_url="https://example.invalid/maplebirch-0.5.8.10-v3.2.3.modpack",
+            cache_label="maplebirch-release-v3.2.3",
+        ),
+    )
+
+    by_cache_name = {payload["cache_name"]: payload for payload in payloads}
+    maplebirch_payload = by_cache_name["maplebirch"]
+    cheat_payload = by_cache_name["cheat_extended"]
+
+    assert maplebirch_payload["path"] == str(tmp_path / "workspace" / "temp" / "maplebirch.mod.zip")
+    assert maplebirch_payload["source"] == "https://example.invalid/maplebirch-0.5.8.10-v3.2.3.modpack"
+    assert maplebirch_payload["override"] is True
+    assert maplebirch_payload["override_cache_label"] == "maplebirch-release-v3.2.3"
+    assert "override" not in cheat_payload
+    assert {name for _, name in downloaded} == {"maplebirch.mod.zip", "cheat_extended.mod.zip"}
+
+
+@pytest.mark.config
 def test_canary_plan_cli_can_ensure_payloads_before_build(tmp_path, monkeypatch):
     output = tmp_path / "canary-build.json"
 
@@ -168,7 +202,7 @@ def test_canary_plan_cli_can_ensure_payloads_before_build(tmp_path, monkeypatch)
     )
     monkeypatch.setattr(
         "tools.cheat_extended_canary.ensure_canary_payloads",
-        lambda plan, workspace: [
+        lambda plan, workspace, maplebirch_override=None: [
             {"name": "maplebirch", "cache_name": "maplebirch", "path": "cached", "cached": False},
             {
                 "name": "cheatExtended",
@@ -184,6 +218,60 @@ def test_canary_plan_cli_can_ensure_payloads_before_build(tmp_path, monkeypatch)
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["payload_cache"]
     assert payload["default_matrix_mutated"] is False
+
+
+@pytest.mark.config
+def test_canary_plan_cli_passes_maplebirch_override_without_mutating_defaults(tmp_path, monkeypatch):
+    output = tmp_path / "canary-build.json"
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cheat_extended_canary.py",
+            "--flavor",
+            "stable-replacement",
+            "--variant",
+            "base",
+            "--workspace",
+            str(tmp_path),
+            "--ensure-payloads",
+            "--maplebirch-release-tag",
+            "maplebirch-release-v3.2.3",
+            "--maplebirch-asset-pattern",
+            "maplebirch-0.5.8.10-v3.2.3.modpack",
+            "--maplebirch-cache-label",
+            "v3.2.3-static-candidate",
+            "--output",
+            str(output),
+        ],
+    )
+
+    def fake_ensure(plan, workspace, maplebirch_override=None):
+        captured["override"] = maplebirch_override
+        return [
+            {
+                "name": "maplebirch",
+                "cache_name": "maplebirch",
+                "path": "cached",
+                "cached": False,
+                "override": True,
+            }
+        ]
+
+    monkeypatch.setattr("tools.cheat_extended_canary.ensure_canary_payloads", fake_ensure)
+
+    assert main() == 0
+
+    override = captured["override"]
+    assert isinstance(override, MaplebirchPayloadOverride)
+    assert override.release_tag == "maplebirch-release-v3.2.3"
+    assert override.asset_pattern == "maplebirch-0.5.8.10-v3.2.3.modpack"
+    assert override.cache_label == "v3.2.3-static-candidate"
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["default_matrix_mutated"] is False
+    assert payload["maplebirch_override"]["release_tag"] == "maplebirch-release-v3.2.3"
 
 
 @pytest.mark.config

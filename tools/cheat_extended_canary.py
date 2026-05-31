@@ -29,6 +29,8 @@ from lyra.version import LyraVersion
 CHECKLIST_PATH = Path("CHEAT_EXTENDED_MANUAL_TEST_CHECKLIST.md")
 REPLACEMENT_PROFILE = "ucb-cheat-extended-maplebirch"
 COMBINED_PROFILE = "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
+MAPLEBIRCH_CACHE_NAME = "maplebirch"
+MAPLEBIRCH_REPO = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
 
 CANARY_CODES: dict[str, dict[str, int]] = {
     "stable-replacement": {
@@ -94,6 +96,16 @@ class CanaryPlan:
     build_command: list[str]
     html_smoke_command: list[str]
     browser_smoke_command: list[str]
+
+
+@dataclass(frozen=True)
+class MaplebirchPayloadOverride:
+    """Canary-only maplebirch payload source override."""
+
+    download_url: str | None = None
+    release_tag: str | None = None
+    asset_pattern: str | None = None
+    cache_label: str | None = None
 
 
 def _profile_for_flavor(flavor: str) -> str:
@@ -222,7 +234,53 @@ def _modloader_mod_matches_plan(mod_config, plan: CanaryPlan) -> bool:
     return False
 
 
-def ensure_canary_payloads(plan: CanaryPlan, workspace: Path) -> list[dict[str, object]]:
+def _is_maplebirch_mod(mod_config) -> bool:
+    return mod_config.cache_name == MAPLEBIRCH_CACHE_NAME or mod_config.key == MAPLEBIRCH_CACHE_NAME
+
+
+def _maplebirch_override_label(override: MaplebirchPayloadOverride) -> str:
+    return override.cache_label or override.release_tag or override.asset_pattern or override.download_url or "override"
+
+
+def _download_modloader_payload(mod_config, dest_path: Path, override: MaplebirchPayloadOverride | None) -> str:
+    if override:
+        if override.download_url:
+            source = override.download_url
+        else:
+            if not override.release_tag or not override.asset_pattern:
+                raise ValueError(
+                    "maplebirch override requires --maplebirch-download-url or both "
+                    "--maplebirch-release-tag and --maplebirch-asset-pattern"
+                )
+            asset = get_github_release_asset(
+                MAPLEBIRCH_REPO,
+                override.asset_pattern,
+                tag=override.release_tag,
+            )
+            if asset is None:
+                raise RuntimeError("maplebirch override: no matching release asset")
+            source = asset.url
+    elif mod_config.download_url:
+        source = mod_config.download_url
+    else:
+        asset = get_github_release_asset(
+            mod_config.github_repo,
+            mod_config.asset_pattern,
+            tag=mod_config.release_tag,
+        )
+        if asset is None:
+            raise RuntimeError("no matching release asset")
+        source = asset.url
+
+    download_file(source, dest_path, quiet=True)
+    return source
+
+
+def ensure_canary_payloads(
+    plan: CanaryPlan,
+    workspace: Path,
+    maplebirch_override: MaplebirchPayloadOverride | None = None,
+) -> list[dict[str, object]]:
     """Download/cache modloader payloads required by one canary plan.
 
     The normal warmup step only downloads payloads needed by the default stable
@@ -241,7 +299,8 @@ def ensure_canary_payloads(plan: CanaryPlan, workspace: Path) -> list[dict[str, 
 
         dest_path = paths.get_mod_cache_path(mod_config.cache_name)
         display_name = mod_config.name or mod_config.key or mod_config.asset_pattern
-        if dest_path.exists() and dest_path.stat().st_size > 0:
+        active_override = maplebirch_override if _is_maplebirch_mod(mod_config) else None
+        if dest_path.exists() and dest_path.stat().st_size > 0 and not active_override:
             payloads.append(
                 {
                     "name": display_name,
@@ -255,20 +314,9 @@ def ensure_canary_payloads(plan: CanaryPlan, workspace: Path) -> list[dict[str, 
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            if mod_config.download_url:
-                download_file(mod_config.download_url, dest_path, quiet=True)
-                source = mod_config.download_url
-            else:
-                asset = get_github_release_asset(
-                    mod_config.github_repo,
-                    mod_config.asset_pattern,
-                    tag=mod_config.release_tag,
-                )
-                if asset is None:
-                    errors.append(f"{display_name}: no matching release asset")
-                    continue
-                download_file(asset.url, dest_path, quiet=True)
-                source = asset.url
+            if active_override and dest_path.exists():
+                dest_path.unlink()
+            source = _download_modloader_payload(mod_config, dest_path, active_override)
         except Exception as exc:  # pragma: no cover - network failure details vary
             errors.append(f"{display_name}: {exc}")
             continue
@@ -277,16 +325,24 @@ def ensure_canary_payloads(plan: CanaryPlan, workspace: Path) -> list[dict[str, 
             errors.append(f"{display_name}: empty cache file at {dest_path}")
             continue
 
-        payloads.append(
-            {
-                "name": display_name,
-                "cache_name": mod_config.cache_name,
-                "path": str(dest_path),
-                "cached": False,
-                "size_bytes": dest_path.stat().st_size,
-                "source": source,
-            }
-        )
+        payload_entry: dict[str, object] = {
+            "name": display_name,
+            "cache_name": mod_config.cache_name,
+            "path": str(dest_path),
+            "cached": False,
+            "size_bytes": dest_path.stat().st_size,
+            "source": source,
+        }
+        if active_override:
+            payload_entry.update(
+                {
+                    "override": True,
+                    "override_cache_label": _maplebirch_override_label(active_override),
+                    "override_release_tag": active_override.release_tag,
+                    "override_asset_pattern": active_override.asset_pattern,
+                }
+            )
+        payloads.append(payload_entry)
 
     if errors:
         raise RuntimeError("failed to ensure canary payloads: " + "; ".join(errors))
@@ -364,6 +420,22 @@ def main() -> int:
     parser.add_argument("--workspace", type=Path, default=Path("."))
     parser.add_argument("--tag", help="Optional Lyra version tag for artifact naming")
     parser.add_argument(
+        "--maplebirch-download-url",
+        help="Canary-only maplebirch payload URL override; stable config is not modified",
+    )
+    parser.add_argument(
+        "--maplebirch-release-tag",
+        help="Canary-only maplebirch release tag override used with --maplebirch-asset-pattern",
+    )
+    parser.add_argument(
+        "--maplebirch-asset-pattern",
+        help="Canary-only maplebirch asset pattern override used with --maplebirch-release-tag",
+    )
+    parser.add_argument(
+        "--maplebirch-cache-label",
+        help="Diagnostic label recorded for the staged maplebirch override payload",
+    )
+    parser.add_argument(
         "--ensure-payloads",
         action="store_true",
         help="Download/cache modloader payloads required by the selected canary",
@@ -378,10 +450,26 @@ def main() -> int:
         "manual_gate_required": True,
         "default_matrix_mutated": False,
     }
+    maplebirch_override = None
+    if any(
+        (
+            args.maplebirch_download_url,
+            args.maplebirch_release_tag,
+            args.maplebirch_asset_pattern,
+            args.maplebirch_cache_label,
+        )
+    ):
+        maplebirch_override = MaplebirchPayloadOverride(
+            download_url=args.maplebirch_download_url,
+            release_tag=args.maplebirch_release_tag,
+            asset_pattern=args.maplebirch_asset_pattern,
+            cache_label=args.maplebirch_cache_label,
+        )
+        payload["maplebirch_override"] = asdict(maplebirch_override)
 
     if args.ensure_payloads:
         try:
-            payload["payload_cache"] = ensure_canary_payloads(plan, args.workspace)
+            payload["payload_cache"] = ensure_canary_payloads(plan, args.workspace, maplebirch_override)
         except Exception as exc:
             payload["payload_cache_error"] = str(exc)
             _write_payload(payload, args.output)

@@ -4,18 +4,21 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import io
 import json
 import re
+import sys
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-MOD_LIST_PATTERN = re.compile(
-    r"window\.modDataValueZipList\s*=\s*(\[.*?\]);",
-    re.DOTALL,
+from tools.artifact_inspection import (
+    decode_base64_payload,
+    load_html_artifact,
+    parse_mod_data_value_zip_list,
 )
 
 TEXT_SUFFIXES = (
@@ -52,29 +55,6 @@ class SourceScanResult:
     hits: list[SourceHit] = field(default_factory=list)
 
 
-def _decode_base64_payload(value: str) -> bytes:
-    payload = value.strip()
-    missing_padding = len(payload) % 4
-    if missing_padding:
-        payload += "=" * (4 - missing_padding)
-    return base64.b64decode(payload, validate=True)
-
-
-def _load_html(target: Path) -> tuple[str | None, str | None]:
-    if target.suffix.lower() == ".zip":
-        with zipfile.ZipFile(target, "r") as zf:
-            html_names = [name for name in zf.namelist() if name.lower().endswith(".html")]
-            if not html_names:
-                return None, None
-            html_name = sorted(
-                html_names,
-                key=lambda name: ("degrees of lewdity" not in name.lower(), name.lower()),
-            )[0]
-            return html_name, zf.read(html_name).decode("utf-8", errors="replace")
-
-    return target.name, target.read_text(encoding="utf-8")
-
-
 def _mod_name(zf: zipfile.ZipFile, fallback: str) -> str:
     boot_name = next((name for name in zf.namelist() if name.lower().endswith("boot.json")), None)
     if boot_name is None:
@@ -97,7 +77,7 @@ def scan_target(target: Path, pattern: str) -> SourceScanResult:
         return result
 
     try:
-        html_name, html = _load_html(target)
+        html_name, html = load_html_artifact(target)
     except zipfile.BadZipFile as exc:
         result.errors.append(f"target ZIP is invalid: {exc}")
         return result
@@ -106,23 +86,23 @@ def scan_target(target: Path, pattern: str) -> SourceScanResult:
         result.errors.append("target does not contain an HTML file")
         return result
 
-    match = MOD_LIST_PATTERN.search(html)
-    if not match:
+    parsed_mods = parse_mod_data_value_zip_list(html)
+    if parsed_mods.error_kind == "missing":
         result.errors.append(f"HTML does not contain modDataValueZipList: {html_name}")
         return result
-
-    try:
-        entries = json.loads(match.group(1))
-    except json.JSONDecodeError as exc:
-        result.errors.append(f"modDataValueZipList is not valid JSON: {exc}")
+    if parsed_mods.error_kind == "invalid_json":
+        result.errors.append(f"modDataValueZipList is not valid JSON: {parsed_mods.error}")
+        return result
+    if parsed_mods.error_kind == "not_list":
+        result.errors.append("modDataValueZipList is not an array")
         return result
 
     regex = re.compile(pattern)
-    for index, entry in enumerate(entries):
+    for index, entry in enumerate(parsed_mods.entries):
         if not isinstance(entry, str):
             continue
         try:
-            payload = _decode_base64_payload(entry)
+            payload = decode_base64_payload(entry)
             with zipfile.ZipFile(io.BytesIO(payload), "r") as mod_zip:
                 mod_name = _mod_name(mod_zip, f"embedded-mod-{index}")
                 for member in mod_zip.namelist():
