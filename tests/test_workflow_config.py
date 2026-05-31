@@ -36,7 +36,7 @@ def test_canary_browser_smoke_runs_only_in_compatibility_workflow():
 
     assert "Build cheatExtended/maplebirch canary ZIP" in build_workflow
     assert "--maplebirch-release-tag maplebirch-release-v3.1.13" in build_workflow
-    assert "--maplebirch-asset-pattern maplebirch-0.5.7.9-v3.1.13.modpack" in build_workflow
+    assert "--maplebirch-asset-pattern maplebirch-0.5.8.10-v3.1.13.mod.zip" in build_workflow
     assert "--maplebirch-cache-label maplebirch-release-v3.1.13" in build_workflow
     assert 'asset_pattern = "maplebirch-0.5.8.10-v3.2.5.modpack"' in build_config
     assert 'release_tag = "maplebirch-release-v3.2.5"' in build_config
