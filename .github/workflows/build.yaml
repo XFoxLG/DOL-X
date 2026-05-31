@@ -78,7 +78,7 @@ jobs:
             --ensure-payloads \
             --build \
             --maplebirch-release-tag maplebirch-release-v3.1.13 \
-            --maplebirch-asset-pattern maplebirch-0.5.7.9-v3.1.13.modpack \
+            --maplebirch-asset-pattern maplebirch-0.5.8.10-v3.1.13.mod.zip \
             --maplebirch-cache-label maplebirch-release-v3.1.13 \
             --output "${{ github.workspace }}/output/cheat-extended-canary-stable-replacement-base-build.json"
 
