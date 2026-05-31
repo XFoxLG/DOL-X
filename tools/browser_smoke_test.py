@@ -1248,10 +1248,7 @@ def _looks_playable(game_ready: dict[str, Any]) -> bool:
     return bool(game_ready.get("interactiveElementCount", 0) > 0 and game_ready.get("bodyTextLength", 0) > 500)
 
 
-def _record_game_ready(report: BrowserSmokeReport, page: Any) -> dict[str, Any]:
-    game_ready = page.evaluate(_game_ready_script())
-    report.observations["game_ready"] = game_ready
-
+def _add_game_ready_issues(report: BrowserSmokeReport, game_ready: dict[str, Any]) -> None:
     if not game_ready.get("hasSugarCube"):
         _add_issue(
             report,
@@ -1274,7 +1271,44 @@ def _record_game_ready(report: BrowserSmokeReport, page: Any) -> dict[str, Any]:
             Issue("warning", "jquery_missing", "game_ready", "window.jQuery was not available after startup"),
         )
 
+
+def _record_game_ready(report: BrowserSmokeReport, page: Any, *, add_issues: bool = True) -> dict[str, Any]:
+    game_ready = page.evaluate(_game_ready_script())
+    report.observations["game_ready"] = game_ready
+
+    if add_issues:
+        _add_game_ready_issues(report, game_ready)
+
     return game_ready
+
+
+def _startup_instability_triggers(
+    report: BrowserSmokeReport,
+    navigation_events: list[dict[str, Any]],
+    extra_messages: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Summarize navigation/context symptoms that justify one stable re-read."""
+    issue_text = "\n".join([issue.message for issue in report.issues] + list(extra_messages)).lower()
+    context_destroyed = "execution context was destroyed" in issue_text or "most likely because of a navigation" in issue_text
+    document_abort = any(
+        event.get("type") == "document_request_failed"
+        and (
+            "err_aborted" in str(event.get("failure") or "").lower()
+            or "aborted" in str(event.get("failure") or "").lower()
+        )
+        for event in navigation_events
+    )
+    main_frame_navigations = [
+        event for event in navigation_events if event.get("type") == "framenavigated" and event.get("main_frame")
+    ]
+    extra_navigation = len(main_frame_navigations) > 1
+    return {
+        "context_destroyed": context_destroyed,
+        "document_abort": document_abort,
+        "extra_navigation": extra_navigation,
+        "main_frame_navigation_count": len(main_frame_navigations),
+        "should_retry": context_destroyed or document_abort or extra_navigation,
+    }
 
 
 def _startup_diagnostic_console_tail(report: BrowserSmokeReport, limit: int = 50) -> list[str]:
@@ -1604,6 +1638,8 @@ def _run_playwright(
     page_errors: list[str] = []
     dialogs: list[dict[str, Any]] = []
     browser_popups: list[dict[str, Any]] = []
+    navigation_events: list[dict[str, Any]] = []
+    pageerror_context: list[dict[str, Any]] = []
 
     with sync_playwright() as playwright:
         browser = _launch_chromium_browser(playwright, report, PlaywrightError)
@@ -1612,6 +1648,18 @@ def _run_playwright(
         context = browser.new_context(ignore_https_errors=True, viewport={"width": 1280, "height": 900})
         page = context.new_page()
         seen_popup_ids: set[int] = {id(page)}
+
+        def safe_ready_state() -> str | None:
+            try:
+                return page.evaluate("() => document.readyState")
+            except PlaywrightError:
+                return None
+
+        def safe_page_state(global_names: tuple[str, ...]) -> dict[str, Any]:
+            try:
+                return page.evaluate(_page_state_script(global_names), list(global_names))
+            except PlaywrightError as exc:
+                return {"error": str(exc), "url": page.url}
 
         def record_browser_popup(popup: Any, source: str) -> None:
             popup_id = id(popup)
@@ -1755,8 +1803,27 @@ def _run_playwright(
 
         def on_page_error(error: Any) -> None:
             text = str(error)
+            stack = str(getattr(error, "stack", "") or "")
+            context_entry = {
+                "message": text,
+                "stack": stack or None,
+                "url": page.url,
+                "ready_state": safe_ready_state(),
+                "recent_navigation_events": navigation_events[-5:],
+            }
+            pageerror_context.append(context_entry)
             page_errors.append(text)
             _add_issue(report, classify_message("pageerror", text))
+
+        def on_frame_navigated(frame: Any) -> None:
+            navigation_events.append(
+                {
+                    "type": "framenavigated",
+                    "url": frame.url,
+                    "name": frame.name,
+                    "main_frame": frame == page.main_frame,
+                }
+            )
 
         def on_request_failed(request: Any) -> None:
             failure = request.failure or "request failed"
@@ -1767,6 +1834,16 @@ def _run_playwright(
                 "failure": failure,
             }
             report.network_failures.append(entry)
+            if request.resource_type == "document":
+                navigation_events.append(
+                    {
+                        "type": "document_request_failed",
+                        "url": request.url,
+                        "method": request.method,
+                        "failure": failure,
+                        "is_navigation_request": request.is_navigation_request(),
+                    }
+                )
             issue = classify_message("requestfailed", f"{request.url} {failure}")
             _add_issue(report, issue, url=request.url)
 
@@ -1784,12 +1861,16 @@ def _run_playwright(
 
         page.on("console", on_console)
         page.on("pageerror", on_page_error)
+        page.on("framenavigated", on_frame_navigated)
         page.on("requestfailed", on_request_failed)
         page.on("response", on_response)
         page.on("dialog", on_dialog)
         page.on("popup", lambda popup: record_browser_popup(popup, "page.popup"))
         context.on("page", lambda new_page: record_browser_popup(new_page, "context.page"))
         report.observations["dialog_password_configured"] = profile.dialog_password is not None
+        global_names = tuple(
+            dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
+        )
 
         navigation_ok = False
         try:
@@ -1812,13 +1893,10 @@ def _run_playwright(
             _add_issue(report, Issue("warning", "startup_interaction_check_error", "runner", str(exc)))
 
         try:
-            global_names = tuple(
-                dict.fromkeys(
-                    [*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals]
-                )
-            )
-            page_state = page.evaluate(_page_state_script(global_names), list(global_names))
+            page_state = safe_page_state(global_names)
             report.observations["page_state"] = page_state
+            if "error" in page_state:
+                raise PlaywrightError(page_state["error"])
             global_types = page_state.get("globals", {}) or {}
             report.observations["runtime_globals"] = {
                 global_name: global_types.get(global_name) for global_name in profile.diagnostic_globals
@@ -1869,10 +1947,73 @@ def _run_playwright(
         report.observations["modal_blockers_before_ready"] = blockers_before_ready
         report.observations["blocker_dismissal"] = dismiss_modal_blockers(blockers_before_ready)
 
+        stability_retry: dict[str, Any] = {
+            "attempted": False,
+            "trigger": {},
+            "initial_ready": None,
+            "initial_has_sugarcube": None,
+        }
+        initial_game_ready: dict[str, Any] | None = None
         try:
-            _record_game_ready(report, page)
+            initial_game_ready = _record_game_ready(report, page, add_issues=False)
+            stability_retry["initial_ready"] = initial_game_ready.get("ready")
+            stability_retry["initial_has_sugarcube"] = initial_game_ready.get("hasSugarCube")
+            trigger_messages: tuple[str, ...] = ()
         except PlaywrightError as exc:
-            _add_issue(report, Issue("high", "game_ready_check_error", "runner", str(exc)))
+            trigger_messages = (str(exc),)
+            stability_retry["initial_error"] = str(exc)
+
+        stability_retry["trigger"] = _startup_instability_triggers(
+            report,
+            navigation_events,
+            extra_messages=trigger_messages,
+        )
+        if (initial_game_ready is None or not initial_game_ready.get("ready")) and stability_retry["trigger"].get(
+            "should_retry"
+        ):
+            stability_retry["attempted"] = True
+            try:
+                page.wait_for_timeout(2_000)
+                with contextlib.suppress(PlaywrightTimeoutError):
+                    page.wait_for_load_state("domcontentloaded", timeout=3_000)
+                reread_state = safe_page_state(global_names)
+                stability_retry["page_state_after_wait"] = reread_state
+                if "error" not in reread_state:
+                    report.observations["page_state"] = reread_state
+                    report.observations["runtime_globals"] = {
+                        global_name: (reread_state.get("globals", {}) or {}).get(global_name)
+                        for global_name in profile.diagnostic_globals
+                    }
+                try:
+                    reread_game_ready = page.evaluate(_game_ready_script())
+                except PlaywrightError as exc:
+                    stability_retry["game_ready_after_wait_error"] = str(exc)
+                else:
+                    stability_retry["game_ready_after_wait"] = reread_game_ready
+                    report.observations["game_ready"] = reread_game_ready
+            except PlaywrightError as exc:
+                stability_retry["retry_error"] = str(exc)
+
+        final_game_ready = report.observations.get("game_ready")
+        if final_game_ready:
+            _add_game_ready_issues(report, final_game_ready)
+        else:
+            _add_issue(
+                report,
+                Issue(
+                    "high",
+                    "game_ready_check_error",
+                    "runner",
+                    str(stability_retry.get("initial_error") or "game_ready evaluation did not return a result"),
+                ),
+            )
+        report.observations["game_ready_stability_retry"] = stability_retry
+
+        report.observations["navigation_events"] = navigation_events
+        report.observations["pageerror_context"] = pageerror_context
+        report.observations["startup_instability"] = stability_retry.get("trigger") or _startup_instability_triggers(
+            report, navigation_events
+        )
 
         modal_blockers_after_ready = observe_modal_blockers("after_game_ready")
         report.observations["modal_blockers"] = modal_blockers_after_ready
@@ -1940,6 +2081,7 @@ def _run_playwright(
                 )
         report.observations["click_results"] = click_results
         report.observations["browser_popups"] = browser_popups
+        report.observations["final_page_state"] = safe_page_state(global_names)
 
         if screenshot_dir is not None:
             screenshot_path = screenshot_dir / "browser-smoke-final.png"
@@ -1999,6 +2141,11 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
     modal_blockers = report.observations.get("modal_blockers", {}) or {}
     blocker_dismissal = report.observations.get("blocker_dismissal", {}) or {}
     browser_popups = report.observations.get("browser_popups", []) or []
+    navigation_events = report.observations.get("navigation_events", []) or []
+    pageerror_context = report.observations.get("pageerror_context", []) or []
+    stability_retry = report.observations.get("game_ready_stability_retry", {}) or {}
+    startup_instability = report.observations.get("startup_instability", {}) or {}
+    final_page_state = report.observations.get("final_page_state", {}) or {}
     runtime_globals = report.observations.get("runtime_globals")
     if runtime_globals is None:
         runtime_globals = (report.observations.get("page_state") or {}).get("globals", {})
@@ -2044,6 +2191,28 @@ def summarize_report(report: BrowserSmokeReport, top_limit: int = 5) -> dict[str
             "has_sugarcube": browser_boot.get("has_sugarcube"),
             "has_mod_data_value_zip_list": browser_boot.get("has_mod_data_value_zip_list"),
             "dialog_count": browser_boot.get("dialog_count", 0),
+        },
+        "browser_diagnostics": {
+            "navigation_event_count": len(navigation_events),
+            "document_abort_count": sum(
+                1
+                for event in navigation_events
+                if event.get("type") == "document_request_failed"
+                and "abort" in str(event.get("failure") or "").lower()
+            ),
+            "main_frame_navigation_count": sum(
+                1 for event in navigation_events if event.get("type") == "framenavigated" and event.get("main_frame")
+            ),
+            "pageerror_count": len(pageerror_context),
+            "pageerror_samples": pageerror_context[:3],
+            "startup_instability": startup_instability,
+            "stability_retry_attempted": stability_retry.get("attempted", False),
+            "stability_retry_ready_after_wait": (stability_retry.get("game_ready_after_wait") or {}).get("ready"),
+            "stability_retry_has_sugarcube_after_wait": (stability_retry.get("game_ready_after_wait") or {}).get(
+                "hasSugarCube"
+            ),
+            "final_ready_state": final_page_state.get("readyState"),
+            "final_has_sugarcube": final_page_state.get("hasSugarCube"),
         },
         "game_ready": {
             "ready": game_ready.get("ready"),
@@ -2142,6 +2311,13 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         f"- Screenshot: `{(summary['screenshot'] or {}).get('path')}`",
         f"- Elapsed seconds: `{report.elapsed_seconds:.2f}`",
         f"- Browser navigation OK: `{summary['browser_boot']['navigation_ok']}`",
+        f"- Browser navigation events: `{summary['browser_diagnostics']['navigation_event_count']}`",
+        f"- Browser document aborts: `{summary['browser_diagnostics']['document_abort_count']}`",
+        f"- Browser pageerrors captured: `{summary['browser_diagnostics']['pageerror_count']}`",
+        f"- Startup stability retry attempted: `{summary['browser_diagnostics']['stability_retry_attempted']}`",
+        f"- Startup stability retry ready after wait: `{summary['browser_diagnostics']['stability_retry_ready_after_wait']}`",
+        f"- Final page readyState: `{summary['browser_diagnostics']['final_ready_state']}`",
+        f"- Final page has SugarCube: `{summary['browser_diagnostics']['final_has_sugarcube']}`",
         f"- Runtime globals observed: `{summary['runtime_globals']}`",
         f"- SugarCube ready: `{summary['game_ready']['ready']}`",
         f"- Current passage: `{summary['game_ready']['passage']}`",
@@ -2172,6 +2348,23 @@ def _write_markdown_report(report: BrowserSmokeReport, output_dir: Path) -> None
         lines.extend(["## CI context", ""])
         for key, value in report.ci_context.items():
             lines.append(f"- {key}: `{value}`")
+        lines.append("")
+
+    browser_diagnostics = summary["browser_diagnostics"]
+    if browser_diagnostics.get("navigation_event_count") or browser_diagnostics.get("pageerror_count"):
+        lines.extend(["## Browser startup diagnostics", ""])
+        lines.append(f"- Navigation events: `{browser_diagnostics['navigation_event_count']}`")
+        lines.append(f"- Document aborts: `{browser_diagnostics['document_abort_count']}`")
+        lines.append(f"- Pageerrors captured: `{browser_diagnostics['pageerror_count']}`")
+        lines.append(f"- Stability retry attempted: `{browser_diagnostics['stability_retry_attempted']}`")
+        lines.append(f"- Startup instability: `{browser_diagnostics['startup_instability']}`")
+        for pageerror in browser_diagnostics.get("pageerror_samples", []):
+            message = str(pageerror.get("message") or "").replace("\n", " ")[:300]
+            lines.append(
+                "- "
+                f"pageerror url=`{pageerror.get('url')}`, ready_state=`{pageerror.get('ready_state')}`, "
+                f"message=`{message}`"
+            )
         lines.append("")
 
     startup_steps = summary["startup_interactions"].get("steps", [])
