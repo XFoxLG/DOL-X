@@ -1,6 +1,7 @@
 """cheatExtended/maplebirch canary planning tests."""
 
 import json
+import zipfile
 
 import pytest
 
@@ -10,14 +11,28 @@ from tools.cheat_extended_canary import (
     CANARY_CODES,
     COMBINED_PROFILE,
     MANUAL_RUNTIME_BLOCKERS,
+    MAPLEBIRCH_IDB_PATCH_MEMBER,
+    MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL,
+    MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED,
     MaplebirchPayloadOverride,
     REPLACEMENT_PROFILE,
+    _patch_maplebirch_idb_schema_recovery,
     ensure_canary_payloads,
     main,
     make_canary_plan,
     validate_canary_code,
     validate_canary_build_result,
 )
+
+
+def _write_fake_maplebirch_payload(payload_path, version="3.1.13"):
+    payload_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(payload_path, "w") as payload_zip:
+        payload_zip.writestr("boot.json", json.dumps({"name": "maplebirch", "version": version}))
+        payload_zip.writestr(
+            MAPLEBIRCH_IDB_PATCH_MEMBER,
+            f"before:{MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL}:after",
+        )
 
 
 @pytest.mark.config
@@ -127,6 +142,25 @@ def test_validate_canary_build_result_accepts_real_payload_injection():
 
 
 @pytest.mark.config
+def test_patch_maplebirch_idb_schema_recovery_wraps_missing_store_retry(tmp_path):
+    payload_path = tmp_path / "maplebirch.mod.zip"
+    _write_fake_maplebirch_payload(payload_path)
+
+    result = _patch_maplebirch_idb_schema_recovery(payload_path)
+
+    assert result["status"] == "patched"
+    assert result["applied"] is True
+    assert result["payload_name"] == "maplebirch"
+    assert result["payload_version"] == "3.1.13"
+
+    with zipfile.ZipFile(payload_path, "r") as payload_zip:
+        patched_script = payload_zip.read(MAPLEBIRCH_IDB_PATCH_MEMBER).decode("utf-8")
+
+    assert MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL not in patched_script
+    assert MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED in patched_script
+
+
+@pytest.mark.config
 def test_ensure_canary_payloads_downloads_only_canary_mods(tmp_path, monkeypatch):
     plan = make_canary_plan("stable-replacement", "base")
     downloaded: list[tuple[str, str]] = []
@@ -179,6 +213,40 @@ def test_ensure_canary_payloads_override_only_replaces_maplebirch_payload(tmp_pa
     assert maplebirch_payload["override_cache_label"] == "maplebirch-release-v3.2.3"
     assert "override" not in cheat_payload
     assert {name for _, name in downloaded} == {"maplebirch.mod.zip", "cheat_extended.mod.zip"}
+
+
+@pytest.mark.config
+def test_ensure_canary_payloads_applies_idb_patch_to_v313_override(tmp_path, monkeypatch):
+    plan = make_canary_plan("stable-replacement", "base")
+
+    def fake_download(url, dest_path, quiet=False):
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        if dest_path.name == "maplebirch.mod.zip":
+            _write_fake_maplebirch_payload(dest_path, version="3.1.13")
+        else:
+            dest_path.write_bytes(f"payload:{url}".encode("utf-8"))
+
+    monkeypatch.setattr("tools.cheat_extended_canary.download_file", fake_download)
+
+    payloads = ensure_canary_payloads(
+        plan,
+        tmp_path,
+        MaplebirchPayloadOverride(
+            download_url="https://example.invalid/maplebirch-0.5.8.10-v3.1.13.mod.zip",
+            cache_label="maplebirch-release-v3.1.13",
+        ),
+    )
+
+    by_cache_name = {payload["cache_name"]: payload for payload in payloads}
+    patch_result = by_cache_name["maplebirch"]["maplebirch_idb_schema_patch"]
+
+    assert patch_result["status"] == "patched"
+    assert patch_result["payload_version"] == "3.1.13"
+    assert "maplebirch_idb_schema_patch" not in by_cache_name["cheat_extended"]
+
+    with zipfile.ZipFile(tmp_path / "workspace" / "temp" / "maplebirch.mod.zip", "r") as payload_zip:
+        patched_script = payload_zip.read(MAPLEBIRCH_IDB_PATCH_MEMBER).decode("utf-8")
+    assert MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED in patched_script
 
 
 @pytest.mark.config
