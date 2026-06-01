@@ -250,38 +250,44 @@ class PackageBuilder(ABC):
 
     def _apply_au_face_compatibility_aliases(self) -> list[str]:
         """
-        为 AU facial expansion 补齐运行时请求的嵌套 blush 路径。
+        为运行时请求的嵌套 default face 路径补齐兼容别名。
 
         AU/BeautySelector 运行时会请求 img/face/default/default/blush*.png，
         但当前打包结果只包含 img/face/default/blush*.png。这里在构建阶段
         复制缺失目标，避免运行时 Failed to load image ... for layer blush。
-        """
-        if not self._has_au_feature():
-            return []
 
+        基础 canary 也会请求 img/face/default/default/mouth*.png，而资源包
+        只提供 img/face/default/mouth*.png；这些 mouth aliases 与 AU 无关，
+        所以对所有构建补齐。
+        """
         source_dir = self.img_path / "face" / "default"
         target_dir = source_dir / "default"
         if not source_dir.exists():
             return []
 
+        patterns = ["mouth*.png"]
+        if self._has_au_feature():
+            patterns.append("blush*.png")
+
         copied = []
-        for source in sorted(
-            source_dir.glob("blush*.png"), key=lambda item: item.name.lower()
-        ):
-            if not source.is_file():
-                continue
+        for pattern in patterns:
+            for source in sorted(
+                source_dir.glob(pattern), key=lambda item: item.name.lower()
+            ):
+                if not source.is_file():
+                    continue
 
-            target = target_dir / source.name
-            if target.exists():
-                continue
+                target = target_dir / source.name
+                if target.exists():
+                    continue
 
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
-            copied.append(target.relative_to(self.img_path).as_posix())
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+                copied.append(target.relative_to(self.img_path).as_posix())
 
         if copied:
             logger.info(
-                "AU face compatibility aliases created: %s", ", ".join(copied)
+                "Face compatibility aliases created: %s", ", ".join(copied)
             )
 
         return copied

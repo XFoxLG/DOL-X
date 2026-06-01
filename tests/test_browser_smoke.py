@@ -117,6 +117,11 @@ def test_browser_smoke_classifies_high_risk_runtime_errors(source, message, expe
             "http://127.0.0.1/style.css Failed to load resource: the server responded with a status of 404 (File not found)",
             "spellbook_external_asset",
         ),
+        (
+            "console.error",
+            "ModOrderContainer getByNameOne() cannot find name. [Simple Frameworks, ModOrderContainer]",
+            "simple_frameworks_optional_lookup",
+        ),
         ("console.error", "usettings.js not active, this is normal", "usettings_inactive_normal"),
     ],
 )
