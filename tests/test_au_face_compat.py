@@ -32,6 +32,22 @@ def test_au_face_compatibility_aliases_copy_default_blush_layers(tmp_path):
 
 
 @pytest.mark.config
+def test_face_compatibility_aliases_copy_default_mouth_layers_for_base_builds(tmp_path):
+    """Base builds copy default mouth layers to the nested runtime path."""
+    builder = _zip_builder(tmp_path, 24834)
+    source = builder.img_path / "face" / "default" / "mouth-smile.png"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"fake-mouth-png")
+
+    copied = builder._apply_au_face_compatibility_aliases()
+
+    target = builder.img_path / "face" / "default" / "default" / "mouth-smile.png"
+    assert target.exists()
+    assert target.read_bytes() == b"fake-mouth-png"
+    assert copied == ["face/default/default/mouth-smile.png"]
+
+
+@pytest.mark.config
 def test_au_face_compatibility_aliases_preserve_existing_targets(tmp_path):
     """Existing nested assets are left untouched if upstream starts shipping them."""
     builder = _zip_builder(tmp_path, 25858)
@@ -50,7 +66,7 @@ def test_au_face_compatibility_aliases_preserve_existing_targets(tmp_path):
 
 @pytest.mark.config
 def test_au_face_compatibility_aliases_skip_non_au_build(tmp_path):
-    """Stable base builds do not create AU-only compatibility aliases."""
+    """Stable base builds do not create AU-only blush compatibility aliases."""
     builder = _zip_builder(tmp_path, 24834)
     source = builder.img_path / "face" / "default" / "blush1.png"
     source.parent.mkdir(parents=True)

@@ -179,6 +179,13 @@ WARNING_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "usettings_optional_asset",
         re.compile(r"usettings\.js", re.IGNORECASE),
     ),
+    (
+        "simple_frameworks_optional_lookup",
+        re.compile(
+            r"ModOrderContainer getByNameOne\(\) cannot find name\. \[Simple Frameworks, ModOrderContainer\]",
+            re.IGNORECASE,
+        ),
+    ),
 )
 
 HIGH_RISK_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
