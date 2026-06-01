@@ -14,6 +14,8 @@ import json
 import os
 import re
 import sys
+import zipfile
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lyra.utils import download_file
 from tools.canary_payload_introspect import PayloadInspection, inspect_payload
+from tools.cheat_extended_canary import (
+    MAPLEBIRCH_IDB_PATCH_MEMBER,
+    MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL,
+    MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED,
+)
 
 
 REPO = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
@@ -37,6 +44,11 @@ PRIORITY_RELEASES: tuple[str, ...] = (
     "maplebirch-release-v3.1.11",
     "maplebirch-release-v3.1.10",
 )
+HYBRID_TRIAGE_TAGS: tuple[str, ...] = (
+    "maplebirch-release-v3.1.13",
+    "maplebirch-release-v3.1.14",
+    "maplebirch-release-v3.2.3",
+)
 STATIC_SCAN_KEYWORDS: tuple[str, ...] = (
     "maplebirchFrameworks",
     "CE_options",
@@ -45,6 +57,12 @@ STATIC_SCAN_KEYWORDS: tuple[str, ...] = (
     "TimeEvent",
     "addto",
 )
+CANARY_BRANCH = "experiment/cheat-extended-maplebirch"
+BUILD_WORKFLOW = "build.yaml"
+COMPATIBILITY_WORKFLOW = "compatibility.yaml"
+CANARY_BUILD_REPORT_ARTIFACT = "cheat-canary-build-reports"
+CANARY_ZIP_ARTIFACT = "dol-builds-cheat-canary-zip"
+CANARY_SMOKE_REPORT_ARTIFACT = "cheat-canary-browser-smoke-report"
 
 
 @dataclass
@@ -67,6 +85,21 @@ class MaplebirchAssetCandidate:
 
 
 @dataclass
+class IDBPatchAssessment:
+    """Static patchability summary for the maplebirch IndexedDB runtime."""
+
+    member: str
+    status: str = "not_scanned"
+    has_original_needle: bool = False
+    has_patched_needle: bool = False
+    has_with_transaction: bool = False
+    has_reset_database: bool = False
+    has_check_store: bool = False
+    has_settings_store: bool = False
+    error: str | None = None
+
+
+@dataclass
 class CandidateScanResult:
     """Static inspection result for one downloaded candidate."""
 
@@ -75,7 +108,29 @@ class CandidateScanResult:
     sha256: str
     inspection: PayloadInspection
     likely_old_api_candidate: bool
+    idb_patch: IDBPatchAssessment = field(
+        default_factory=lambda: IDBPatchAssessment(member=MAPLEBIRCH_IDB_PATCH_MEMBER)
+    )
     scan_notes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CandidateAssessment:
+    """Ranked automated-triage decision for one static candidate."""
+
+    tag: str
+    asset_name: str
+    score: int
+    rank: int = 0
+    recommendation: str = "do_not_smoke"
+    patch_status: str = "not_scanned"
+    idb_schema_status: str = "unknown"
+    maplebirch_framework_status: str = "unknown"
+    simple_framework_status: str = "unknown"
+    ce_contract_status: str = "unknown"
+    exact_game_match: bool = False
+    stable_isolation: bool = True
+    reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -88,7 +143,12 @@ class MaplebirchVersionMatrixReport:
     max_smoke_candidates: int
     candidates: list[MaplebirchAssetCandidate]
     scans: list[CandidateScanResult] = field(default_factory=list)
+    assessments: list[CandidateAssessment] = field(default_factory=list)
     selected_for_smoke: list[MaplebirchAssetCandidate] = field(default_factory=list)
+    top_candidate: MaplebirchAssetCandidate | None = None
+    fallback_candidate: MaplebirchAssetCandidate | None = None
+    ci_handoff: list[str] = field(default_factory=list)
+    manual_gates: list[str] = field(default_factory=list)
     stop_reason: str | None = None
 
 
@@ -223,6 +283,254 @@ def _has_static_framework_evidence(keyword_hits: dict[str, int]) -> bool:
     return any(keyword_hits.get(keyword, 0) > 0 for keyword in STATIC_SCAN_KEYWORDS)
 
 
+def filter_candidates_by_tags(
+    candidates: list[MaplebirchAssetCandidate], tags: Iterable[str] | None
+) -> list[MaplebirchAssetCandidate]:
+    """Keep the release matrix focused on an explicit candidate tag set."""
+    if not tags:
+        return candidates
+    allowed = set(tags)
+    return [candidate for candidate in candidates if candidate.tag in allowed]
+
+
+def assess_idb_patch(payload_path: Path) -> IDBPatchAssessment:
+    """Determine whether the existing canary IndexedDB patch can apply to a payload."""
+    assessment = IDBPatchAssessment(member=MAPLEBIRCH_IDB_PATCH_MEMBER)
+    try:
+        with zipfile.ZipFile(payload_path) as payload_zip:
+            try:
+                raw_member = payload_zip.read(MAPLEBIRCH_IDB_PATCH_MEMBER)
+            except KeyError:
+                assessment.status = "missing_member"
+                assessment.error = f"{MAPLEBIRCH_IDB_PATCH_MEMBER} not found"
+                return assessment
+    except zipfile.BadZipFile as exc:
+        assessment.status = "not_zip"
+        assessment.error = str(exc)
+        return assessment
+    except OSError as exc:
+        assessment.status = "read_error"
+        assessment.error = str(exc)
+        return assessment
+
+    runtime = raw_member.decode("utf-8", errors="replace")
+    assessment.has_original_needle = MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL in runtime
+    assessment.has_patched_needle = MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED in runtime
+    assessment.has_with_transaction = "withTransaction" in runtime
+    assessment.has_reset_database = "resetDatabase" in runtime
+    assessment.has_check_store = "checkStore" in runtime or "objectStoreNames.contains" in runtime
+    assessment.has_settings_store = any(marker in runtime for marker in ('"settings"', "'settings'", "`settings`"))
+
+    if assessment.has_patched_needle:
+        assessment.status = "already_patched"
+    elif assessment.has_original_needle:
+        assessment.status = "patchable"
+    elif assessment.has_with_transaction:
+        assessment.status = "needle_not_found"
+        assessment.error = "withTransaction exists, but the known canary patch needle did not match"
+    else:
+        assessment.status = "runtime_not_found"
+        assessment.error = "withTransaction runtime was not found in the expected member"
+    return assessment
+
+
+def _candidate_key(candidate: MaplebirchAssetCandidate) -> tuple[str, str]:
+    return candidate.tag, candidate.asset_name
+
+
+def _candidate_lookup(scans: list[CandidateScanResult]) -> dict[tuple[str, str], MaplebirchAssetCandidate]:
+    return {_candidate_key(scan.candidate): scan.candidate for scan in scans}
+
+
+def assess_candidate(scan: CandidateScanResult) -> CandidateAssessment:
+    """Score one static scan for the automation-first canary triage gate."""
+    candidate = scan.candidate
+    keyword_hits = scan.inspection.keyword_hits
+    reasons: list[str] = []
+    score = 0
+
+    if candidate.is_baseline:
+        score -= 100
+        reasons.append("current baseline is comparison-only and must not be canary-smoked")
+    if candidate.exact_game_match:
+        score += 35
+        reasons.append("asset game version exactly matches target")
+    else:
+        score -= 25
+        reasons.append("asset game version differs from target")
+
+    if candidate.tag in HYBRID_TRIAGE_TAGS:
+        score += 10
+        reasons.append("tag is in the hybrid canary triage set")
+    if candidate.tag in PRIORITY_RELEASES:
+        score += 10
+        reasons.append("tag is a prioritized rollback candidate")
+
+    if scan.likely_old_api_candidate:
+        score += 25
+        reasons.append("static scan exposed old framework/API evidence")
+    else:
+        score -= 35
+        reasons.append("static scan did not expose enough old framework/API evidence")
+
+    if scan.inspection.defines_maplebirch_frameworks:
+        maplebirch_framework_status = "defines"
+        score += 20
+        reasons.append("payload defines maplebirchFrameworks")
+    elif keyword_hits.get("maplebirchFrameworks", 0) > 0 or scan.inspection.references_maplebirch_frameworks:
+        maplebirch_framework_status = "mentions"
+        score += 15
+        reasons.append("payload mentions maplebirchFrameworks")
+    else:
+        maplebirch_framework_status = "missing"
+        score -= 20
+        reasons.append("payload lacks maplebirchFrameworks evidence")
+
+    if keyword_hits.get("SCMLSimpleFramework", 0) > 0 or keyword_hits.get("Simple Frameworks", 0) > 0:
+        simple_framework_status = "present"
+        score += 10
+        reasons.append("payload mentions Simple Framework APIs")
+    else:
+        simple_framework_status = "missing"
+
+    if keyword_hits.get("CE_options", 0) > 0 or scan.inspection.references_ce_options:
+        ce_contract_status = "present"
+        score += 5
+        reasons.append("payload references the CE_options contract")
+    else:
+        ce_contract_status = "missing"
+
+    patch_status = scan.idb_patch.status
+    if patch_status == "patchable":
+        idb_schema_status = "can_apply_existing_patch"
+        score += 12
+        reasons.append("known maplebirch IDB patch needle matches")
+    elif patch_status == "already_patched":
+        idb_schema_status = "already_patched"
+        score += 8
+        reasons.append("payload already contains the known maplebirch IDB patch")
+    elif patch_status == "needle_not_found":
+        idb_schema_status = "requires_manual_patch_review"
+        score -= 15
+        reasons.append("withTransaction exists but known IDB patch needle did not match")
+    elif patch_status in {"missing_member", "runtime_not_found"}:
+        idb_schema_status = "missing_runtime_evidence"
+        score -= 20
+        reasons.append("expected maplebirch IDB runtime evidence is missing")
+    elif patch_status in {"not_zip", "read_error"}:
+        idb_schema_status = "unreadable"
+        score -= 15
+        reasons.append("payload could not be read as a maplebirch zip for IDB assessment")
+    else:
+        idb_schema_status = "unknown"
+
+    if scan.idb_patch.has_reset_database:
+        score += 5
+        reasons.append("runtime exposes resetDatabase for one-shot recovery")
+    if scan.idb_patch.has_settings_store:
+        score += 5
+        reasons.append("runtime references the settings object store")
+    if candidate.compatibility_risk == "high":
+        score -= 20
+        reasons.append("candidate is high compatibility risk")
+
+    recommendation = "static_candidate" if score > 0 and scan.likely_old_api_candidate and not candidate.is_baseline else "do_not_smoke"
+    return CandidateAssessment(
+        tag=candidate.tag,
+        asset_name=candidate.asset_name,
+        score=score,
+        recommendation=recommendation,
+        patch_status=patch_status,
+        idb_schema_status=idb_schema_status,
+        maplebirch_framework_status=maplebirch_framework_status,
+        simple_framework_status=simple_framework_status,
+        ce_contract_status=ce_contract_status,
+        exact_game_match=candidate.exact_game_match,
+        stable_isolation=True,
+        reasons=reasons,
+    )
+
+
+def assess_candidates(scans: list[CandidateScanResult]) -> list[CandidateAssessment]:
+    """Rank static candidates and label top/fallback recommendations."""
+    scan_order = {_candidate_key(scan.candidate): scan.candidate.priority for scan in scans}
+    assessments = [assess_candidate(scan) for scan in scans]
+    assessments.sort(key=lambda item: (-item.score, scan_order.get((item.tag, item.asset_name), 999), item.tag, item.asset_name))
+    positive_rank = 0
+    for index, assessment in enumerate(assessments, start=1):
+        assessment.rank = index
+        if assessment.recommendation == "do_not_smoke":
+            continue
+        positive_rank += 1
+        if positive_rank == 1:
+            assessment.recommendation = "top_candidate"
+        elif positive_rank == 2:
+            assessment.recommendation = "fallback_candidate"
+        else:
+            assessment.recommendation = "ranked_candidate"
+    return assessments
+
+
+def select_assessed_smoke_candidates(
+    scans: list[CandidateScanResult], assessments: list[CandidateAssessment], max_count: int
+) -> list[MaplebirchAssetCandidate]:
+    """Select smoke candidates from ranked assessments while preserving the explicit budget."""
+    if max_count <= 0:
+        return []
+    candidates_by_key = _candidate_lookup(scans)
+    selected: list[MaplebirchAssetCandidate] = []
+    for assessment in assessments:
+        if assessment.recommendation == "do_not_smoke":
+            continue
+        candidate = candidates_by_key.get((assessment.tag, assessment.asset_name))
+        if candidate is not None:
+            selected.append(candidate)
+        if len(selected) >= max_count:
+            break
+    return selected
+
+
+def build_ci_handoff(
+    top_candidate: MaplebirchAssetCandidate | None, fallback_candidate: MaplebirchAssetCandidate | None
+) -> list[str]:
+    """Describe the one-build/one-smoke handoff without triggering CI."""
+    handoff = [
+        f"Keep this canary isolated on `{CANARY_BRANCH}`; do not mutate stable/default combinations.",
+        "Do not trigger Build or browser smoke until the static matrix report is reviewed.",
+    ]
+    if top_candidate is None:
+        handoff.append("No top candidate selected; stop and return to runtime patching instead of switching versions.")
+        return handoff
+
+    handoff.extend(
+        [
+            f"Top candidate for the single Build/browser-smoke attempt: `{top_candidate.tag}` / `{top_candidate.asset_name}`.",
+            "Before Build, ensure the canary-only maplebirch release tag, asset pattern, and cache label match the top candidate.",
+            f"Run exactly one `{BUILD_WORKFLOW}` Build on `{CANARY_BRANCH}`, then download `{CANARY_BUILD_REPORT_ARTIFACT}` and `{CANARY_ZIP_ARTIFACT}`.",
+            "Parse the build report and record commit SHA, run ID, artifact names, candidate tag, and patch status before smoke.",
+            f"If Build succeeds, run exactly one `{COMPATIBILITY_WORKFLOW}` canary browser smoke for that Build run and download `{CANARY_SMOKE_REPORT_ARTIFACT}`.",
+            "Parse browser smoke pageerrors, runtime globals, and passage readiness; do not rerun the same workflow/artifact as new evidence.",
+        ]
+    )
+    if fallback_candidate is None:
+        handoff.append("No fallback candidate selected; a runtime blocker should return to patching, not version roulette.")
+    else:
+        handoff.append(
+            f"Fallback candidate `{fallback_candidate.tag}` / `{fallback_candidate.asset_name}` is only for CI/download/artifact failure, not runtime blocker failure."
+        )
+    return handoff
+
+
+def build_manual_gates() -> list[str]:
+    """List human-only gates that static automation must not cross."""
+    return [
+        "Manual canary play test of the downloaded ZIP is required before treating the candidate as playable.",
+        "Merging canary work into stable/default requires human confirmation.",
+        "Replacing stable build combinations or release artifacts requires human confirmation.",
+        "Publishing or announcing a playable release requires human confirmation.",
+    ]
+
+
 def scan_candidates(candidates: list[MaplebirchAssetCandidate], cache_dir: Path) -> list[CandidateScanResult]:
     """Download and statically inspect candidate assets once."""
     scans: list[CandidateScanResult] = []
@@ -257,6 +565,7 @@ def scan_candidates(candidates: list[MaplebirchAssetCandidate], cache_dir: Path)
                 sha256=hashlib.sha256(data).hexdigest(),
                 inspection=inspection,
                 likely_old_api_candidate=likely_old_api_candidate,
+                idb_patch=assess_idb_patch(path),
                 scan_notes=notes,
             )
         )
@@ -281,18 +590,26 @@ def build_report(
     max_smoke_candidates: int,
     cache_dir: Path | None = None,
     scan: bool = False,
+    candidate_tags: Iterable[str] | None = None,
 ) -> MaplebirchVersionMatrixReport:
-    candidates = candidates_from_releases(releases, game_version, baseline_tag)
+    candidates = filter_candidates_by_tags(candidates_from_releases(releases, game_version, baseline_tag), candidate_tags)
     scans: list[CandidateScanResult] = []
+    assessments: list[CandidateAssessment] = []
     selected: list[MaplebirchAssetCandidate] = []
+    top_candidate: MaplebirchAssetCandidate | None = None
+    fallback_candidate: MaplebirchAssetCandidate | None = None
     stop_reason: str | None = None
     if scan:
         if cache_dir is None:
             raise ValueError("cache_dir is required when scan=True")
         scans = scan_candidates(candidates, cache_dir)
-        selected = select_smoke_candidates(scans, max_smoke_candidates)
+        assessments = assess_candidates(scans)
+        selected = select_assessed_smoke_candidates(scans, assessments, max_smoke_candidates)
         if not selected:
             stop_reason = "no static candidate exposed enough old framework/API evidence; do not build"
+        else:
+            top_candidate = selected[0]
+            fallback_candidate = selected[1] if len(selected) > 1 else None
     return MaplebirchVersionMatrixReport(
         repo=REPO,
         game_version=game_version,
@@ -300,7 +617,12 @@ def build_report(
         max_smoke_candidates=max_smoke_candidates,
         candidates=candidates,
         scans=scans,
+        assessments=assessments,
         selected_for_smoke=selected,
+        top_candidate=top_candidate,
+        fallback_candidate=fallback_candidate,
+        ci_handoff=build_ci_handoff(top_candidate, fallback_candidate),
+        manual_gates=build_manual_gates(),
         stop_reason=stop_reason,
     )
 
@@ -338,14 +660,56 @@ def write_markdown(report: MaplebirchVersionMatrixReport, output_path: Path) -> 
             lines.append(f"- Kind: `{scan.inspection.kind}`")
             lines.append(f"- Defines maplebirchFrameworks: `{scan.inspection.defines_maplebirch_frameworks}`")
             lines.append(f"- Likely old API candidate: `{scan.likely_old_api_candidate}`")
+            lines.append(f"- IDB patch status: `{scan.idb_patch.status}`")
+            lines.append(f"- IDB patch member: `{scan.idb_patch.member}`")
             lines.append(f"- Keyword hits: `{scan.inspection.keyword_hits}`")
             lines.append(f"- Notes: `{scan.scan_notes}`")
             lines.append("")
+
+    if report.assessments:
+        lines.extend(
+            [
+                "",
+                "## Candidate assessments",
+                "",
+                "| Rank | Recommendation | Score | Tag | Asset | Patch | IDB schema | maplebirchFrameworks | Simple Frameworks | CE contract | Reasons |",
+                "|---:|---|---:|---|---|---|---|---|---|---|---|",
+            ]
+        )
+        for assessment in report.assessments:
+            reasons = "; ".join(assessment.reasons)
+            lines.append(
+                "| "
+                f"{assessment.rank} | `{assessment.recommendation}` | {assessment.score} | "
+                f"`{assessment.tag}` | `{assessment.asset_name}` | `{assessment.patch_status}` | "
+                f"`{assessment.idb_schema_status}` | `{assessment.maplebirch_framework_status}` | "
+                f"`{assessment.simple_framework_status}` | `{assessment.ce_contract_status}` | {reasons} |"
+            )
 
     if report.selected_for_smoke:
         lines.extend(["", "## Selected for smoke", ""])
         for candidate in report.selected_for_smoke:
             lines.append(f"- `{candidate.tag}` / `{candidate.asset_name}`")
+
+    lines.extend(["", "## Top and fallback", ""])
+    if report.top_candidate is None:
+        lines.append("- Top candidate: none")
+    else:
+        lines.append(f"- Top candidate: `{report.top_candidate.tag}` / `{report.top_candidate.asset_name}`")
+    if report.fallback_candidate is None:
+        lines.append("- Fallback candidate: none")
+    else:
+        lines.append(f"- Fallback candidate: `{report.fallback_candidate.tag}` / `{report.fallback_candidate.asset_name}`")
+
+    if report.ci_handoff:
+        lines.extend(["", "## CI handoff", ""])
+        for step in report.ci_handoff:
+            lines.append(f"- {step}")
+
+    if report.manual_gates:
+        lines.extend(["", "## Manual gates", ""])
+        for gate in report.manual_gates:
+            lines.append(f"- {gate}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -364,10 +728,22 @@ def main() -> int:
     parser.add_argument("--scan", action="store_true", help="Download and statically scan candidates")
     parser.add_argument("--cache-dir", type=Path, default=Path("workspace/temp/maplebirch-candidates"))
     parser.add_argument("--max-smoke-candidates", type=int, default=2)
+    parser.add_argument(
+        "--candidate-tag",
+        action="append",
+        dest="candidate_tags",
+        help="Restrict the matrix to a release tag. Repeat for multiple tags.",
+    )
+    parser.add_argument(
+        "--hybrid-triage",
+        action="store_true",
+        help="Restrict the matrix to the agreed v3.1.13/v3.1.14/v3.2.3 canary triage set.",
+    )
     parser.add_argument("--output", type=Path, default=Path("output/maplebirch-version-candidates.json"))
     parser.add_argument("--markdown-output", type=Path, default=Path("output/maplebirch-version-candidates.md"))
     args = parser.parse_args()
 
+    candidate_tags = HYBRID_TRIAGE_TAGS if args.hybrid_triage else args.candidate_tags
     releases = fetch_releases(args.per_page)
     report = build_report(
         releases,
@@ -376,6 +752,7 @@ def main() -> int:
         args.max_smoke_candidates,
         cache_dir=args.cache_dir,
         scan=args.scan,
+        candidate_tags=candidate_tags,
     )
     write_json(report, args.output)
     write_markdown(report, args.markdown_output)

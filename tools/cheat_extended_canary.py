@@ -40,11 +40,13 @@ MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL = (
 )
 MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED = (
     "async withTransaction(e,t,n){this.ready||await this.init();let r=Array.isArray(e)?e:[e];"
-    "for(let i=0;i<2;i++)try{let e=this.db.transaction(r,t),s=await n(e);return await e.done,s}"
-    "catch(e){if(0===i&&e&&(\"NotFoundError\"===e.name||/object stores? was not found|not found/i.test(e.message||\"\")))"
-    "{this.core.logger.log(`IDB store missing; rebuilding database before retry: ${r.join(\",\")}`,\"WARN\"),"
-    "await this.resetDatabase();continue}throw this.core.logger.log(`事务执行失败: ${e?.message||e}`,\"ERROR\"),e}}"
+    "for(let i=0;i<2;i++)try{if(!this.db)throw new Error(\"IDB database handle missing before transaction\");"
+    "let e=this.db.transaction(r,t),s=await n(e);return await e.done,s}"
+    "catch(e){if(0===i&&(!this.db||e&&(\"NotFoundError\"===e.name||/object stores? was not found|not found|database handle missing|reading ['\"]transaction['\"]/i.test(e.message||\"\"))))"
+    "{this.core.logger.log(`IDB unavailable; rebuilding database before retry: ${r.join(\",\")}`,\"WARN\"),"
+    "await this.resetDatabase();this.ready||await this.init();continue}throw this.core.logger.log(`事务执行失败: ${e?.message||e}`,\"ERROR\"),e}}"
 )
+
 
 CANARY_CODES: dict[str, dict[str, int]] = {
     "stable-replacement": {
@@ -306,19 +308,21 @@ def _download_modloader_payload(mod_config, dest_path: Path, override: Maplebirc
 
 
 def _patch_maplebirch_idb_schema_recovery(payload_path: Path) -> dict[str, object]:
-    """Patch v3.1.13 maplebirch canary payload to recover from missing IDB stores.
+    """Patch v3.1.13 maplebirch canary payload to recover from IDB startup races.
 
     The upstream IndexedDB service registers object stores before opening the
     `maplebirch` database, but a stale or partially-created DB can be opened at
     the same major version without running the upgrade callback. In that state,
-    `transaction(["settings"], ...)` throws before the upstream try/catch block.
-    This canary-only patch wraps transaction creation and rebuilds the DB once
-    on NotFoundError instead of letting the browser pageerror escape.
+    `transaction(["settings"], ...)` or a null `this.db` handle can throw before
+    the upstream operation succeeds. This canary-only patch wraps transaction
+    creation and rebuilds the DB once on either missing stores or a missing DB
+    handle instead of letting the browser pageerror escape.
     """
     payload_path = Path(payload_path)
     result: dict[str, object] = {
         "applied": False,
         "member": MAPLEBIRCH_IDB_PATCH_MEMBER,
+        "recovery": "missing_store_or_null_db",
     }
 
     try:

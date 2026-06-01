@@ -142,7 +142,7 @@ def test_validate_canary_build_result_accepts_real_payload_injection():
 
 
 @pytest.mark.config
-def test_patch_maplebirch_idb_schema_recovery_wraps_missing_store_retry(tmp_path):
+def test_patch_maplebirch_idb_schema_recovery_wraps_missing_store_and_null_db_retry(tmp_path):
     payload_path = tmp_path / "maplebirch.mod.zip"
     _write_fake_maplebirch_payload(payload_path)
 
@@ -152,12 +152,31 @@ def test_patch_maplebirch_idb_schema_recovery_wraps_missing_store_retry(tmp_path
     assert result["applied"] is True
     assert result["payload_name"] == "maplebirch"
     assert result["payload_version"] == "3.1.13"
+    assert result["recovery"] == "missing_store_or_null_db"
 
     with zipfile.ZipFile(payload_path, "r") as payload_zip:
         patched_script = payload_zip.read(MAPLEBIRCH_IDB_PATCH_MEMBER).decode("utf-8")
 
     assert MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL not in patched_script
     assert MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED in patched_script
+    assert "IDB database handle missing before transaction" in patched_script
+    assert "IDB unavailable; rebuilding database before retry" in patched_script
+    assert "reading ['\"]transaction['\"]" in patched_script
+    assert "await this.resetDatabase();this.ready||await this.init();continue" in patched_script
+
+
+@pytest.mark.config
+def test_patch_maplebirch_idb_schema_recovery_is_idempotent_for_null_db_patch(tmp_path):
+    payload_path = tmp_path / "maplebirch.mod.zip"
+    _write_fake_maplebirch_payload(payload_path)
+
+    first = _patch_maplebirch_idb_schema_recovery(payload_path)
+    second = _patch_maplebirch_idb_schema_recovery(payload_path)
+
+    assert first["status"] == "patched"
+    assert second["status"] == "already_patched"
+    assert second["applied"] is False
+    assert second["recovery"] == "missing_store_or_null_db"
 
 
 @pytest.mark.config
@@ -242,6 +261,7 @@ def test_ensure_canary_payloads_applies_idb_patch_to_v313_override(tmp_path, mon
 
     assert patch_result["status"] == "patched"
     assert patch_result["payload_version"] == "3.1.13"
+    assert patch_result["recovery"] == "missing_store_or_null_db"
     assert "maplebirch_idb_schema_patch" not in by_cache_name["cheat_extended"]
 
     with zipfile.ZipFile(tmp_path / "workspace" / "temp" / "maplebirch.mod.zip", "r") as payload_zip:
