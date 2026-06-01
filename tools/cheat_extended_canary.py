@@ -12,6 +12,7 @@ import argparse
 import contextlib
 import json
 import sys
+import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -31,6 +32,19 @@ REPLACEMENT_PROFILE = "ucb-cheat-extended-maplebirch"
 COMBINED_PROFILE = "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
 MAPLEBIRCH_CACHE_NAME = "maplebirch"
 MAPLEBIRCH_REPO = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+MAPLEBIRCH_IDB_PATCH_MEMBER = "dist/inject_early.js"
+MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL = (
+    "async withTransaction(e,t,n){this.ready||await this.init();let r=Array.isArray(e)?e:[e],"
+    "i=this.db.transaction(r,t);try{let e=await n(i);return await i.done,e}catch(e){throw "
+    "this.core.logger.log(`事务执行失败: ${e?.message||e}`,\"ERROR\"),e}}"
+)
+MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED = (
+    "async withTransaction(e,t,n){this.ready||await this.init();let r=Array.isArray(e)?e:[e];"
+    "for(let i=0;i<2;i++)try{let e=this.db.transaction(r,t),s=await n(e);return await e.done,s}"
+    "catch(e){if(0===i&&e&&(\"NotFoundError\"===e.name||/object stores? was not found|not found/i.test(e.message||\"\")))"
+    "{this.core.logger.log(`IDB store missing; rebuilding database before retry: ${r.join(\",\")}`,\"WARN\"),"
+    "await this.resetDatabase();continue}throw this.core.logger.log(`事务执行失败: ${e?.message||e}`,\"ERROR\"),e}}"
+)
 
 CANARY_CODES: dict[str, dict[str, int]] = {
     "stable-replacement": {
@@ -242,6 +256,21 @@ def _maplebirch_override_label(override: MaplebirchPayloadOverride) -> str:
     return override.cache_label or override.release_tag or override.asset_pattern or override.download_url or "override"
 
 
+def _maplebirch_idb_patch_required(
+    override: MaplebirchPayloadOverride,
+    patch_result: dict[str, object],
+) -> bool:
+    """Return whether a missing IDB patch should fail the canary cache step."""
+    candidates = (
+        override.download_url,
+        override.release_tag,
+        override.asset_pattern,
+        override.cache_label,
+        patch_result.get("payload_version"),
+    )
+    return any("3.1.13" in str(candidate or "") for candidate in candidates)
+
+
 def _download_modloader_payload(mod_config, dest_path: Path, override: MaplebirchPayloadOverride | None) -> str:
     if override:
         if override.download_url:
@@ -274,6 +303,76 @@ def _download_modloader_payload(mod_config, dest_path: Path, override: Maplebirc
 
     download_file(source, dest_path, quiet=True)
     return source
+
+
+def _patch_maplebirch_idb_schema_recovery(payload_path: Path) -> dict[str, object]:
+    """Patch v3.1.13 maplebirch canary payload to recover from missing IDB stores.
+
+    The upstream IndexedDB service registers object stores before opening the
+    `maplebirch` database, but a stale or partially-created DB can be opened at
+    the same major version without running the upgrade callback. In that state,
+    `transaction(["settings"], ...)` throws before the upstream try/catch block.
+    This canary-only patch wraps transaction creation and rebuilds the DB once
+    on NotFoundError instead of letting the browser pageerror escape.
+    """
+    payload_path = Path(payload_path)
+    result: dict[str, object] = {
+        "applied": False,
+        "member": MAPLEBIRCH_IDB_PATCH_MEMBER,
+    }
+
+    try:
+        with zipfile.ZipFile(payload_path, "r") as source_zip:
+            boot_name = next((name for name in source_zip.namelist() if name.lower().endswith("boot.json")), None)
+            if boot_name is None:
+                result["status"] = "missing_boot_json"
+                return result
+            try:
+                boot_json = json.loads(source_zip.read(boot_name).decode("utf-8", errors="replace"))
+            except json.JSONDecodeError as exc:
+                result["status"] = "invalid_boot_json"
+                result["error"] = str(exc)
+                return result
+            payload_name = str(boot_json.get("name") or "") if isinstance(boot_json, dict) else ""
+            payload_version = str(boot_json.get("version") or "") if isinstance(boot_json, dict) else ""
+            result["payload_name"] = payload_name
+            result["payload_version"] = payload_version
+            if not isinstance(boot_json, dict) or payload_name.lower() != "maplebirch":
+                result["status"] = "not_maplebirch_payload"
+                return result
+            if MAPLEBIRCH_IDB_PATCH_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_text = source_zip.read(MAPLEBIRCH_IDB_PATCH_MEMBER).decode("utf-8", errors="replace")
+            if MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED in original_text:
+                result["status"] = "already_patched"
+                return result
+            if MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL not in original_text:
+                result["status"] = "patch_needle_not_found"
+                return result
+
+            patched_text = original_text.replace(
+                MAPLEBIRCH_IDB_WITH_TRANSACTION_ORIGINAL,
+                MAPLEBIRCH_IDB_WITH_TRANSACTION_PATCHED,
+                1,
+            )
+            temp_path = payload_path.with_name(payload_path.name + ".tmp")
+            with zipfile.ZipFile(temp_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member.filename)
+                    if member.filename == MAPLEBIRCH_IDB_PATCH_MEMBER:
+                        data = patched_text.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    temp_path.replace(payload_path)
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
 
 
 def ensure_canary_payloads(
@@ -325,6 +424,17 @@ def ensure_canary_payloads(
             errors.append(f"{display_name}: empty cache file at {dest_path}")
             continue
 
+        idb_patch_result: dict[str, object] | None = None
+        if active_override:
+            idb_patch_result = _patch_maplebirch_idb_schema_recovery(dest_path)
+            patch_status = str(idb_patch_result.get("status") or "unknown")
+            if _maplebirch_idb_patch_required(active_override, idb_patch_result) and patch_status not in {
+                "patched",
+                "already_patched",
+            }:
+                errors.append(f"{display_name}: maplebirch IDB schema patch failed: {patch_status}")
+                continue
+
         payload_entry: dict[str, object] = {
             "name": display_name,
             "cache_name": mod_config.cache_name,
@@ -342,6 +452,8 @@ def ensure_canary_payloads(
                     "override_asset_pattern": active_override.asset_pattern,
                 }
             )
+        if idb_patch_result is not None:
+            payload_entry["maplebirch_idb_schema_patch"] = idb_patch_result
         payloads.append(payload_entry)
 
     if errors:
