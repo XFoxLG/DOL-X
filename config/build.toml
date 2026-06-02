@@ -186,9 +186,9 @@ name = "maplebirch"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchframework"
-asset_pattern = "maplebirch-0.5.8.10-v3.2.5.modpack"
-release_tag = "maplebirch-release-v3.2.5"
-download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v3.2.5/maplebirch-0.5.8.10-v3.2.5.modpack"
+asset_pattern = "maplebirch-0.5.8.10-v3.1.13.mod.zip"
+release_tag = "maplebirch-release-v3.1.13"
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v3.1.13/maplebirch-0.5.8.10-v3.1.13.mod.zip"
 
 [[modloader_mods]]
 key = "cheat_extended"
