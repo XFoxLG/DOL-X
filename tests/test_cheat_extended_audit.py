@@ -62,14 +62,14 @@ def test_resolve_asset_reraises_non_rate_limit_http_errors(monkeypatch):
 
 
 @pytest.mark.config
-def test_build_framework_matrix_marks_maplebirch_runtime_blocked(monkeypatch):
-    """The matrix records current maplebirch as isolated/blocked and Simple as alternate."""
+def test_build_framework_matrix_marks_maplebirch_canary_only(monkeypatch):
+    """The matrix records pinned maplebirch as canary-only and Simple as alternate."""
     maplebirch_mod = SimpleNamespace(
         github_repo="MaplebirchLeaf/SCML-DOL-maplebirchframework",
         enabled=True,
         required_feature_ids=["cheat_extended_maplebirch"],
-        release_tag="maplebirch-release-v3.2.5",
-        download_url="https://example.invalid/maplebirch.modpack",
+        release_tag="maplebirch-release-v3.1.13",
+        download_url="https://example.invalid/maplebirch-0.5.8.10-v3.1.13.mod.zip",
     )
     monkeypatch.setattr(
         cheat_extended_audit,
@@ -85,8 +85,8 @@ def test_build_framework_matrix_marks_maplebirch_runtime_blocked(monkeypatch):
 
     assert maplebirch.configured is True
     assert maplebirch.enabled is True
-    assert maplebirch.status == "configured_pinned_runtime_blocked"
+    assert maplebirch.status == "configured_pinned_canary_only"
     assert "cheat_extended_maplebirch" in maplebirch.feature_ids
-    assert any("maplebirchFrameworks is not defined" in note for note in maplebirch.notes)
+    assert any("canary IDB schema recovery patch" in note for note in maplebirch.notes)
     assert simple.configured is False
     assert simple.status == "not_configured"
