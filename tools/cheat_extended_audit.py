@@ -245,10 +245,11 @@ def build_framework_matrix() -> list[FrameworkMatrixResult]:
             status = "configured_enabled" if mod.enabled else "configured_disabled"
             notes = ["Configured with dedicated cheat_extended_maplebirch feature bit."]
             if repo == "MaplebirchLeaf/SCML-DOL-maplebirchframework":
-                status = "configured_pinned_runtime_blocked" if mod.enabled else status
+                status = "configured_pinned_canary_only" if mod.enabled else status
                 notes.append(
-                    "Pinned maplebirch build still needs isolation because prior smoke/manual "
-                    "runs observed maplebirchFrameworks is not defined."
+                    "Pinned maplebirch is used for downloadability and canary builds; "
+                    "runtime validation still applies the canary IDB schema recovery patch "
+                    "and browser/manual gates before merge readiness."
                 )
             else:
                 notes.append(
