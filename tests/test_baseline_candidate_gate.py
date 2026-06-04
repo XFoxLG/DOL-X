@@ -7,14 +7,24 @@ import zipfile
 
 import pytest
 
+from lyra.build import BuildResult
 from tools.artifact_inspection import APK_HTML_MEMBER, load_html_artifact
 from tools.baseline_candidate_gate import (
+    APK_AUDIT_REPORT,
+    APK_BUILD_REPORT,
     CANDIDATE_CODES,
     DEFAULT_STABLE_CODE_ORDER,
+    PHASE1A_CONFIG_REPORT,
+    PHASE1A_SUMMARY,
     PARTIAL_GATE_LEVEL,
+    ZIP_AUDIT_REPORT,
+    ZIP_BROWSER_SUMMARY,
+    ZIP_BUILD_REPORT,
     audit_apk_target,
     check_phase2_promotion,
     summarize_browser_reports,
+    summarize_phase1a_gate,
+    validate_candidate_build_result,
 )
 
 
@@ -61,6 +71,37 @@ def _write_candidate_apk(root, slug: str):
         zf.writestr(APK_HTML_MEMBER, _candidate_html())
         zf.writestr("AndroidManifest.xml", "<manifest />")
     return apk_path
+
+
+@pytest.mark.config
+def test_candidate_build_validation_rejects_missing_candidate_payload_markers():
+    result = BuildResult(
+        success=True,
+        output_name=(
+            "DoL-0.5.8.10-XFox-3.1.3a-"
+            "ucb-more-love-custom-spellbook-cheat-extended-maplebirch-0604.zip"
+        ),
+        applied_mods=["UCB", "More Love Interests Mod", "Custom-Spellbook"],
+    )
+
+    errors = validate_candidate_build_result("base", result)
+
+    assert "missing applied candidate mod: maplebirch" in errors
+    assert "missing applied candidate mod: cheatExtended" in errors
+
+
+@pytest.mark.config
+def test_candidate_build_validation_accepts_required_candidate_mod_markers():
+    result = BuildResult(
+        success=True,
+        output_name=(
+            "DoL-0.5.8.10-XFox-3.1.3a-au-f-"
+            "ucb-more-love-custom-spellbook-cheat-extended-maplebirch-0604.zip"
+        ),
+        applied_mods=["UCB", "maplebirch", "cheatExtended", "More Love Interests Mod", "Custom-Spellbook"],
+    )
+
+    assert validate_candidate_build_result("au-f", result) == []
 
 
 @pytest.mark.config
@@ -125,11 +166,89 @@ def test_baseline_candidate_browser_summary_requires_four_strict_zip_smokes(tmp_
     assert summarize_browser_reports(reports_dir, output) == 0
 
     payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
     assert payload["gate_level"] == PARTIAL_GATE_LEVEL
     assert payload["counts_for_phase2_promotion"] is False
     assert [result["slug"] for result in payload["results"]] == list(DEFAULT_STABLE_CODE_ORDER)
     assert all(result["success"] for result in payload["results"])
     assert all(result["checks"]["passage_orphanage_intro"] for result in payload["results"])
+
+
+def _write_candidate_build_report(gate_dir, filename: str, pack_type: str) -> None:
+    (gate_dir / filename).write_text(
+        json.dumps(
+            {
+                "pack_type": pack_type,
+                "results": [
+                    {
+                        "slug": slug,
+                        "code": CANDIDATE_CODES[slug],
+                        "success": True,
+                        "output_path": f"artifact-{slug}.{pack_type}",
+                        "validation_errors": [],
+                    }
+                    for slug in DEFAULT_STABLE_CODE_ORDER
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_simple_success_report(gate_dir, filename: str) -> None:
+    (gate_dir / filename).write_text(
+        json.dumps(
+            {
+                "success": True,
+                "gate_level": PARTIAL_GATE_LEVEL,
+                "counts_for_phase2_promotion": False,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.config
+def test_phase1a_summary_records_missing_required_reports(tmp_path):
+    gate_dir = tmp_path / "baseline-candidate-gate"
+    output = gate_dir / PHASE1A_SUMMARY
+
+    assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 1
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is False
+    assert payload["gate_level"] == PARTIAL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["head_sha"] == "abc123"
+    assert payload["run_id"] == "42"
+    assert payload["reports"]["zip_build"]["exists"] is False
+    assert "zip_build" in payload["missing_reports"]
+    assert f"missing required report: {ZIP_BUILD_REPORT}" in payload["errors"]
+
+
+@pytest.mark.config
+def test_phase1a_summary_accepts_complete_green_reports(tmp_path):
+    gate_dir = tmp_path / "baseline-candidate-gate"
+    gate_dir.mkdir(parents=True)
+    output = gate_dir / PHASE1A_SUMMARY
+
+    _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
+    _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
+    _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
+    _write_simple_success_report(gate_dir, APK_AUDIT_REPORT)
+    _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
+
+    assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["missing_reports"] == []
+    assert payload["failed_reports"] == []
+    assert all(report["success"] for report in payload["reports"].values())
 
 
 @pytest.mark.config
