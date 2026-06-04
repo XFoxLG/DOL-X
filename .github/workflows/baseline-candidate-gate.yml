@@ -149,5 +149,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: baseline-candidate-gate-reports
-          path: ${{ github.workspace }}/output/baseline-candidate-gate/
+          path: |
+            ${{ github.workspace }}/output/baseline-candidate-gate/*.json
+            ${{ github.workspace }}/output/baseline-candidate-gate/browser-smoke/**
+            !${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/**
+            !${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/**
           if-no-files-found: error
