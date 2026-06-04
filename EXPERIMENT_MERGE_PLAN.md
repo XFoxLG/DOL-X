@@ -12,7 +12,20 @@ This project keeps self-use changes isolated on `experiment/**` until they are p
    - If both branches are kept, assign a distinct feature bit instead of reusing the experiment-only `8192` bit.
 3. `experiment/cheat-extended-maplebirch`
    - Do not merge to `vega` yet.
-   - Current blockers: `maplebirchFrameworks is not defined`, missing `skinColourFullback`, and unconfirmed `CE_options` insertion.
+   - Rollback evidence: maplebirch `v3.1.14` still reproduced the historical
+     `maplebirchFrameworks is not defined` blocker; `v3.1.13` restored
+     `maplebirchFrameworks` as an object and reached a playable SugarCube state.
+   - Current canary blocker after `v3.1.13`: cheatExtended calls
+     `window.modUtils.getMod('Simple Frameworks')`, but ModLoader reports
+     `ModOrderContainer getByNameOne() cannot find name. [Simple Frameworks, ModOrderContainer]`.
+   - `CE_options` is currently traced as a SugarCube widget/slot id registered
+     through `addto(...)`, not as a required `window.CE_options` global. Do not
+     add a global initializer unless a later trace finds real global reads.
+   - Next fix direction is a canary-only alias shim so `Simple Frameworks`
+     resolves to the already loaded `maplebirch` module; keep stable/default
+     build codes unchanged.
+   - Remaining non-framework blocker: missing or misspelled skin fallback
+     reference `skinColourFullback` vs `skinColourFallback`.
 
 ## Feature bits if branches are combined
 

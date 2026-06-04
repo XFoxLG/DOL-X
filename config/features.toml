@@ -47,7 +47,7 @@ name = "UCB"
 bit = 256
 required = false
 skip = false
-depends_on = ["besc"]
+depends_on = []
 conflicts_with = []
 
 [[features]]
@@ -135,6 +135,15 @@ conflicts_with = []
 id = "custom_spellbook"
 name = "自定义魔法书"
 bit = 16384
+required = false
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "cheat_extended_maplebirch"
+name = "cheatExtended+maplebirch"
+bit = 32768
 required = false
 skip = false
 depends_on = []

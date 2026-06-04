@@ -1,10 +1,10 @@
 # MOD 组合配置
 
-# 自用构建列表：构建 UCB 基础版，以及 AU + UCB + 作弊/CSD 三个组合。
-# 使用显式列表可以避免新增 feature 后自动膨胀出不需要的版本。
+# 稳定自用构建列表：UCB + more-love + custom-spellbook。
+# cheatExtended+maplebirch 保留为实验 feature，不进入默认构建。
 build_codes = ["24834", "25858", "26882", "28930"]
 
-# 基础版显示名称对应的组合：UCB + 作弊/CSD。
+# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook。
 base_code = 24834
 
 # 推荐的组合（优先显示）

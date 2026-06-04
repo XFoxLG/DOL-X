@@ -5,9 +5,17 @@ to `vega` until the runtime blockers below are manually cleared.
 
 ## Current blockers
 
-- Browser/runtime error: `maplebirchFrameworks is not defined`.
+- Historical browser/runtime blocker: `maplebirchFrameworks is not defined`.
+  maplebirch `v3.1.14` still reproduced it; `v3.1.13` restored
+  `maplebirchFrameworks` as an object and reached a playable SugarCube state.
+- Current `v3.1.13` framework blocker: cheatExtended calls
+  `window.modUtils.getMod('Simple Frameworks')`, but ModLoader reports
+  `ModOrderContainer getByNameOne() cannot find name. [Simple Frameworks, ModOrderContainer]`.
 - Missing or misspelled skin fallback reference: `skinColourFullback` vs `skinColourFallback`.
-- `CE_options` insertion is not confirmed at runtime.
+- `CE_options` is traced as a SugarCube widget/slot id registered through
+  `addto(...)`, not as a required `window.CE_options` global. Do not treat
+  `window.CE_options === undefined` by itself as a blocker; verify the CE
+  options widget/slot renders in the options UI instead.
 - cheatExtended is a replacement candidate for the legacy cheat stack, not an
   additive mod to mix with `cheat`, `csd`, `bjx_word_unlock`,
   `bjx_portable_word`, or `bccm`.
@@ -25,6 +33,8 @@ to `vega` until the runtime blockers below are manually cleared.
 - Enable exactly one framework:
   - `MaplebirchLeaf/SCML-DOL-maplebirchframework`, or
   - `emicoto/SCMLSimpleFramework`.
+- Current canary fix direction is a maplebirch-only alias shim so
+  `Simple Frameworks` resolves to the already loaded `maplebirch` module.
 
 ## Static checks before launching the game
 
@@ -51,13 +61,20 @@ Open the built HTML/APK and check the browser console from first load through a
 new game start.
 
 - No `maplebirchFrameworks is not defined` error.
+- No `ModOrderContainer getByNameOne() cannot find name. [Simple Frameworks, ModOrderContainer]`
+  error after the canary alias shim is applied.
 - No `skinColourFullback` or `skinColourFallback` reference error.
-- `CE_options` exists after mod initialization.
+- The CE options widget/slot appears in the options UI; do not require a
+  `window.CE_options` global.
 - cheatExtended menu opens and basic stat/money/time controls work.
 - Enemy/combat state display works well enough to replace CSD.
 - Yanling-related functions are present if replacing BJX word mods.
 - No duplicate old cheat menu, CSD panel, BCCM panel, or BJX menu remains.
 - Save, reload, and continue work without console errors.
+
+For blocker validation, run only one canary build + HTML smoke + browser/manual
+session after a concrete runtime fix. If the same blocker remains, record the
+evidence and stop rather than repeating the smoke loop.
 
 ## Compatibility smoke test matrix
 
