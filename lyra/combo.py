@@ -14,6 +14,7 @@ from .config_loader import (
     CombinationsConfig,
     get_config_loader,
 )
+from .code_validation import normalize_build_codes, validate_build_codes
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +247,20 @@ class CombinationCalculator:
         combinations: list[ModCombination] = []
         seen: set[tuple[int, bool]] = set()
 
-        for raw_code in config.build_codes:
+        validation = validate_build_codes(config.build_codes)
+        invalid = [result for result in validation if not result.valid]
+        if invalid:
+            messages: list[str] = []
+            for result in invalid:
+                findings = "; ".join(
+                    f"{finding.kind}: {finding.message}"
+                    for finding in result.findings
+                    if finding.severity == "error"
+                )
+                messages.append(f"{result.raw}: {findings}")
+            raise ValueError("invalid configured build_codes: " + " | ".join(messages))
+
+        for raw_code in normalize_build_codes(config.build_codes):
             code_str = str(raw_code)
             is_polyfill = code_str.startswith("polyfill-")
 

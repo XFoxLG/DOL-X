@@ -1,5 +1,8 @@
 """AU facial expansion asset compatibility tests."""
 
+import base64
+import io
+import json
 import zipfile
 
 import pytest
@@ -85,6 +88,21 @@ def _write_zip(path, names: list[str]) -> None:
             zf.writestr(name, b"png")
 
 
+def _write_zip_with_embedded_mod(path, embedded_names: list[str]) -> None:
+    payload_buffer = io.BytesIO()
+    with zipfile.ZipFile(payload_buffer, "w") as zf:
+        for name in embedded_names:
+            zf.writestr(name, b"png")
+
+    encoded_payload = base64.b64encode(payload_buffer.getvalue()).decode("ascii")
+    html = (
+        "<script>window.modDataValueZipList = "
+        f"{json.dumps([encoded_payload])};</script>"
+    )
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("Degrees of Lewdity.html", html)
+
+
 @pytest.mark.config
 def test_au_artifact_check_accepts_nested_blush_aliases(tmp_path):
     zip_path = tmp_path / "DoL-au-f-ucb-more-love-custom-spellbook.zip"
@@ -97,6 +115,28 @@ def test_au_artifact_check_accepts_nested_blush_aliases(tmp_path):
     assert result.is_au is True
     assert result.required_nested_blush_present is True
     assert result.nested_blush_count == 6
+    assert result.errors == []
+
+
+@pytest.mark.config
+def test_au_artifact_check_accepts_embedded_hyphenated_blush_aliases(tmp_path):
+    """HTML-centric AU ZIPs keep model face assets in embedded ModLoader payloads."""
+    zip_path = tmp_path / "DoL-au-m-ucb-more-love-custom-spellbook.zip"
+    names = [
+        f"AUmale/img/face/default/default/blush-{index}.png"
+        for index in range(1, 7)
+    ]
+    _write_zip_with_embedded_mod(zip_path, names)
+
+    result = audit_zip_artifact(zip_path)
+
+    assert result.success is True
+    assert result.is_au is True
+    assert result.outer_nested_blush_count == 0
+    assert result.embedded_nested_blush_count == 6
+    assert result.nested_blush_count == 6
+    assert result.embedded_required_nested_blush_present is True
+    assert result.required_nested_blush_present is True
     assert result.errors == []
 
 
