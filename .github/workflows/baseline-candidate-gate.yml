@@ -1,0 +1,141 @@
+name: Baseline Candidate Gate
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: baseline-candidate-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CANDIDATE_CODES: "57602,58626,59650,61698"
+  PROFILE: ucb-more-love-custom-spellbook-cheat-extended-maplebirch
+  GATE_DIR: output/baseline-candidate-gate
+
+jobs:
+  phase1a-candidate-gate:
+    name: Phase 1A ZIP/APK candidate gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: "adopt"
+          java-version: "21"
+
+      - name: Install APT packages
+        run: sudo apt install -y unrar
+
+      - name: Validate Phase 1A static config
+        run: |
+          python tools/baseline_candidate_gate.py validate-config \
+            --output "${GATE_DIR}/baseline-candidate-config.json"
+
+      - name: Prepare game packages
+        run: python main.py prepare --workspace "${{ github.workspace }}" -v
+
+      - name: Setup signing key
+        run: |
+          echo ${{ secrets.SIGNING_KEY }} > dol.base64
+          base64 -d dol.base64 > dol.jks
+
+      - name: Warmup beautify resources
+        run: python main.py warmup --workspace "${{ github.workspace }}" -v
+
+      - name: Build candidate ZIP artifacts
+        run: |
+          python main.py build zip \
+            --workspace "${{ github.workspace }}" \
+            --codes "$CANDIDATE_CODES" \
+            --manifest "${GATE_DIR}/baseline-candidate-zip-build.json" \
+            --jobs 4 \
+            -v
+
+      - name: Build candidate APK artifacts
+        run: |
+          python main.py build apk \
+            --workspace "${{ github.workspace }}" \
+            --codes "$CANDIDATE_CODES" \
+            --manifest "${GATE_DIR}/baseline-candidate-apk-build.json" \
+            --jobs 4 \
+            -v
+
+      - name: Audit candidate ZIP artifacts
+        run: |
+          python tools/baseline_candidate_gate.py audit-zip \
+            "${{ github.workspace }}/output" \
+            --output "${GATE_DIR}/baseline-candidate-zip-audit.json"
+
+      - name: Audit candidate APK artifacts
+        run: |
+          python tools/baseline_candidate_gate.py audit-apk \
+            "${{ github.workspace }}/output" \
+            --output "${GATE_DIR}/baseline-candidate-apk-audit.json"
+
+      - name: Install browser smoke dependencies
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run candidate ZIP browser smokes
+        env:
+          DOLX_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.ref_name }}
+          DOLX_WORKFLOW_HEAD_SHA: ${{ github.sha }}
+          DOLX_GITHUB_SHA: ${{ github.sha }}
+          DOLX_ARTIFACT_NAME: baseline-candidate-zip-artifacts
+        run: |
+          for slug in base au-f au-m au-a; do
+            if [[ "$slug" == "base" ]]; then
+              ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" -name "*ucb-more-love-custom-spellbook-cheat-extended-maplebirch*" ! -name "*-au-*" | sort | head -n 1)
+            else
+              ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" -name "*-${slug}-*" -name "*cheat-extended-maplebirch*" | sort | head -n 1)
+            fi
+            if [[ -z "$ZIP_FILE" ]]; then
+              echo "::error::missing candidate ZIP for ${slug}"
+              exit 1
+            fi
+            python tools/browser_smoke_test.py "$ZIP_FILE" \
+              --profile "$PROFILE" \
+              --output-dir "${GATE_DIR}/browser-smoke/${slug}"
+          done
+
+      - name: Summarize candidate browser smokes
+        run: |
+          python tools/baseline_candidate_gate.py summarize-browser \
+            --reports-dir "${GATE_DIR}/browser-smoke" \
+            --output "${GATE_DIR}/baseline-candidate-zip-browser-summary.json"
+
+      - name: Upload candidate ZIP artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: baseline-candidate-zip-artifacts
+          path: ${{ github.workspace }}/output/*.zip
+          if-no-files-found: error
+
+      - name: Upload candidate APK artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: baseline-candidate-apk-artifacts
+          path: ${{ github.workspace }}/output/*.apk
+          if-no-files-found: error
+
+      - name: Upload candidate gate reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: baseline-candidate-gate-reports
+          path: ${{ github.workspace }}/output/baseline-candidate-gate/
+          if-no-files-found: error

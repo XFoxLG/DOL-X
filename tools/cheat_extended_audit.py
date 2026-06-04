@@ -95,18 +95,42 @@ class CurrentConfigAssessment:
 
 
 @dataclass
+class AssetResolution:
+    release: dict[str, Any]
+    asset: dict[str, Any]
+    source: str
+    warning: str = ""
+
+
+@dataclass
+class FrameworkMatrixResult:
+    framework: str
+    repo: str
+    configured: bool
+    enabled: bool
+    feature_ids: list[str]
+    release_tag: str
+    download_url: str
+    status: str
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass
 class CheatExtendedAuditReport:
     audit_timestamp: str
     repo: str
     release_tag: str
     asset_name: str
     asset_url: str
+    asset_resolution_source: str
+    asset_resolution_warning: str
     sha256: str
     file_size: int
     boot_version: str
     dependencies: list[dict[str, Any]]
     framework_options: list[str]
     recommended_framework: str
+    framework_matrix: list[FrameworkMatrixResult]
     replacement_assessment: list[ReplacementAssessment]
     patch_surface: PatchSurface
     current_config: CurrentConfigAssessment
@@ -137,6 +161,116 @@ def fetch_latest_asset(repo: str, asset_name: str) -> tuple[dict[str, Any], dict
             return release, asset
     available = ", ".join(asset.get("name", "") for asset in assets)
     raise RuntimeError(f"Asset {asset_name!r} not found. Available: {available}")
+
+
+def is_github_rate_limited(error: Exception) -> bool:
+    """Return True when GitHub API access failed due to rate limiting."""
+    if not isinstance(error, requests.HTTPError):
+        return False
+
+    response = error.response
+    status_code = getattr(response, "status_code", None)
+    response_text = getattr(response, "text", "") or str(error)
+    return status_code == 403 and "rate limit" in response_text.lower()
+
+
+def resolve_asset(repo: str = REPO, asset_name: str = ASSET_NAME) -> AssetResolution:
+    """
+    Resolve the cheatExtended asset, falling back to pinned config on API limits.
+
+    The project pins cheatExtended in config/build.toml, so a GitHub latest API
+    rate limit should not block local advisory runs.
+    """
+    try:
+        release, asset = fetch_latest_asset(repo, asset_name)
+        return AssetResolution(release=release, asset=asset, source="github_latest")
+    except requests.HTTPError as error:
+        if not is_github_rate_limited(error):
+            raise
+
+        build_config = load_build_config()
+        configured_mod = next(
+            (
+                mod
+                for mod in build_config.modloader_mods
+                if mod.github_repo == repo or mod.key in {"cheat_extended", "cheatExtended"}
+            ),
+            None,
+        )
+        if not configured_mod or not configured_mod.download_url:
+            raise
+
+        warning = (
+            "GitHub latest release API was rate limited; using pinned "
+            "config/build.toml download_url instead."
+        )
+        return AssetResolution(
+            release={"tag_name": configured_mod.release_tag or "configured"},
+            asset={
+                "name": configured_mod.asset_pattern or asset_name,
+                "browser_download_url": configured_mod.download_url,
+            },
+            source="configured_download_url",
+            warning=warning,
+        )
+
+
+def build_framework_matrix() -> list[FrameworkMatrixResult]:
+    """Summarize framework choices for isolated cheatExtended canary testing."""
+    build_config = load_build_config()
+    rows: list[FrameworkMatrixResult] = []
+
+    for repo, label in FRAMEWORK_REPOS.items():
+        mods = [mod for mod in build_config.modloader_mods if mod.github_repo == repo]
+        if not mods:
+            rows.append(
+                FrameworkMatrixResult(
+                    framework=label,
+                    repo=repo,
+                    configured=False,
+                    enabled=False,
+                    feature_ids=[],
+                    release_tag="",
+                    download_url="",
+                    status="not_configured",
+                    notes=[
+                        "Not configured in config/build.toml; test only as a separate canary.",
+                        "Do not combine this framework with maplebirch in the same build.",
+                    ],
+                )
+            )
+            continue
+
+        for mod in mods:
+            status = "configured_enabled" if mod.enabled else "configured_disabled"
+            notes = ["Configured with dedicated cheat_extended_maplebirch feature bit."]
+            if repo == "MaplebirchLeaf/SCML-DOL-maplebirchframework":
+                status = "configured_pinned_canary_only" if mod.enabled else status
+                notes.append(
+                    "Pinned maplebirch is used for downloadability and canary builds; "
+                    "runtime validation still applies the canary IDB schema recovery patch "
+                    "and browser/manual gates before merge readiness."
+                )
+            else:
+                notes.append(
+                    "Simple Framework must be tested as an alternate pinned canary, not alongside maplebirch."
+                )
+
+            rows.append(
+                FrameworkMatrixResult(
+                    framework=label,
+                    repo=repo,
+                    configured=True,
+                    enabled=mod.enabled,
+                    feature_ids=mod.required_feature_ids,
+                    release_tag=mod.release_tag,
+                    download_url=mod.download_url,
+                    status=status,
+                    notes=notes,
+                )
+            )
+
+    return rows
 
 
 def read_zip_text(zf: zipfile.ZipFile, basename: str) -> str:
@@ -359,7 +493,9 @@ def determine_risk(
 
 
 def run_audit() -> CheatExtendedAuditReport:
-    release, asset = fetch_latest_asset(REPO, ASSET_NAME)
+    asset_resolution = resolve_asset(REPO, ASSET_NAME)
+    release = asset_resolution.release
+    asset = asset_resolution.asset
     asset_url = asset["browser_download_url"]
     content = download_bytes(asset_url)
     sha256 = hashlib.sha256(content).hexdigest()
@@ -373,6 +509,7 @@ def run_audit() -> CheatExtendedAuditReport:
     replacement = assess_replacement(boot, readme)
     patch_surface = extract_patch_surface(boot)
     current_config = assess_current_config()
+    framework_matrix = build_framework_matrix()
     risk_level, risk_notes = determine_risk(replacement, patch_surface, current_config)
 
     au_ucb_notes = [
@@ -394,6 +531,8 @@ def run_audit() -> CheatExtendedAuditReport:
         release_tag=release.get("tag_name", "unknown"),
         asset_name=asset.get("name", ASSET_NAME),
         asset_url=asset_url,
+        asset_resolution_source=asset_resolution.source,
+        asset_resolution_warning=asset_resolution.warning,
         sha256=sha256,
         file_size=len(content),
         boot_version=boot.get("version", "unknown"),
@@ -403,6 +542,7 @@ def run_audit() -> CheatExtendedAuditReport:
             "Simple Frameworks >= 2.0.5",
         ],
         recommended_framework="maplebirch >= 3.0.0",
+        framework_matrix=framework_matrix,
         replacement_assessment=replacement,
         patch_surface=patch_surface,
         current_config=current_config,
@@ -424,6 +564,9 @@ def write_markdown_report(path: Path, report: CheatExtendedAuditReport) -> None:
         f.write(f"**审计时间**: {report.audit_timestamp}\n\n")
         f.write(f"**Release**: `{report.release_tag}`\n\n")
         f.write(f"**Asset**: `{report.asset_name}`\n\n")
+        f.write(f"**Asset resolution**: `{report.asset_resolution_source}`\n\n")
+        if report.asset_resolution_warning:
+            f.write(f"**Asset resolution warning**: {report.asset_resolution_warning}\n\n")
         f.write(f"**SHA256**: `{report.sha256}`\n\n")
         f.write(f"**总体风险**: `{report.risk_level}`\n\n")
 
@@ -431,6 +574,22 @@ def write_markdown_report(path: Path, report: CheatExtendedAuditReport) -> None:
         f.write("- 支持二选一：`maplebirch >= 3.0.0` 或 `Simple Frameworks >= 2.0.5`。\n")
         f.write("- 不要同时安装两个框架。\n")
         f.write(f"- 推荐：`{report.recommended_framework}`。\n\n")
+
+        f.write("## 框架矩阵\n\n")
+        f.write("| 框架 | repo | 配置 | 启用 | feature | release | 状态 |\n")
+        f.write("|---|---|---|---|---|---|---|\n")
+        for item in report.framework_matrix:
+            feature_ids = ", ".join(item.feature_ids) if item.feature_ids else "N/A"
+            f.write(
+                f"| {item.framework} | {item.repo} | {item.configured} | "
+                f"{item.enabled} | {feature_ids} | {item.release_tag or 'N/A'} | "
+                f"{item.status} |\n"
+            )
+        f.write("\n")
+        for item in report.framework_matrix:
+            for note in item.notes:
+                f.write(f"- `{item.framework}`: {note}\n")
+        f.write("\n")
 
         f.write("## 替代性评估\n\n")
         f.write("| 旧 mod | 状态 | 置信度 | 证据 |\n")

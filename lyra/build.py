@@ -6,7 +6,9 @@
 """
 
 import logging
+import re
 import shutil
+import zipfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -29,6 +31,111 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+MORE_LOVE_CACHE_NAME = "more_love"
+MORE_LOVE_DRAG_MEMBER = "game/More_Love_Interest_Mod_Drag.js"
+MORE_LOVE_DRAG_PATCH_MARKER = "function preventDefaultMLIM(ev)"
+MORE_LOVE_DRAG_HELPERS = """function preventDefaultMLIM(ev) {
+\tvar preventDefault = ev && ev.preventDefault;
+\tif (typeof preventDefault === \"function\") {
+\t\tpreventDefault.call(ev);
+\t}
+}
+function stopPropagationMLIM(ev) {
+\tvar stopPropagation = ev && ev.stopPropagation;
+\tif (typeof stopPropagation === \"function\") {
+\t\tstopPropagation.call(ev);
+\t}
+}
+function getDataTransferTextMLIM(ev) {
+\tvar dataTransfer = ev && ev.dataTransfer;
+\tif (dataTransfer && typeof dataTransfer.getData === \"function\") {
+\t\treturn dataTransfer.getData(\"Text\");
+\t}
+\treturn \"\";
+}
+function setDataTransferTextMLIM(ev, value) {
+\tvar dataTransfer = ev && ev.dataTransfer;
+\tif (dataTransfer && typeof dataTransfer.setData === \"function\") {
+\t\tdataTransfer.setData(\"Text\", value || \"\");
+\t}
+}
+"""
+
+
+def _patch_more_love_drag_script(script: str) -> tuple[str, bool]:
+    """Guard More Love drag handlers against non-DOM event arguments."""
+    if MORE_LOVE_DRAG_PATCH_MARKER in script:
+        return script, False
+
+    patched = re.sub(r"\bev\.preventDefault\(\);?", "preventDefaultMLIM(ev);", script)
+    patched = re.sub(r"\bev\.stopPropagation\(\);?", "stopPropagationMLIM(ev);", patched)
+    patched = re.sub(
+        r"\bev\.dataTransfer\.getData\(([\"'])Text\1\)",
+        "getDataTransferTextMLIM(ev)",
+        patched,
+    )
+    patched = re.sub(
+        r"\bev\.dataTransfer\.setData\(([\"'])Text\1,\s*ev\.target\.id\);?",
+        "setDataTransferTextMLIM(ev, ev && ev.target ? ev.target.id : \"\");",
+        patched,
+    )
+
+    if patched == script:
+        return script, False
+
+    if not patched.rstrip().endswith(";"):
+        patched = f"{patched.rstrip()};\n"
+
+    return f";\n{MORE_LOVE_DRAG_HELPERS}\n{patched}", True
+
+
+def patch_more_love_drag_event_handlers(
+    source_path: Path,
+    target_path: Path,
+) -> dict[str, object]:
+    """Create a patched More Love payload with defensive drag event handlers."""
+    result: dict[str, object] = {
+        "applied": False,
+        "member": MORE_LOVE_DRAG_MEMBER,
+        "source": str(source_path),
+        "target": str(target_path),
+    }
+
+    try:
+        with zipfile.ZipFile(source_path, "r") as source_zip:
+            if MORE_LOVE_DRAG_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_script = source_zip.read(MORE_LOVE_DRAG_MEMBER).decode(
+                "utf-8",
+                errors="replace",
+            )
+            patched_script, applied = _patch_more_love_drag_script(original_script)
+            if not applied:
+                result["status"] = (
+                    "already_patched"
+                    if MORE_LOVE_DRAG_PATCH_MARKER in original_script
+                    else "patch_needle_not_found"
+                )
+                return result
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member)
+                    if member.filename == MORE_LOVE_DRAG_MEMBER:
+                        data = patched_script.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
 
 
 @dataclass
@@ -241,6 +348,78 @@ class PackageBuilder(ABC):
 
         return applied
 
+    def _has_au_feature(self) -> bool:
+        """当前构建是否包含任一 AU 体型资源。"""
+        return bool(
+            self.mod_code
+            & (ModCode.AU_FEMALE | ModCode.AU_MALE | ModCode.AU_ANDROGYNOUS)
+        )
+
+    def _apply_au_face_compatibility_aliases(self) -> list[str]:
+        """
+        为运行时请求的嵌套 default face 路径补齐兼容别名。
+
+        AU/BeautySelector 运行时会请求 img/face/default/default/blush*.png，
+        但当前打包结果只包含 img/face/default/blush*.png。这里在构建阶段
+        复制缺失目标，避免运行时 Failed to load image ... for layer blush。
+
+        基础 canary 也会请求 img/face/default/default/mouth*.png，而资源包
+        只提供 img/face/default/mouth*.png；这些 mouth aliases 与 AU 无关，
+        所以对所有构建补齐。
+        """
+        source_dir = self.img_path / "face" / "default"
+        target_dir = source_dir / "default"
+        if not source_dir.exists():
+            return []
+
+        patterns = ["mouth*.png"]
+        if self._has_au_feature():
+            patterns.append("blush*.png")
+
+        copied = []
+        for pattern in patterns:
+            for source in sorted(
+                source_dir.glob(pattern), key=lambda item: item.name.lower()
+            ):
+                if not source.is_file():
+                    continue
+
+                target = target_dir / source.name
+                if target.exists():
+                    continue
+
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+                copied.append(target.relative_to(self.img_path).as_posix())
+
+        if copied:
+            logger.info(
+                "Face compatibility aliases created: %s", ", ".join(copied)
+            )
+
+        return copied
+
+    def _modloader_mod_path_for_injection(self, mod_config, mod_path: Path) -> Path:
+        """Return the payload path to inject, applying build-local hotfixes."""
+        if mod_config.cache_name != MORE_LOVE_CACHE_NAME:
+            return mod_path
+
+        patched_path = (
+            self.paths.temp_dir
+            / f"{MORE_LOVE_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.patched.mod.zip"
+        )
+        patch_result = patch_more_love_drag_event_handlers(mod_path, patched_path)
+        status = str(patch_result.get("status") or "unknown")
+        if status == "patched":
+            logger.info("More Love drag event compatibility patch applied")
+            return patched_path
+        if status != "already_patched":
+            logger.warning(
+                "More Love drag event compatibility patch skipped: %s",
+                status,
+            )
+        return mod_path
+
     def _inject_modloader_mods(self) -> list[str]:
         """
         注入 modloader mod 到 HTML
@@ -275,7 +454,9 @@ class PackageBuilder(ABC):
             if matching_features:
                 mod_path = self.paths.get_mod_cache_path(mod_config.cache_name)
                 if mod_path.exists():
-                    mod_paths.append(mod_path)
+                    mod_paths.append(
+                        self._modloader_mod_path_for_injection(mod_config, mod_path)
+                    )
                     if mod_config.name:
                         applied.append(mod_config.name)
                     elif len(matching_features) == 1:
@@ -364,6 +545,9 @@ class ZipBuilder(PackageBuilder):
             # 应用美化
             applied_mods = self._apply_beautify()
 
+            if self._apply_au_face_compatibility_aliases():
+                applied_mods.append("AU face compatibility aliases")
+
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
 
@@ -441,6 +625,9 @@ class ApkBuilder(PackageBuilder):
 
             # 应用美化
             applied_mods = self._apply_beautify()
+
+            if self._apply_au_face_compatibility_aliases():
+                applied_mods.append("AU face compatibility aliases")
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
