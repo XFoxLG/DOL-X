@@ -56,36 +56,38 @@ jobs:
 
       - name: Build candidate ZIP artifacts
         run: |
-          python main.py build zip \
+          python tools/baseline_candidate_gate.py build \
+            --pack-type zip \
             --workspace "${{ github.workspace }}" \
-            --codes "$CANDIDATE_CODES" \
-            --manifest "${GATE_DIR}/baseline-candidate-zip-build.json" \
-            --jobs 4 \
-            -v
+            --output-dir "${{ github.workspace }}/${GATE_DIR}/zip-artifacts" \
+            --report "${GATE_DIR}/baseline-candidate-zip-build.json" \
+            --ensure-payloads
 
       - name: Build candidate APK artifacts
         run: |
-          python main.py build apk \
+          python tools/baseline_candidate_gate.py build \
+            --pack-type apk \
             --workspace "${{ github.workspace }}" \
-            --codes "$CANDIDATE_CODES" \
-            --manifest "${GATE_DIR}/baseline-candidate-apk-build.json" \
-            --jobs 4 \
-            -v
+            --output-dir "${{ github.workspace }}/${GATE_DIR}/apk-artifacts" \
+            --report "${GATE_DIR}/baseline-candidate-apk-build.json" \
+            --ensure-payloads
 
       - name: Audit candidate ZIP artifacts
         run: |
           python tools/baseline_candidate_gate.py audit-zip \
-            "${{ github.workspace }}/output" \
+            "${{ github.workspace }}/${GATE_DIR}/zip-artifacts" \
             --output "${GATE_DIR}/baseline-candidate-zip-audit.json"
 
       - name: Audit candidate APK artifacts
         run: |
           python tools/baseline_candidate_gate.py audit-apk \
-            "${{ github.workspace }}/output" \
+            "${{ github.workspace }}/${GATE_DIR}/apk-artifacts" \
             --output "${GATE_DIR}/baseline-candidate-apk-audit.json"
 
       - name: Install browser smoke dependencies
-        run: python -m playwright install --with-deps chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
 
       - name: Run candidate ZIP browser smokes
         env:
@@ -95,11 +97,12 @@ jobs:
           DOLX_GITHUB_SHA: ${{ github.sha }}
           DOLX_ARTIFACT_NAME: baseline-candidate-zip-artifacts
         run: |
+          ZIP_DIR="${{ github.workspace }}/${GATE_DIR}/zip-artifacts"
           for slug in base au-f au-m au-a; do
             if [[ "$slug" == "base" ]]; then
-              ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" -name "*ucb-more-love-custom-spellbook-cheat-extended-maplebirch*" ! -name "*-au-*" | sort | head -n 1)
+              ZIP_FILE=$(find "$ZIP_DIR" -maxdepth 1 -type f -name "*.zip" -name "*ucb-more-love-custom-spellbook-cheat-extended-maplebirch*" ! -name "*-au-*" | sort | head -n 1)
             else
-              ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" -name "*-${slug}-*" -name "*cheat-extended-maplebirch*" | sort | head -n 1)
+              ZIP_FILE=$(find "$ZIP_DIR" -maxdepth 1 -type f -name "*.zip" -name "*-${slug}-*" -name "*cheat-extended-maplebirch*" | sort | head -n 1)
             fi
             if [[ -z "$ZIP_FILE" ]]; then
               echo "::error::missing candidate ZIP for ${slug}"
@@ -116,12 +119,21 @@ jobs:
             --reports-dir "${GATE_DIR}/browser-smoke" \
             --output "${GATE_DIR}/baseline-candidate-zip-browser-summary.json"
 
+      - name: Summarize Phase 1A candidate gate
+        if: always()
+        run: |
+          python tools/baseline_candidate_gate.py summarize-phase1a \
+            --gate-dir "${GATE_DIR}" \
+            --output "${GATE_DIR}/baseline-candidate-phase1a-summary.json" \
+            --head-sha "${{ github.sha }}" \
+            --run-id "${{ github.run_id }}"
+
       - name: Upload candidate ZIP artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: baseline-candidate-zip-artifacts
-          path: ${{ github.workspace }}/output/*.zip
+          path: ${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/*.zip
           if-no-files-found: error
 
       - name: Upload candidate APK artifacts
@@ -129,7 +141,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: baseline-candidate-apk-artifacts
-          path: ${{ github.workspace }}/output/*.apk
+          path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/*.apk
           if-no-files-found: error
 
       - name: Upload candidate gate reports
