@@ -8,16 +8,17 @@
 - `tests/conftest.py` - pytest 配置
 - `tests/__init__.py` - 测试包初始化
 - `tests/test_build_matrix.py` - 构建矩阵测试（13 个测试用例）
-- `tests/test_mod_config.py` - Mod 配置测试（14 个测试用例）
+- `tests/test_mod_config.py` - Mod 配置测试（22 个测试用例）
 - `pytest.ini` - pytest 配置文件
 
 **测试覆盖**:
-- ✓ 只构建 4 个自用组合 (258, 1282, 2306, 4354)
+- ✓ 只构建 4 个稳定自用组合 (24834, 25858, 26882, 28930)
 - ✓ polyfill 已关闭
 - ✓ 没有在线版配置
-- ✓ 基础版 (258) 不包含 AU
+- ✓ 基础版 (24834) 不包含 AU
 - ✓ AU 三版本包含对应 AU feature
-- ✓ 所有版本包含 UCB + 作弊/CSD
+- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 旧作弊/CSD
+- ✓ 默认版本不包含 cheatExtended/maplebirch 实验 feature
 - ✓ AU 面部扩展配置正确
 - ✓ feature_ids 有效性
 - ✓ cache_name 唯一性
@@ -150,14 +151,24 @@ python -m playwright install chromium
 python tools/browser_smoke_test.py output --output-dir output/browser-smoke --report-only
 ```
 
-默认 profile 为稳定主线 `ucb-more-love-custom-spellbook`。检查 cheatExtended/maplebirch 实验分支产物时，显式加 `--profile ucb-more-love-custom-spellbook-cheat-extended-maplebirch`；Actions 会根据 `workflow_run.head_branch` 自动选择对应 profile。
+CI 的 `dol-builds-zip-sample` 用于快速验证基础运行路径：Build workflow 会优先选择不含 `-au-` 的基础 ZIP；如果当前构建没有基础 ZIP，才回退到排序后的第一个 ZIP。AU-F/AU-M/AU-A 变体仍会上传到完整 `dol-builds-zip` artifact，建议在基础包 browser boot / game-ready 稳定后再单独测试或扩展为后续矩阵。
+
+默认 profile 为稳定主线 `ucb-more-love-custom-spellbook`。检查 cheatExtended/maplebirch 实验分支产物时，显式加 `--profile ucb-more-love-custom-spellbook-cheat-extended-maplebirch`；Actions 会根据 `workflow_run.head_branch` 自动选择对应 profile。报告会记录 `package_identity.package_slug`、`workflow_head_branch`、`expected_profile_for_branch`、`branch_profile_match`、`profile_slug_match` 和 `forbidden_slug_tokens_present`，用于区分 `vega` 主线 CI artifact 与手动/实验包，避免把主线报告和实验运行日志混看。
 
 Phase 4 现在按分层 smoke 记录结果：
 
 - **Phase 4A / Browser boot**：通过本地 HTTP server 打开 HTML，处理 Custom Spellbook prompt 密码，观察 ModLoader 内嵌 mod 元数据，并捕获 `console.error`、`pageerror`、failed request 和 HTTP 4xx/5xx；
+- **Phase 4A.5 / Startup interaction replay**：在导航和 Game Ready 检查之间，按无痕浏览器手动验证出的启动流程最多尝试 45 步：自动填写 Custom-Spellbook SweetAlert 密码 `DOL-Custom-Spellbook-Mod`，处理 OK/确定确认框，勾选年龄确认 `我确定我已年满十八岁` 并点击 `进入游戏`，勾选秋枫白桦/Mod 框架说明 `我已阅读并理解上述说明` 并点击 `我已知晓`。每一步的 action、按钮文本、consent label、前后 passage 和最终 passage 会写入 `startup_interactions`；浏览器原生 alert/prompt/confirm 会自动接受，并把 type/message/accepted/password_supplied 写入 `startup_interactions.browser_dialogs`，其中 `ev.preventDefault is not a function` 等文本仍按 high-risk 运行时错误分类；
 - **Phase 4B / Game Ready**：检查 `window.jQuery`、`window.SugarCube`、`SugarCube.State`、`SugarCube.Engine`、`SugarCube.Story`、当前 passage、正文长度、loading-like 状态和可交互元素数量；
 - **Phase 4C / Enter Game**：在 runtime ready 后，用通用按钮/链接文本（Start、New Game、Continue、开始、继续等）最多尝试 5 步进入首个可玩场景，记录 `passage_before`、`passage_after`、点击步骤和进入过程中新增的 high-risk 错误；
-- **Phase 4D / Mod profile probes**：检查 profile 要求的 mod 名称、warning global、可选 UI selector 点击，以及 `ReferenceError`、`TypeError`、`Error [tw-user-script-*]` 等高风险运行时错误；
+- **Phase 4D / Mod profile probes**：检查 profile 要求的 mod 名称、warning global、可选 UI selector 点击，以及 `ReferenceError`、`TypeError`、`Error [tw-user-script-*]`、`maplebirchFrameworks is not defined`、`ev.preventDefault is not a function`、`skinColourFullback`/`skincolourtext` 等高风险运行时错误；
+- **Phase 4E / Package identity**：检查分支、profile、package slug 是否一致。`vega` 应对应 `ucb-more-love-custom-spellbook`，且 slug 不应包含 `cheat-extended`/`maplebirch`；`experiment/cheat-extended-maplebirch` 应对应实验 profile。分支/profile 错配或主线 profile 下出现实验 slug token 会作为 high-risk finding 写入报告；
+- **Phase 4F / Static asset audit**：对打包目录做轻量资源审计，记录 `static_asset_audit.face_dir_exists`、`face_png_count`、`blush_png_count` 和 `required_face_assets`。当前会重点检查 `img/face/default/default/blush1.png`，用于自动复核 AU/BeautySelector 触发的 `Failed to load image ... for layer blush` 类问题；
+- **Phase 4G / Blocker diagnostics**：记录浏览器原生 dialog、popup/new page，以及可见的页面内 modal/blocker（如 `dialog[open]`、SweetAlert2、`[role="dialog"]`、`.modal`、`.overlay`）。在 Game Ready 检查前，会安全尝试点击常见确认按钮（OK、Confirm、Continue、Close、确定、继续、关闭等）最多 3 次，并把点击前后 blocker 样本、popup 样本和 dismissal 结果写入报告；
+- 当目标目录内同时存在多个已解压 HTML 包或多个 ZIP 包时，Phase 4 会优先选择非 AU 基础包；AU 变体建议在基础包 boot/game-ready 通过后再单独跑一次实验 profile；
+- 本地 HTTP server 会在包内缺失 `/modList.json` 时返回空 JSON 数组 `[]`。这是为了模拟“没有远程附加 mod 列表”的正常状态，避免 ModLoader 把 404 HTML 当 JSON 解析并产生测试环境噪音；如果包内实际存在 `modList.json`，仍会按真实文件提供；
+- `success=true` 的含义是：没有 high-risk finding、browser boot 成功，并且已经确认 `enter_game.success=true` 或页面状态足够接近可玩场景。只有 browser boot 成功但 `game_ready.ready=false` / `enter_game.success=false` 时，即使 high-risk 数量为 0，也会保持 `success=false` 和 `report_only_with_findings`；
+- 图片层错误会被单独归类：`Failed to load image ... for layer ...` 记为 `image_layer_load_failed`，`img/face/...` 的 HTTP 4xx、`ERR_FILE_NOT_FOUND`、`ERR_FAILED`、`failed` 或 `not found` 记为 `face_image_asset_missing`；
 - `modList.json`、`usettings.js`、More Love 可选依赖、Custom-Spellbook 外部资源缺失等仍作为已知非致命/待定位告警记录。
 
 输出：
@@ -167,10 +178,11 @@ Phase 4 现在按分层 smoke 记录结果：
 - `output/browser-smoke/browser-smoke-report.md`
 - `output/browser-smoke/console.log`
 - `output/browser-smoke/network-failures.json`
+- `output/browser-smoke/browser-smoke-final.png`
 
-`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、`browser_boot`、`game_ready`、`enter_game`、issue 计数和前 5 个 high-risk finding。`browser-smoke-report.md` 是首选人工阅读入口。
+`browser-smoke-summary.json` 是面向 CI 和快速人工复核的精简摘要，包含 `success`、`report_only`、`browser_boot`、`startup_interactions`、`game_ready`、`enter_game`、`blockers`、`package_identity`、`static_asset_audit`、`screenshot`、issue 计数和前 5 个 high-risk finding。`startup_interactions` 会汇总启动交互步数、点击次数、是否填写密码、接受 consent 数量、最终 passage、启动 gate 状态、浏览器原生 dialog 样本和前 20 个步骤摘要；`blockers` 会汇总页面内 modal 数量/样本、popup 数量/样本、以及是否自动点击过确认按钮。`browser-smoke-report.md` 是首选人工阅读入口；开头会显示 package slug、branch/profile match、profile/package slug match、截图路径、启动交互、blocker 诊断和静态资产审计摘要。
 
-初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false`、`issue_counts.high` 大于 0，或 `enter_game.success=false`，仍代表存在运行时风险或需要人工复核。等 browser boot / game ready / enter game 在主线和实验分支上连续稳定后，再考虑移除 `--report-only` 并升级为严格门禁。
+初期建议始终使用 `--report-only`。在该模式下，GitHub Actions job 成功只表示浏览器测试完成并生成报告；如果报告中 `success=false`、`issue_counts.high` 大于 0、`game_ready.ready=false`，或 `enter_game.success=false`，仍代表存在运行时风险或需要人工复核。等 browser boot / game ready / enter game 在主线和实验分支上连续稳定后，再考虑移除 `--report-only` 并升级为严格门禁。
 
 ### 6. 查看报告
 
@@ -239,16 +251,18 @@ git push origin vega
 1. `test_build_codes_count` - 验证只构建 4 个组合
 2. `test_build_codes_values` - 验证组合代码正确
 3. `test_polyfill_disabled` - 验证 polyfill 关闭
-4. `test_base_code_is_258` - 验证基础版代码
+4. `test_base_code_is_24834` - 验证基础版代码
 5. `test_no_online_version` - 验证没有在线版
 6. `test_au_features_exist` - 验证 AU features 存在
 7. `test_base_version_no_au` - 验证基础版不含 AU
 8. `test_au_versions_have_au` - 验证 AU 版本含 AU
 9. `test_all_versions_have_ucb` - 验证所有版本含 UCB
 10. `test_all_versions_have_cheat_or_csd` - 验证所有版本含作弊/CSD
-11. `test_combination_calculator_consistency` - 验证计算器一致性
+11. `test_all_versions_have_more_love_and_custom_spellbook` - 验证所有默认版本包含稳定主线 mod
+12. `test_default_versions_exclude_cheat_extended_maplebirch` - 验证默认构建排除实验 feature
+13. `test_combination_calculator_consistency` - 验证计算器一致性
 
-### test_mod_config.py (14 个测试)
+### test_mod_config.py (22 个测试)
 
 1. `test_modloader_mods_exist` - 验证 modloader_mods 存在
 2. `test_au_face_mod_exists` - 验证 AU 面部扩展存在
@@ -258,12 +272,20 @@ git push origin vega
 6. `test_key_uniqueness_when_present` - 验证 key 唯一
 7. `test_github_repo_format` - 验证 github_repo 格式
 8. `test_asset_pattern_not_empty` - 验证 asset_pattern 非空
-9. `test_au_main_mods_exist` - 验证 AU 主模组存在
-10. `test_base_mods_config_exists` - 验证 base_mods 存在
-11. `test_base_mods_keys_unique` - 验证 base_mods key 唯一
-12. `test_base_mods_inject_mode_valid` - 验证 inject 模式有效
-13. `test_modloader_gui_replaces_slot_0` - 验证 modloader_gui 配置
-14. `test_no_conflicting_feature_assignments` - 验证无 feature 冲突
+9. `test_modloader_mods_have_download_source` - 验证 modloader mod 有下载来源
+10. `test_modloader_enabled_flags_are_boolean` - 验证启用标记类型
+11. `test_cheat_extension_mods_exist` - 验证 cheatExtended 相关配置存在
+12. `test_love_and_spellbook_mods_exist` - 验证主线 more-love / custom-spellbook 配置存在
+13. `test_au_main_mods_exist` - 验证 AU 主模组存在
+14. `test_base_mods_config_exists` - 验证 base_mods 存在
+15. `test_base_mods_keys_unique` - 验证 base_mods key 唯一
+16. `test_base_mods_inject_mode_valid` - 验证 inject 模式有效
+17. `test_stable_base_mods_are_required` - 验证稳定主线 base mod 必需
+18. `test_modloader_gui_replaces_slot_0` - 验证 modloader_gui 配置
+19. `test_no_conflicting_feature_assignments` - 验证无 feature 冲突
+20. `test_cheat_extended_replacement_not_mixed_with_legacy_stack` - 验证 cheatExtended 替代栈不与旧作弊栈混装
+21. `test_cheat_extended_framework_choice_is_exclusive` - 验证 cheatExtended 框架选择互斥
+22. `test_cheat_extended_uses_dedicated_feature_when_configured` - 验证 cheatExtended 使用独立实验 feature
 
 ## 风险检测能力
 
@@ -321,6 +343,10 @@ Phase 4 已作为 `browser-smoke` job 接入 `.github/workflows/compatibility.ya
 - `spellBookMobileClicked is not defined`
 - `ev.preventDefault is not a function`
 - `maplebirchFrameworks is not defined`
+- `Failed to load image ... for layer ...`
+- `img/face/...` 的 HTTP 4xx、`ERR_FILE_NOT_FOUND`、`ERR_FAILED`、`failed` 或 `not found`
+- `skinColourFullback` / `skincolourtext` 相关缺失
+- 分支/profile/package slug 身份错配，例如 `vega` 主线 profile 下出现 `cheat-extended` 或 `maplebirch` slug token
 - `Error [tw-user-script-*]`
 - `ReferenceError` / `TypeError` / `Uncaught`
 
@@ -360,7 +386,9 @@ DOL-X/
 │   ├── __init__.py                     # 测试包初始化
 │   ├── conftest.py                     # pytest 配置
 │   ├── test_build_matrix.py            # 构建矩阵测试
+│   ├── test_au_face_compat.py          # AU face nested blush alias 测试
 │   ├── test_browser_smoke.py           # Phase 4 浏览器 smoke helper 测试
+│   ├── test_cheat_extended_audit.py    # cheatExtended 替代性审计测试
 │   ├── test_html_smoke.py              # Phase 3 静态 HTML smoke 测试
 │   ├── test_mod_config.py              # Mod 配置测试
 │   └── README.md                       # 测试文档
