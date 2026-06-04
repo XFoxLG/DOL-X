@@ -95,6 +95,8 @@ APK_BUILD_REPORT = "baseline-candidate-apk-build.json"
 ZIP_AUDIT_REPORT = "baseline-candidate-zip-audit.json"
 APK_AUDIT_REPORT = "baseline-candidate-apk-audit.json"
 ZIP_BROWSER_SUMMARY = "baseline-candidate-zip-browser-summary.json"
+PHASE1A_SUMMARY = "baseline-candidate-phase1a-summary.json"
+PHASE1A_CONFIG_REPORT = "baseline-candidate-config.json"
 APK_DEBUG_REPORT = "baseline-candidate-apk-debug-derivation.json"
 APK_CDP_SMOKE_REPORT = "baseline-candidate-apk-cdp-smoke.json"
 WEBVIEW_DEBUG_INVOKE = "Landroid/webkit/WebView;->setWebContentsDebuggingEnabled(Z)V"
@@ -878,7 +880,9 @@ def summarize_browser_reports(reports_dir: Path, output: Path) -> int:
             entry["errors"].extend(key for key, value in checks.items() if not value)
         summaries.append(entry)
 
+    success = bool(summaries) and all(summary["success"] for summary in summaries)
     payload = {
+        "success": success,
         "gate_level": PARTIAL_GATE_LEVEL,
         "counts_for_phase2_promotion": False,
         "results": summaries,
@@ -886,7 +890,113 @@ def summarize_browser_reports(reports_dir: Path, output: Path) -> int:
     _write_json(output, payload)
     for summary in summaries:
         print(json.dumps({"slug": summary["slug"], "success": summary["success"], "errors": summary["errors"]}, ensure_ascii=False))
-    return 0 if summaries and all(summary["success"] for summary in summaries) else 1
+    return 0 if success else 1
+
+
+def _build_report_success(payload: dict[str, Any]) -> bool:
+    """Return success for helper build reports that cover all candidates."""
+    if "success" in payload:
+        return payload.get("success") is True
+    results = payload.get("results")
+    if not isinstance(results, list) or not results:
+        return False
+    records = [result for result in results if isinstance(result, dict)]
+    if len(records) != len(DEFAULT_STABLE_CODE_ORDER):
+        return False
+    seen_slugs = {str(result.get("slug")) for result in records}
+    if seen_slugs != set(DEFAULT_STABLE_CODE_ORDER):
+        return False
+    return all(result.get("success") is True and bool(result.get("output_path")) for result in records)
+
+
+def _collect_report_errors(payload: dict[str, Any]) -> list[str]:
+    """Collect representative report errors for the always-run summary."""
+    errors: list[str] = []
+    raw_errors = payload.get("errors")
+    if isinstance(raw_errors, list):
+        errors.extend(str(error) for error in raw_errors)
+
+    for result in payload.get("results", []) or []:
+        if not isinstance(result, dict):
+            continue
+        slug = result.get("slug") or result.get("code") or "unknown"
+        if result.get("error"):
+            errors.append(f"{slug}: {result['error']}")
+        for key in ("errors", "validation_errors"):
+            values = result.get(key)
+            if isinstance(values, list):
+                errors.extend(f"{slug}: {value}" for value in values)
+
+    return errors[:20]
+
+
+def _summarize_report(gate_dir: Path, filename: str, report_kind: str) -> dict[str, Any]:
+    path = Path(gate_dir) / filename
+    exists = path.exists()
+    entry: dict[str, Any] = {
+        "filename": filename,
+        "path": str(path),
+        "kind": report_kind,
+        "exists": exists,
+        "present": exists,
+        "success": False,
+        "status": "missing",
+        "errors": [],
+    }
+    if not exists:
+        entry["errors"].append(f"missing required report: {filename}")
+        return entry
+
+    payload = _load_json(path)
+    if report_kind == "build":
+        success = _build_report_success(payload)
+    else:
+        success = payload.get("success") is True
+    entry.update(
+        {
+            "success": success,
+            "status": "passed" if success else "failed",
+            "errors": _collect_report_errors(payload),
+        }
+    )
+    return entry
+
+
+def summarize_phase1a_gate(
+    gate_dir: Path,
+    output: Path,
+    *,
+    head_sha: str | None = None,
+    run_id: str | None = None,
+) -> int:
+    """Write an always-run aggregate Phase 1A partial gate summary."""
+    reports = {
+        "config": _summarize_report(gate_dir, PHASE1A_CONFIG_REPORT, "simple"),
+        "zip_build": _summarize_report(gate_dir, ZIP_BUILD_REPORT, "build"),
+        "apk_build": _summarize_report(gate_dir, APK_BUILD_REPORT, "build"),
+        "zip_audit": _summarize_report(gate_dir, ZIP_AUDIT_REPORT, "simple"),
+        "apk_audit": _summarize_report(gate_dir, APK_AUDIT_REPORT, "simple"),
+        "zip_browser_summary": _summarize_report(gate_dir, ZIP_BROWSER_SUMMARY, "simple"),
+    }
+    missing_reports = [name for name, report in reports.items() if not report["present"]]
+    failed_reports = [name for name, report in reports.items() if report["present"] and not report["success"]]
+    errors = [error for report in reports.values() for error in report["errors"]]
+    success = not missing_reports and not failed_reports
+    payload = {
+        "success": success,
+        "gate_level": PARTIAL_GATE_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "head_sha": head_sha,
+        "run_id": run_id,
+        "reports": reports,
+        "missing_reports": missing_reports,
+        "failed_reports": failed_reports,
+        "errors": errors,
+    }
+    _write_json(output, payload)
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0 if success else 1
 
 
 def check_phase2_promotion(evidence_paths: list[Path], head_sha: str | None, output: Path) -> int:
@@ -952,6 +1062,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     browser_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "browser-smoke")
     browser_parser.add_argument("--output", type=Path, default=_gate_dir() / ZIP_BROWSER_SUMMARY)
 
+    phase1a_parser = subparsers.add_parser("summarize-phase1a", help="Summarize Phase 1A candidate gate reports")
+    phase1a_parser.add_argument("--gate-dir", type=Path, default=_gate_dir())
+    phase1a_parser.add_argument("--output", type=Path, default=_gate_dir() / PHASE1A_SUMMARY)
+    phase1a_parser.add_argument("--head-sha")
+    phase1a_parser.add_argument("--run-id")
+
     promotion_parser = subparsers.add_parser("check-promotion", help="Check whether Phase 2 default migration is allowed")
     promotion_parser.add_argument("--evidence", type=Path, nargs="+", required=True)
     promotion_parser.add_argument("--head-sha")
@@ -987,6 +1103,8 @@ def main(argv: list[str] | None = None) -> int:
         return audit_apk_target(args.target, args.output)
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
+    if args.command == "summarize-phase1a":
+        return summarize_phase1a_gate(args.gate_dir, args.output, head_sha=args.head_sha, run_id=args.run_id)
     if args.command == "check-promotion":
         return check_phase2_promotion(args.evidence, args.head_sha, args.output)
     raise ValueError(f"unknown command: {args.command}")

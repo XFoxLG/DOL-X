@@ -85,16 +85,28 @@ def test_baseline_candidate_gate_workflow_is_phase1a_only_and_independent():
     assert 'CANDIDATE_CODES: "57602,58626,59650,61698"' in workflow
     assert "Build candidate ZIP artifacts" in workflow
     assert "Build candidate APK artifacts" in workflow
-    assert workflow.count('--codes "$CANDIDATE_CODES"') == 2
+    assert workflow.count("python tools/baseline_candidate_gate.py build") == 2
+    assert workflow.count("--ensure-payloads") == 2
+    assert '--codes "$CANDIDATE_CODES"' not in workflow
+    assert '--output-dir "${{ github.workspace }}/${GATE_DIR}/zip-artifacts"' in workflow
+    assert '--output-dir "${{ github.workspace }}/${GATE_DIR}/apk-artifacts"' in workflow
     assert "baseline-candidate-zip-build.json" in workflow
     assert "baseline-candidate-apk-build.json" in workflow
     assert "Audit candidate ZIP artifacts" in workflow
     assert "Audit candidate APK artifacts" in workflow
+    assert '"${{ github.workspace }}/${GATE_DIR}/zip-artifacts"' in workflow
+    assert '"${{ github.workspace }}/${GATE_DIR}/apk-artifacts"' in workflow
+    assert "python -m pip install playwright" in workflow
     assert "Run candidate ZIP browser smokes" in workflow
     assert "Summarize candidate browser smokes" in workflow
+    assert "Summarize Phase 1A candidate gate" in workflow
+    assert "summarize-phase1a" in workflow
+    assert "baseline-candidate-phase1a-summary.json" in workflow
     assert "DOLX_ARTIFACT_NAME: baseline-candidate-zip-artifacts" in workflow
     assert "name: baseline-candidate-zip-artifacts" in workflow
+    assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/*.zip" in workflow
     assert "name: baseline-candidate-apk-artifacts" in workflow
+    assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/*.apk" in workflow
     assert "name: baseline-candidate-gate-reports" in workflow
 
     assert "Run candidate APK browser smokes" not in workflow
