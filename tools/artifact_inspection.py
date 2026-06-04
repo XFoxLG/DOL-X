@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared helpers for inspecting built HTML/ZIP artifacts.
+"""Shared helpers for inspecting built HTML/ZIP/APK artifacts.
 
 The HTML smoke, browser smoke, and embedded-source scanner all need the same
 ModLoader payload extraction contract. Keeping that parsing here prevents the
@@ -21,6 +21,7 @@ MOD_DATA_VALUE_ZIP_LIST_PATTERN = re.compile(
     r"window\.modDataValueZipList\s*=\s*(\[.*?\]);",
     re.DOTALL,
 )
+APK_HTML_MEMBER = "assets/www/index.html"
 
 
 @dataclass(frozen=True)
@@ -84,9 +85,22 @@ def load_preferred_html_from_zip(zip_path: Path) -> tuple[str | None, str | None
         return preferred, zf.read(preferred).decode("utf-8", errors="replace")
 
 
+def load_html_from_apk(apk_path: Path) -> tuple[str | None, str | None]:
+    """Return the Android WebView HTML member and content from an APK artifact."""
+    with zipfile.ZipFile(apk_path, "r") as zf:
+        members_by_lower = {name.lower(): name for name in zf.namelist()}
+        member = members_by_lower.get(APK_HTML_MEMBER)
+        if member is None:
+            return None, None
+        return member, zf.read(member).decode("utf-8", errors="replace")
+
+
 def load_html_artifact(target: Path) -> tuple[str | None, str | None]:
-    """Load HTML content from a raw HTML file or the preferred member of a ZIP."""
+    """Load HTML content from raw HTML, ZIP, or APK artifacts."""
     target = Path(target)
-    if target.suffix.lower() == ".zip":
+    suffix = target.suffix.lower()
+    if suffix == ".zip":
         return load_preferred_html_from_zip(target)
+    if suffix == ".apk":
+        return load_html_from_apk(target)
     return target.name, target.read_text(encoding="utf-8")
