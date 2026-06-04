@@ -11,7 +11,6 @@ Phase 1: 构建矩阵配置测试
 - 没有在线版相关配置
 """
 import pytest
-from pathlib import Path
 
 from lyra.combo import CombinationCalculator
 from lyra.config_loader import get_config_loader
@@ -131,6 +130,96 @@ class TestBuildMatrix:
             assert (code & ucb_feature.bit), (
                 f"版本 {code} 应包含 UCB (bit={ucb_feature.bit})"
             )
+
+    def test_ucb_no_longer_depends_on_besc(self):
+        """验证 UCB 已按当前稳定矩阵改为独立美化资源。"""
+        config_loader = get_config_loader()
+        ucb_feature = config_loader.get_feature_by_id("ucb")
+
+        assert ucb_feature is not None, "UCB feature 不存在"
+        assert "besc" not in ucb_feature.depends_on, (
+            "UCB 已按项目决策独立于 BESC；features.toml 不应继续声明 besc 依赖"
+        )
+
+    def test_explicit_build_codes_are_self_consistent(self):
+        """验证当前显式稳定构建代码与 feature 图自洽。"""
+        config_loader = get_config_loader()
+        features = config_loader.features
+        feature_by_id = {feature.id: feature for feature in features}
+        known_bits = 0
+        for feature in features:
+            known_bits |= feature.bit
+
+        findings = []
+        for code_str in config_loader.combinations.build_codes:
+            code = int(code_str)
+            enabled_features = [feature for feature in features if code & feature.bit]
+            enabled_ids = {feature.id for feature in enabled_features}
+
+            unknown_bits = code & ~known_bits
+            if unknown_bits:
+                findings.append(
+                    {
+                        "code": code,
+                        "kind": "unknown_bits",
+                        "unknown_bits": unknown_bits,
+                    }
+                )
+
+            for feature in features:
+                if feature.required and feature.id not in enabled_ids:
+                    findings.append(
+                        {
+                            "code": code,
+                            "kind": "missing_required",
+                            "feature": feature.id,
+                        }
+                    )
+
+            for feature in enabled_features:
+                for dep_id in feature.depends_on:
+                    dep_feature = feature_by_id.get(dep_id)
+                    if dep_feature is None:
+                        findings.append(
+                            {
+                                "code": code,
+                                "kind": "unknown_dependency",
+                                "feature": feature.id,
+                                "dependency": dep_id,
+                            }
+                        )
+                    elif dep_feature.id not in enabled_ids:
+                        findings.append(
+                            {
+                                "code": code,
+                                "kind": "missing_dependency",
+                                "feature": feature.id,
+                                "dependency": dep_id,
+                            }
+                        )
+
+                for conflict_id in feature.conflicts_with:
+                    conflict_feature = feature_by_id.get(conflict_id)
+                    if conflict_feature is None:
+                        findings.append(
+                            {
+                                "code": code,
+                                "kind": "unknown_conflict",
+                                "feature": feature.id,
+                                "conflict": conflict_id,
+                            }
+                        )
+                    elif conflict_feature.id in enabled_ids:
+                        findings.append(
+                            {
+                                "code": code,
+                                "kind": "conflict_present",
+                                "feature": feature.id,
+                                "conflict": conflict_id,
+                            }
+                        )
+
+        assert findings == []
 
     def test_all_versions_have_cheat_or_csd(self):
         """验证所有版本都包含作弊或 CSD"""

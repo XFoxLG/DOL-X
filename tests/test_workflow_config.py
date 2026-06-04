@@ -67,3 +67,41 @@ def test_canary_browser_smoke_runs_only_in_compatibility_workflow():
     assert "--output-dir output/cheat-canary-browser-smoke" in compatibility_workflow
     assert "--profile ucb-cheat-extended-maplebirch" in compatibility_workflow
     assert "name: cheat-canary-browser-smoke-report" in compatibility_workflow
+
+
+@pytest.mark.config
+def test_baseline_candidate_gate_workflow_is_phase1a_only_and_independent():
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "baseline-candidate-gate.yml").read_text(
+        encoding="utf-8"
+    )
+    build_workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8")
+    compatibility_workflow = (PROJECT_ROOT / ".github" / "workflows" / "compatibility.yaml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "name: Baseline Candidate Gate" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "phase1a-candidate-gate:" in workflow
+    assert 'CANDIDATE_CODES: "57602,58626,59650,61698"' in workflow
+    assert "Build candidate ZIP artifacts" in workflow
+    assert "Build candidate APK artifacts" in workflow
+    assert workflow.count('--codes "$CANDIDATE_CODES"') == 2
+    assert "baseline-candidate-zip-build.json" in workflow
+    assert "baseline-candidate-apk-build.json" in workflow
+    assert "Audit candidate ZIP artifacts" in workflow
+    assert "Audit candidate APK artifacts" in workflow
+    assert "Run candidate ZIP browser smokes" in workflow
+    assert "Summarize candidate browser smokes" in workflow
+    assert "DOLX_ARTIFACT_NAME: baseline-candidate-zip-artifacts" in workflow
+    assert "name: baseline-candidate-zip-artifacts" in workflow
+    assert "name: baseline-candidate-apk-artifacts" in workflow
+    assert "name: baseline-candidate-gate-reports" in workflow
+
+    assert "Run candidate APK browser smokes" not in workflow
+    assert "apk-cdp" not in workflow.lower()
+    assert "adb " not in workflow.lower()
+    assert "emulator" not in workflow.lower()
+
+    assert "Baseline Candidate Gate" not in build_workflow
+    assert "baseline-candidate-gate" not in build_workflow
+    assert "baseline-candidate-gate" not in compatibility_workflow

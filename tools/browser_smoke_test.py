@@ -253,6 +253,7 @@ BRANCH_PROFILE_EXPECTATIONS: tuple[tuple[re.Pattern[str], str], ...] = (
 
 ARTIFACT_PROFILE_EXPECTATIONS: dict[str, str] = {
     "dol-builds-cheat-canary-zip": "ucb-cheat-extended-maplebirch",
+    "baseline-candidate-zip-artifacts": "ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
 }
 
 
