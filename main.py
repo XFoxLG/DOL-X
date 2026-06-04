@@ -19,6 +19,7 @@ DoL-Lyra 构建系统
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
@@ -33,6 +34,82 @@ from lyra.version import LyraVersion, VersionRegistry
 from lyra.utils import setup_logging
 
 logger = logging.getLogger(__name__)
+
+
+def _split_build_codes(raw_codes: list[str] | None) -> list[str] | None:
+    """Parse comma-separated and repeated --codes values."""
+    if not raw_codes:
+        return None
+
+    codes: list[str] = []
+    for raw_code in raw_codes:
+        for item in str(raw_code).split(","):
+            item = item.strip()
+            if item:
+                codes.append(item)
+    return codes
+
+
+def _file_sha256(path: Path) -> str | None:
+    """Return sha256 for an existing artifact path."""
+    if not path.exists() or not path.is_file():
+        return None
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _relative_artifact_path(path: Path, workspace: Path) -> str:
+    """Prefer workspace-relative artifact paths in build manifests."""
+    try:
+        return path.resolve().relative_to(workspace.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _write_build_manifest(
+    manifest_path: Path,
+    *,
+    workspace: Path,
+    pack_types: list[str],
+    requested_codes: list[str] | None,
+    validation_results: list[dict],
+    success_count: int,
+    fail_count: int,
+    records: list,
+) -> None:
+    """Write the machine-readable build manifest used by candidate gates."""
+    from lyra.config_loader import get_config_loader
+
+    artifacts = []
+    for record in records:
+        item = record.to_dict()
+        output_path = item.get("output_path")
+        if output_path:
+            artifact_path = Path(output_path)
+            item["relative_path"] = _relative_artifact_path(artifact_path, workspace)
+            item["sha256"] = _file_sha256(artifact_path)
+        else:
+            item["relative_path"] = None
+            item["sha256"] = None
+        artifacts.append(item)
+
+    manifest = {
+        "success": fail_count == 0,
+        "success_count": success_count,
+        "fail_count": fail_count,
+        "pack_types": pack_types,
+        "requested_codes": requested_codes,
+        "default_build_codes": list(get_config_loader().combinations.build_codes),
+        "default_matrix_mutated": False,
+        "validation": validation_results,
+        "artifacts": artifacts,
+    }
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def cmd_prepare(args) -> int:
@@ -117,7 +194,8 @@ def cmd_build(args) -> int:
 
     并行构建所有 MOD 组合。
     """
-    from lyra.parallel import build_all_parallel
+    from lyra.code_validation import normalize_build_codes, validate_build_codes
+    from lyra.parallel import build_all_parallel, build_all_parallel_with_records
 
     setup_logging(args.verbose)
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
@@ -133,16 +211,62 @@ def cmd_build(args) -> int:
 
     # 确定包类型
     pack_types = [args.pack_type] if args.pack_type else ["zip", "apk"]
+    requested_codes = _split_build_codes(args.codes)
+    validation_results = []
+    normalized_codes = None
+
+    if requested_codes is not None:
+        validation = validate_build_codes(requested_codes)
+        validation_results = [result.to_dict() for result in validation]
+        invalid = [result for result in validation if not result.valid]
+        if invalid:
+            for result in invalid:
+                logger.error(f"无效构建代码 {result.raw}: {result.findings}")
+            if args.manifest:
+                _write_build_manifest(
+                    Path(args.manifest),
+                    workspace=paths.workspace,
+                    pack_types=pack_types,
+                    requested_codes=requested_codes,
+                    validation_results=validation_results,
+                    success_count=0,
+                    fail_count=len(invalid),
+                    records=[],
+                )
+            return 1
+        normalized_codes = normalize_build_codes(requested_codes)
 
     # 并行构建
-    success, fail = build_all_parallel(
-        paths=paths,
-        version=version,
-        pack_types=pack_types,
-        max_workers=args.jobs,
-        include_polyfill=True,
-        verbose=args.verbose,
-    )
+    if args.manifest:
+        success, fail, records = build_all_parallel_with_records(
+            paths=paths,
+            version=version,
+            pack_types=pack_types,
+            max_workers=args.jobs,
+            include_polyfill=True,
+            verbose=args.verbose,
+            codes=normalized_codes,
+        )
+        _write_build_manifest(
+            Path(args.manifest),
+            workspace=paths.workspace,
+            pack_types=pack_types,
+            requested_codes=requested_codes,
+            validation_results=validation_results,
+            success_count=success,
+            fail_count=fail,
+            records=records,
+        )
+    else:
+        success, fail = build_all_parallel(
+            paths=paths,
+            version=version,
+            pack_types=pack_types,
+            max_workers=args.jobs,
+            include_polyfill=True,
+            verbose=args.verbose,
+            codes=normalized_codes,
+        )
 
     return 0 if fail == 0 else 1
 
@@ -332,6 +456,15 @@ def main():
     build_parser.add_argument(
         "--tag",
         help="版本 tag（格式: v0.5.7.9-5.0.2a-0112）",
+    )
+    build_parser.add_argument(
+        "--codes",
+        nargs="+",
+        help="显式构建代码（可重复或逗号分隔），不修改 combinations.toml",
+    )
+    build_parser.add_argument(
+        "--manifest",
+        help="写入结构化构建 manifest JSON（用于候选门禁证据）",
     )
     build_parser.add_argument(
         "-j",

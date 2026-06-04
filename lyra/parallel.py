@@ -7,13 +7,14 @@
 import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from .paths import BuildPaths
 from .version import LyraVersion
 from .combo import CombinationCalculator
+from .code_validation import normalize_build_codes
 from .utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -28,9 +29,34 @@ class ParallelBuildConfig:
     max_workers: Optional[int] = None  # 最大并发数
     include_polyfill: bool = True  # 是否包含polyfill版本
     verbose: bool = False  # 是否详细输出
+    codes: Optional[list[str]] = None  # 显式构建代码；为空时使用配置矩阵
 
 
-def _build_task_worker(args: tuple) -> tuple[str, str, bool, Optional[str]]:
+@dataclass
+class ParallelBuildRecord:
+    """One completed parallel build task for manifest/report output."""
+
+    pack_type: str
+    code: str
+    success: bool
+    output_path: str | None = None
+    output_name: str = ""
+    error: str | None = None
+    applied_mods: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "pack_type": self.pack_type,
+            "code": self.code,
+            "success": self.success,
+            "output_path": self.output_path,
+            "output_name": self.output_name,
+            "error": self.error,
+            "applied_mods": self.applied_mods,
+        }
+
+
+def _build_task_worker(args: tuple) -> tuple[str, str, dict[str, Any]]:
     """
     并行构建工作函数
 
@@ -40,7 +66,7 @@ def _build_task_worker(args: tuple) -> tuple[str, str, bool, Optional[str]]:
         args: (pack_type, code_str, workspace, version_dict, verbose)
 
     Returns:
-        (pack_type, code_str, success, error_msg)
+        (pack_type, code_str, BuildResult.to_dict())
     """
     pack_type, code_str, workspace, version_dict, verbose = args
 
@@ -68,10 +94,20 @@ def _build_task_worker(args: tuple) -> tuple[str, str, bool, Optional[str]]:
 
         result = build_single(task)
 
-        return (pack_type, code_str, result.success, result.error)
+        return (pack_type, code_str, result.to_dict())
 
     except Exception as e:
-        return (pack_type, code_str, False, str(e))
+        return (
+            pack_type,
+            code_str,
+            {
+                "success": False,
+                "output_path": None,
+                "output_name": "",
+                "error": str(e),
+                "applied_mods": [],
+            },
+        )
 
 
 class ParallelBuilder:
@@ -100,11 +136,17 @@ class ParallelBuilder:
         Returns:
             (成功数, 失败数)
         """
-        # 获取所有构建代码
-        codes = self.calculator.get_build_codes(
-            include_polyfill=self.config.include_polyfill
-        )
-        codes = self._sort_codes(codes)
+        success_count, fail_count, _records = self.build_all_with_records()
+        return success_count, fail_count
+
+    def build_all_with_records(self) -> tuple[int, int, list[ParallelBuildRecord]]:
+        """
+        并行构建所有组合并保留每个任务的结构化结果。
+
+        Returns:
+            (成功数, 失败数, 构建记录)
+        """
+        codes = self._get_build_codes()
 
         total_tasks = len(codes) * len(self.config.pack_types)
         logger.info(f"开始并行构建: {total_tasks} 个任务")
@@ -113,6 +155,7 @@ class ParallelBuilder:
 
         success_count = 0
         fail_count = 0
+        records: list[ParallelBuildRecord] = []
 
         # 确定并发数
         max_workers = self.config.max_workers or min(os.cpu_count() or 4, 4)
@@ -134,20 +177,31 @@ class ParallelBuilder:
 
             if pack_type == "zip":
                 # ZIP 可以完全并行
-                s, f = self._build_parallel(pack_type, codes, version_dict, max_workers)
+                s, f, pack_records = self._build_parallel(pack_type, codes, version_dict, max_workers)
             else:
                 # APK 并行构建
-                s, f = self._build_parallel(pack_type, codes, version_dict, max_workers)
+                s, f, pack_records = self._build_parallel(pack_type, codes, version_dict, max_workers)
 
             success_count += s
             fail_count += f
+            records.extend(pack_records)
 
         # 输出统计
         logger.info(f"\n{'='*50}")
         logger.info(f"构建完成: 成功 {success_count}, 失败 {fail_count}")
         logger.info(f"{'='*50}")
 
-        return success_count, fail_count
+        return success_count, fail_count, records
+
+    def _get_build_codes(self) -> list[str]:
+        """Return explicit build codes or the configured default matrix."""
+        if self.config.codes is not None:
+            return self._sort_codes(normalize_build_codes(self.config.codes))
+
+        codes = self.calculator.get_build_codes(
+            include_polyfill=self.config.include_polyfill
+        )
+        return self._sort_codes(codes)
 
     def _build_parallel(
         self,
@@ -155,7 +209,7 @@ class ParallelBuilder:
         codes: list[str],
         version_dict: Optional[dict],
         max_workers: int,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, list[ParallelBuildRecord]]:
         """
         并行构建指定类型的包
 
@@ -166,10 +220,11 @@ class ParallelBuilder:
             max_workers: 最大并发数
 
         Returns:
-            (成功数, 失败数)
+            (成功数, 失败数, 构建记录)
         """
         success_count = 0
         fail_count = 0
+        records: list[ParallelBuildRecord] = []
 
         # 准备任务参数
         tasks = [
@@ -191,7 +246,19 @@ class ParallelBuilder:
             for future in as_completed(futures):
                 code = futures[future]
                 try:
-                    pack_type, code_str, success, error = future.result()
+                    pack_type, code_str, result_dict = future.result()
+                    success = bool(result_dict.get("success"))
+                    error = result_dict.get("error")
+                    record = ParallelBuildRecord(
+                        pack_type=pack_type,
+                        code=code_str,
+                        success=success,
+                        output_path=result_dict.get("output_path"),
+                        output_name=result_dict.get("output_name") or "",
+                        error=error,
+                        applied_mods=list(result_dict.get("applied_mods") or []),
+                    )
+                    records.append(record)
                     if success:
                         success_count += 1
                     else:
@@ -199,9 +266,17 @@ class ParallelBuilder:
                         logger.error(f"  失败 [{pack_type}] {code_str}: {error}")
                 except Exception as e:
                     fail_count += 1
+                    records.append(
+                        ParallelBuildRecord(
+                            pack_type=pack_type,
+                            code=code,
+                            success=False,
+                            error=str(e),
+                        )
+                    )
                     logger.error(f"  异常 [{pack_type}] {code}: {e}")
 
-        return success_count, fail_count
+        return success_count, fail_count, records
 
     def _sort_codes(self, codes: list[str]) -> list[str]:
         """
@@ -222,6 +297,7 @@ def build_all_parallel(
     max_workers: Optional[int] = None,
     include_polyfill: bool = True,
     verbose: bool = False,
+    codes: Optional[list[str]] = None,
 ) -> tuple[int, int]:
     """
     并行构建所有组合的便捷函数
@@ -233,6 +309,7 @@ def build_all_parallel(
         max_workers: 最大并发数
         include_polyfill: 是否包含polyfill
         verbose: 是否详细输出
+        codes: 显式构建代码；为空时使用配置矩阵
 
     Returns:
         (成功数, 失败数)
@@ -243,7 +320,31 @@ def build_all_parallel(
         max_workers=max_workers,
         include_polyfill=include_polyfill,
         verbose=verbose,
+        codes=codes,
     )
 
     builder = ParallelBuilder(paths, config)
     return builder.build_all()
+
+
+def build_all_parallel_with_records(
+    paths: BuildPaths,
+    version: Optional[LyraVersion] = None,
+    pack_types: Optional[list[str]] = None,
+    max_workers: Optional[int] = None,
+    include_polyfill: bool = True,
+    verbose: bool = False,
+    codes: Optional[list[str]] = None,
+) -> tuple[int, int, list[ParallelBuildRecord]]:
+    """Build all combinations and return per-artifact records."""
+    config = ParallelBuildConfig(
+        pack_types=pack_types or ["zip", "apk"],
+        version=version,
+        max_workers=max_workers,
+        include_polyfill=include_polyfill,
+        verbose=verbose,
+        codes=codes,
+    )
+
+    builder = ParallelBuilder(paths, config)
+    return builder.build_all_with_records()

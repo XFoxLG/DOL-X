@@ -10,6 +10,15 @@ on:
       - "experiment/**"
   workflow_dispatch:
     inputs:
+      build_run_id:
+        description: 'Build workflow run id to download canary artifacts from'
+        required: false
+        type: string
+      run_canary_browser_smoke:
+        description: '运行 cheatExtended/maplebirch canary browser smoke'
+        required: false
+        type: boolean
+        default: false
       run_slow_tests:
         description: '运行慢速测试（需要网络请求）'
         required: false
@@ -29,16 +38,16 @@ jobs:
     steps:
       - name: Checkout workflow run head
         if: github.event_name == 'workflow_run'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Checkout selected ref
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -53,7 +62,7 @@ jobs:
       
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: config-test-results
           path: |
@@ -69,16 +78,16 @@ jobs:
     steps:
       - name: Checkout workflow run head
         if: github.event_name == 'workflow_run'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Checkout selected ref
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -105,7 +114,7 @@ jobs:
       
       - name: Upload audit reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: mod-audit-reports
           path: |
@@ -162,12 +171,12 @@ jobs:
 
     steps:
       - name: Checkout workflow run head
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download ZIP sample artifact from Build workflow
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: dol-builds-zip-sample
           path: build-artifacts/
@@ -186,7 +195,7 @@ jobs:
 
       - name: Upload HTML smoke report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: html-smoke-report
           path: output/html-smoke-report.json
@@ -201,12 +210,12 @@ jobs:
 
     steps:
       - name: Checkout workflow run head
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download ZIP sample artifact from Build workflow
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: dol-builds-zip-sample
           path: build-artifacts/
@@ -214,7 +223,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -232,9 +241,6 @@ jobs:
           DOLX_ARTIFACT_NAME: dol-builds-zip-sample
         run: |
           PROFILE="ucb-more-love-custom-spellbook"
-          if [ "${DOLX_WORKFLOW_HEAD_BRANCH}" = "experiment/cheat-extended-maplebirch" ]; then
-            PROFILE="ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
-          fi
           python tools/browser_smoke_test.py build-artifacts --output-dir output/browser-smoke --report-only --profile "${PROFILE}"
 
       - name: Add browser smoke summary
@@ -249,10 +255,84 @@ jobs:
 
       - name: Upload browser smoke report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: browser-smoke-report
           path: output/browser-smoke/
+          retention-days: 3
+
+  cheat-canary-browser-smoke:
+    name: cheatExtended/maplebirch canary browser smoke
+    runs-on: ubuntu-latest
+    needs: config-tests
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'experiment/cheat-extended-maplebirch') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_canary_browser_smoke == 'true') }}
+    continue-on-error: true
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout workflow run head
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Checkout selected ref
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+
+      - name: Validate canary workflow dispatch inputs
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_canary_browser_smoke == 'true' && github.event.inputs.build_run_id == ''
+        run: |
+          echo "::error::build_run_id is required when run_canary_browser_smoke is true"
+          exit 1
+
+      - name: Download cheatExtended/maplebirch canary ZIP artifact from Build workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: dol-builds-cheat-canary-zip
+          path: canary-artifacts/
+          run-id: ${{ github.event.workflow_run.id || github.event.inputs.build_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install browser smoke dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Run canary browser smoke test in report-only mode
+        env:
+          DOLX_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id || github.event.inputs.build_run_id }}
+          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          DOLX_WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DOLX_GITHUB_SHA: ${{ github.sha }}
+          DOLX_ARTIFACT_NAME: dol-builds-cheat-canary-zip
+        run: |
+          python tools/browser_smoke_test.py canary-artifacts \
+            --output-dir output/cheat-canary-browser-smoke \
+            --report-only \
+            --profile ucb-cheat-extended-maplebirch
+
+      - name: Add canary browser smoke summary
+        if: always()
+        run: |
+          if [ -f output/cheat-canary-browser-smoke/browser-smoke-report.md ]; then
+            cat output/cheat-canary-browser-smoke/browser-smoke-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## cheatExtended/maplebirch Canary Browser Smoke" >> "$GITHUB_STEP_SUMMARY"
+            echo "browser-smoke-report.md was not generated; inspect job logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload canary browser smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheat-canary-browser-smoke-report
+          path: output/cheat-canary-browser-smoke/
           retention-days: 3
 
   slow-tests:
@@ -262,10 +342,10 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -281,7 +361,7 @@ jobs:
   summary:
     name: 测试总结
     runs-on: ubuntu-latest
-    needs: [config-tests, mod-audit, html-smoke, browser-smoke]
+    needs: [config-tests, mod-audit, html-smoke, browser-smoke, cheat-canary-browser-smoke]
     if: always()
     
     steps:
@@ -308,8 +388,13 @@ jobs:
           if [ "${{ needs.browser-smoke.result }}" == "failure" ]; then
             echo "::warning::Phase 4 browser smoke test 发现运行时风险，请查看 browser-smoke-report artifact"
           fi
+
+          if [ "${{ needs.cheat-canary-browser-smoke.result }}" == "failure" ]; then
+            echo "::warning::cheatExtended/maplebirch canary browser smoke 发现运行时风险，请查看 cheat-canary-browser-smoke-report artifact"
+          fi
           
           echo "✓ Phase 1 & 2 兼容性测试完成"
           echo "✓ Phase 3 静态 HTML smoke test 已启用（非阻断）"
           echo "✓ Phase 4 浏览器运行 smoke test 已启用（report-only，非阻断）"
+          echo "INFO: cheatExtended/maplebirch canary browser smoke is separate from stable sample smoke and remains report-only."
           echo "INFO: Phase 4 成功仅表示报告已生成；运行时 high-risk 请查看 browser-smoke-report.md / browser-smoke-summary.json"

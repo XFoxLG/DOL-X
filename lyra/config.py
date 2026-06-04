@@ -25,6 +25,7 @@ class ModCode(IntFlag):
     AU_ANDROGYNOUS = 4096  # AU双性
     MORE_LOVE = 8192  # 更多恋人
     CUSTOM_SPELLBOOK = 16384  # 自定义魔法书
+    CHEAT_EXTENDED_MAPLEBIRCH = 32768  # cheatExtended + maplebirch
 
     @classmethod
     def from_string(cls, code_str: str) -> tuple["ModCode", bool]:
@@ -72,6 +73,8 @@ class ModCode(IntFlag):
             suffix_parts.append("more-love")
         if self & ModCode.CUSTOM_SPELLBOOK:
             suffix_parts.append("custom-spellbook")
+        if self & ModCode.CHEAT_EXTENDED_MAPLEBIRCH:
+            suffix_parts.append("cheat-extended-maplebirch")
 
         return "-".join(suffix_parts) if suffix_parts else ""
 
