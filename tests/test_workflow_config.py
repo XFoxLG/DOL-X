@@ -108,6 +108,11 @@ def test_baseline_candidate_gate_workflow_is_phase1a_only_and_independent():
     assert "name: baseline-candidate-apk-artifacts" in workflow
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/*.apk" in workflow
     assert "name: baseline-candidate-gate-reports" in workflow
+    assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/\n" not in workflow
+    assert "${{ github.workspace }}/output/baseline-candidate-gate/*.json" in workflow
+    assert "${{ github.workspace }}/output/baseline-candidate-gate/browser-smoke/**" in workflow
+    assert "!${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/**" in workflow
+    assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/**" in workflow
 
     assert "Run candidate APK browser smokes" not in workflow
     assert "apk-cdp" not in workflow.lower()
