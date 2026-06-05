@@ -219,6 +219,25 @@ git push origin vega
 3. 点击 "Run workflow"
 4. 可选：勾选 "运行慢速测试"
 
+### Baseline Candidate Gate 手动触发（Phase 1A + B1）
+
+1. 访问 https://github.com/XFoxLG/DOL-X/actions
+2. 选择 "Baseline Candidate Gate" workflow
+3. 点击 "Run workflow"
+4. 选择目标分支/SHA 后运行
+
+该 workflow 是手动候选门禁，不会修改默认构建矩阵，也不计入 Phase 2 promotion。接受为远端 B1 green evidence 需要同时满足：
+
+- `baseline-candidate-config.json` 成功，且 `default_matrix_mutated=false`；
+- `baseline-candidate-zip-build.json` 和 `baseline-candidate-apk-build.json` 中 `base`、`au-f`、`au-m`、`au-a` 四个候选均成功；
+- `baseline-candidate-zip-audit.json` 和 `baseline-candidate-apk-audit.json` 均成功；
+- `baseline-candidate-zip-browser-summary.json` 中四个候选 ZIP browser smoke 均成功；
+- `baseline-candidate-apk-debug-derivation.json` 中四个 release-derived smoke-debug APK 均成功，且 `webview_debug_hook_applied=true`；
+- `baseline-candidate-apk-equivalence.json` 中 release/debug HTML、payload sha、payload names、required payloads 均匹配；
+- artifacts 包含 `baseline-candidate-zip-artifacts`、`baseline-candidate-apk-artifacts`、`baseline-candidate-apk-debug-artifacts`、`baseline-candidate-gate-reports`。
+
+这不是 B2：不得把该 workflow 的 green 解释为 emulator/CDP APK smoke 通过；也不得直接触发 Phase 2 默认矩阵迁移。
+
 ### 查看结果
 
 1. **Actions 页面**: https://github.com/XFoxLG/DOL-X/actions
