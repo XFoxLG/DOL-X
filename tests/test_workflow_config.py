@@ -70,7 +70,7 @@ def test_canary_browser_smoke_runs_only_in_compatibility_workflow():
 
 
 @pytest.mark.config
-def test_baseline_candidate_gate_workflow_is_phase1a_only_and_independent():
+def test_baseline_candidate_gate_workflow_is_phase1a_and_b1_only_and_independent():
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "baseline-candidate-gate.yml").read_text(
         encoding="utf-8"
     )
@@ -96,6 +96,15 @@ def test_baseline_candidate_gate_workflow_is_phase1a_only_and_independent():
     assert "Audit candidate APK artifacts" in workflow
     assert '"${{ github.workspace }}/${GATE_DIR}/zip-artifacts"' in workflow
     assert '"${{ github.workspace }}/${GATE_DIR}/apk-artifacts"' in workflow
+    assert "Derive smoke-debug APK artifacts" in workflow
+    assert workflow.count("python tools/baseline_candidate_gate.py derive-debug-apk") == 1
+    assert '"${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"' in workflow
+    assert "baseline-candidate-apk-debug-derivation.json" in workflow
+    assert "Audit release/debug APK equivalence" in workflow
+    assert workflow.count("python tools/baseline_candidate_gate.py audit-apk-equivalence") == 1
+    assert '--release-target "${{ github.workspace }}/${GATE_DIR}/apk-artifacts"' in workflow
+    assert '--debug-target "${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"' in workflow
+    assert "baseline-candidate-apk-equivalence.json" in workflow
     assert "python -m pip install playwright" in workflow
     assert "Run candidate ZIP browser smokes" in workflow
     assert "Summarize candidate browser smokes" in workflow
@@ -107,12 +116,15 @@ def test_baseline_candidate_gate_workflow_is_phase1a_only_and_independent():
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/*.zip" in workflow
     assert "name: baseline-candidate-apk-artifacts" in workflow
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/*.apk" in workflow
+    assert "name: baseline-candidate-apk-debug-artifacts" in workflow
+    assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/*.apk" in workflow
     assert "name: baseline-candidate-gate-reports" in workflow
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/\n" not in workflow
     assert "${{ github.workspace }}/output/baseline-candidate-gate/*.json" in workflow
     assert "${{ github.workspace }}/output/baseline-candidate-gate/browser-smoke/**" in workflow
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/**" in workflow
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/**" in workflow
+    assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/**" in workflow
 
     assert "Run candidate APK browser smokes" not in workflow
     assert "apk-cdp" not in workflow.lower()
