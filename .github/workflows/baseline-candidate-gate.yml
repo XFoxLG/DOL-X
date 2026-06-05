@@ -84,6 +84,20 @@ jobs:
             "${{ github.workspace }}/${GATE_DIR}/apk-artifacts" \
             --output "${GATE_DIR}/baseline-candidate-apk-audit.json"
 
+      - name: Derive smoke-debug APK artifacts
+        run: |
+          python tools/baseline_candidate_gate.py derive-debug-apk \
+            "${{ github.workspace }}/${GATE_DIR}/apk-artifacts" \
+            --output-dir "${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts" \
+            --output "${GATE_DIR}/baseline-candidate-apk-debug-derivation.json"
+
+      - name: Audit release/debug APK equivalence
+        run: |
+          python tools/baseline_candidate_gate.py audit-apk-equivalence \
+            --release-target "${{ github.workspace }}/${GATE_DIR}/apk-artifacts" \
+            --debug-target "${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts" \
+            --output "${GATE_DIR}/baseline-candidate-apk-equivalence.json"
+
       - name: Install browser smoke dependencies
         run: |
           python -m pip install playwright
@@ -144,6 +158,14 @@ jobs:
           path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/*.apk
           if-no-files-found: error
 
+      - name: Upload smoke-debug APK artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: baseline-candidate-apk-debug-artifacts
+          path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/*.apk
+          if-no-files-found: error
+
       - name: Upload candidate gate reports
         if: always()
         uses: actions/upload-artifact@v6
@@ -154,4 +176,5 @@ jobs:
             ${{ github.workspace }}/output/baseline-candidate-gate/browser-smoke/**
             !${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/**
             !${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/**
+            !${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/**
           if-no-files-found: error
