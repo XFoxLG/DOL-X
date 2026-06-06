@@ -133,7 +133,51 @@ jobs:
             --reports-dir "${GATE_DIR}/browser-smoke" \
             --output "${GATE_DIR}/baseline-candidate-zip-browser-summary.json"
 
-      - name: Summarize Phase 1A candidate gate
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run candidate APK CDP smokes
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          DOLX_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.ref_name }}
+          DOLX_WORKFLOW_HEAD_SHA: ${{ github.sha }}
+          DOLX_GITHUB_SHA: ${{ github.sha }}
+          DOLX_ARTIFACT_NAME: baseline-candidate-apk-debug-artifacts
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            APK_DIR="${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"
+            for slug in base au-f au-m au-a; do
+              if [[ "$slug" == "base" ]]; then
+                APK_FILE=$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -name "*ucb-more-love-custom-spellbook-cheat-extended-maplebirch*" -name "*smoke-debug.apk" ! -name "*-au-*" | sort | head -n 1)
+              else
+                APK_FILE=$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -name "*-${slug}-*" -name "*cheat-extended-maplebirch*" -name "*smoke-debug.apk" | sort | head -n 1)
+              fi
+              if [[ -z "$APK_FILE" ]]; then
+                echo "::error::missing smoke-debug candidate APK for ${slug}"
+                exit 1
+              fi
+              python tools/apk_emulator_smoke_test.py "$APK_FILE" \
+                --slug "$slug" \
+                --profile "$PROFILE" \
+                --output-dir "${GATE_DIR}/apk-cdp-smoke/${slug}"
+            done
+
+      - name: Summarize candidate APK CDP smokes
+        if: always()
+        run: |
+          python tools/baseline_candidate_gate.py summarize-apk-cdp \
+            --reports-dir "${GATE_DIR}/apk-cdp-smoke" \
+            --output "${GATE_DIR}/baseline-candidate-apk-cdp-smoke.json"
+
+      - name: Summarize candidate gate
         if: always()
         run: |
           python tools/baseline_candidate_gate.py summarize-phase1a \
@@ -166,6 +210,14 @@ jobs:
           path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/*.apk
           if-no-files-found: error
 
+      - name: Upload APK CDP smoke reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: baseline-candidate-apk-cdp-smoke-reports
+          path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-cdp-smoke/**
+          if-no-files-found: error
+
       - name: Upload candidate gate reports
         if: always()
         uses: actions/upload-artifact@v6
@@ -174,6 +226,7 @@ jobs:
           path: |
             ${{ github.workspace }}/output/baseline-candidate-gate/*.json
             ${{ github.workspace }}/output/baseline-candidate-gate/browser-smoke/**
+            ${{ github.workspace }}/output/baseline-candidate-gate/apk-cdp-smoke/**
             !${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/**
             !${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/**
             !${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/**

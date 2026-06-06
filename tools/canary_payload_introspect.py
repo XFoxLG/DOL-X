@@ -111,9 +111,17 @@ class SmokeEvidenceSummary:
     cheat_extended_index: int | None = None
     load_order_ok: bool | None = None
     runtime_globals: dict[str, str] = field(default_factory=dict)
+    runtime_mod_probes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    maplebirch_getmod_available: bool | None = None
+    simple_framework_getmod_available: bool | None = None
+    simple_framework_getmod_error: str | None = None
     maplebirch_framework_missing_issue_count: int = 0
     simple_framework_lookup_issue_count: int = 0
     high_risk_messages: list[str] = field(default_factory=list)
+    browser_success: bool | None = None
+    game_ready: bool | None = None
+    playable_passage: str | None = None
+    enter_game_success: bool | None = None
     ce_options_observed: bool = False
     maplebirch_framework_global_observed: bool = False
 
@@ -388,6 +396,31 @@ def _browser_runtime_globals(browser_report: dict[str, Any]) -> dict[str, str]:
     return {}
 
 
+def _browser_runtime_mod_probes(browser_report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    observations = browser_report.get("observations", {})
+    if not isinstance(observations, dict):
+        return {}
+
+    runtime_mod_probes = observations.get("runtime_mod_probes")
+    if isinstance(runtime_mod_probes, dict):
+        results = runtime_mod_probes.get("results", runtime_mod_probes)
+        if isinstance(results, dict):
+            return {str(name): dict(value) for name, value in results.items() if isinstance(value, dict)}
+
+    for state_key in ("page_state", "final_page_state"):
+        page_state = observations.get(state_key, {})
+        if not isinstance(page_state, dict):
+            continue
+        mod_probes = page_state.get("modProbes", {})
+        if not isinstance(mod_probes, dict):
+            continue
+        results = mod_probes.get("results", {})
+        if isinstance(results, dict):
+            return {str(name): dict(value) for name, value in results.items() if isinstance(value, dict)}
+
+    return {}
+
+
 def summarize_smoke_evidence(
     html_smoke_report: Path | None = None,
     browser_smoke_report: Path | None = None,
@@ -413,6 +446,9 @@ def summarize_smoke_evidence(
 
     if browser_smoke_report and Path(browser_smoke_report).exists():
         browser_report = json.loads(Path(browser_smoke_report).read_text(encoding="utf-8"))
+        if isinstance(browser_report.get("success"), bool):
+            summary.browser_success = bool(browser_report.get("success"))
+
         for issue in browser_report.get("issues", []):
             if not isinstance(issue, dict):
                 continue
@@ -434,6 +470,35 @@ def summarize_smoke_evidence(
             None,
             "undefined",
         }
+
+        runtime_mod_probes = _browser_runtime_mod_probes(browser_report)
+        summary.runtime_mod_probes = runtime_mod_probes
+        maplebirch_probe = runtime_mod_probes.get("maplebirch") or {}
+        simple_framework_probe = runtime_mod_probes.get("Simple Frameworks") or {}
+        if maplebirch_probe:
+            summary.maplebirch_getmod_available = bool(maplebirch_probe.get("available"))
+        if simple_framework_probe:
+            summary.simple_framework_getmod_available = bool(simple_framework_probe.get("available"))
+            if simple_framework_probe.get("error") is not None:
+                summary.simple_framework_getmod_error = str(simple_framework_probe.get("error"))
+
+        observations = browser_report.get("observations", {})
+        if isinstance(observations, dict):
+            game_ready = observations.get("game_ready", {})
+            if isinstance(game_ready, dict):
+                if isinstance(game_ready.get("ready"), bool):
+                    summary.game_ready = bool(game_ready.get("ready"))
+                passage = game_ready.get("passage")
+                if isinstance(passage, str) and passage:
+                    summary.playable_passage = passage
+
+            enter_game = observations.get("enter_game", {})
+            if isinstance(enter_game, dict):
+                if isinstance(enter_game.get("success"), bool):
+                    summary.enter_game_success = bool(enter_game.get("success"))
+                passage_after = enter_game.get("passage_after")
+                if isinstance(passage_after, str) and passage_after:
+                    summary.playable_passage = passage_after
 
         for text in _iter_browser_text(browser_report):
             if "CE_options" in text:
@@ -505,6 +570,45 @@ def classify_root_cause(
 
     if smoke_evidence and smoke_evidence.simple_framework_lookup_issue_count:
         notes.append("browser smoke reproduced Simple Frameworks ModOrder lookup failures.")
+        if smoke_evidence.maplebirch_getmod_available is True:
+            notes.append("runtime getMod('maplebirch') probe is available.")
+        elif smoke_evidence.maplebirch_getmod_available is False:
+            notes.append("runtime getMod('maplebirch') probe is not available.")
+        if smoke_evidence.simple_framework_getmod_available is True:
+            notes.append("runtime getMod('Simple Frameworks') probe resolved a module.")
+        if smoke_evidence.simple_framework_getmod_available is False:
+            notes.append("runtime getMod('Simple Frameworks') probe is not available.")
+        if smoke_evidence.simple_framework_getmod_error:
+            notes.append(
+                "runtime getMod('Simple Frameworks') probe errored: "
+                f"{smoke_evidence.simple_framework_getmod_error}"
+            )
+        simple_framework_probe = smoke_evidence.runtime_mod_probes.get("Simple Frameworks") or {}
+        simple_framework_name = str(simple_framework_probe.get("name") or "").lower()
+        simple_framework_alias_resolved = bool(
+            smoke_evidence.maplebirch_getmod_available is True
+            and smoke_evidence.simple_framework_getmod_available is True
+            and simple_framework_name == "maplebirch"
+            and not smoke_evidence.simple_framework_getmod_error
+        )
+        playable = bool(
+            smoke_evidence.browser_success is True
+            or smoke_evidence.game_ready is True
+            or smoke_evidence.enter_game_success is True
+            or smoke_evidence.playable_passage
+        )
+        if (
+            simple_framework_alias_resolved
+            and smoke_evidence.maplebirch_framework_global_observed
+            and not smoke_evidence.high_risk_messages
+            and playable
+        ):
+            notes.append(
+                "Simple Frameworks lookup warnings resolved to maplebirch at runtime and did not block playability."
+            )
+            if smoke_evidence.playable_passage:
+                notes.append(f"browser smoke reached playable passage: {smoke_evidence.playable_passage}.")
+            return "simple_framework_alias_resolved_warning", notes
         return "simple_framework_alias_lookup", notes
 
     return "no_runtime_blocker_observed", notes
@@ -561,10 +665,19 @@ def build_framework_contract_conclusions(
 
     if smoke_evidence:
         conclusions.append(f"browser smoke observed runtime globals: `{smoke_evidence.runtime_globals}`.")
+        if smoke_evidence.runtime_mod_probes:
+            conclusions.append(f"browser smoke observed runtime mod probes: `{smoke_evidence.runtime_mod_probes}`.")
         if smoke_evidence.simple_framework_lookup_issue_count:
             conclusions.append(
                 "browser smoke reproduced `ModOrderContainer getByNameOne()` failures for `Simple Frameworks` "
                 f"{smoke_evidence.simple_framework_lookup_issue_count} time(s)."
+            )
+        if smoke_evidence.maplebirch_getmod_available is True:
+            conclusions.append("runtime `getMod('maplebirch')` probe resolved a module.")
+        if smoke_evidence.simple_framework_getmod_error:
+            conclusions.append(
+                "runtime `getMod('Simple Frameworks')` probe errored: "
+                f"{smoke_evidence.simple_framework_getmod_error}"
             )
         if (
             smoke_evidence.runtime_globals.get("maplebirchFrameworks") == "object"
@@ -576,19 +689,24 @@ def build_framework_contract_conclusions(
             )
 
     recommended_fix = (
-        "canary-only compatibility shim: make `window.modUtils.getMod('Simple Frameworks')` resolve to the "
-        "already loaded `maplebirch` module before cheatExtended scripts call it. Do not add a `window.CE_options` "
-        "initializer unless a later trace finds real global reads; current evidence says CE_options is a widget/slot id."
+        "maplebirch-only canary trace first: keep Simple Frameworks out of the build and do not add a "
+        "`Simple Frameworks -> maplebirch` alias shim from this evidence alone. Re-run browser smoke with "
+        "runtime `getMod('maplebirch')` and `getMod('Simple Frameworks')` probes, then fix load order or "
+        "cheatExtended branch logic if the maplebirch branch should have short-circuited. Only revisit an "
+        "alias workaround after runtime evidence proves it binds to `maplebirchFrameworks`, not the distinct "
+        "`simpleFrameworks` branch. Do not add a `window.CE_options` initializer unless a later trace finds "
+        "real global reads; current evidence says CE_options is a widget/slot id."
     )
     return conclusions, recommended_fix
 
 
 def single_validation_plan() -> list[str]:
     return [
-        "Apply one canary-only shim; do not mutate stable/default config.",
+        "Do not add Simple Frameworks or a name alias shim; keep stable/default config unchanged.",
         "Run one canary stable-replacement build for code 33024 with the selected maplebirch override.",
         "Run one HTML smoke on the produced 33024/slugged ZIP.",
-        "Run one browser smoke with profile `ucb-cheat-extended-maplebirch`.",
+        "Run one browser smoke with profile `ucb-cheat-extended-maplebirch` and runtime getMod probes.",
+        "If the blocker remains, classify whether it is load order or cheatExtended branch logic before considering any alias workaround.",
         "Stop after that single validation pass; if the same blocker remains, record evidence instead of looping.",
     ]
 

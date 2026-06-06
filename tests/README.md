@@ -59,7 +59,7 @@ python tools/cheat_extended_audit.py --output-dir output
 - cheatExtended 的 release asset、boot.json、readme.md 和 SHA256
 - 对 Cheat / CSD / BJX / BCCM 的静态覆盖程度
 - `maplebirch` 与 `Simple Frameworks` 的二选一框架要求
-- 和当前配置中旧作弊栈、AU 面部扩展、UCB 的潜在冲突与耦合
+- 和当前配置中项目本地旧 cheat/CSD 栈、AU 面部扩展、UCB 的潜在冲突与耦合
 
 ### 运行 Phase 3 静态 HTML smoke test
 
@@ -99,7 +99,7 @@ python tools/html_smoke_test.py output --output output/html-smoke-report.json
 - ✓ polyfill 已关闭
 - ✓ 基础版不包含 AU
 - ✓ AU 三版本包含对应 AU feature
-- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 旧作弊/CSD
+- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 项目本地旧 cheat/CSD 栈
 - ✓ 默认版本不包含 cheatExtended/maplebirch 实验 feature
 - ✓ Mod 配置正确性
 - ✓ feature_ids 有效性

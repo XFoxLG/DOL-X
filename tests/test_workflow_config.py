@@ -1,5 +1,6 @@
 """GitHub Actions workflow configuration tests."""
 
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -70,7 +71,7 @@ def test_canary_browser_smoke_runs_only_in_compatibility_workflow():
 
 
 @pytest.mark.config
-def test_baseline_candidate_gate_workflow_is_phase1a_and_b1_only_and_independent():
+def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runtime():
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "baseline-candidate-gate.yml").read_text(
         encoding="utf-8"
     )
@@ -108,7 +109,21 @@ def test_baseline_candidate_gate_workflow_is_phase1a_and_b1_only_and_independent
     assert "python -m pip install playwright" in workflow
     assert "Run candidate ZIP browser smokes" in workflow
     assert "Summarize candidate browser smokes" in workflow
-    assert "Summarize Phase 1A candidate gate" in workflow
+    assert "Enable KVM for Android emulator" in workflow
+    assert "Run candidate APK CDP smokes" in workflow
+    assert "reactivecircus/android-emulator-runner@v2" in workflow
+    assert "api-level: 35" in workflow
+    assert "arch: x86_64" in workflow
+    assert "profile: pixel_6" in workflow
+    assert "DOLX_ARTIFACT_NAME: baseline-candidate-apk-debug-artifacts" in workflow
+    assert "for slug in base au-f au-m au-a" in workflow
+    assert workflow.count("python tools/apk_emulator_smoke_test.py") == 1
+    assert '--slug "$slug"' in workflow
+    assert '--output-dir "${GATE_DIR}/apk-cdp-smoke/${slug}"' in workflow
+    assert "Summarize candidate APK CDP smokes" in workflow
+    assert "summarize-apk-cdp" in workflow
+    assert "baseline-candidate-apk-cdp-smoke.json" in workflow
+    assert "Summarize candidate gate" in workflow
     assert "summarize-phase1a" in workflow
     assert "baseline-candidate-phase1a-summary.json" in workflow
     assert "DOLX_ARTIFACT_NAME: baseline-candidate-zip-artifacts" in workflow
@@ -118,19 +133,91 @@ def test_baseline_candidate_gate_workflow_is_phase1a_and_b1_only_and_independent
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/*.apk" in workflow
     assert "name: baseline-candidate-apk-debug-artifacts" in workflow
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/*.apk" in workflow
+    assert "name: baseline-candidate-apk-cdp-smoke-reports" in workflow
+    assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/apk-cdp-smoke/**" in workflow
     assert "name: baseline-candidate-gate-reports" in workflow
     assert "path: ${{ github.workspace }}/output/baseline-candidate-gate/\n" not in workflow
     assert "${{ github.workspace }}/output/baseline-candidate-gate/*.json" in workflow
     assert "${{ github.workspace }}/output/baseline-candidate-gate/browser-smoke/**" in workflow
+    assert "${{ github.workspace }}/output/baseline-candidate-gate/apk-cdp-smoke/**" in workflow
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/zip-artifacts/**" in workflow
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-artifacts/**" in workflow
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/**" in workflow
 
     assert "Run candidate APK browser smokes" not in workflow
-    assert "apk-cdp" not in workflow.lower()
-    assert "adb " not in workflow.lower()
-    assert "emulator" not in workflow.lower()
+    assert workflow.index("Run candidate APK CDP smokes") > workflow.index("Audit release/debug APK equivalence")
 
     assert "Baseline Candidate Gate" not in build_workflow
     assert "baseline-candidate-gate" not in build_workflow
     assert "baseline-candidate-gate" not in compatibility_workflow
+    assert "apk-cdp" not in build_workflow.lower()
+    assert "apk-cdp" not in compatibility_workflow.lower()
+    assert "apk_emulator_smoke_test.py" not in build_workflow
+    assert "apk_emulator_smoke_test.py" not in compatibility_workflow
+    assert "reactivecircus/android-emulator-runner" not in build_workflow
+    assert "reactivecircus/android-emulator-runner" not in compatibility_workflow
+
+
+@pytest.mark.config
+def test_maplebirch_version_gate_is_manual_base_zip_canary_only():
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "maplebirch-version-gate.yml").read_text(
+        encoding="utf-8"
+    )
+    build_workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8")
+    build_config = (PROJECT_ROOT / "config" / "build.toml").read_text(encoding="utf-8")
+    combinations_config = tomllib.loads(
+        (PROJECT_ROOT / "config" / "combinations.toml").read_text(encoding="utf-8")
+    )
+
+    assert "name: Maplebirch Version Gate" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "max_smoke_candidates:" in workflow
+    assert "candidate_tags:" in workflow
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in workflow
+    assert "tools/maplebirch_version_matrix.py" in workflow
+    assert "--scan" in workflow
+    assert "--max-smoke-candidates" in workflow
+    assert "maplebirch-version-matrix.json" in workflow
+    assert "maplebirch-version-matrix.md" in workflow
+    assert "selected_for_smoke" in workflow
+    assert "tools/cheat_extended_canary.py" in workflow
+    assert '"--flavor",' in workflow
+    assert '"stable-replacement",' in workflow
+    assert '"--variant",' in workflow
+    assert '"base",' in workflow
+    assert '"--maplebirch-release-tag",' in workflow
+    assert '"--maplebirch-asset-pattern",' in workflow
+    assert '"--maplebirch-cache-label",' in workflow
+    assert "canary-build.json" in workflow
+    assert "tools/html_smoke_test.py" in workflow
+    assert "html-smoke.json" in workflow
+    assert "tools/browser_smoke_test.py" in workflow
+    assert '"--profile",' in workflow
+    assert "PROFILE: ucb-cheat-extended-maplebirch" in workflow
+    assert "--report-only" in workflow
+    assert "browser-smoke-report.json" in workflow
+    assert "tools/canary_payload_introspect.py" in workflow
+    assert "canary-introspection.json" in workflow
+    assert "maplebirch-version-gate-summary.json" in workflow
+    assert "maplebirch-version-gate-summary.md" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "maplebirch-version-gate-matrix" in workflow
+    assert "maplebirch-version-gate-reports" in workflow
+    assert "maplebirch-version-gate-zips" in workflow
+    assert "Review artifacts before pinning; this gate does not mutate stable/default build config." in workflow
+
+    assert "apk_emulator_smoke_test.py" not in workflow
+    assert "reactivecircus/android-emulator-runner" not in workflow
+    assert "Build candidate APK artifacts" not in workflow
+    assert "for slug in base au-f au-m au-a" not in workflow
+
+    assert "Maplebirch Version Gate" not in build_workflow
+    assert "maplebirch-version-gate" not in build_workflow
+    assert "--maplebirch-release-tag maplebirch-release-v3.1.13" in build_workflow
+    assert "--maplebirch-asset-pattern maplebirch-0.5.8.10-v3.1.13.mod.zip" in build_workflow
+    assert "--maplebirch-cache-label maplebirch-release-v3.1.13" in build_workflow
+    assert combinations_config["build_codes"] == ["24834", "25858", "26882", "28930"]
+    assert combinations_config["base_code"] == 24834
+    assert combinations_config["recommended"] == [25858, 26882, 28930]
+    assert 'asset_pattern = "maplebirch-0.5.8.10-v3.1.13.mod.zip"' in build_config
+    assert 'release_tag = "maplebirch-release-v3.1.13"' in build_config

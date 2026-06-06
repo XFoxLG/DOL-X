@@ -59,6 +59,8 @@ BODY_ONLY_BROWSER_SUMMARY = "au-body-only-browser-summary.json"
 BODY_ONLY_COMPARISON = "au-body-only-comparison.json"
 MAPLEBIRCH_CACHE_NAME = "maplebirch"
 CHEAT_EXTENDED_CACHE_NAME = "cheat_extended"
+MAPLEBIRCH_PROVIDER = "maplebirch"
+AU_FRAMEWORK_SUPPORT_PURPOSE = "au_framework_support"
 MAPLEBIRCH_BUILD_RESULTS = "au-maplebirch-build-results.json"
 MAPLEBIRCH_BROWSER_DIR = "maplebirch-browser-smoke"
 MAPLEBIRCH_BROWSER_SUMMARY = "au-maplebirch-browser-summary.json"
@@ -126,6 +128,17 @@ def _gate_dir() -> Path:
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _maplebirch_framework_evidence_metadata() -> dict[str, Any]:
+    """Shared metadata for AU + maplebirch framework-support diagnostics."""
+    return {
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": AU_FRAMEWORK_SUPPORT_PURPOSE,
+        "shared_framework_evidence": True,
+        "default_matrix_mutated": False,
+        "cheat_extended_included": False,
+    }
 
 
 def _load_build_records(path: Path | None = None) -> list[BuildRecord]:
@@ -356,6 +369,8 @@ def build_maplebirch_canary() -> int:
         _gate_dir() / MAPLEBIRCH_BUILD_RESULTS,
         {
             "diagnostic": "AU body/model plus AU face extension plus maplebirch only; cheatExtended intentionally skipped",
+            **_maplebirch_framework_evidence_metadata(),
+            "legacy_entries_retained_for_rollback": True,
             "results": [asdict(record) for record in records],
         },
     )
@@ -795,6 +810,7 @@ def compare_maplebirch_canary() -> int:
     )
     payload = {
         "diagnostic": "AU full vs body-only vs AU face + maplebirch-only canary; cheatExtended remains excluded",
+        **_maplebirch_framework_evidence_metadata(),
         "diagnostic_complete": diagnostic_complete,
         "full_all_success": all(entry.get("success") is True for entry in full_summary.values()) if full_summary else False,
         "body_only_all_success": all(entry.get("success") is True for entry in body_summary.values()) if body_summary else False,

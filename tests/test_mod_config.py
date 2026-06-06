@@ -382,6 +382,22 @@ class TestModConfig:
             f"当前启用框架: {enabled_frameworks}"
         )
 
+    def test_simple_framework_is_reserved_for_future_provider_round(self):
+        """验证 Simple Framework 仍是未来互斥 provider，本轮不接入默认或候选 gate。"""
+        build_config = load_build_config()
+
+        simple_framework_mods = [
+            mod
+            for mod in build_config.modloader_mods
+            if mod.github_repo == "emicoto/SCMLSimpleFramework"
+            or mod.key in {"simple_framework", "simpleFramework"}
+        ]
+
+        assert simple_framework_mods == [], (
+            "Simple Framework 是未来 provider 预留；本轮只验证 maplebirch，"
+            "不应把 Simple Framework 加入当前 build.toml/gate。"
+        )
+
     def test_cheat_extended_uses_dedicated_feature_when_configured(self):
         """验证 cheatExtended 候选配置不会复用 cheat_csd 旧 feature"""
         build_config = load_build_config()
