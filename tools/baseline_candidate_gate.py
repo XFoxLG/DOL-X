@@ -113,7 +113,13 @@ PHASE1A_CONFIG_REPORT = "baseline-candidate-config.json"
 APK_DEBUG_REPORT = "baseline-candidate-apk-debug-derivation.json"
 APK_EQUIVALENCE_REPORT = "baseline-candidate-apk-equivalence.json"
 APK_CDP_SMOKE_REPORT = "baseline-candidate-apk-cdp-smoke.json"
+STABLE_REPLACEMENT_READINESS_REPORT = "baseline-candidate-stable-replacement-readiness.json"
 FULL_GATE_COMPONENT_LEVEL = "full_candidate_gate_ready_component"
+LEGACY_FEATURE_ID = "cheat_csd"
+REPLACEMENT_FEATURE_ID = "cheat_extended_maplebirch"
+LEGACY_BASE_MOD_KEYS: tuple[str, ...] = ("cheat", "csd")
+LEGACY_MODLOADER_MOD_KEYS: tuple[str, ...] = ("bjx_word_unlock", "bjx_portable_word", "bccm")
+REPLACEMENT_MODLOADER_MOD_KEYS: tuple[str, ...] = ("maplebirch", "cheat_extended")
 WEBVIEW_DEBUG_INVOKE = "Landroid/webkit/WebView;->setWebContentsDebuggingEnabled(Z)V"
 WEBVIEW_DEBUG_METHOD_NAME = "setWebContentsDebuggingEnabled"
 WEBVIEW_DEBUG_SMALI_SNIPPET = (
@@ -518,6 +524,177 @@ def validate_static_config() -> dict[str, Any]:
             "default_matrix_mutated": False,
         },
         "manifest": build_manifest(),
+    }
+
+
+def _mod_key(mod_config: Any) -> str:
+    """Return the stable config key used by build.toml entries."""
+    return str(getattr(mod_config, "key", None) or getattr(mod_config, "cache_name", ""))
+
+
+def _feature_ids_for_mod(mod_config: Any) -> list[str]:
+    feature_ids = getattr(mod_config, "feature_ids", None)
+    if feature_ids:
+        return [str(feature_id) for feature_id in feature_ids]
+    feature_id = getattr(mod_config, "feature_id", None)
+    return [str(feature_id)] if feature_id else []
+
+
+def _summarize_mod_entry(mod_config: Any) -> dict[str, Any]:
+    """Return rollback/readiness metadata without exposing the full config object."""
+    return {
+        "key": _mod_key(mod_config),
+        "name": getattr(mod_config, "name", None),
+        "enabled": bool(getattr(mod_config, "enabled", True)),
+        "feature_id": getattr(mod_config, "feature_id", None),
+        "feature_ids": _feature_ids_for_mod(mod_config),
+        "github_repo": getattr(mod_config, "github_repo", None),
+        "asset_pattern": getattr(mod_config, "asset_pattern", None),
+        "release_tag": getattr(mod_config, "release_tag", None),
+    }
+
+
+def build_stable_replacement_readiness() -> dict[str, Any]:
+    """Report whether the no-legacy-cheat replacement path is ready to gate.
+
+    This is intentionally not a promotion check.  It verifies the soft
+    replacement boundary while keeping defaults unchanged until full gate
+    evidence separately authorizes migration.
+    """
+    errors: list[str] = []
+    loader = get_config_loader()
+    combinations = loader.combinations
+    build_config = load_build_config()
+
+    expected_default_codes = [str(DEFAULT_STABLE_CODES[slug]) for slug in DEFAULT_STABLE_CODE_ORDER]
+    expected_recommended = [
+        DEFAULT_STABLE_CODES["au-f"],
+        DEFAULT_STABLE_CODES["au-m"],
+        DEFAULT_STABLE_CODES["au-a"],
+    ]
+    default_matrix_unchanged = (
+        combinations.build_codes == expected_default_codes
+        and combinations.base_code == DEFAULT_STABLE_CODES["base"]
+        and sorted(combinations.recommended) == sorted(expected_recommended)
+    )
+    if not default_matrix_unchanged:
+        errors.append("default stable matrix changed before replacement promotion evidence")
+
+    legacy_feature = loader.get_feature_by_id(LEGACY_FEATURE_ID)
+    replacement_feature = loader.get_feature_by_id(REPLACEMENT_FEATURE_ID)
+    legacy_feature_required = bool(getattr(legacy_feature, "required", False)) if legacy_feature else False
+    replacement_feature_required = bool(getattr(replacement_feature, "required", False)) if replacement_feature else False
+    if legacy_feature is None:
+        errors.append(f"legacy feature {LEGACY_FEATURE_ID} is missing")
+    if replacement_feature is None:
+        errors.append(f"replacement feature {REPLACEMENT_FEATURE_ID} is missing")
+    elif replacement_feature.bit != int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH):
+        errors.append(
+            f"replacement feature {REPLACEMENT_FEATURE_ID} must keep bit "
+            f"{int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH)}, got {replacement_feature.bit}"
+        )
+
+    replacement_code_errors = [
+        error for slug, code in REPLACEMENT_CANDIDATE_CODES.items() for error in validate_replacement_candidate_code(slug, code)
+    ]
+    errors.extend(replacement_code_errors)
+    replacement_codes_exclude_legacy_bits = all(
+        not (ModCode(code) & ModCode.CHEAT) and not (ModCode(code) & ModCode.CSD)
+        for code in REPLACEMENT_CANDIDATE_CODES.values()
+    )
+    if not replacement_codes_exclude_legacy_bits:
+        errors.append("replacement candidate codes must exclude legacy cheat_csd and reserved CSD bits")
+
+    modloader_entries = list(getattr(build_config, "modloader_mods", []) or [])
+    mods_by_key = {_mod_key(mod): mod for mod in modloader_entries}
+    legacy_entries = [mods_by_key.get(key) for key in LEGACY_MODLOADER_MOD_KEYS]
+    replacement_entries = [mods_by_key.get(key) for key in REPLACEMENT_MODLOADER_MOD_KEYS]
+
+    if any(entry is None for entry in legacy_entries):
+        missing = [key for key, entry in zip(LEGACY_MODLOADER_MOD_KEYS, legacy_entries) if entry is None]
+        errors.append(f"legacy rollback modloader entries are missing: {missing}")
+    legacy_modloader_entries_retained_disabled = all(
+        entry is not None
+        and bool(getattr(entry, "enabled", True)) is False
+        and LEGACY_FEATURE_ID in _feature_ids_for_mod(entry)
+        for entry in legacy_entries
+    )
+    if not legacy_modloader_entries_retained_disabled:
+        errors.append("legacy BJX/BCCM rollback entries must be retained, disabled, and tied to cheat_csd")
+
+    if any(entry is None for entry in replacement_entries):
+        missing = [key for key, entry in zip(REPLACEMENT_MODLOADER_MOD_KEYS, replacement_entries) if entry is None]
+        errors.append(f"replacement modloader entries are missing: {missing}")
+    replacement_mods_present_enabled = all(
+        entry is not None
+        and bool(getattr(entry, "enabled", True)) is True
+        and REPLACEMENT_FEATURE_ID in _feature_ids_for_mod(entry)
+        for entry in replacement_entries
+    )
+    if not replacement_mods_present_enabled:
+        errors.append("maplebirch and cheatExtended must be enabled behind cheat_extended_maplebirch")
+
+    mod_order = [_mod_key(mod) for mod in modloader_entries]
+    maplebirch_before_cheat_extended = False
+    if "maplebirch" in mod_order and "cheat_extended" in mod_order:
+        maplebirch_before_cheat_extended = mod_order.index("maplebirch") < mod_order.index("cheat_extended")
+    if not maplebirch_before_cheat_extended:
+        errors.append("maplebirch must be injected before cheatExtended")
+
+    base_entries = list(getattr(build_config, "base_mods", []) or [])
+    base_mod_keys = {_mod_key(mod) for mod in base_entries}
+    legacy_base_mods_absent = not any(key in base_mod_keys for key in LEGACY_BASE_MOD_KEYS)
+
+    checks = {
+        "default_matrix_unchanged": default_matrix_unchanged,
+        "legacy_feature_present": legacy_feature is not None,
+        "replacement_feature_present": replacement_feature is not None,
+        "replacement_codes_valid": not replacement_code_errors,
+        "replacement_codes_exclude_legacy_bits": replacement_codes_exclude_legacy_bits,
+        "legacy_modloader_entries_retained_disabled": legacy_modloader_entries_retained_disabled,
+        "legacy_base_mods_absent": legacy_base_mods_absent,
+        "replacement_mods_present_enabled": replacement_mods_present_enabled,
+        "maplebirch_before_cheat_extended": maplebirch_before_cheat_extended,
+    }
+
+    return {
+        "success": not errors,
+        "gate_level": PARTIAL_GATE_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "default_migration_allowed": False,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+        "legacy_cheat_stack_included": False,
+        "legacy_entries_retained_for_rollback": True,
+        "legacy_feature": {
+            "id": LEGACY_FEATURE_ID,
+            "present": legacy_feature is not None,
+            "required": legacy_feature_required,
+        },
+        "replacement_feature": {
+            "id": REPLACEMENT_FEATURE_ID,
+            "present": replacement_feature is not None,
+            "required": replacement_feature_required,
+            "bit": int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
+        },
+        "legacy_stable_codes": DEFAULT_STABLE_CODES,
+        "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+        "framework_candidate_codes": CANDIDATE_CODES,
+        "default_build_codes": list(combinations.build_codes),
+        "checks": checks,
+        "legacy_base_mod_keys": sorted(base_mod_keys & set(LEGACY_BASE_MOD_KEYS)),
+        "legacy_modloader_rollback_entries": [_summarize_mod_entry(entry) for entry in legacy_entries if entry is not None],
+        "replacement_modloader_entries": [_summarize_mod_entry(entry) for entry in replacement_entries if entry is not None],
+        "promotion_policy": {
+            "required_gate_level": FULL_GATE_LEVEL,
+            "same_head_sha_successful_runs": PROMOTION_REQUIRED_GREEN_RUNS,
+        },
+        "notes": [
+            "Replacement candidate codes remove legacy cheat_csd bit 2 and keep AU variants covered.",
+            "This report does not authorize default migration; use check-promotion after full gate evidence.",
+        ],
+        "errors": errors,
     }
 
 
@@ -1905,6 +2082,11 @@ def summarize_phase1a_gate(
     """
     reports = {
         "config": _summarize_report(gate_dir, PHASE1A_CONFIG_REPORT, "simple"),
+        "stable_replacement_readiness": _summarize_report(
+            gate_dir,
+            STABLE_REPLACEMENT_READINESS_REPORT,
+            "simple",
+        ),
         "zip_build": _summarize_report(gate_dir, ZIP_BUILD_REPORT, "build"),
         "apk_build": _summarize_report(gate_dir, APK_BUILD_REPORT, "build"),
         "zip_audit": _summarize_report(gate_dir, ZIP_AUDIT_REPORT, "simple"),
@@ -2011,6 +2193,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     validate_parser = subparsers.add_parser("validate-config", help="Validate static Phase 1A config invariants")
     validate_parser.add_argument("--output", type=Path)
 
+    readiness_parser = subparsers.add_parser(
+        "stable-replacement-readiness",
+        help="Report no-legacy-cheat stable replacement readiness without mutating defaults",
+    )
+    readiness_parser.add_argument("--output", type=Path, default=_gate_dir() / STABLE_REPLACEMENT_READINESS_REPORT)
+
     build_parser = subparsers.add_parser("build", help="Build explicit candidate artifacts")
     build_parser.add_argument("--pack-type", choices=("zip", "apk"), default="zip")
     build_parser.add_argument("--workspace", type=Path, default=Path("."))
@@ -2087,6 +2275,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "validate-config":
         payload = validate_static_config()
+        if args.output:
+            _write_json(args.output, payload)
+        else:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0 if payload["success"] else 1
+    if args.command == "stable-replacement-readiness":
+        payload = build_stable_replacement_readiness()
         if args.output:
             _write_json(args.output, payload)
         else:

@@ -43,6 +43,11 @@ jobs:
           python tools/baseline_candidate_gate.py validate-config \
             --output "${GATE_DIR}/baseline-candidate-config.json"
 
+      - name: Check stable replacement readiness
+        run: |
+          python tools/baseline_candidate_gate.py stable-replacement-readiness \
+            --output "${GATE_DIR}/baseline-candidate-stable-replacement-readiness.json"
+
       - name: Prepare game packages
         run: python main.py prepare --workspace "${{ github.workspace }}" -v
 

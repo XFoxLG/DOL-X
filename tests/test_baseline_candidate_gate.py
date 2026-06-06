@@ -27,15 +27,18 @@ from tools.baseline_candidate_gate import (
     PARTIAL_GATE_LEVEL,
     REPLACEMENT_CANDIDATE_CODES,
     REPLACEMENT_CANDIDATE_PURPOSE,
+    STABLE_REPLACEMENT_READINESS_REPORT,
     WEBVIEW_DEBUG_INVOKE,
     ZIP_AUDIT_REPORT,
     ZIP_BROWSER_SUMMARY,
     ZIP_BUILD_REPORT,
     audit_apk_equivalence_target,
     audit_apk_target,
+    build_stable_replacement_readiness,
     check_phase2_promotion,
     derive_debug_apk_target,
     build_manifest,
+    parse_args,
     summarize_apk_cdp_smoke_reports,
     summarize_browser_reports,
     summarize_phase1a_gate,
@@ -192,6 +195,65 @@ def test_replacement_candidate_codes_exclude_legacy_cheat_stack_without_changing
     assert "legacy cheat_csd bit 2" in "; ".join(
         validate_replacement_candidate_code("base", CANDIDATE_CODES["base"])
     )
+
+
+@pytest.mark.config
+def test_stable_replacement_readiness_reports_soft_replacement_boundary():
+    payload = build_stable_replacement_readiness()
+
+    assert payload["success"] is True
+    assert payload["gate_level"] == PARTIAL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["default_migration_allowed"] is False
+    assert payload["provider"] == MAPLEBIRCH_PROVIDER
+    assert payload["purpose"] == REPLACEMENT_CANDIDATE_PURPOSE
+    assert payload["legacy_cheat_stack_included"] is False
+    assert payload["legacy_entries_retained_for_rollback"] is True
+    assert payload["candidate_codes"] == REPLACEMENT_CANDIDATE_CODES
+    assert payload["framework_candidate_codes"] == CANDIDATE_CODES
+    assert payload["legacy_stable_codes"] == {
+        "base": 24834,
+        "au-f": 25858,
+        "au-m": 26882,
+        "au-a": 28930,
+    }
+    assert payload["checks"] == {
+        "default_matrix_unchanged": True,
+        "legacy_feature_present": True,
+        "replacement_feature_present": True,
+        "replacement_codes_valid": True,
+        "replacement_codes_exclude_legacy_bits": True,
+        "legacy_modloader_entries_retained_disabled": True,
+        "legacy_base_mods_absent": True,
+        "replacement_mods_present_enabled": True,
+        "maplebirch_before_cheat_extended": True,
+    }
+    assert payload["legacy_base_mod_keys"] == []
+    assert {entry["key"] for entry in payload["legacy_modloader_rollback_entries"]} == {
+        "bjx_word_unlock",
+        "bjx_portable_word",
+        "bccm",
+    }
+    assert all(entry["enabled"] is False for entry in payload["legacy_modloader_rollback_entries"])
+    assert all(entry["feature_id"] == "cheat_csd" for entry in payload["legacy_modloader_rollback_entries"])
+    assert [entry["key"] for entry in payload["replacement_modloader_entries"]] == [
+        "maplebirch",
+        "cheat_extended",
+    ]
+    assert all(entry["enabled"] is True for entry in payload["replacement_modloader_entries"])
+    assert all(
+        entry["feature_id"] == "cheat_extended_maplebirch" for entry in payload["replacement_modloader_entries"]
+    )
+    assert payload["errors"] == []
+
+
+@pytest.mark.config
+def test_stable_replacement_readiness_cli_is_exposed():
+    args = parse_args(["stable-replacement-readiness"])
+
+    assert args.command == "stable-replacement-readiness"
+    assert args.output.name == STABLE_REPLACEMENT_READINESS_REPORT
 
 
 @pytest.mark.config
@@ -497,8 +559,11 @@ def test_phase1a_summary_records_missing_required_reports(tmp_path):
     assert payload["default_matrix_mutated"] is False
     assert payload["head_sha"] == "abc123"
     assert payload["run_id"] == "42"
+    assert payload["reports"]["stable_replacement_readiness"]["exists"] is False
+    assert "stable_replacement_readiness" in payload["missing_reports"]
     assert payload["reports"]["zip_build"]["exists"] is False
     assert "zip_build" in payload["missing_reports"]
+    assert f"missing required report: {STABLE_REPLACEMENT_READINESS_REPORT}" in payload["errors"]
     assert f"missing required report: {ZIP_BUILD_REPORT}" in payload["errors"]
 
 
@@ -509,6 +574,7 @@ def test_phase1a_summary_requires_b1_component_reports(tmp_path):
     output = gate_dir / PHASE1A_SUMMARY
 
     _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_simple_success_report(gate_dir, STABLE_REPLACEMENT_READINESS_REPORT)
     _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
     _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
     _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
@@ -524,6 +590,7 @@ def test_phase1a_summary_requires_b1_component_reports(tmp_path):
     assert payload["default_matrix_mutated"] is False
     assert payload["missing_reports"] == ["apk_debug_derivation", "apk_equivalence"]
     assert payload["failed_reports"] == []
+    assert payload["reports"]["stable_replacement_readiness"]["filename"] == STABLE_REPLACEMENT_READINESS_REPORT
     assert payload["reports"]["apk_debug_derivation"]["filename"] == APK_DEBUG_REPORT
     assert payload["reports"]["apk_equivalence"]["filename"] == APK_EQUIVALENCE_REPORT
     assert f"missing required report: {APK_DEBUG_REPORT}" in payload["errors"]
@@ -537,6 +604,7 @@ def test_candidate_summary_accepts_b1_green_as_partial_when_b2_missing(tmp_path)
     output = gate_dir / PHASE1A_SUMMARY
 
     _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_simple_success_report(gate_dir, STABLE_REPLACEMENT_READINESS_REPORT)
     _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
     _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
     _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
@@ -554,6 +622,8 @@ def test_candidate_summary_accepts_b1_green_as_partial_when_b2_missing(tmp_path)
     assert payload["default_matrix_mutated"] is False
     assert payload["missing_reports"] == []
     assert payload["failed_reports"] == []
+    assert payload["reports"]["stable_replacement_readiness"]["present"] is True
+    assert payload["reports"]["stable_replacement_readiness"]["success"] is True
     assert payload["reports"]["apk_debug_derivation"]["filename"] == APK_DEBUG_REPORT
     assert payload["reports"]["apk_equivalence"]["filename"] == APK_EQUIVALENCE_REPORT
     assert payload["reports"]["apk_cdp_smoke"]["filename"] == APK_CDP_SMOKE_REPORT
@@ -581,6 +651,7 @@ def test_candidate_summary_promotes_to_full_gate_only_with_b2_runtime(tmp_path):
     output = gate_dir / PHASE1A_SUMMARY
 
     _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_simple_success_report(gate_dir, STABLE_REPLACEMENT_READINESS_REPORT)
     _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
     _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
     _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
@@ -599,6 +670,8 @@ def test_candidate_summary_promotes_to_full_gate_only_with_b2_runtime(tmp_path):
     assert payload["default_matrix_mutated"] is False
     assert payload["missing_reports"] == []
     assert payload["failed_reports"] == []
+    assert payload["reports"]["stable_replacement_readiness"]["present"] is True
+    assert payload["reports"]["stable_replacement_readiness"]["success"] is True
     assert payload["reports"]["apk_cdp_smoke"]["present"] is True
     assert payload["reports"]["apk_cdp_smoke"]["success"] is True
     assert payload["b2_runtime"]["present"] is True
@@ -612,6 +685,7 @@ def test_candidate_summary_rejects_failing_b2_runtime_without_phase2_promotion(t
     output = gate_dir / PHASE1A_SUMMARY
 
     _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_simple_success_report(gate_dir, STABLE_REPLACEMENT_READINESS_REPORT)
     _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
     _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
     _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
@@ -641,6 +715,8 @@ def test_candidate_summary_rejects_failing_b2_runtime_without_phase2_promotion(t
     assert payload["counts_for_phase2_promotion"] is False
     assert payload["missing_reports"] == []
     assert payload["failed_reports"] == ["apk_cdp_smoke"]
+    assert payload["reports"]["stable_replacement_readiness"]["present"] is True
+    assert payload["reports"]["stable_replacement_readiness"]["success"] is True
     assert payload["reports"]["apk_cdp_smoke"]["present"] is True
     assert payload["reports"]["apk_cdp_smoke"]["success"] is False
     assert payload["b2_runtime"]["present"] is True
