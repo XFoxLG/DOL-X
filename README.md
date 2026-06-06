@@ -1,4 +1,4 @@
-# DoL-Lyra 整合包发布仓库
+# DOL-X / XFox 自用整合包发布仓库
 
 ## 目录
 
@@ -19,7 +19,11 @@
 
 ### 关于本仓库
 
-本仓库是基于 [汉化仓库][github-chs] 制作的自动化打包仓库，使用 Github Actions 提供多种 Mod 组合可供选择，跟随汉化仓库更新
+DOL-X 是 XFox 自用整合包发布仓库，用于产出可直接下载的 ZIP/APK 整合包。
+
+本仓库基于 [汉化仓库][github-chs] 的汉化产物制作整合包，复用并同步 [DoL-Lyra/Lyra][github-lyra] 的构建/打包流程，使用 Github Actions 提供多种 Mod 组合可供选择，并跟随汉化仓库更新。
+
+[DoL-Lyra/Lyra][github-lyra] 是 DOL-X 的直接上游构建流程来源，不是本仓库的项目身份；DOL-X/XFox 才是本仓库当前维护和交付的自用整合包项目。
 
 **该仓库并非 DoL 或汉化组官方发布渠道**
 
@@ -176,7 +180,7 @@
 
 - 本整合包为完整游戏本体，请勿将压缩包作为 mod 在 modloader 内加载
 
-- 本整合包中 Android 端应用名称修改为 `DoL Lyra` 且与原版及汉化版共存，请使用导出存档功能转移存档
+- 本整合包中 Android 端应用名称修改为 `DoL XFox`，包名为 `com.vrelnir.dol.xfox`，且与原版及汉化版共存，请使用导出存档功能转移存档
 
 - 根据汉化仓库中的 [免责声明](https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/blob/main/README.md#%E5%85%8D%E8%B4%A3%E5%A3%B0%E6%98%8E)
 
