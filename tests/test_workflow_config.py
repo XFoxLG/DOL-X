@@ -84,6 +84,9 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
     assert "workflow_dispatch:" in workflow
     assert "phase1a-candidate-gate:" in workflow
     assert 'CANDIDATE_CODES: "57602,58626,59650,61698"' in workflow
+    assert "Check stable replacement readiness" in workflow
+    assert "stable-replacement-readiness" in workflow
+    assert "baseline-candidate-stable-replacement-readiness.json" in workflow
     assert "Build candidate ZIP artifacts" in workflow
     assert "Build candidate APK artifacts" in workflow
     assert workflow.count("python tools/baseline_candidate_gate.py build") == 2
@@ -145,6 +148,8 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/**" in workflow
 
     assert "Run candidate APK browser smokes" not in workflow
+    assert workflow.index("Check stable replacement readiness") > workflow.index("Validate Phase 1A static config")
+    assert workflow.index("Check stable replacement readiness") < workflow.index("Prepare game packages")
     assert workflow.index("Run candidate APK CDP smokes") > workflow.index("Audit release/debug APK equivalence")
 
     assert "Baseline Candidate Gate" not in build_workflow
