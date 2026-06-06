@@ -316,6 +316,49 @@ def test_browser_smoke_non_canary_artifact_keeps_branch_profile_guard(tmp_path):
 
 
 @pytest.mark.config
+def test_browser_smoke_explicit_canary_gate_can_allow_branch_profile_mismatch(tmp_path):
+    report = BrowserSmokeReport(
+        target="maplebirch-version-gate-reports",
+        profile="ucb-cheat-extended-maplebirch",
+        report_only=True,
+        ci_context={
+            "workflow_head_branch": "vega",
+            "artifact_name": "maplebirch-version-gate-reports",
+        },
+    )
+    target = tmp_path / "maplebirch-version-gate-reports"
+    html_path = (
+        target
+        / "DoL-0.5.8.10-XFox-3.1.3a-ucb-cheat-extended-maplebirch-33024"
+        / "Degrees of Lewdity.html"
+    )
+
+    identity = _record_package_identity(
+        report,
+        PROFILES[report.profile],
+        target,
+        html_path,
+        allow_branch_profile_mismatch=True,
+    )
+
+    assert identity["expected_profile_for_branch"] == "ucb-more-love-custom-spellbook"
+    assert identity["expected_profile_for_artifact"] is None
+    assert identity["expected_profile_source"] == "branch"
+    assert identity["branch_profile_mismatch_allowed"] is True
+    assert identity["branch_profile_match"] is True
+    assert identity["profile_slug_match"] is True
+    assert not [issue for issue in report.issues if issue.kind == "branch_profile_mismatch"]
+
+
+@pytest.mark.config
+def test_browser_smoke_canary_gate_profile_override_is_explicit():
+    args = parse_args(["dummy.zip", "--allow-branch-profile-mismatch"])
+
+    assert args.allow_branch_profile_mismatch is True
+    assert parse_args(["dummy.zip"]).allow_branch_profile_mismatch is False
+
+
+@pytest.mark.config
 @pytest.mark.parametrize("branch", ["vega", "experiment/cheat-extended-maplebirch"])
 def test_browser_smoke_baseline_candidate_artifact_uses_candidate_profile_override(branch, tmp_path):
     report = BrowserSmokeReport(

@@ -118,6 +118,8 @@ class SmokeEvidenceSummary:
     maplebirch_framework_missing_issue_count: int = 0
     simple_framework_lookup_issue_count: int = 0
     high_risk_messages: list[str] = field(default_factory=list)
+    high_risk_issue_kinds: list[str] = field(default_factory=list)
+    high_risk_issue_sources: list[str] = field(default_factory=list)
     browser_success: bool | None = None
     game_ready: bool | None = None
     playable_passage: str | None = None
@@ -456,6 +458,8 @@ def summarize_smoke_evidence(
             message = str(issue.get("message") or "")
             if issue.get("severity") == "high":
                 summary.high_risk_messages.append(message)
+                summary.high_risk_issue_kinds.append(str(issue.get("kind") or ""))
+                summary.high_risk_issue_sources.append(str(issue.get("source") or ""))
             if issue.get("kind") == "maplebirch_framework_missing":
                 summary.maplebirch_framework_missing_issue_count += 1
             if "Simple Frameworks" in message and (
@@ -597,12 +601,26 @@ def classify_root_cause(
             or smoke_evidence.enter_game_success is True
             or smoke_evidence.playable_passage
         )
+        non_runtime_high_risk_kinds = {
+            "branch_profile_mismatch",
+            "package_forbidden_slug_token_present",
+        }
+        runtime_blocking_high_risk = [
+            kind
+            for kind in smoke_evidence.high_risk_issue_kinds
+            if kind not in non_runtime_high_risk_kinds
+        ]
         if (
             simple_framework_alias_resolved
             and smoke_evidence.maplebirch_framework_global_observed
-            and not smoke_evidence.high_risk_messages
+            and not runtime_blocking_high_risk
             and playable
         ):
+            if smoke_evidence.high_risk_messages:
+                notes.append(
+                    "non-runtime high-risk smoke findings were ignored for alias resolution: "
+                    f"{smoke_evidence.high_risk_issue_kinds}."
+                )
             notes.append(
                 "Simple Frameworks lookup warnings resolved to maplebirch at runtime and did not block playability."
             )
