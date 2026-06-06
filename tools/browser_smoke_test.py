@@ -46,6 +46,7 @@ class SmokeProfile:
     required_globals: tuple[str, ...] = ()
     warning_globals: tuple[str, ...] = ()
     diagnostic_globals: tuple[str, ...] = ()
+    diagnostic_mod_names: tuple[str, ...] = ()
     click_selectors: tuple[str, ...] = ()
     dialog_password: str | None = None
 
@@ -54,6 +55,11 @@ CHEAT_EXTENDED_RUNTIME_GLOBALS: tuple[str, ...] = (
     "maplebirchFrameworks",
     "CE_options",
     "SCMLSimpleFramework",
+)
+
+CHEAT_EXTENDED_RUNTIME_MOD_PROBES: tuple[str, ...] = (
+    "maplebirch",
+    "Simple Frameworks",
 )
 
 
@@ -81,6 +87,7 @@ PROFILES: dict[str, SmokeProfile] = {
             "Lyra",
         ),
         diagnostic_globals=CHEAT_EXTENDED_RUNTIME_GLOBALS,
+        diagnostic_mod_names=CHEAT_EXTENDED_RUNTIME_MOD_PROBES,
     ),
     "ucb-more-love-custom-spellbook-cheat-extended-maplebirch": SmokeProfile(
         name="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
@@ -95,6 +102,7 @@ PROFILES: dict[str, SmokeProfile] = {
         ),
         warning_globals=("spellBookMobileClicked",),
         diagnostic_globals=CHEAT_EXTENDED_RUNTIME_GLOBALS,
+        diagnostic_mod_names=CHEAT_EXTENDED_RUNTIME_MOD_PROBES,
         click_selectors=('[onclick*="spellBookMobileClicked"]',),
         dialog_password="DOL-Custom-Spellbook-Mod",
     ),
@@ -625,10 +633,45 @@ def _check_required_mods(
 
 def _page_state_script(global_names: tuple[str, ...]) -> str:
     return """
-    (globalNames) => {
+    (probeConfig) => {
+      const globalNames = Array.isArray(probeConfig) ? probeConfig : (probeConfig.globalNames || []);
+      const modNames = Array.isArray(probeConfig) ? [] : (probeConfig.modNames || []);
       const globals = {};
       for (const name of globalNames) {
         globals[name] = typeof window[name];
+      }
+      const modUtilsAvailable = Boolean(
+        window.modUtils && typeof window.modUtils.getMod === 'function'
+      );
+      const modProbeResults = {};
+      for (const name of modNames) {
+        const result = {
+          available: false,
+          type: 'undefined',
+          error: null,
+          name: null,
+          version: null,
+        };
+        try {
+          if (!modUtilsAvailable) {
+            result.error = 'window.modUtils.getMod unavailable';
+          } else {
+            const mod = window.modUtils.getMod(name);
+            result.type = typeof mod;
+            result.available = Boolean(mod);
+            if (mod && typeof mod === 'object') {
+              const info = mod.modInfo || mod.bootJson || mod.bootJsonCache || mod;
+              if (info && typeof info === 'object') {
+                result.name = info.name || info.modName || info.id || null;
+                result.version = info.version || null;
+              }
+            }
+          }
+        } catch (error) {
+          result.type = 'error';
+          result.error = String(error && (error.message || error));
+        }
+        modProbeResults[name] = result;
       }
       return {
         title: document.title,
@@ -641,6 +684,10 @@ def _page_state_script(global_names: tuple[str, ...]) -> str:
           ? window.modDataValueZipList.length
           : null,
         globals,
+        modProbes: {
+          modUtilsAvailable,
+          results: modProbeResults,
+        },
       };
     }
     """
@@ -1663,9 +1710,12 @@ def _run_playwright(
             except PlaywrightError:
                 return None
 
-        def safe_page_state(global_names: tuple[str, ...]) -> dict[str, Any]:
+        def safe_page_state(global_names: tuple[str, ...], mod_names: tuple[str, ...] = ()) -> dict[str, Any]:
             try:
-                return page.evaluate(_page_state_script(global_names), list(global_names))
+                return page.evaluate(
+                    _page_state_script(global_names),
+                    {"globalNames": list(global_names), "modNames": list(mod_names)},
+                )
             except PlaywrightError as exc:
                 return {"error": str(exc), "url": page.url}
 
@@ -1879,6 +1929,7 @@ def _run_playwright(
         global_names = tuple(
             dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
         )
+        mod_probe_names = tuple(profile.diagnostic_mod_names)
 
         navigation_ok = False
         try:
@@ -1901,7 +1952,7 @@ def _run_playwright(
             _add_issue(report, Issue("warning", "startup_interaction_check_error", "runner", str(exc)))
 
         try:
-            page_state = safe_page_state(global_names)
+            page_state = safe_page_state(global_names, mod_probe_names)
             report.observations["page_state"] = page_state
             if "error" in page_state:
                 raise PlaywrightError(page_state["error"])
@@ -1909,6 +1960,7 @@ def _run_playwright(
             report.observations["runtime_globals"] = {
                 global_name: global_types.get(global_name) for global_name in profile.diagnostic_globals
             }
+            report.observations["runtime_mod_probes"] = page_state.get("modProbes", {}) or {}
             for global_name, global_type in global_types.items():
                 if global_type == "function":
                     continue
@@ -1984,7 +2036,7 @@ def _run_playwright(
                 page.wait_for_timeout(2_000)
                 with contextlib.suppress(PlaywrightTimeoutError):
                     page.wait_for_load_state("domcontentloaded", timeout=3_000)
-                reread_state = safe_page_state(global_names)
+                reread_state = safe_page_state(global_names, mod_probe_names)
                 stability_retry["page_state_after_wait"] = reread_state
                 if "error" not in reread_state:
                     report.observations["page_state"] = reread_state
@@ -1992,6 +2044,7 @@ def _run_playwright(
                         global_name: (reread_state.get("globals", {}) or {}).get(global_name)
                         for global_name in profile.diagnostic_globals
                     }
+                    report.observations["runtime_mod_probes"] = reread_state.get("modProbes", {}) or {}
                 try:
                     reread_game_ready = page.evaluate(_game_ready_script())
                 except PlaywrightError as exc:
@@ -2089,7 +2142,7 @@ def _run_playwright(
                 )
         report.observations["click_results"] = click_results
         report.observations["browser_popups"] = browser_popups
-        report.observations["final_page_state"] = safe_page_state(global_names)
+        report.observations["final_page_state"] = safe_page_state(global_names, mod_probe_names)
 
         if screenshot_dir is not None:
             screenshot_path = screenshot_dir / "browser-smoke-final.png"
