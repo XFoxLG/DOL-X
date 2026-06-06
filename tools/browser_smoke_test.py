@@ -479,6 +479,8 @@ def _record_package_identity(
     profile: SmokeProfile,
     target: Path,
     html_path: Path,
+    *,
+    allow_branch_profile_mismatch: bool = False,
 ) -> dict[str, Any]:
     package_slug = _package_slug_from_paths(target, html_path)
     normalized_slug = package_slug.lower().replace("_", "-")
@@ -493,7 +495,9 @@ def _record_package_identity(
     forbidden_tokens = slug_expectations.get("forbidden", ())
     missing_required = [token for token in required_tokens if token not in normalized_slug]
     forbidden_present = [token for token in forbidden_tokens if token in normalized_slug]
-    branch_profile_match = expected_profile is None or expected_profile == profile.name
+    branch_profile_match = (
+        expected_profile is None or expected_profile == profile.name or allow_branch_profile_mismatch
+    )
     profile_slug_match = not missing_required and not forbidden_present
 
     identity = {
@@ -505,6 +509,7 @@ def _record_package_identity(
         "expected_profile_for_branch": expected_profile_for_branch,
         "expected_profile_for_artifact": expected_profile_for_artifact,
         "expected_profile_source": expected_profile_source,
+        "branch_profile_mismatch_allowed": allow_branch_profile_mismatch,
         "branch_profile_match": branch_profile_match,
         "required_slug_tokens": list(required_tokens),
         "missing_required_slug_tokens": missing_required,
@@ -514,7 +519,7 @@ def _record_package_identity(
     }
     report.observations["package_identity"] = identity
 
-    if expected_profile is not None and expected_profile != profile.name:
+    if expected_profile is not None and expected_profile != profile.name and not allow_branch_profile_mismatch:
         _add_issue(
             report,
             Issue(
@@ -2540,7 +2545,13 @@ def run_browser_smoke(args: argparse.Namespace) -> BrowserSmokeReport:
             html_content = html_path.read_text(encoding="utf-8", errors="replace")
             embedded_mods = extract_embedded_mods_from_html(html_content)
             report.observations["embedded_mods"] = [asdict(info) for info in embedded_mods]
-            _record_package_identity(report, profile, Path(args.target), html_path)
+            _record_package_identity(
+                report,
+                profile,
+                Path(args.target),
+                html_path,
+                allow_branch_profile_mismatch=args.allow_branch_profile_mismatch,
+            )
             _record_static_asset_audit(report, serve_dir)
 
             with _serve_directory(serve_dir) as server:
@@ -2576,6 +2587,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--report-only",
         action="store_true",
         help="Write high-risk findings but exit 0 so CI remains non-blocking",
+    )
+    parser.add_argument(
+        "--allow-branch-profile-mismatch",
+        action="store_true",
+        help="Allow a canary gate to run a non-default profile on a guarded branch",
     )
     parser.add_argument("--timeout-ms", type=int, default=60_000, help="Browser navigation timeout")
     parser.add_argument("--settle-ms", type=int, default=5_000, help="Wait after initial page load")
