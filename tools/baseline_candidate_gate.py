@@ -60,8 +60,15 @@ DEFAULT_STABLE_CODES: dict[str, int] = {
     "au-a": 28930,
 }
 DEFAULT_STABLE_CODE_ORDER: tuple[str, ...] = ("base", "au-f", "au-m", "au-a")
+MAPLEBIRCH_PROVIDER = "maplebirch"
+FRAMEWORK_CANDIDATE_PURPOSE = "framework_candidate"
+REPLACEMENT_CANDIDATE_PURPOSE = "cheat_extended_replacement"
 CANDIDATE_CODES: dict[str, int] = {
     slug: code + int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH)
+    for slug, code in DEFAULT_STABLE_CODES.items()
+}
+REPLACEMENT_CANDIDATE_CODES: dict[str, int] = {
+    slug: (code & ~int(ModCode.CHEAT)) + int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH)
     for slug, code in DEFAULT_STABLE_CODES.items()
 }
 AU_BITS_BY_SLUG: dict[str, ModCode] = {
@@ -71,6 +78,12 @@ AU_BITS_BY_SLUG: dict[str, ModCode] = {
 }
 BASE_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("cheat_csd compatibility identity", ModCode.CHEAT),
+    ("ucb", ModCode.UCB),
+    ("more_love", ModCode.MORE_LOVE),
+    ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
+    ("cheat_extended_maplebirch", ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
+)
+REPLACEMENT_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("ucb", ModCode.UCB),
     ("more_love", ModCode.MORE_LOVE),
     ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
@@ -119,6 +132,10 @@ class CandidateTarget:
     slug: str
     legacy_code: int
     code: int
+    provider: str
+    purpose: str
+    replacement_candidate_code: int
+    legacy_cheat_stack_included: bool
     pack_type: str
     smoke_profile: str
     expected_slug_tokens: list[str]
@@ -319,6 +336,33 @@ def validate_candidate_code(slug: str, code: int) -> list[str]:
     return errors
 
 
+def validate_replacement_candidate_code(slug: str, code: int) -> list[str]:
+    """Return errors for a no-legacy-cheat replacement candidate code."""
+    errors: list[str] = []
+    expected_code = REPLACEMENT_CANDIDATE_CODES.get(slug)
+    if expected_code is None:
+        return [f"unknown replacement candidate slug: {slug}"]
+    if code != expected_code:
+        errors.append(f"{slug} replacement candidate code must be {expected_code}, got {code}")
+
+    mod_code = ModCode(code)
+    for label, bit in REPLACEMENT_REQUIRED_BITS:
+        if not mod_code & bit:
+            errors.append(f"replacement candidate code must include {label} bit {int(bit)}")
+    for label, bit in (("legacy cheat_csd", ModCode.CHEAT), ("reserved CSD", ModCode.CSD)):
+        if mod_code & bit:
+            errors.append(f"replacement candidate code must not include {label} bit {int(bit)}")
+
+    enabled_au = [variant for variant, bit in AU_BITS_BY_SLUG.items() if mod_code & bit]
+    if slug == "base" and enabled_au:
+        errors.append(f"base replacement candidate must not include AU bits: {enabled_au}")
+    elif slug != "base":
+        if enabled_au != [slug]:
+            errors.append(f"{slug} replacement candidate must include only its own AU bit, got {enabled_au}")
+
+    return errors
+
+
 def make_candidate_target(slug: str, pack_type: str = "zip") -> CandidateTarget:
     """Create a manifest target for one candidate artifact."""
     if slug not in CANDIDATE_CODES:
@@ -336,6 +380,10 @@ def make_candidate_target(slug: str, pack_type: str = "zip") -> CandidateTarget:
         slug=slug,
         legacy_code=DEFAULT_STABLE_CODES[slug],
         code=code,
+        provider=MAPLEBIRCH_PROVIDER,
+        purpose=FRAMEWORK_CANDIDATE_PURPOSE,
+        replacement_candidate_code=REPLACEMENT_CANDIDATE_CODES[slug],
+        legacy_cheat_stack_included=True,
         pack_type=pack_type,
         smoke_profile=PROFILE,
         expected_slug_tokens=_expected_slug_tokens(slug),
@@ -373,7 +421,22 @@ def build_manifest(pack_type: str = "zip") -> dict[str, Any]:
         "default_matrix_mutated": False,
         "default_build_codes": list(config_loader.combinations.build_codes),
         "legacy_stable_codes": DEFAULT_STABLE_CODES,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": FRAMEWORK_CANDIDATE_PURPOSE,
         "candidate_codes": CANDIDATE_CODES,
+        "legacy_cheat_stack_included": True,
+        "replacement_candidate": {
+            "provider": MAPLEBIRCH_PROVIDER,
+            "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+            "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+            "legacy_cheat_stack_included": False,
+            "default_matrix_mutated": False,
+            "legacy_entries_retained_for_rollback": True,
+            "notes": [
+                "Prepared replacement candidate codes exclude the legacy cheat_csd bit 2.",
+                "Phase 1A/B2 still keeps default build_codes and legacy mod entries unchanged.",
+            ],
+        },
         "candidate_feature_bit": int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
         "smoke_profile": PROFILE,
         "promotion_policy": {
@@ -438,10 +501,22 @@ def validate_static_config() -> dict[str, Any]:
 
     for slug, code in CANDIDATE_CODES.items():
         errors.extend(validate_candidate_code(slug, code))
+    for slug, code in REPLACEMENT_CANDIDATE_CODES.items():
+        errors.extend(validate_replacement_candidate_code(slug, code))
 
     return {
         "success": not errors,
         "errors": errors,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": FRAMEWORK_CANDIDATE_PURPOSE,
+        "replacement_candidate": {
+            "provider": MAPLEBIRCH_PROVIDER,
+            "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+            "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+            "legacy_cheat_stack_included": False,
+            "legacy_entries_retained_for_rollback": True,
+            "default_matrix_mutated": False,
+        },
         "manifest": build_manifest(),
     }
 
@@ -1477,7 +1552,9 @@ def audit_candidate_apk(apk_path: Path) -> CandidateApkAuditRecord:
         "profile": PROFILE,
     }
 
-    warnings.append("Phase 1A APK audit is static; emulator/CDP WebView validation remains Phase 1B")
+    warnings.append(
+        "Phase 1A APK audit is static; Android emulator/WebView CDP runtime validation is reported separately"
+    )
     return CandidateApkAuditRecord(
         slug=slug,
         code=code,
@@ -1649,6 +1726,101 @@ def summarize_browser_reports(reports_dir: Path, output: Path) -> int:
     return 0 if success else 1
 
 
+def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
+    """Summarize strict Android emulator/WebView CDP smoke reports for all candidate APKs."""
+    summaries: list[dict[str, Any]] = []
+    expected_scope = {
+        "platform": "Android emulator",
+        "webview_cdp": True,
+        "manual_phone_testing": False,
+        "harmonyos_covered": False,
+    }
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        smoke_path = Path(reports_dir) / slug / "apk-emulator-smoke.json"
+        entry: dict[str, Any] = {
+            "slug": slug,
+            "code": CANDIDATE_CODES[slug],
+            "smoke_path": str(smoke_path),
+            "success": False,
+            "errors": [],
+        }
+        if not smoke_path.exists():
+            entry["errors"].append(f"missing APK emulator/CDP smoke report: {smoke_path}")
+            summaries.append(entry)
+            continue
+
+        smoke = _load_json(smoke_path)
+        browser_summary = smoke.get("browser_summary", {}) or {}
+        issue_counts = browser_summary.get("issue_counts", {}) or {}
+        browser_diagnostics = browser_summary.get("browser_diagnostics", {}) or {}
+        game_ready = browser_summary.get("game_ready", {}) or {}
+        enter_game = browser_summary.get("enter_game", {}) or {}
+        startup_interactions = browser_summary.get("startup_interactions", {}) or {}
+        package_identity = browser_summary.get("package_identity", {}) or {}
+        runtime_scope = smoke.get("runtime_scope", {}) or {}
+        smoke_errors = [str(error) for error in smoke.get("errors", []) or []]
+        cdp_targets = smoke.get("cdp_targets", []) or []
+        checks = {
+            "success_true": smoke.get("success") is True,
+            "component_gate_level": smoke.get("gate_level") == FULL_GATE_COMPONENT_LEVEL,
+            "not_phase2_counting_component": smoke.get("counts_for_phase2_promotion") is False,
+            "default_matrix_unchanged": smoke.get("default_matrix_mutated") is False,
+            "android_emulator_scope": runtime_scope.get("platform") == expected_scope["platform"],
+            "webview_cdp_scope": runtime_scope.get("webview_cdp") is True,
+            "no_manual_phone_scope": runtime_scope.get("manual_phone_testing") is False,
+            "no_harmonyos_scope": runtime_scope.get("harmonyos_covered") is False,
+            "cdp_target_present": bool(cdp_targets),
+            "browser_success_true": browser_summary.get("success") is True,
+            "high_zero": int(issue_counts.get("high", 0) or 0) == 0,
+            "pageerrors_zero": int(browser_diagnostics.get("pageerror_count", 0) or 0) == 0,
+            "game_ready_true": game_ready.get("ready") is True,
+            "passage_orphanage_intro": game_ready.get("passage") == "Orphanage Intro",
+            "enter_game_success": enter_game.get("success") is True,
+            "startup_success": startup_interactions.get("success") is True,
+            "profile_slug_match": package_identity.get("profile_slug_match") is True,
+            "no_runner_errors": not smoke_errors,
+        }
+        entry.update(
+            {
+                "checks": checks,
+                "target": smoke.get("target"),
+                "package": smoke.get("package"),
+                "runtime_scope": runtime_scope,
+                "cdp_url": smoke.get("cdp_url"),
+                "cdp_socket": smoke.get("cdp_socket"),
+                "cdp_target_count": len(cdp_targets),
+                "high_count": int(issue_counts.get("high", 0) or 0),
+                "pageerror_count": int(browser_diagnostics.get("pageerror_count", 0) or 0),
+                "passage": game_ready.get("passage"),
+                "enter_game": enter_game,
+                "browser_summary_path": smoke.get("browser_summary_path"),
+                "browser_report_path": smoke.get("browser_report_path"),
+                "markdown_report_path": smoke.get("markdown_report_path"),
+                "logcat_path": smoke.get("logcat_path"),
+                "screenshot_path": smoke.get("screenshot_path"),
+            }
+        )
+        entry["success"] = all(checks.values())
+        if not entry["success"]:
+            entry["errors"].extend(key for key, value in checks.items() if not value)
+            entry["errors"].extend(smoke_errors)
+        summaries.append(entry)
+
+    success = bool(summaries) and all(summary["success"] for summary in summaries)
+    payload = {
+        "success": success,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "runtime_scope": expected_scope,
+        "results": summaries,
+    }
+    _write_json(output, payload)
+    for summary in summaries:
+        print(json.dumps({"slug": summary["slug"], "success": summary["success"], "errors": summary["errors"]}, ensure_ascii=False))
+    return 0 if success else 1
+
+
 def _build_report_success(payload: dict[str, Any]) -> bool:
     """Return success for helper build reports that cover all candidates."""
     if "success" in payload:
@@ -1725,7 +1897,12 @@ def summarize_phase1a_gate(
     head_sha: str | None = None,
     run_id: str | None = None,
 ) -> int:
-    """Write an always-run aggregate Phase 1A partial gate summary."""
+    """Write an always-run aggregate candidate gate summary.
+
+    Phase 1A/B1 reports remain enough for a partial candidate gate.  The B2
+    Android emulator/WebView CDP report promotes this summary to a full
+    candidate gate only when every candidate runtime smoke is green.
+    """
     reports = {
         "config": _summarize_report(gate_dir, PHASE1A_CONFIG_REPORT, "simple"),
         "zip_build": _summarize_report(gate_dir, ZIP_BUILD_REPORT, "build"),
@@ -1735,21 +1912,54 @@ def summarize_phase1a_gate(
         "apk_debug_derivation": _summarize_report(gate_dir, APK_DEBUG_REPORT, "simple"),
         "apk_equivalence": _summarize_report(gate_dir, APK_EQUIVALENCE_REPORT, "simple"),
         "zip_browser_summary": _summarize_report(gate_dir, ZIP_BROWSER_SUMMARY, "simple"),
+        "apk_cdp_smoke": _summarize_report(gate_dir, APK_CDP_SMOKE_REPORT, "simple"),
     }
-    missing_reports = [name for name, report in reports.items() if not report["present"]]
-    failed_reports = [name for name, report in reports.items() if report["present"] and not report["success"]]
-    errors = [error for report in reports.values() for error in report["errors"]]
-    success = not missing_reports and not failed_reports
+    b2_report_name = "apk_cdp_smoke"
+    required_report_names = [name for name in reports if name != b2_report_name]
+    missing_reports = [name for name in required_report_names if not reports[name]["present"]]
+    failed_reports = [name for name in required_report_names if reports[name]["present"] and not reports[name]["success"]]
+    b2_report = reports[b2_report_name]
+    b2_failed_reports = [b2_report_name] if b2_report["present"] and not b2_report["success"] else []
+    errors = [error for name in required_report_names for error in reports[name]["errors"]]
+    if b2_report["present"]:
+        errors.extend(b2_report["errors"])
+    partial_success = not missing_reports and not failed_reports
+    full_success = partial_success and b2_report["present"] and b2_report["success"]
+    success = partial_success and not b2_failed_reports
     payload = {
         "success": success,
-        "gate_level": PARTIAL_GATE_LEVEL,
-        "counts_for_phase2_promotion": False,
+        "gate_level": FULL_GATE_LEVEL if full_success else PARTIAL_GATE_LEVEL,
+        "counts_for_phase2_promotion": bool(full_success),
         "default_matrix_mutated": False,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": FRAMEWORK_CANDIDATE_PURPOSE,
+        "legacy_cheat_stack_included": True,
+        "replacement_candidate": {
+            "provider": MAPLEBIRCH_PROVIDER,
+            "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+            "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+            "legacy_cheat_stack_included": False,
+            "legacy_entries_retained_for_rollback": True,
+            "default_matrix_mutated": False,
+            "counts_for_phase2_promotion": False,
+        },
         "head_sha": head_sha,
         "run_id": run_id,
         "reports": reports,
         "missing_reports": missing_reports,
-        "failed_reports": failed_reports,
+        "failed_reports": failed_reports + b2_failed_reports,
+        "b2_runtime": {
+            "required_for_full_candidate_gate": True,
+            "present": b2_report["present"],
+            "success": b2_report["success"],
+            "report": b2_report_name,
+            "scope": {
+                "platform": "Android emulator",
+                "webview_cdp": True,
+                "manual_phone_testing": False,
+                "harmonyos_covered": False,
+            },
+        },
         "errors": errors,
     }
     _write_json(output, payload)
@@ -1845,6 +2055,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     browser_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "browser-smoke")
     browser_parser.add_argument("--output", type=Path, default=_gate_dir() / ZIP_BROWSER_SUMMARY)
 
+    apk_cdp_parser = subparsers.add_parser(
+        "summarize-apk-cdp",
+        help="Summarize strict candidate Android emulator/WebView CDP smoke reports",
+    )
+    apk_cdp_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "apk-cdp-smoke")
+    apk_cdp_parser.add_argument("--output", type=Path, default=_gate_dir() / APK_CDP_SMOKE_REPORT)
+
     phase1a_parser = subparsers.add_parser("summarize-phase1a", help="Summarize Phase 1A candidate gate reports")
     phase1a_parser.add_argument("--gate-dir", type=Path, default=_gate_dir())
     phase1a_parser.add_argument("--output", type=Path, default=_gate_dir() / PHASE1A_SUMMARY)
@@ -1890,6 +2107,8 @@ def main(argv: list[str] | None = None) -> int:
         return audit_apk_equivalence_target(args.release_target, args.debug_target, args.output)
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
+    if args.command == "summarize-apk-cdp":
+        return summarize_apk_cdp_smoke_reports(args.reports_dir, args.output)
     if args.command == "summarize-phase1a":
         return summarize_phase1a_gate(args.gate_dir, args.output, head_sha=args.head_sha, run_id=args.run_id)
     if args.command == "check-promotion":
