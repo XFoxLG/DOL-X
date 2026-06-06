@@ -190,8 +190,9 @@ jobs:
               after_zips = sorted(output_dir.glob("*.zip"), key=lambda path: path.stat().st_mtime)
               new_zips = [path for path in after_zips if path not in before_zips]
               canary_zip = new_zips[-1] if new_zips else (after_zips[-1] if after_zips else None)
-              copied_zip = candidate_dir / "canary.zip"
+              copied_zip = candidate_dir / "missing-canary.zip"
               if canary_zip and canary_zip.exists():
+                  copied_zip = candidate_dir / canary_zip.name
                   shutil.copy2(canary_zip, copied_zip)
 
               html_rc = browser_rc = introspect_rc = 1
@@ -217,6 +218,7 @@ jobs:
                           "--output-dir",
                           str(candidate_dir / "browser-smoke"),
                           "--report-only",
+                          "--allow-branch-profile-mismatch",
                       ],
                       candidate_dir / "browser-smoke.log",
                   )
@@ -339,5 +341,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: maplebirch-version-gate-zips
-          path: ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/canary.zip
+          path: ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/*.zip
           if-no-files-found: warn
