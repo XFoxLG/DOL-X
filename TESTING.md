@@ -17,7 +17,7 @@
 - ✓ 没有在线版配置
 - ✓ 基础版 (24834) 不包含 AU
 - ✓ AU 三版本包含对应 AU feature
-- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 旧作弊/CSD
+- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 项目本地旧 cheat/CSD 栈
 - ✓ 默认版本不包含 cheatExtended/maplebirch 实验 feature
 - ✓ AU 面部扩展配置正确
 - ✓ feature_ids 有效性
@@ -219,6 +219,30 @@ git push origin vega
 3. 点击 "Run workflow"
 4. 可选：勾选 "运行慢速测试"
 
+### Baseline Candidate Gate 手动触发（Phase 1A + B1 + B2 Android 自动运行时）
+
+1. 访问 https://github.com/XFoxLG/DOL-X/actions
+2. 选择 "Baseline Candidate Gate" workflow
+3. 点击 "Run workflow"
+4. 选择目标分支/SHA 后运行
+
+该 workflow 是手动候选门禁，不会修改默认构建矩阵，也不会进入普通 PR/push 路径。B2 运行时验证是全自动的 GitHub-hosted Android emulator / Android WebView CDP smoke，不需要也不包含人工手机测试。
+
+接受为候选门禁 green evidence 需要同时满足：
+
+- `baseline-candidate-config.json` 成功，且 `default_matrix_mutated=false`；
+- `baseline-candidate-zip-build.json` 和 `baseline-candidate-apk-build.json` 中 `base`、`au-f`、`au-m`、`au-a` 四个候选均成功；
+- `baseline-candidate-zip-audit.json` 和 `baseline-candidate-apk-audit.json` 均成功；
+- `baseline-candidate-zip-browser-summary.json` 中四个候选 ZIP browser smoke 均成功；
+- `baseline-candidate-apk-debug-derivation.json` 中四个 release-derived smoke-debug APK 均成功，且 `webview_debug_hook_applied=true`；
+- `baseline-candidate-apk-equivalence.json` 中 release/debug HTML、payload sha、payload names、required payloads 均匹配；
+- `baseline-candidate-apk-cdp-smoke.json` 中 `base`、`au-f`、`au-m`、`au-a` 四个 smoke-debug APK 的 emulator/WebView CDP smoke 均成功，且 `runtime_scope.platform="Android emulator"`、`webview_cdp=true`、`manual_phone_testing=false`、`harmonyos_covered=false`；
+- artifacts 包含 `baseline-candidate-zip-artifacts`、`baseline-candidate-apk-artifacts`、`baseline-candidate-apk-debug-artifacts`、`baseline-candidate-apk-cdp-smoke-reports`、`baseline-candidate-gate-reports`。
+
+只有当上述 ZIP、APK static、B1 debug/equivalence 与 B2 APK runtime 全部通过时，`baseline-candidate-phase1a-summary.json` 才会提升为 `gate_level=full_candidate_gate` 且 `counts_for_phase2_promotion=true`。即便如此，也仍然不得直接迁移默认矩阵；Phase 2 仍要求两个同一 head SHA 的 full candidate gate green。
+
+B2 覆盖范围仅限 Android emulator + Android WebView。该 gate 不声明 Huawei/Honor/HarmonyOS 5 兼容性，也不覆盖 HarmonyOS NEXT；不得把该 workflow 的 green 解释为人工真机或 Huawei/HarmonyOS 认证通过。
+
 ### 查看结果
 
 1. **Actions 页面**: https://github.com/XFoxLG/DOL-X/actions
@@ -283,7 +307,7 @@ git push origin vega
 17. `test_stable_base_mods_are_required` - 验证稳定主线 base mod 必需
 18. `test_modloader_gui_replaces_slot_0` - 验证 modloader_gui 配置
 19. `test_no_conflicting_feature_assignments` - 验证无 feature 冲突
-20. `test_cheat_extended_replacement_not_mixed_with_legacy_stack` - 验证 cheatExtended 替代栈不与旧作弊栈混装
+20. `test_cheat_extended_replacement_not_mixed_with_legacy_stack` - 验证 cheatExtended 替代栈不与项目本地旧 cheat/CSD 栈混装
 21. `test_cheat_extended_framework_choice_is_exclusive` - 验证 cheatExtended 框架选择互斥
 22. `test_cheat_extended_uses_dedicated_feature_when_configured` - 验证 cheatExtended 使用独立实验 feature
 
