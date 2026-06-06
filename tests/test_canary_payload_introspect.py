@@ -367,3 +367,81 @@ def test_build_report_classifies_resolved_simple_framework_alias_as_warning(tmp_
     assert report.root_cause_classification == "simple_framework_alias_resolved_warning"
     assert any("resolved to maplebirch" in note for note in report.notes)
     assert any("Orphanage Intro" in note for note in report.notes)
+
+
+@pytest.mark.config
+def test_build_report_ignores_identity_high_risk_for_resolved_alias_playability(tmp_path):
+    maplebirch_payload = tmp_path / "maplebirch.mod.zip"
+    _write_mod_zip(
+        maplebirch_payload,
+        {"name": "maplebirch", "version": "3.1.13", "alias": ["Simple Frameworks"]},
+        {"boot.js": "window.maplebirchFrameworks = {};"},
+    )
+
+    cheat_payload = tmp_path / "cheat_extended.mod.zip"
+    _write_mod_zip(
+        cheat_payload,
+        {"name": "cheat extended", "version": "1.18(Dev260325)"},
+        {
+            "lookup.js": (
+                'window.modUtils.getMod("Simple Frameworks");\n'
+                'maplebirchFrameworks.addto("Options", "CE_options");\n'
+            )
+        },
+    )
+
+    browser_report = tmp_path / "browser-smoke-report.json"
+    browser_report.write_text(
+        json.dumps(
+            {
+                "success": False,
+                "issues": [
+                    {
+                        "severity": "high",
+                        "kind": "branch_profile_mismatch",
+                        "source": "identity",
+                        "message": "branch 'vega' should use stable profile, got canary profile",
+                    },
+                    {
+                        "severity": "warning",
+                        "kind": "simple_frameworks_optional_lookup",
+                        "message": (
+                            "ModOrderContainer getByNameOne() cannot find name. "
+                            "[Simple Frameworks, ModOrderContainer]"
+                        ),
+                    },
+                ],
+                "console_messages": [
+                    {
+                        "type": "log",
+                        "text": "ModZipReader init() modInfo {name: maplebirch, version: 3.1.13}",
+                    },
+                    {
+                        "type": "log",
+                        "text": "ModZipReader init() modInfo {name: cheat extended, version: 1.18(Dev260325)}",
+                    },
+                ],
+                "observations": {
+                    "game_ready": {"ready": True, "passage": "Orphanage Intro"},
+                    "enter_game": {"success": True, "passage_after": "Orphanage Intro"},
+                    "runtime_globals": {"maplebirchFrameworks": "object", "CE_options": "undefined"},
+                    "runtime_mod_probes": {
+                        "results": {
+                            "maplebirch": {"available": True, "name": "maplebirch", "error": None},
+                            "Simple Frameworks": {"available": True, "name": "maplebirch", "error": None},
+                        }
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_report([maplebirch_payload, cheat_payload], browser_smoke_report=browser_report)
+    evidence = report.smoke_evidence
+
+    assert evidence is not None
+    assert evidence.high_risk_issue_kinds == ["branch_profile_mismatch"]
+    assert evidence.high_risk_messages
+    assert report.root_cause_classification == "simple_framework_alias_resolved_warning"
+    assert any("non-runtime high-risk" in note for note in report.notes)
