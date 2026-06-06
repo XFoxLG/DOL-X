@@ -195,6 +195,9 @@ def test_maplebirch_version_gate_is_manual_base_zip_canary_only():
     assert '"--profile",' in workflow
     assert "PROFILE: ucb-cheat-extended-maplebirch" in workflow
     assert "--report-only" in workflow
+    assert "--allow-branch-profile-mismatch" in workflow
+    assert 'candidate_dir / canary_zip.name' in workflow
+    assert 'candidate_dir / "canary.zip"' not in workflow
     assert "browser-smoke-report.json" in workflow
     assert "tools/canary_payload_introspect.py" in workflow
     assert "canary-introspection.json" in workflow
@@ -204,6 +207,7 @@ def test_maplebirch_version_gate_is_manual_base_zip_canary_only():
     assert "maplebirch-version-gate-matrix" in workflow
     assert "maplebirch-version-gate-reports" in workflow
     assert "maplebirch-version-gate-zips" in workflow
+    assert "candidates/**/*.zip" in workflow
     assert "Review artifacts before pinning; this gate does not mutate stable/default build config." in workflow
 
     assert "apk_emulator_smoke_test.py" not in workflow
