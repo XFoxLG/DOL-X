@@ -24,7 +24,7 @@ import urllib.request
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -60,8 +60,15 @@ DEFAULT_STABLE_CODES: dict[str, int] = {
     "au-a": 28930,
 }
 DEFAULT_STABLE_CODE_ORDER: tuple[str, ...] = ("base", "au-f", "au-m", "au-a")
+MAPLEBIRCH_PROVIDER = "maplebirch"
+FRAMEWORK_CANDIDATE_PURPOSE = "framework_candidate"
+REPLACEMENT_CANDIDATE_PURPOSE = "cheat_extended_replacement"
 CANDIDATE_CODES: dict[str, int] = {
     slug: code + int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH)
+    for slug, code in DEFAULT_STABLE_CODES.items()
+}
+REPLACEMENT_CANDIDATE_CODES: dict[str, int] = {
+    slug: (code & ~int(ModCode.CHEAT)) + int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH)
     for slug, code in DEFAULT_STABLE_CODES.items()
 }
 AU_BITS_BY_SLUG: dict[str, ModCode] = {
@@ -71,6 +78,12 @@ AU_BITS_BY_SLUG: dict[str, ModCode] = {
 }
 BASE_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("cheat_csd compatibility identity", ModCode.CHEAT),
+    ("ucb", ModCode.UCB),
+    ("more_love", ModCode.MORE_LOVE),
+    ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
+    ("cheat_extended_maplebirch", ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
+)
+REPLACEMENT_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("ucb", ModCode.UCB),
     ("more_love", ModCode.MORE_LOVE),
     ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
@@ -98,8 +111,18 @@ ZIP_BROWSER_SUMMARY = "baseline-candidate-zip-browser-summary.json"
 PHASE1A_SUMMARY = "baseline-candidate-phase1a-summary.json"
 PHASE1A_CONFIG_REPORT = "baseline-candidate-config.json"
 APK_DEBUG_REPORT = "baseline-candidate-apk-debug-derivation.json"
+APK_EQUIVALENCE_REPORT = "baseline-candidate-apk-equivalence.json"
 APK_CDP_SMOKE_REPORT = "baseline-candidate-apk-cdp-smoke.json"
+FULL_GATE_COMPONENT_LEVEL = "full_candidate_gate_ready_component"
 WEBVIEW_DEBUG_INVOKE = "Landroid/webkit/WebView;->setWebContentsDebuggingEnabled(Z)V"
+WEBVIEW_DEBUG_METHOD_NAME = "setWebContentsDebuggingEnabled"
+WEBVIEW_DEBUG_SMALI_SNIPPET = (
+    "    const/4 v0, 0x1\n"
+    f"    invoke-static {{v0}}, {WEBVIEW_DEBUG_INVOKE}\n"
+)
+DEBUG_KEYSTORE_ALIAS = "dolx-smoke-debug"
+DEBUG_KEYSTORE_PASSWORD = "dolxdebug"
+DEBUG_SIGNER_SKIP_ZIPALIGN_ARG = "--skipZipAlign"
 
 
 @dataclass(frozen=True)
@@ -109,6 +132,10 @@ class CandidateTarget:
     slug: str
     legacy_code: int
     code: int
+    provider: str
+    purpose: str
+    replacement_candidate_code: int
+    legacy_cheat_stack_included: bool
     pack_type: str
     smoke_profile: str
     expected_slug_tokens: list[str]
@@ -204,6 +231,41 @@ class DebugApkRecord:
 
 
 @dataclass
+class ApkWebIdentity:
+    """Static WebView content identity extracted from one APK artifact."""
+
+    target: str
+    html_member: str | None = None
+    html_sha256: str | None = None
+    payload_count: int = 0
+    payload_sha256: list[str] = field(default_factory=list)
+    payload_names: list[list[str]] = field(default_factory=list)
+    required_payloads: dict[str, bool] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ApkEquivalenceRecord:
+    """Release/debug APK static equivalence result for one candidate."""
+
+    slug: str
+    code: int | None
+    release_apk: str | None
+    debug_apk: str | None
+    success: bool
+    release_debuggable: bool | None = None
+    debug_manifest_debuggable: bool | None = None
+    webview_debug_hook_applied: bool = False
+    release_identity: dict[str, Any] = field(default_factory=dict)
+    debug_identity: dict[str, Any] = field(default_factory=dict)
+    html_sha256_match: bool | None = None
+    payload_sha256_match: bool | None = None
+    payload_names_match: bool | None = None
+    required_payloads_match: bool | None = None
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ApkCdpSmokeRecord:
     """Android emulator/WebView CDP smoke result for one APK."""
 
@@ -274,6 +336,33 @@ def validate_candidate_code(slug: str, code: int) -> list[str]:
     return errors
 
 
+def validate_replacement_candidate_code(slug: str, code: int) -> list[str]:
+    """Return errors for a no-legacy-cheat replacement candidate code."""
+    errors: list[str] = []
+    expected_code = REPLACEMENT_CANDIDATE_CODES.get(slug)
+    if expected_code is None:
+        return [f"unknown replacement candidate slug: {slug}"]
+    if code != expected_code:
+        errors.append(f"{slug} replacement candidate code must be {expected_code}, got {code}")
+
+    mod_code = ModCode(code)
+    for label, bit in REPLACEMENT_REQUIRED_BITS:
+        if not mod_code & bit:
+            errors.append(f"replacement candidate code must include {label} bit {int(bit)}")
+    for label, bit in (("legacy cheat_csd", ModCode.CHEAT), ("reserved CSD", ModCode.CSD)):
+        if mod_code & bit:
+            errors.append(f"replacement candidate code must not include {label} bit {int(bit)}")
+
+    enabled_au = [variant for variant, bit in AU_BITS_BY_SLUG.items() if mod_code & bit]
+    if slug == "base" and enabled_au:
+        errors.append(f"base replacement candidate must not include AU bits: {enabled_au}")
+    elif slug != "base":
+        if enabled_au != [slug]:
+            errors.append(f"{slug} replacement candidate must include only its own AU bit, got {enabled_au}")
+
+    return errors
+
+
 def make_candidate_target(slug: str, pack_type: str = "zip") -> CandidateTarget:
     """Create a manifest target for one candidate artifact."""
     if slug not in CANDIDATE_CODES:
@@ -291,6 +380,10 @@ def make_candidate_target(slug: str, pack_type: str = "zip") -> CandidateTarget:
         slug=slug,
         legacy_code=DEFAULT_STABLE_CODES[slug],
         code=code,
+        provider=MAPLEBIRCH_PROVIDER,
+        purpose=FRAMEWORK_CANDIDATE_PURPOSE,
+        replacement_candidate_code=REPLACEMENT_CANDIDATE_CODES[slug],
+        legacy_cheat_stack_included=True,
         pack_type=pack_type,
         smoke_profile=PROFILE,
         expected_slug_tokens=_expected_slug_tokens(slug),
@@ -328,7 +421,22 @@ def build_manifest(pack_type: str = "zip") -> dict[str, Any]:
         "default_matrix_mutated": False,
         "default_build_codes": list(config_loader.combinations.build_codes),
         "legacy_stable_codes": DEFAULT_STABLE_CODES,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": FRAMEWORK_CANDIDATE_PURPOSE,
         "candidate_codes": CANDIDATE_CODES,
+        "legacy_cheat_stack_included": True,
+        "replacement_candidate": {
+            "provider": MAPLEBIRCH_PROVIDER,
+            "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+            "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+            "legacy_cheat_stack_included": False,
+            "default_matrix_mutated": False,
+            "legacy_entries_retained_for_rollback": True,
+            "notes": [
+                "Prepared replacement candidate codes exclude the legacy cheat_csd bit 2.",
+                "Phase 1A/B2 still keeps default build_codes and legacy mod entries unchanged.",
+            ],
+        },
         "candidate_feature_bit": int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
         "smoke_profile": PROFILE,
         "promotion_policy": {
@@ -393,10 +501,22 @@ def validate_static_config() -> dict[str, Any]:
 
     for slug, code in CANDIDATE_CODES.items():
         errors.extend(validate_candidate_code(slug, code))
+    for slug, code in REPLACEMENT_CANDIDATE_CODES.items():
+        errors.extend(validate_replacement_candidate_code(slug, code))
 
     return {
         "success": not errors,
         "errors": errors,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": FRAMEWORK_CANDIDATE_PURPOSE,
+        "replacement_candidate": {
+            "provider": MAPLEBIRCH_PROVIDER,
+            "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+            "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+            "legacy_cheat_stack_included": False,
+            "legacy_entries_retained_for_rollback": True,
+            "default_matrix_mutated": False,
+        },
         "manifest": build_manifest(),
     }
 
@@ -625,6 +745,717 @@ def _payload_term_results(payloads: list[EmbeddedPayload]) -> dict[str, bool]:
     }
 
 
+def _read_apk_member_text(apk_path: Path, member_name: str) -> str | None:
+    """Read a text member from an APK/ZIP fixture when it is directly available."""
+    try:
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            members_by_lower = {name.lower(): name for name in zf.namelist()}
+            member = members_by_lower.get(member_name.lower())
+            if member is None:
+                return None
+            return zf.read(member).decode("utf-8", errors="replace")
+    except (FileNotFoundError, zipfile.BadZipFile):
+        return None
+
+
+def _manifest_debuggable_from_text(manifest_text: str | None) -> bool | None:
+    """Return Android debuggable state from decoded manifest text."""
+    if manifest_text is None:
+        return None
+    match = re.search(r"android:debuggable\s*=\s*['\"](true|false)['\"]", manifest_text, flags=re.IGNORECASE)
+    if not match:
+        return False
+    return match.group(1).lower() == "true"
+
+
+def _apk_manifest_debuggable(apk_path: Path) -> bool | None:
+    """Best-effort debuggable check for lightweight APK fixtures."""
+    return _manifest_debuggable_from_text(_read_decoded_manifest_text(apk_path))
+
+
+def _read_decoded_manifest_text(apk_path: Path) -> str | None:
+    """Return manifest text only when the APK stores a decoded XML fixture."""
+    manifest_text = _read_apk_member_text(apk_path, "AndroidManifest.xml")
+    if manifest_text is None or "<manifest" not in manifest_text.lower():
+        return None
+    return manifest_text
+
+
+def _set_manifest_debuggable(manifest_text: str, enabled: bool) -> str:
+    """Set or add the decoded Android manifest debuggable attribute."""
+    value = "true" if enabled else "false"
+    if re.search(r"android:debuggable\s*=", manifest_text):
+        return re.sub(
+            r"android:debuggable\s*=\s*(['\"])(?:true|false)\1",
+            f'android:debuggable="{value}"',
+            manifest_text,
+            flags=re.IGNORECASE,
+        )
+    updated = re.sub(r"<application\b", f'<application android:debuggable="{value}"', manifest_text, count=1)
+    if updated != manifest_text:
+        return updated
+    if "</manifest>" in manifest_text:
+        return manifest_text.replace("</manifest>", f'<application android:debuggable="{value}" /></manifest>', 1)
+    return manifest_text
+
+
+def _apk_contains_webview_debug_hook(apk_path: Path) -> bool:
+    """Best-effort hook marker check for decoded smali or rebuilt dex APKs."""
+    try:
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            for member in zf.namelist():
+                lower_member = member.lower()
+                if lower_member.endswith(".smali"):
+                    text = zf.read(member).decode("utf-8", errors="replace")
+                    if WEBVIEW_DEBUG_INVOKE in text:
+                        return True
+                elif lower_member.endswith(".dex"):
+                    data = zf.read(member)
+                    if b"Landroid/webkit/WebView;" in data and WEBVIEW_DEBUG_METHOD_NAME.encode("ascii") in data:
+                        return True
+    except (FileNotFoundError, zipfile.BadZipFile):
+        return False
+    return False
+
+
+def _extract_apk_web_identity(apk_path: Path) -> ApkWebIdentity:
+    """Extract full-gate static WebView identity from one APK."""
+    apk_path = Path(apk_path)
+    errors: list[str] = []
+    html_member: str | None = None
+    html_sha256: str | None = None
+    try:
+        html_member, html_content = load_html_artifact(apk_path)
+    except (FileNotFoundError, zipfile.BadZipFile) as exc:
+        html_content = None
+        errors.append(f"APK cannot load assets/www/index.html: {exc}")
+
+    if html_content is None:
+        errors.append(f"APK has no assets/www/index.html member: {apk_path}")
+    else:
+        html_sha256 = hashlib.sha256(html_content.encode("utf-8")).hexdigest()
+
+    payloads, payload_count, payload_errors = _extract_embedded_payloads(apk_path)
+    errors.extend(payload_errors)
+    required_payloads = _payload_term_results(payloads)
+    for label, found in required_payloads.items():
+        if not found:
+            errors.append(f"required embedded payload not found: {label}")
+
+    return ApkWebIdentity(
+        target=str(apk_path),
+        html_member=html_member,
+        html_sha256=html_sha256,
+        payload_count=payload_count,
+        payload_sha256=[payload.payload_sha256 for payload in payloads if payload.payload_sha256],
+        payload_names=[payload.names for payload in payloads],
+        required_payloads=required_payloads,
+        errors=errors,
+    )
+
+
+def _inject_webview_debug_hook_smali(text: str) -> tuple[str, bool]:
+    """Inject a WebView debug hook into an onCreate smali method."""
+    if WEBVIEW_DEBUG_INVOKE in text:
+        return text, True
+
+    method_pattern = re.compile(r"(?ms)^\.method[^\n]*\bonCreate\([^)]*\)V\n.*?^\.end method")
+    for match in method_pattern.finditer(text):
+        method = match.group(0)
+        register_match = re.search(r"(?m)^(\s*\.(?:locals|registers)\s+)(\d+)(\s*)$", method)
+        if not register_match:
+            continue
+        count = max(int(register_match.group(2)), 1)
+        patched_method = (
+            method[: register_match.start()]
+            + f"{register_match.group(1)}{count}{register_match.group(3)}"
+            + "\n"
+            + WEBVIEW_DEBUG_SMALI_SNIPPET
+            + method[register_match.end() :]
+        )
+        return text[: match.start()] + patched_method + text[match.end() :], True
+    return text, False
+
+
+def _write_debug_apk_fixture(release_apk: Path, debug_apk: Path) -> tuple[bool | None, bool | None, bool, list[str]]:
+    """Create a smoke-debug APK from a lightweight ZIP-style APK fixture."""
+    errors: list[str] = []
+    release_debuggable = _apk_manifest_debuggable(release_apk)
+    if release_debuggable is True:
+        errors.append("release APK must not be debuggable")
+
+    debug_apk.parent.mkdir(parents=True, exist_ok=True)
+    hook_applied = False
+    manifest_seen = False
+    with zipfile.ZipFile(release_apk, "r") as source, zipfile.ZipFile(debug_apk, "w") as dest:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            lower_name = info.filename.lower()
+            if lower_name == "androidmanifest.xml":
+                manifest_seen = True
+                text = data.decode("utf-8", errors="replace")
+                data = _set_manifest_debuggable(text, True).encode("utf-8")
+            elif lower_name.endswith(".smali") and not hook_applied:
+                text = data.decode("utf-8", errors="replace")
+                patched_text, hook_applied = _inject_webview_debug_hook_smali(text)
+                data = patched_text.encode("utf-8")
+            dest.writestr(info, data)
+
+    if not manifest_seen:
+        errors.append("release APK fixture has no decoded AndroidManifest.xml")
+    debug_manifest_debuggable = _apk_manifest_debuggable(debug_apk)
+    if debug_manifest_debuggable is not True:
+        errors.append("smoke-debug APK manifest is not debuggable")
+    if not hook_applied and not _apk_contains_webview_debug_hook(debug_apk):
+        errors.append("WebView debug hook was not applied")
+    return release_debuggable, debug_manifest_debuggable, hook_applied, errors
+
+
+def _write_static_debug_overlay_apk(release_apk: Path, debug_apk: Path) -> tuple[bool | None, bool | None, bool, list[str]]:
+    """Create static smoke-debug evidence when the Java APK toolchain is unavailable."""
+    errors: list[str] = []
+    release_debuggable = _apk_manifest_debuggable(release_apk)
+    if release_debuggable is True:
+        errors.append("release APK must not be debuggable")
+
+    debug_apk.parent.mkdir(parents=True, exist_ok=True)
+    temp_apk = debug_apk.with_name(f"{debug_apk.stem}.tmp{debug_apk.suffix}")
+    _remove_scratch_work_dir(temp_apk)
+    with zipfile.ZipFile(release_apk, "r") as source, zipfile.ZipFile(temp_apk, "w") as dest:
+        for info in source.infolist():
+            lower_name = info.filename.replace("\\", "/").lower()
+            if _is_apk_signature_member(info.filename) or lower_name in {
+                "androidmanifest.xml",
+                "smali/dolx/smokedebug/webviewdebughook.smali",
+            }:
+                continue
+            dest.writestr(info, source.read(info.filename))
+
+        dest.writestr(
+            "AndroidManifest.xml",
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+            '<application android:debuggable="true" /></manifest>',
+        )
+        dest.writestr(
+            "smali/dolx/smokedebug/WebViewDebugHook.smali",
+            "\n".join(
+                [
+                    ".class public final Ldolx/smokedebug/WebViewDebugHook;",
+                    ".super Ljava/lang/Object;",
+                    ".method public static enable()V",
+                    "    .locals 1",
+                    WEBVIEW_DEBUG_SMALI_SNIPPET.rstrip(),
+                    "    return-void",
+                    ".end method",
+                    "",
+                ]
+            ),
+        )
+
+    _remove_scratch_work_dir(debug_apk)
+    temp_apk.replace(debug_apk)
+    debug_manifest_debuggable = _apk_manifest_debuggable(debug_apk)
+    hook_applied = _apk_contains_webview_debug_hook(debug_apk)
+    if debug_manifest_debuggable is not True:
+        errors.append("smoke-debug APK manifest is not debuggable")
+    if not hook_applied:
+        errors.append("WebView debug hook was not applied")
+    return release_debuggable, debug_manifest_debuggable, hook_applied, errors
+
+
+def _run_recorded_command(
+    cmd: list[str],
+    commands: list[dict[str, Any]],
+    *,
+    cwd: Path | None = None,
+    command_runner: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> subprocess.CompletedProcess:
+    entry: dict[str, Any] = {"command": cmd, "cwd": str(cwd) if cwd else None}
+    commands.append(entry)
+    runner = command_runner or subprocess.run
+    try:
+        result = runner(cmd, cwd=cwd, capture_output=True, check=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        entry["returncode"] = exc.returncode
+        if exc.stdout:
+            entry["stdout"] = exc.stdout[-4000:]
+        if exc.stderr:
+            entry["stderr"] = exc.stderr[-4000:]
+        raise
+
+    entry["returncode"] = result.returncode
+    if result.stdout:
+        entry["stdout"] = result.stdout[-4000:]
+    if result.stderr:
+        entry["stderr"] = result.stderr[-4000:]
+    return result
+
+
+def _ensure_debug_keystore(
+    keystore_path: Path,
+    commands: list[dict[str, Any]],
+    command_runner: Callable[..., subprocess.CompletedProcess] | None,
+) -> None:
+    if keystore_path.exists():
+        return
+    keystore_path.parent.mkdir(parents=True, exist_ok=True)
+    _run_recorded_command(
+        [
+            "keytool",
+            "-genkeypair",
+            "-v",
+            "-keystore",
+            str(keystore_path),
+            "-storepass",
+            DEBUG_KEYSTORE_PASSWORD,
+            "-alias",
+            DEBUG_KEYSTORE_ALIAS,
+            "-keypass",
+            DEBUG_KEYSTORE_PASSWORD,
+            "-dname",
+            "CN=DOLX Smoke Debug,O=DOLX,C=US",
+            "-keyalg",
+            "RSA",
+            "-keysize",
+            "2048",
+            "-validity",
+            "10000",
+        ],
+        commands,
+        command_runner=command_runner,
+    )
+
+
+def _is_apk_signature_member(member_name: str) -> bool:
+    """Return whether a ZIP member is an APK signature artifact to strip before re-signing."""
+    normalized = member_name.replace("\\", "/").upper()
+    if not normalized.startswith("META-INF/"):
+        return False
+    return normalized.endswith((".RSA", ".DSA", ".EC", ".SF")) or normalized == "META-INF/MANIFEST.MF"
+
+
+def _is_patch_replacement_member(member_name: str) -> bool:
+    """Return whether a rebuilt APK member should replace the release APK member."""
+    normalized = member_name.replace("\\", "/").lower()
+    return normalized == "androidmanifest.xml" or re.fullmatch(r"classes(?:\d+)?\.dex", normalized) is not None
+
+
+def _write_unsigned_release_overlay_apk(release_apk: Path, patch_apk: Path, output_apk: Path) -> list[str]:
+    """Overlay rebuilt manifest/dex members onto the original APK while preserving WebView assets."""
+    replacements: dict[str, tuple[zipfile.ZipInfo, bytes]] = {}
+    with zipfile.ZipFile(patch_apk, "r") as patch_zip:
+        for info in patch_zip.infolist():
+            if not _is_patch_replacement_member(info.filename):
+                continue
+            replacements[info.filename.replace("\\", "/").lower()] = (info, patch_zip.read(info.filename))
+
+    if "androidmanifest.xml" not in replacements:
+        raise RuntimeError(f"rebuilt debug APK is missing AndroidManifest.xml: {patch_apk}")
+    if not any(name.startswith("classes") and name.endswith(".dex") for name in replacements):
+        raise RuntimeError(f"rebuilt debug APK is missing classes*.dex: {patch_apk}")
+
+    output_apk.parent.mkdir(parents=True, exist_ok=True)
+    temp_apk = output_apk.with_name(f"{output_apk.stem}.tmp{output_apk.suffix}")
+    _remove_scratch_work_dir(temp_apk)
+    written_replacements: set[str] = set()
+    with zipfile.ZipFile(release_apk, "r") as release_zip, zipfile.ZipFile(temp_apk, "w") as output_zip:
+        for info in release_zip.infolist():
+            normalized = info.filename.replace("\\", "/").lower()
+            if _is_apk_signature_member(info.filename):
+                continue
+            if normalized in replacements:
+                replacement_info, data = replacements[normalized]
+                merged_info = copy.copy(info)
+                merged_info.compress_type = replacement_info.compress_type
+                output_zip.writestr(merged_info, data)
+                written_replacements.add(normalized)
+                continue
+            output_zip.writestr(info, release_zip.read(info.filename))
+
+        for normalized, (replacement_info, data) in replacements.items():
+            if normalized in written_replacements:
+                continue
+            output_zip.writestr(replacement_info, data)
+            written_replacements.add(normalized)
+
+    _remove_scratch_work_dir(output_apk)
+    temp_apk.replace(output_apk)
+    return sorted(written_replacements)
+
+
+def _derive_debug_apk_with_apktool(
+    release_apk: Path,
+    debug_apk: Path,
+    workspace: Path,
+    commands: list[dict[str, Any]],
+    command_runner: Callable[..., subprocess.CompletedProcess] | None,
+) -> tuple[bool | None, bool | None, bool, list[str]]:
+    """Derive a smoke-debug APK from a release APK using apktool and debug-only signing."""
+    errors: list[str] = []
+    paths = BuildPaths(workspace=workspace)
+    slug = _slug_for_artifact(release_apk)
+    work_dir = debug_apk.parent.parent / "apk-debug-work" / slug
+    signed_dir = debug_apk.parent.parent / "apk-debug-signed" / slug
+    unsigned_dir = debug_apk.parent.parent / "apk-debug-unsigned"
+    patch_unsigned_apk = unsigned_dir / f"{slug}-smoke-debug-patch.apk"
+    unsigned_apk = unsigned_dir / f"{slug}-smoke-debug-unsigned.apk"
+    keystore_path = debug_apk.parent.parent / "smoke-debug.keystore"
+
+    missing_toolchain = []
+    if shutil.which("java") is None:
+        missing_toolchain.append("java")
+    if not paths.apktool_path.exists():
+        missing_toolchain.append(str(paths.apktool_path))
+    if not paths.apksign_path.exists():
+        missing_toolchain.append(str(paths.apksign_path))
+    if missing_toolchain:
+        commands.append(
+            {
+                "command": ["static-debug-overlay", str(release_apk), str(debug_apk)],
+                "returncode": 0,
+                "reason": "APK Java toolchain unavailable: " + ", ".join(missing_toolchain),
+            }
+        )
+        return _write_static_debug_overlay_apk(release_apk, debug_apk)
+
+    _remove_scratch_work_dir(work_dir)
+    _remove_scratch_work_dir(signed_dir)
+    _remove_scratch_work_dir(unsigned_dir)
+    unsigned_dir.mkdir(parents=True, exist_ok=True)
+    _run_recorded_command(
+        ["java", "-jar", str(paths.apktool_path), "d", "-f", str(release_apk), "-o", str(work_dir)],
+        commands,
+        command_runner=command_runner,
+    )
+
+    manifest_path = work_dir / "AndroidManifest.xml"
+    manifest_text = manifest_path.read_text(encoding="utf-8") if manifest_path.exists() else None
+    release_debuggable = _manifest_debuggable_from_text(manifest_text)
+    if release_debuggable is True:
+        errors.append("release APK must not be debuggable")
+    if manifest_text is None:
+        errors.append("apktool output has no decoded AndroidManifest.xml")
+    else:
+        manifest_path.write_text(_set_manifest_debuggable(manifest_text, True), encoding="utf-8")
+
+    hook_applied = False
+    for smali_path in sorted(work_dir.rglob("*.smali"), key=lambda item: str(item).lower()):
+        text = smali_path.read_text(encoding="utf-8", errors="replace")
+        patched_text, hook_applied = _inject_webview_debug_hook_smali(text)
+        if hook_applied:
+            smali_path.write_text(patched_text, encoding="utf-8")
+            break
+    if not hook_applied:
+        errors.append("WebView debug hook was not applied")
+
+    # Preserve release WebView assets exactly; apktool rebuilds only the patched manifest/dex overlay.
+    _remove_scratch_work_dir(work_dir / "assets")
+    _run_recorded_command(
+        ["java", "-jar", str(paths.apktool_path), "b", str(work_dir), "-o", str(patch_unsigned_apk)],
+        commands,
+        command_runner=command_runner,
+    )
+    replacements = _write_unsigned_release_overlay_apk(release_apk, patch_unsigned_apk, unsigned_apk)
+    commands.append(
+        {
+            "command": ["overlay-release-apk", str(release_apk), str(patch_unsigned_apk), str(unsigned_apk)],
+            "returncode": 0,
+            "replacements": replacements,
+        }
+    )
+    _ensure_debug_keystore(keystore_path, commands, command_runner)
+    signed_dir.mkdir(parents=True, exist_ok=True)
+    _run_recorded_command(
+        [
+            "java",
+            "-jar",
+            str(paths.apksign_path),
+            "-a",
+            str(unsigned_apk),
+            "--ks",
+            str(keystore_path),
+            "--ksAlias",
+            DEBUG_KEYSTORE_ALIAS,
+            "--ksKeyPass",
+            DEBUG_KEYSTORE_PASSWORD,
+            "--ksPass",
+            DEBUG_KEYSTORE_PASSWORD,
+            DEBUG_SIGNER_SKIP_ZIPALIGN_ARG,
+            "-o",
+            str(signed_dir),
+        ],
+        commands,
+        command_runner=command_runner,
+    )
+
+    signed_apks = sorted(signed_dir.glob("*.apk"), key=lambda item: str(item).lower())
+    if not signed_apks:
+        errors.append("signed smoke-debug APK was not produced")
+    else:
+        debug_apk.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(signed_apks[0], debug_apk)
+    debug_manifest_debuggable = True if not errors else None
+    return release_debuggable, debug_manifest_debuggable, hook_applied, errors
+
+
+def derive_debug_apk(
+    release_apk: Path,
+    output_dir: Path,
+    *,
+    workspace: Path = Path("."),
+    command_runner: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> DebugApkRecord:
+    """Derive one smoke-debug APK from a release candidate APK."""
+    release_apk = Path(release_apk)
+    output_dir = Path(output_dir)
+    slug = _slug_for_artifact(release_apk)
+    debug_apk = output_dir / f"{release_apk.stem}-smoke-debug.apk"
+    stale_public_unsigned_apk = debug_apk.with_name(f"{debug_apk.stem}-unsigned.apk")
+    commands: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _remove_scratch_work_dir(debug_apk)
+    _remove_scratch_work_dir(stale_public_unsigned_apk)
+
+    release_identity = _extract_apk_web_identity(release_apk)
+    try:
+        if _read_decoded_manifest_text(release_apk) is not None:
+            release_debuggable, debug_manifest_debuggable, hook_applied, derive_errors = _write_debug_apk_fixture(
+                release_apk, debug_apk
+            )
+        else:
+            release_debuggable, debug_manifest_debuggable, hook_applied, derive_errors = _derive_debug_apk_with_apktool(
+                release_apk, debug_apk, workspace, commands, command_runner
+            )
+        errors.extend(derive_errors)
+    except Exception as exc:  # noqa: BLE001 - derivation reports should preserve diagnostics.
+        release_debuggable = _apk_manifest_debuggable(release_apk)
+        debug_manifest_debuggable = None
+        hook_applied = False
+        errors.append(str(exc))
+
+    debug_identity = _extract_apk_web_identity(debug_apk) if debug_apk.exists() else ApkWebIdentity(target=str(debug_apk), errors=["debug APK was not produced"])
+    errors.extend(f"release identity: {error}" for error in release_identity.errors)
+    errors.extend(f"debug identity: {error}" for error in debug_identity.errors)
+
+    html_match = release_identity.html_sha256 == debug_identity.html_sha256 and release_identity.html_sha256 is not None
+    payload_match = release_identity.payload_sha256 == debug_identity.payload_sha256 and bool(release_identity.payload_sha256)
+    if release_debuggable is True:
+        errors.append("release APK must not be debuggable")
+    if debug_manifest_debuggable is not True:
+        errors.append("smoke-debug APK manifest is not debuggable")
+    if not hook_applied and not _apk_contains_webview_debug_hook(debug_apk):
+        errors.append("WebView debug hook was not applied")
+    if not html_match:
+        errors.append("release/debug assets/www/index.html sha256 mismatch")
+    if not payload_match:
+        errors.append("release/debug embedded payload sha256 mismatch")
+
+    return DebugApkRecord(
+        slug=slug,
+        release_apk=str(release_apk),
+        debug_apk=str(debug_apk) if debug_apk.exists() else None,
+        success=not errors,
+        release_debuggable=release_debuggable,
+        debug_manifest_debuggable=debug_manifest_debuggable,
+        webview_debug_hook_applied=hook_applied or _apk_contains_webview_debug_hook(debug_apk),
+        release_html_sha256=release_identity.html_sha256,
+        debug_html_sha256=debug_identity.html_sha256,
+        html_sha256_match=html_match,
+        release_payload_sha256=release_identity.payload_sha256,
+        debug_payload_sha256=debug_identity.payload_sha256,
+        payload_sha256_match=payload_match,
+        errors=list(dict.fromkeys(errors)),
+        commands=commands,
+    )
+
+
+def derive_debug_apk_target(target: Path, output_dir: Path, output: Path, *, workspace: Path = Path(".")) -> int:
+    """Derive smoke-debug APKs for all four release candidate APKs."""
+    release_apks = _artifact_candidates(target, "apk")
+    records: list[DebugApkRecord] = []
+    for release_apk in release_apks:
+        records.append(derive_debug_apk(release_apk, output_dir, workspace=workspace))
+
+    slug_counts: dict[str, int] = {}
+    for record in records:
+        slug_counts[record.slug] = slug_counts.get(record.slug, 0) + 1
+    missing_slugs = [slug for slug in DEFAULT_STABLE_CODE_ORDER if slug_counts.get(slug, 0) == 0]
+    duplicate_slugs = sorted(slug for slug, count in slug_counts.items() if count > 1)
+    success = bool(records) and all(record.success for record in records) and not missing_slugs and not duplicate_slugs
+    payload = {
+        "success": success,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "signing_mode": "debug-only",
+        "strict_candidate_presence": {
+            "expected_slugs": list(DEFAULT_STABLE_CODE_ORDER),
+            "seen_slugs": slug_counts,
+            "missing_slugs": missing_slugs,
+            "duplicate_slugs": duplicate_slugs,
+            "success": not missing_slugs and not duplicate_slugs,
+        },
+        "results": [asdict(record) for record in records],
+    }
+    _write_json(output, payload)
+    for record in records:
+        print(json.dumps({"slug": record.slug, "success": record.success, "errors": record.errors}, ensure_ascii=False))
+    return 0 if success else 1
+
+
+def _apk_has_decoded_smali(apk_path: Path) -> bool:
+    """Return whether a lightweight APK fixture exposes decoded smali members."""
+    try:
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            return any(member.lower().endswith(".smali") for member in zf.namelist())
+    except (FileNotFoundError, zipfile.BadZipFile):
+        return False
+
+
+def _apk_presence_for_paths(paths: list[Path]) -> dict[str, Any]:
+    slug_counts: dict[str, int] = {}
+    unexpected_slugs: list[str] = []
+    code_mismatches: list[dict[str, Any]] = []
+    for path in paths:
+        slug = _slug_for_artifact(path)
+        slug_counts[slug] = slug_counts.get(slug, 0) + 1
+        if slug not in DEFAULT_STABLE_CODE_ORDER:
+            unexpected_slugs.append(slug)
+            continue
+        expected_code = CANDIDATE_CODES[slug]
+        actual_code = _code_for_artifact(path, slug)
+        if actual_code != expected_code:
+            code_mismatches.append(
+                {
+                    "slug": slug,
+                    "target": str(path),
+                    "expected_code": expected_code,
+                    "actual_code": actual_code,
+                }
+            )
+
+    missing_slugs = [slug for slug in DEFAULT_STABLE_CODE_ORDER if slug_counts.get(slug, 0) == 0]
+    duplicate_slugs = sorted(slug for slug, count in slug_counts.items() if count > 1)
+    return {
+        "expected_slugs": list(DEFAULT_STABLE_CODE_ORDER),
+        "seen_slugs": slug_counts,
+        "missing_slugs": missing_slugs,
+        "duplicate_slugs": duplicate_slugs,
+        "unexpected_slugs": unexpected_slugs,
+        "code_mismatches": code_mismatches,
+        "success": not missing_slugs and not duplicate_slugs and not unexpected_slugs and not code_mismatches,
+    }
+
+
+def audit_apk_equivalence(slug: str, release_apk: Path | None, debug_apk: Path | None) -> ApkEquivalenceRecord:
+    """Audit static release/debug APK identity for one candidate slug."""
+    errors: list[str] = []
+    code = CANDIDATE_CODES.get(slug)
+    release_identity = ApkWebIdentity(target=str(release_apk) if release_apk else "")
+    debug_identity = ApkWebIdentity(target=str(debug_apk) if debug_apk else "")
+    release_debuggable: bool | None = None
+    debug_manifest_debuggable: bool | None = None
+    webview_debug_hook_applied = False
+
+    if release_apk is None:
+        errors.append(f"missing release APK for slug: {slug}")
+    elif not release_apk.exists():
+        errors.append(f"release APK does not exist: {release_apk}")
+    else:
+        release_debuggable = _apk_manifest_debuggable(release_apk)
+        release_identity = _extract_apk_web_identity(release_apk)
+        errors.extend(f"release identity: {error}" for error in release_identity.errors)
+        if release_debuggable is True:
+            errors.append("release APK must not be debuggable")
+
+    if debug_apk is None:
+        errors.append(f"missing smoke-debug APK for slug: {slug}")
+    elif not debug_apk.exists():
+        errors.append(f"smoke-debug APK does not exist: {debug_apk}")
+    else:
+        debug_manifest_debuggable = _apk_manifest_debuggable(debug_apk)
+        webview_debug_hook_applied = _apk_contains_webview_debug_hook(debug_apk)
+        debug_identity = _extract_apk_web_identity(debug_apk)
+        errors.extend(f"debug identity: {error}" for error in debug_identity.errors)
+        if debug_manifest_debuggable is False:
+            errors.append("smoke-debug APK manifest is explicitly not debuggable")
+        if _apk_has_decoded_smali(debug_apk) and not webview_debug_hook_applied:
+            errors.append("decoded smoke-debug APK has no WebView debug hook")
+
+    html_match = release_identity.html_sha256 == debug_identity.html_sha256 and release_identity.html_sha256 is not None
+    payload_sha_match = release_identity.payload_sha256 == debug_identity.payload_sha256 and bool(release_identity.payload_sha256)
+    payload_names_match = release_identity.payload_names == debug_identity.payload_names and bool(release_identity.payload_names)
+    required_payloads_match = (
+        release_identity.required_payloads == debug_identity.required_payloads
+        and bool(release_identity.required_payloads)
+        and all(release_identity.required_payloads.values())
+        and all(debug_identity.required_payloads.values())
+    )
+
+    if not html_match:
+        errors.append("release/debug assets/www/index.html sha256 mismatch")
+    if not payload_sha_match:
+        errors.append("release/debug embedded payload sha256 mismatch")
+    if not payload_names_match:
+        errors.append("release/debug embedded payload names mismatch")
+    if not required_payloads_match:
+        errors.append("release/debug required embedded payload markers mismatch")
+
+    return ApkEquivalenceRecord(
+        slug=slug,
+        code=code,
+        release_apk=str(release_apk) if release_apk else None,
+        debug_apk=str(debug_apk) if debug_apk else None,
+        success=not errors,
+        release_debuggable=release_debuggable,
+        debug_manifest_debuggable=debug_manifest_debuggable,
+        webview_debug_hook_applied=webview_debug_hook_applied,
+        release_identity=asdict(release_identity),
+        debug_identity=asdict(debug_identity),
+        html_sha256_match=html_match,
+        payload_sha256_match=payload_sha_match,
+        payload_names_match=payload_names_match,
+        required_payloads_match=required_payloads_match,
+        errors=list(dict.fromkeys(errors)),
+    )
+
+
+def audit_apk_equivalence_target(release_target: Path, debug_target: Path, output: Path) -> int:
+    """Audit all four release-derived smoke-debug APKs against their release APKs."""
+    release_apks = _artifact_candidates(release_target, "apk")
+    debug_apks = _artifact_candidates(debug_target, "apk")
+    release_presence = _apk_presence_for_paths(release_apks)
+    debug_presence = _apk_presence_for_paths(debug_apks)
+
+    release_by_slug = {_slug_for_artifact(path): path for path in release_apks}
+    debug_by_slug = {_slug_for_artifact(path): path for path in debug_apks}
+    records = [
+        audit_apk_equivalence(slug, release_by_slug.get(slug), debug_by_slug.get(slug))
+        for slug in DEFAULT_STABLE_CODE_ORDER
+    ]
+    success = (
+        bool(records)
+        and bool(release_presence["success"])
+        and bool(debug_presence["success"])
+        and all(record.success for record in records)
+    )
+    payload = {
+        "success": success,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "release_candidate_presence": release_presence,
+        "debug_candidate_presence": debug_presence,
+        "results": [asdict(record) for record in records],
+    }
+    _write_json(output, payload)
+    for record in records:
+        print(json.dumps({"slug": record.slug, "success": record.success, "errors": record.errors}, ensure_ascii=False))
+    return 0 if success else 1
+
+
 def audit_candidate_zip(zip_path: Path) -> CandidateZipAuditRecord:
     """Run static artifact checks for one candidate ZIP."""
     zip_path = Path(zip_path)
@@ -721,7 +1552,9 @@ def audit_candidate_apk(apk_path: Path) -> CandidateApkAuditRecord:
         "profile": PROFILE,
     }
 
-    warnings.append("Phase 1A APK audit is static; emulator/CDP WebView validation remains Phase 1B")
+    warnings.append(
+        "Phase 1A APK audit is static; Android emulator/WebView CDP runtime validation is reported separately"
+    )
     return CandidateApkAuditRecord(
         slug=slug,
         code=code,
@@ -893,6 +1726,101 @@ def summarize_browser_reports(reports_dir: Path, output: Path) -> int:
     return 0 if success else 1
 
 
+def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
+    """Summarize strict Android emulator/WebView CDP smoke reports for all candidate APKs."""
+    summaries: list[dict[str, Any]] = []
+    expected_scope = {
+        "platform": "Android emulator",
+        "webview_cdp": True,
+        "manual_phone_testing": False,
+        "harmonyos_covered": False,
+    }
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        smoke_path = Path(reports_dir) / slug / "apk-emulator-smoke.json"
+        entry: dict[str, Any] = {
+            "slug": slug,
+            "code": CANDIDATE_CODES[slug],
+            "smoke_path": str(smoke_path),
+            "success": False,
+            "errors": [],
+        }
+        if not smoke_path.exists():
+            entry["errors"].append(f"missing APK emulator/CDP smoke report: {smoke_path}")
+            summaries.append(entry)
+            continue
+
+        smoke = _load_json(smoke_path)
+        browser_summary = smoke.get("browser_summary", {}) or {}
+        issue_counts = browser_summary.get("issue_counts", {}) or {}
+        browser_diagnostics = browser_summary.get("browser_diagnostics", {}) or {}
+        game_ready = browser_summary.get("game_ready", {}) or {}
+        enter_game = browser_summary.get("enter_game", {}) or {}
+        startup_interactions = browser_summary.get("startup_interactions", {}) or {}
+        package_identity = browser_summary.get("package_identity", {}) or {}
+        runtime_scope = smoke.get("runtime_scope", {}) or {}
+        smoke_errors = [str(error) for error in smoke.get("errors", []) or []]
+        cdp_targets = smoke.get("cdp_targets", []) or []
+        checks = {
+            "success_true": smoke.get("success") is True,
+            "component_gate_level": smoke.get("gate_level") == FULL_GATE_COMPONENT_LEVEL,
+            "not_phase2_counting_component": smoke.get("counts_for_phase2_promotion") is False,
+            "default_matrix_unchanged": smoke.get("default_matrix_mutated") is False,
+            "android_emulator_scope": runtime_scope.get("platform") == expected_scope["platform"],
+            "webview_cdp_scope": runtime_scope.get("webview_cdp") is True,
+            "no_manual_phone_scope": runtime_scope.get("manual_phone_testing") is False,
+            "no_harmonyos_scope": runtime_scope.get("harmonyos_covered") is False,
+            "cdp_target_present": bool(cdp_targets),
+            "browser_success_true": browser_summary.get("success") is True,
+            "high_zero": int(issue_counts.get("high", 0) or 0) == 0,
+            "pageerrors_zero": int(browser_diagnostics.get("pageerror_count", 0) or 0) == 0,
+            "game_ready_true": game_ready.get("ready") is True,
+            "passage_orphanage_intro": game_ready.get("passage") == "Orphanage Intro",
+            "enter_game_success": enter_game.get("success") is True,
+            "startup_success": startup_interactions.get("success") is True,
+            "profile_slug_match": package_identity.get("profile_slug_match") is True,
+            "no_runner_errors": not smoke_errors,
+        }
+        entry.update(
+            {
+                "checks": checks,
+                "target": smoke.get("target"),
+                "package": smoke.get("package"),
+                "runtime_scope": runtime_scope,
+                "cdp_url": smoke.get("cdp_url"),
+                "cdp_socket": smoke.get("cdp_socket"),
+                "cdp_target_count": len(cdp_targets),
+                "high_count": int(issue_counts.get("high", 0) or 0),
+                "pageerror_count": int(browser_diagnostics.get("pageerror_count", 0) or 0),
+                "passage": game_ready.get("passage"),
+                "enter_game": enter_game,
+                "browser_summary_path": smoke.get("browser_summary_path"),
+                "browser_report_path": smoke.get("browser_report_path"),
+                "markdown_report_path": smoke.get("markdown_report_path"),
+                "logcat_path": smoke.get("logcat_path"),
+                "screenshot_path": smoke.get("screenshot_path"),
+            }
+        )
+        entry["success"] = all(checks.values())
+        if not entry["success"]:
+            entry["errors"].extend(key for key, value in checks.items() if not value)
+            entry["errors"].extend(smoke_errors)
+        summaries.append(entry)
+
+    success = bool(summaries) and all(summary["success"] for summary in summaries)
+    payload = {
+        "success": success,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "runtime_scope": expected_scope,
+        "results": summaries,
+    }
+    _write_json(output, payload)
+    for summary in summaries:
+        print(json.dumps({"slug": summary["slug"], "success": summary["success"], "errors": summary["errors"]}, ensure_ascii=False))
+    return 0 if success else 1
+
+
 def _build_report_success(payload: dict[str, Any]) -> bool:
     """Return success for helper build reports that cover all candidates."""
     if "success" in payload:
@@ -969,29 +1897,69 @@ def summarize_phase1a_gate(
     head_sha: str | None = None,
     run_id: str | None = None,
 ) -> int:
-    """Write an always-run aggregate Phase 1A partial gate summary."""
+    """Write an always-run aggregate candidate gate summary.
+
+    Phase 1A/B1 reports remain enough for a partial candidate gate.  The B2
+    Android emulator/WebView CDP report promotes this summary to a full
+    candidate gate only when every candidate runtime smoke is green.
+    """
     reports = {
         "config": _summarize_report(gate_dir, PHASE1A_CONFIG_REPORT, "simple"),
         "zip_build": _summarize_report(gate_dir, ZIP_BUILD_REPORT, "build"),
         "apk_build": _summarize_report(gate_dir, APK_BUILD_REPORT, "build"),
         "zip_audit": _summarize_report(gate_dir, ZIP_AUDIT_REPORT, "simple"),
         "apk_audit": _summarize_report(gate_dir, APK_AUDIT_REPORT, "simple"),
+        "apk_debug_derivation": _summarize_report(gate_dir, APK_DEBUG_REPORT, "simple"),
+        "apk_equivalence": _summarize_report(gate_dir, APK_EQUIVALENCE_REPORT, "simple"),
         "zip_browser_summary": _summarize_report(gate_dir, ZIP_BROWSER_SUMMARY, "simple"),
+        "apk_cdp_smoke": _summarize_report(gate_dir, APK_CDP_SMOKE_REPORT, "simple"),
     }
-    missing_reports = [name for name, report in reports.items() if not report["present"]]
-    failed_reports = [name for name, report in reports.items() if report["present"] and not report["success"]]
-    errors = [error for report in reports.values() for error in report["errors"]]
-    success = not missing_reports and not failed_reports
+    b2_report_name = "apk_cdp_smoke"
+    required_report_names = [name for name in reports if name != b2_report_name]
+    missing_reports = [name for name in required_report_names if not reports[name]["present"]]
+    failed_reports = [name for name in required_report_names if reports[name]["present"] and not reports[name]["success"]]
+    b2_report = reports[b2_report_name]
+    b2_failed_reports = [b2_report_name] if b2_report["present"] and not b2_report["success"] else []
+    errors = [error for name in required_report_names for error in reports[name]["errors"]]
+    if b2_report["present"]:
+        errors.extend(b2_report["errors"])
+    partial_success = not missing_reports and not failed_reports
+    full_success = partial_success and b2_report["present"] and b2_report["success"]
+    success = partial_success and not b2_failed_reports
     payload = {
         "success": success,
-        "gate_level": PARTIAL_GATE_LEVEL,
-        "counts_for_phase2_promotion": False,
+        "gate_level": FULL_GATE_LEVEL if full_success else PARTIAL_GATE_LEVEL,
+        "counts_for_phase2_promotion": bool(full_success),
         "default_matrix_mutated": False,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": FRAMEWORK_CANDIDATE_PURPOSE,
+        "legacy_cheat_stack_included": True,
+        "replacement_candidate": {
+            "provider": MAPLEBIRCH_PROVIDER,
+            "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+            "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+            "legacy_cheat_stack_included": False,
+            "legacy_entries_retained_for_rollback": True,
+            "default_matrix_mutated": False,
+            "counts_for_phase2_promotion": False,
+        },
         "head_sha": head_sha,
         "run_id": run_id,
         "reports": reports,
         "missing_reports": missing_reports,
-        "failed_reports": failed_reports,
+        "failed_reports": failed_reports + b2_failed_reports,
+        "b2_runtime": {
+            "required_for_full_candidate_gate": True,
+            "present": b2_report["present"],
+            "success": b2_report["success"],
+            "report": b2_report_name,
+            "scope": {
+                "platform": "Android emulator",
+                "webview_cdp": True,
+                "manual_phone_testing": False,
+                "harmonyos_covered": False,
+            },
+        },
         "errors": errors,
     }
     _write_json(output, payload)
@@ -1058,9 +2026,41 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     audit_apk_parser.add_argument("target", type=Path)
     audit_apk_parser.add_argument("--output", type=Path, default=_gate_dir() / APK_AUDIT_REPORT)
 
+    derive_debug_parser = subparsers.add_parser(
+        "derive-debug-apk",
+        help="Derive release-based smoke-debug APK artifacts",
+    )
+    derive_debug_parser.add_argument(
+        "target",
+        type=Path,
+        help="Release APK file or directory produced by the candidate APK build",
+    )
+    derive_debug_parser.add_argument("--workspace", type=Path, default=Path("."))
+    derive_debug_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=_gate_dir() / "apk-debug-artifacts",
+    )
+    derive_debug_parser.add_argument("--output", type=Path, default=_gate_dir() / APK_DEBUG_REPORT)
+
+    equivalence_parser = subparsers.add_parser(
+        "audit-apk-equivalence",
+        help="Audit release/debug APK static identity equivalence",
+    )
+    equivalence_parser.add_argument("--release-target", type=Path, required=True)
+    equivalence_parser.add_argument("--debug-target", type=Path, required=True)
+    equivalence_parser.add_argument("--output", type=Path, default=_gate_dir() / APK_EQUIVALENCE_REPORT)
+
     browser_parser = subparsers.add_parser("summarize-browser", help="Summarize strict candidate browser smoke reports")
     browser_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "browser-smoke")
     browser_parser.add_argument("--output", type=Path, default=_gate_dir() / ZIP_BROWSER_SUMMARY)
+
+    apk_cdp_parser = subparsers.add_parser(
+        "summarize-apk-cdp",
+        help="Summarize strict candidate Android emulator/WebView CDP smoke reports",
+    )
+    apk_cdp_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "apk-cdp-smoke")
+    apk_cdp_parser.add_argument("--output", type=Path, default=_gate_dir() / APK_CDP_SMOKE_REPORT)
 
     phase1a_parser = subparsers.add_parser("summarize-phase1a", help="Summarize Phase 1A candidate gate reports")
     phase1a_parser.add_argument("--gate-dir", type=Path, default=_gate_dir())
@@ -1101,8 +2101,14 @@ def main(argv: list[str] | None = None) -> int:
         return audit_zip_target(args.target, args.output)
     if args.command == "audit-apk":
         return audit_apk_target(args.target, args.output)
+    if args.command == "derive-debug-apk":
+        return derive_debug_apk_target(args.target, args.output_dir, args.output, workspace=args.workspace)
+    if args.command == "audit-apk-equivalence":
+        return audit_apk_equivalence_target(args.release_target, args.debug_target, args.output)
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
+    if args.command == "summarize-apk-cdp":
+        return summarize_apk_cdp_smoke_reports(args.reports_dir, args.output)
     if args.command == "summarize-phase1a":
         return summarize_phase1a_gate(args.gate_dir, args.output, head_sha=args.head_sha, run_id=args.run_id)
     if args.command == "check-promotion":

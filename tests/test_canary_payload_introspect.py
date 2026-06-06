@@ -198,7 +198,29 @@ def test_build_report_traces_simple_framework_alias_and_ce_options_widget_contra
                     "runtime_globals": {
                         "maplebirchFrameworks": "object",
                         "CE_options": "undefined",
-                    }
+                    },
+                    "runtime_mod_probes": {
+                        "modUtilsAvailable": True,
+                        "results": {
+                            "maplebirch": {
+                                "available": True,
+                                "type": "object",
+                                "name": "maplebirch",
+                                "version": "3.1.13",
+                                "error": None,
+                            },
+                            "Simple Frameworks": {
+                                "available": False,
+                                "type": "error",
+                                "name": None,
+                                "version": None,
+                                "error": (
+                                    "ModOrderContainer getByNameOne() cannot find name. "
+                                    "[Simple Frameworks, ModOrderContainer]"
+                                ),
+                            },
+                        },
+                    },
                 },
             }
         ),
@@ -213,7 +235,13 @@ def test_build_report_traces_simple_framework_alias_and_ce_options_widget_contra
     assert evidence.simple_framework_lookup_issue_count == 1
     assert evidence.runtime_globals["maplebirchFrameworks"] == "object"
     assert evidence.runtime_globals["CE_options"] == "undefined"
+    assert evidence.runtime_mod_probes["maplebirch"]["available"] is True
+    assert evidence.maplebirch_getmod_available is True
+    assert evidence.simple_framework_getmod_available is False
+    assert "ModOrderContainer" in evidence.simple_framework_getmod_error
     assert report.root_cause_classification == "simple_framework_alias_lookup"
+    assert any("getMod('maplebirch')" in note for note in report.notes)
+    assert any("getMod('Simple Frameworks')" in note for note in report.notes)
     assert cheat.ce_options_widget_definitions
     assert cheat.ce_options_slot_registrations
     assert not cheat.ce_options_definitions
@@ -222,6 +250,120 @@ def test_build_report_traces_simple_framework_alias_and_ce_options_widget_contra
     assert any("alias list" in conclusion for conclusion in report.framework_contract_conclusions)
     assert any("widget/slot" in conclusion for conclusion in report.framework_contract_conclusions)
     assert any("ModOrderContainer getByNameOne()" in conclusion for conclusion in report.framework_contract_conclusions)
+    assert any("runtime mod probes" in conclusion for conclusion in report.framework_contract_conclusions)
     assert "Simple Frameworks" in report.recommended_canary_fix
+    assert "do not add" in report.recommended_canary_fix
+    assert "alias shim" in report.recommended_canary_fix
+    assert "load order" in report.recommended_canary_fix
+    assert "branch logic" in report.recommended_canary_fix
     assert "window.CE_options" in report.recommended_canary_fix
+    assert not any(step.startswith("Apply one canary-only shim") for step in report.single_validation_plan)
+    assert any("runtime getMod probes" in step for step in report.single_validation_plan)
     assert report.single_validation_plan[-1].startswith("Stop after that single validation pass")
+
+
+@pytest.mark.config
+def test_build_report_classifies_resolved_simple_framework_alias_as_warning(tmp_path):
+    maplebirch_payload = tmp_path / "maplebirch.mod.zip"
+    _write_mod_zip(
+        maplebirch_payload,
+        {"name": "maplebirch", "version": "3.1.13", "alias": ["Simple Frameworks"]},
+        {
+            "boot.js": "window.maplebirchFrameworks = {};",
+        },
+    )
+
+    cheat_payload = tmp_path / "cheat_extended.mod.zip"
+    _write_mod_zip(
+        cheat_payload,
+        {"name": "cheat extended", "version": "1.18(Dev260325)", "dependenceInfo": [{"modName": "ModLoader"}]},
+        {
+            "options.twee": '<<widget "CE_options">>content<</widget>>',
+            "lookup.js": (
+                'const simpleFrameworks = window.modUtils.getMod("Simple Frameworks");\n'
+                'maplebirchFrameworks.addto("Options", "CE_options");\n'
+            ),
+        },
+    )
+
+    browser_report = tmp_path / "browser-smoke-report.json"
+    browser_report.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "issues": [
+                    {
+                        "severity": "warning",
+                        "kind": "simple_frameworks_optional_lookup",
+                        "message": (
+                            "ModOrderContainer getByNameOne() cannot find name. "
+                            "[Simple Frameworks, ModOrderContainer]"
+                        ),
+                    }
+                ],
+                "console_messages": [
+                    {
+                        "type": "log",
+                        "text": "ModZipReader init() modInfo {name: maplebirch, version: 3.1.13}",
+                    },
+                    {
+                        "type": "log",
+                        "text": "ModZipReader init() modInfo {name: cheat extended, version: 1.18(Dev260325)}",
+                    },
+                ],
+                "observations": {
+                    "game_ready": {
+                        "ready": True,
+                        "passage": "Orphanage Intro",
+                    },
+                    "enter_game": {
+                        "success": True,
+                        "passage_after": "Orphanage Intro",
+                    },
+                    "runtime_globals": {
+                        "maplebirchFrameworks": "object",
+                        "CE_options": "undefined",
+                    },
+                    "runtime_mod_probes": {
+                        "modUtilsAvailable": True,
+                        "results": {
+                            "maplebirch": {
+                                "available": True,
+                                "type": "object",
+                                "name": "maplebirch",
+                                "version": "3.1.13",
+                                "error": None,
+                            },
+                            "Simple Frameworks": {
+                                "available": True,
+                                "type": "object",
+                                "name": "maplebirch",
+                                "version": "3.1.13",
+                                "error": None,
+                            },
+                        },
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_report([maplebirch_payload, cheat_payload], browser_smoke_report=browser_report)
+    evidence = report.smoke_evidence
+
+    assert evidence is not None
+    assert evidence.simple_framework_lookup_issue_count == 1
+    assert evidence.browser_success is True
+    assert evidence.game_ready is True
+    assert evidence.enter_game_success is True
+    assert evidence.playable_passage == "Orphanage Intro"
+    assert evidence.maplebirch_framework_global_observed is True
+    assert evidence.maplebirch_getmod_available is True
+    assert evidence.simple_framework_getmod_available is True
+    assert evidence.simple_framework_getmod_error is None
+    assert evidence.runtime_mod_probes["Simple Frameworks"]["name"] == "maplebirch"
+    assert not evidence.high_risk_messages
+    assert report.root_cause_classification == "simple_framework_alias_resolved_warning"
+    assert any("resolved to maplebirch" in note for note in report.notes)
+    assert any("Orphanage Intro" in note for note in report.notes)
