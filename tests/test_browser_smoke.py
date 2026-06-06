@@ -11,6 +11,7 @@ import pytest
 
 from tools.browser_smoke_test import (
     BrowserSmokeReport,
+    CHEAT_EXTENDED_RUNTIME_MOD_PROBES,
     ENTER_GAME_LABELS,
     Issue,
     PROFILES,
@@ -20,6 +21,7 @@ from tools.browser_smoke_test import (
     _looks_playable,
     _record_package_identity,
     _record_static_asset_audit,
+    _page_state_script,
     _startup_instability_triggers,
     _serve_directory,
     classify_message,
@@ -219,6 +221,7 @@ def test_browser_smoke_can_select_cheat_experiment_profile():
         "CE_options",
         "SCMLSimpleFramework",
     )
+    assert profile.diagnostic_mod_names == CHEAT_EXTENDED_RUNTIME_MOD_PROBES
 
 
 @pytest.mark.config
@@ -243,6 +246,17 @@ def test_browser_smoke_can_select_stable_replacement_cheat_profile():
         "CE_options",
         "SCMLSimpleFramework",
     )
+    assert profile.diagnostic_mod_names == CHEAT_EXTENDED_RUNTIME_MOD_PROBES
+
+
+@pytest.mark.config
+def test_browser_smoke_page_state_script_includes_canary_getmod_probes():
+    script = _page_state_script(("maplebirchFrameworks",))
+
+    assert "modProbes" in script
+    assert "window.modUtils.getMod" in script
+    assert "modNames" in script
+    assert CHEAT_EXTENDED_RUNTIME_MOD_PROBES == ("maplebirch", "Simple Frameworks")
 
 
 @pytest.mark.config

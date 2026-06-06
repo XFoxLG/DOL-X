@@ -4,11 +4,14 @@ import pytest
 
 from lyra.config_loader import get_config_loader
 from tools.au_matrix_gate import (
+    AU_FRAMEWORK_SUPPORT_PURPOSE,
     AU_FACE_CACHE_NAME,
     AU_VARIANTS,
     CHEAT_EXTENDED_CACHE_NAME,
     MAPLEBIRCH_CACHE_NAME,
+    MAPLEBIRCH_PROVIDER,
     _restore_modloader_mods,
+    _maplebirch_framework_evidence_metadata,
     _set_maplebirch_canary_injection_enabled,
     parse_args,
 )
@@ -49,6 +52,17 @@ def test_maplebirch_canary_helper_keeps_face_and_excludes_cheat_extended():
         _restore_modloader_mods(saved_mods)
 
     assert build_config.modloader_mods is original_mods
+
+
+@pytest.mark.config
+def test_maplebirch_canary_reports_au_framework_support_metadata():
+    assert _maplebirch_framework_evidence_metadata() == {
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": AU_FRAMEWORK_SUPPORT_PURPOSE,
+        "shared_framework_evidence": True,
+        "default_matrix_mutated": False,
+        "cheat_extended_included": False,
+    }
 
 
 @pytest.mark.config

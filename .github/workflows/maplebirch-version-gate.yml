@@ -1,0 +1,343 @@
+name: Maplebirch Version Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_smoke_candidates:
+        description: "Maximum selected maplebirch candidates to build and smoke"
+        required: false
+        type: string
+        default: "2"
+      candidate_tags:
+        description: "Optional comma-separated maplebirch release tags to restrict; empty scans all releases"
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: maplebirch-version-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GATE_DIR: output/maplebirch-version-gate
+  PROFILE: ucb-cheat-extended-maplebirch
+
+jobs:
+  maplebirch-version-gate:
+    name: maplebirch stable-replacement/base ZIP gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: "pip"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "adopt"
+          java-version: "21"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install archive dependencies
+        run: sudo apt-get update && sudo apt-get install -y unrar
+
+      - name: Install browser smoke dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Run maplebirch release matrix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_TAGS: ${{ github.event.inputs.candidate_tags }}
+          MAX_SMOKE_CANDIDATES: ${{ github.event.inputs.max_smoke_candidates }}
+        run: |
+          mkdir -p "${GATE_DIR}"
+          MATRIX_ARGS=()
+          if [[ -n "${CANDIDATE_TAGS}" ]]; then
+            IFS=',' read -ra TAGS <<< "${CANDIDATE_TAGS}"
+            for tag in "${TAGS[@]}"; do
+              tag="$(echo "$tag" | xargs)"
+              if [[ -n "$tag" ]]; then
+                MATRIX_ARGS+=(--candidate-tag "$tag")
+              fi
+            done
+          fi
+          python tools/maplebirch_version_matrix.py \
+            --scan \
+            --max-smoke-candidates "${MAX_SMOKE_CANDIDATES}" \
+            --cache-dir "${GATE_DIR}/candidate-cache" \
+            --output "${GATE_DIR}/maplebirch-version-matrix.json" \
+            --markdown-output "${GATE_DIR}/maplebirch-version-matrix.md" \
+            "${MATRIX_ARGS[@]}"
+
+      - name: Extract selected candidates
+        id: candidates
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          matrix = json.loads((gate_dir / "maplebirch-version-matrix.json").read_text(encoding="utf-8"))
+          selected = matrix.get("selected_for_smoke") or []
+          candidates_dir = gate_dir / "candidates"
+          candidates_dir.mkdir(parents=True, exist_ok=True)
+
+          normalized = []
+          for index, candidate in enumerate(selected, start=1):
+              tag = str(candidate.get("tag") or "")
+              asset = str(candidate.get("asset_name") or "")
+              safe_tag = "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in tag)
+              if not tag or not asset:
+                  continue
+              normalized.append({"index": index, "tag": tag, "asset": asset, "safe_tag": safe_tag})
+
+          (gate_dir / "selected-candidates.json").write_text(
+              json.dumps(normalized, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"count={len(normalized)}\n")
+          PY
+
+      - name: Prepare game packages
+        if: steps.candidates.outputs.count != '0'
+        run: python main.py prepare --workspace "${{ github.workspace }}" -v
+
+      - name: Warmup beautify resources
+        if: steps.candidates.outputs.count != '0'
+        run: python main.py warmup --workspace "${{ github.workspace }}" -v
+
+      - name: Run selected candidate canary builds and smokes
+        if: steps.candidates.outputs.count != '0'
+        env:
+          DOLX_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          DOLX_WORKFLOW_HEAD_BRANCH: ${{ github.ref_name }}
+          DOLX_WORKFLOW_HEAD_SHA: ${{ github.sha }}
+          DOLX_GITHUB_SHA: ${{ github.sha }}
+          DOLX_ARTIFACT_NAME: maplebirch-version-gate-reports
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          workspace = Path(os.environ["GITHUB_WORKSPACE"])
+          gate_dir = workspace / os.environ["GATE_DIR"]
+          output_dir = workspace / "output"
+          profile = os.environ["PROFILE"]
+          candidates = json.loads((gate_dir / "selected-candidates.json").read_text(encoding="utf-8"))
+          summary = {"candidate_count": len(candidates), "candidates": []}
+
+          def run_step(command, log_path):
+              log_path.parent.mkdir(parents=True, exist_ok=True)
+              with log_path.open("w", encoding="utf-8") as log:
+                  process = subprocess.run(
+                      command,
+                      cwd=workspace,
+                      text=True,
+                      stdout=log,
+                      stderr=subprocess.STDOUT,
+                      check=False,
+                  )
+              return process.returncode
+
+          for candidate in candidates:
+              tag = candidate["tag"]
+              asset = candidate["asset"]
+              safe_tag = candidate["safe_tag"]
+              candidate_dir = gate_dir / "candidates" / safe_tag
+              candidate_dir.mkdir(parents=True, exist_ok=True)
+
+              before_zips = set(output_dir.glob("*.zip"))
+              build_rc = run_step(
+                  [
+                      sys.executable,
+                      "tools/cheat_extended_canary.py",
+                      "--flavor",
+                      "stable-replacement",
+                      "--variant",
+                      "base",
+                      "--workspace",
+                      str(workspace),
+                      "--ensure-payloads",
+                      "--build",
+                      "--maplebirch-release-tag",
+                      tag,
+                      "--maplebirch-asset-pattern",
+                      asset,
+                      "--maplebirch-cache-label",
+                      tag,
+                      "--output",
+                      str(candidate_dir / "canary-build.json"),
+                  ],
+                  candidate_dir / "canary-build.log",
+              )
+              after_zips = sorted(output_dir.glob("*.zip"), key=lambda path: path.stat().st_mtime)
+              new_zips = [path for path in after_zips if path not in before_zips]
+              canary_zip = new_zips[-1] if new_zips else (after_zips[-1] if after_zips else None)
+              copied_zip = candidate_dir / "canary.zip"
+              if canary_zip and canary_zip.exists():
+                  shutil.copy2(canary_zip, copied_zip)
+
+              html_rc = browser_rc = introspect_rc = 1
+              browser_report = candidate_dir / "browser-smoke" / "browser-smoke-report.json"
+              if build_rc == 0 and copied_zip.exists():
+                  html_rc = run_step(
+                      [
+                          sys.executable,
+                          "tools/html_smoke_test.py",
+                          str(copied_zip),
+                          "--output",
+                          str(candidate_dir / "html-smoke.json"),
+                      ],
+                      candidate_dir / "html-smoke.log",
+                  )
+                  browser_rc = run_step(
+                      [
+                          sys.executable,
+                          "tools/browser_smoke_test.py",
+                          str(copied_zip),
+                          "--profile",
+                          profile,
+                          "--output-dir",
+                          str(candidate_dir / "browser-smoke"),
+                          "--report-only",
+                      ],
+                      candidate_dir / "browser-smoke.log",
+                  )
+                  introspect_rc = run_step(
+                      [
+                          sys.executable,
+                          "tools/canary_payload_introspect.py",
+                          str(workspace / "workspace" / "temp" / "maplebirch.mod.zip"),
+                          str(workspace / "workspace" / "temp" / "cheat_extended.mod.zip"),
+                          "--html-smoke-report",
+                          str(candidate_dir / "html-smoke.json"),
+                          "--browser-smoke-report",
+                          str(browser_report),
+                          "--output",
+                          str(candidate_dir / "canary-introspection.json"),
+                      ],
+                      candidate_dir / "canary-introspection.log",
+                  )
+
+              classification = None
+              introspection_path = candidate_dir / "canary-introspection.json"
+              if introspection_path.exists():
+                  introspection = json.loads(introspection_path.read_text(encoding="utf-8"))
+                  classification = introspection.get("root_cause_classification")
+
+              summary["candidates"].append(
+                  {
+                      "tag": tag,
+                      "asset": asset,
+                      "build_exit_code": build_rc,
+                      "html_smoke_exit_code": html_rc,
+                      "browser_smoke_exit_code": browser_rc,
+                      "introspection_exit_code": introspect_rc,
+                      "classification": classification,
+                      "artifact_dir": str(candidate_dir.relative_to(workspace)),
+                  }
+              )
+
+          summary["decision"] = "Review artifacts before pinning; this gate does not mutate stable/default build config."
+          (gate_dir / "maplebirch-version-gate-summary.json").write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          lines = ["# Maplebirch Version Gate Summary", "", f"Candidates: {summary['candidate_count']}", ""]
+          for candidate in summary["candidates"]:
+              lines.extend(
+                  [
+                      f"## {candidate['tag']}",
+                      "",
+                      f"- asset: `{candidate['asset']}`",
+                      f"- build exit code: `{candidate['build_exit_code']}`",
+                      f"- HTML smoke exit code: `{candidate['html_smoke_exit_code']}`",
+                      f"- browser smoke exit code: `{candidate['browser_smoke_exit_code']}`",
+                      f"- introspection exit code: `{candidate['introspection_exit_code']}`",
+                      f"- classification: `{candidate['classification']}`",
+                      "",
+                  ]
+              )
+          lines.extend(["## Decision guard", "", summary["decision"], ""])
+          (gate_dir / "maplebirch-version-gate-summary.md").write_text("\n".join(lines), encoding="utf-8")
+          if any(item["build_exit_code"] != 0 for item in summary["candidates"]):
+              sys.exit(1)
+          PY
+
+      - name: Write empty gate summary
+        if: steps.candidates.outputs.count == '0'
+        run: |
+          mkdir -p "${GATE_DIR}"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          summary = {
+              "candidate_count": 0,
+              "candidates": [],
+              "decision": "No candidates selected; review maplebirch-version-matrix artifacts.",
+          }
+          (gate_dir / "maplebirch-version-gate-summary.json").write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          (gate_dir / "maplebirch-version-gate-summary.md").write_text(
+              "# Maplebirch Version Gate Summary\n\nNo candidates selected.\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload maplebirch matrix reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maplebirch-version-gate-matrix
+          path: |
+            ${{ github.workspace }}/output/maplebirch-version-gate/maplebirch-version-matrix.json
+            ${{ github.workspace }}/output/maplebirch-version-gate/maplebirch-version-matrix.md
+            ${{ github.workspace }}/output/maplebirch-version-gate/selected-candidates.json
+          if-no-files-found: warn
+
+      - name: Upload maplebirch candidate reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maplebirch-version-gate-reports
+          path: |
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/canary-build.json
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/canary-build.log
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/html-smoke.json
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/html-smoke.log
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/browser-smoke/**
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/canary-introspection.json
+            ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/canary-introspection.log
+            ${{ github.workspace }}/output/maplebirch-version-gate/maplebirch-version-gate-summary.json
+            ${{ github.workspace }}/output/maplebirch-version-gate/maplebirch-version-gate-summary.md
+          if-no-files-found: warn
+
+      - name: Upload maplebirch candidate ZIPs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maplebirch-version-gate-zips
+          path: ${{ github.workspace }}/output/maplebirch-version-gate/candidates/**/canary.zip
+          if-no-files-found: warn

@@ -7,24 +7,40 @@ import zipfile
 
 import pytest
 
+import tools.baseline_candidate_gate as baseline_candidate_gate
 from lyra.build import BuildResult
 from tools.artifact_inspection import APK_HTML_MEMBER, load_html_artifact
 from tools.baseline_candidate_gate import (
     APK_AUDIT_REPORT,
     APK_BUILD_REPORT,
+    APK_CDP_SMOKE_REPORT,
+    APK_DEBUG_REPORT,
+    APK_EQUIVALENCE_REPORT,
     CANDIDATE_CODES,
     DEFAULT_STABLE_CODE_ORDER,
+    FRAMEWORK_CANDIDATE_PURPOSE,
+    FULL_GATE_LEVEL,
+    FULL_GATE_COMPONENT_LEVEL,
+    MAPLEBIRCH_PROVIDER,
     PHASE1A_CONFIG_REPORT,
     PHASE1A_SUMMARY,
     PARTIAL_GATE_LEVEL,
+    REPLACEMENT_CANDIDATE_CODES,
+    REPLACEMENT_CANDIDATE_PURPOSE,
+    WEBVIEW_DEBUG_INVOKE,
     ZIP_AUDIT_REPORT,
     ZIP_BROWSER_SUMMARY,
     ZIP_BUILD_REPORT,
+    audit_apk_equivalence_target,
     audit_apk_target,
     check_phase2_promotion,
+    derive_debug_apk_target,
+    build_manifest,
+    summarize_apk_cdp_smoke_reports,
     summarize_browser_reports,
     summarize_phase1a_gate,
     validate_candidate_build_result,
+    validate_replacement_candidate_code,
 )
 
 
@@ -69,8 +85,36 @@ def _write_candidate_apk(root, slug: str):
     apk_path = root / _candidate_artifact_name(slug, "apk")
     with zipfile.ZipFile(apk_path, "w") as zf:
         zf.writestr(APK_HTML_MEMBER, _candidate_html())
-        zf.writestr("AndroidManifest.xml", "<manifest />")
+        zf.writestr("AndroidManifest.xml", "<manifest><application /></manifest>")
+        zf.writestr(
+            "smali/org/example/MainActivity.smali",
+            "\n".join(
+                [
+                    ".class public Lorg/example/MainActivity;",
+                    ".super Landroid/app/Activity;",
+                    ".method protected onCreate(Landroid/os/Bundle;)V",
+                    "    .locals 1",
+                    "    return-void",
+                    ".end method",
+                    "",
+                ]
+            ),
+        )
     return apk_path
+
+
+def _write_binary_manifest_candidate_apk(root, slug: str):
+    apk_path = root / _candidate_artifact_name(slug, "apk")
+    with zipfile.ZipFile(apk_path, "w") as zf:
+        zf.writestr(APK_HTML_MEMBER, _candidate_html())
+        zf.writestr("AndroidManifest.xml", b"binary-manifest-placeholder")
+        zf.writestr("classes.dex", b"release-dex-placeholder")
+    return apk_path
+
+
+def _read_zip_member(path, member: str) -> str:
+    with zipfile.ZipFile(path, "r") as zf:
+        return zf.read(member).decode("utf-8", errors="replace")
 
 
 @pytest.mark.config
@@ -105,6 +149,52 @@ def test_candidate_build_validation_accepts_required_candidate_mod_markers():
 
 
 @pytest.mark.config
+def test_baseline_candidate_manifest_records_maplebirch_provider_and_replacement_boundary():
+    manifest = build_manifest()
+
+    assert manifest["provider"] == MAPLEBIRCH_PROVIDER
+    assert manifest["purpose"] == FRAMEWORK_CANDIDATE_PURPOSE
+    assert manifest["legacy_cheat_stack_included"] is True
+    assert manifest["candidate_codes"] == CANDIDATE_CODES
+    assert manifest["replacement_candidate"] == {
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+        "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+        "legacy_cheat_stack_included": False,
+        "default_matrix_mutated": False,
+        "legacy_entries_retained_for_rollback": True,
+        "notes": [
+            "Prepared replacement candidate codes exclude the legacy cheat_csd bit 2.",
+            "Phase 1A/B2 still keeps default build_codes and legacy mod entries unchanged.",
+        ],
+    }
+    assert [target["provider"] for target in manifest["targets"]] == [MAPLEBIRCH_PROVIDER] * 4
+    assert [target["purpose"] for target in manifest["targets"]] == [FRAMEWORK_CANDIDATE_PURPOSE] * 4
+    assert [target["replacement_candidate_code"] for target in manifest["targets"]] == [
+        REPLACEMENT_CANDIDATE_CODES[slug] for slug in DEFAULT_STABLE_CODE_ORDER
+    ]
+    assert all(target["legacy_cheat_stack_included"] is True for target in manifest["targets"])
+
+
+@pytest.mark.config
+def test_replacement_candidate_codes_exclude_legacy_cheat_stack_without_changing_defaults():
+    assert REPLACEMENT_CANDIDATE_CODES == {
+        "base": 57600,
+        "au-f": 58624,
+        "au-m": 59648,
+        "au-a": 61696,
+    }
+    assert set(REPLACEMENT_CANDIDATE_CODES) == set(CANDIDATE_CODES)
+    for slug, code in REPLACEMENT_CANDIDATE_CODES.items():
+        assert validate_replacement_candidate_code(slug, code) == []
+        assert code == CANDIDATE_CODES[slug] - 2
+
+    assert "legacy cheat_csd bit 2" in "; ".join(
+        validate_replacement_candidate_code("base", CANDIDATE_CODES["base"])
+    )
+
+
+@pytest.mark.config
 def test_baseline_candidate_apk_audit_is_static_and_requires_all_four_candidates(tmp_path):
     apk_paths = [_write_candidate_apk(tmp_path, slug) for slug in DEFAULT_STABLE_CODE_ORDER]
     html_member, html_content = load_html_artifact(apk_paths[0])
@@ -133,6 +223,104 @@ def test_baseline_candidate_apk_audit_is_static_and_requires_all_four_candidates
         assert any("Phase 1A APK audit is static" in warning for warning in result["warnings"])
 
 
+@pytest.mark.config
+def test_baseline_candidate_apk_debug_derivation_reports_full_gate_component_identity(tmp_path):
+    release_dir = tmp_path / "apk-artifacts"
+    debug_dir = tmp_path / "apk-debug-artifacts"
+    release_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(release_dir, slug)
+
+    output = tmp_path / APK_DEBUG_REPORT
+    assert derive_debug_apk_target(release_dir, debug_dir, output, workspace=tmp_path) == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["gate_level"] == FULL_GATE_COMPONENT_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["signing_mode"] == "debug-only"
+    assert payload["strict_candidate_presence"]["missing_slugs"] == []
+    assert payload["strict_candidate_presence"]["duplicate_slugs"] == []
+    assert len(payload["results"]) == 4
+    for result in payload["results"]:
+        assert result["success"] is True
+        assert result["release_debuggable"] is False
+        assert result["debug_manifest_debuggable"] is True
+        assert result["webview_debug_hook_applied"] is True
+        assert result["html_sha256_match"] is True
+        assert result["payload_sha256_match"] is True
+        assert result["errors"] == []
+        debug_apk = result["debug_apk"]
+        assert debug_apk is not None
+        assert 'android:debuggable="true"' in _read_zip_member(debug_apk, "AndroidManifest.xml")
+        assert WEBVIEW_DEBUG_INVOKE in _read_zip_member(debug_apk, "smali/org/example/MainActivity.smali")
+
+
+@pytest.mark.config
+def test_baseline_candidate_apk_debug_derivation_uses_static_overlay_without_java_toolchain(tmp_path, monkeypatch):
+    release_dir = tmp_path / "apk-artifacts"
+    debug_dir = tmp_path / "apk-debug-artifacts"
+    release_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_binary_manifest_candidate_apk(release_dir, slug)
+    monkeypatch.setattr(baseline_candidate_gate.shutil, "which", lambda name: None)
+
+    output = tmp_path / APK_DEBUG_REPORT
+    assert derive_debug_apk_target(release_dir, debug_dir, output, workspace=tmp_path) == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert len(payload["results"]) == 4
+    for result in payload["results"]:
+        assert result["success"] is True
+        assert result["debug_manifest_debuggable"] is True
+        assert result["webview_debug_hook_applied"] is True
+        assert result["html_sha256_match"] is True
+        assert result["payload_sha256_match"] is True
+        assert result["commands"][0]["command"][0] == "static-debug-overlay"
+        assert "APK Java toolchain unavailable" in result["commands"][0]["reason"]
+        debug_apk = result["debug_apk"]
+        assert debug_apk is not None
+        assert 'android:debuggable="true"' in _read_zip_member(debug_apk, "AndroidManifest.xml")
+        assert WEBVIEW_DEBUG_INVOKE in _read_zip_member(debug_apk, "smali/dolx/smokedebug/WebViewDebugHook.smali")
+
+
+@pytest.mark.config
+def test_baseline_candidate_apk_equivalence_accepts_release_derived_debug_apks(tmp_path):
+    release_dir = tmp_path / "apk-artifacts"
+    debug_dir = tmp_path / "apk-debug-artifacts"
+    release_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(release_dir, slug)
+
+    assert derive_debug_apk_target(release_dir, debug_dir, tmp_path / APK_DEBUG_REPORT, workspace=tmp_path) == 0
+
+    output = tmp_path / APK_EQUIVALENCE_REPORT
+    assert audit_apk_equivalence_target(release_dir, debug_dir, output) == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["gate_level"] == FULL_GATE_COMPONENT_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["release_candidate_presence"]["success"] is True
+    assert payload["debug_candidate_presence"]["success"] is True
+    assert len(payload["results"]) == 4
+    for result in payload["results"]:
+        assert result["success"] is True
+        assert result["release_debuggable"] is False
+        assert result["debug_manifest_debuggable"] is True
+        assert result["webview_debug_hook_applied"] is True
+        assert result["html_sha256_match"] is True
+        assert result["payload_sha256_match"] is True
+        assert result["payload_names_match"] is True
+        assert result["required_payloads_match"] is True
+        assert all(result["release_identity"]["required_payloads"].values())
+        assert all(result["debug_identity"]["required_payloads"].values())
+        assert result["errors"] == []
+
+
 def _write_browser_smoke_evidence(reports_dir, slug: str) -> None:
     slug_dir = reports_dir / slug
     slug_dir.mkdir(parents=True, exist_ok=True)
@@ -156,6 +344,49 @@ def _write_browser_smoke_evidence(reports_dir, slug: str) -> None:
     )
 
 
+def _write_apk_cdp_smoke_evidence(reports_dir, slug: str, *, success: bool = True) -> None:
+    slug_dir = reports_dir / slug
+    slug_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "success": success,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "runtime_scope": {
+            "platform": "Android emulator",
+            "webview_cdp": True,
+            "manual_phone_testing": False,
+            "harmonyos_covered": False,
+        },
+        "target": f"artifact-{slug}-smoke-debug.apk",
+        "slug": slug,
+        "package": "com.example.dolx",
+        "profile": "ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        "cdp_url": "http://127.0.0.1:9222",
+        "cdp_socket": "webview_devtools_remote_123",
+        "cdp_targets": [{"id": f"target-{slug}", "type": "page"}],
+        "browser_summary": {
+            "success": success,
+            "issue_counts": {"high": 0 if success else 1},
+            "browser_diagnostics": {"pageerror_count": 0},
+            "game_ready": {"ready": True, "passage": "Orphanage Intro"},
+            "enter_game": {"success": True},
+            "startup_interactions": {"success": True},
+            "package_identity": {"profile_slug_match": True},
+        },
+        "browser_summary_path": str(slug_dir / "browser-smoke-summary.json"),
+        "browser_report_path": str(slug_dir / "browser-smoke-report.json"),
+        "markdown_report_path": str(slug_dir / "browser-smoke-report.md"),
+        "logcat_path": str(slug_dir / "logcat.txt"),
+        "screenshot_path": str(slug_dir / "browser-smoke-final.png"),
+        "errors": [] if success else ["runtime failure"],
+    }
+    (slug_dir / "apk-emulator-smoke.json").write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 @pytest.mark.config
 def test_baseline_candidate_browser_summary_requires_four_strict_zip_smokes(tmp_path):
     reports_dir = tmp_path / "browser-smoke"
@@ -172,6 +403,33 @@ def test_baseline_candidate_browser_summary_requires_four_strict_zip_smokes(tmp_
     assert [result["slug"] for result in payload["results"]] == list(DEFAULT_STABLE_CODE_ORDER)
     assert all(result["success"] for result in payload["results"])
     assert all(result["checks"]["passage_orphanage_intro"] for result in payload["results"])
+
+
+@pytest.mark.config
+def test_baseline_candidate_apk_cdp_summary_requires_four_android_webview_smokes(tmp_path):
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_apk_cdp_smoke_evidence(reports_dir, slug)
+
+    output = tmp_path / APK_CDP_SMOKE_REPORT
+    assert summarize_apk_cdp_smoke_reports(reports_dir, output) == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["gate_level"] == FULL_GATE_COMPONENT_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["runtime_scope"] == {
+        "platform": "Android emulator",
+        "webview_cdp": True,
+        "manual_phone_testing": False,
+        "harmonyos_covered": False,
+    }
+    assert [result["slug"] for result in payload["results"]] == list(DEFAULT_STABLE_CODE_ORDER)
+    assert all(result["success"] for result in payload["results"])
+    assert all(result["checks"]["cdp_target_present"] for result in payload["results"])
+    assert all(result["checks"]["no_manual_phone_scope"] for result in payload["results"])
+    assert all(result["checks"]["no_harmonyos_scope"] for result in payload["results"])
 
 
 def _write_candidate_build_report(gate_dir, filename: str, pack_type: str) -> None:
@@ -210,6 +468,21 @@ def _write_simple_success_report(gate_dir, filename: str) -> None:
     )
 
 
+def _write_b1_component_success_report(gate_dir, filename: str) -> None:
+    (gate_dir / filename).write_text(
+        json.dumps(
+            {
+                "success": True,
+                "gate_level": FULL_GATE_COMPONENT_LEVEL,
+                "counts_for_phase2_promotion": False,
+                "default_matrix_mutated": False,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 @pytest.mark.config
 def test_phase1a_summary_records_missing_required_reports(tmp_path):
     gate_dir = tmp_path / "baseline-candidate-gate"
@@ -230,7 +503,7 @@ def test_phase1a_summary_records_missing_required_reports(tmp_path):
 
 
 @pytest.mark.config
-def test_phase1a_summary_accepts_complete_green_reports(tmp_path):
+def test_phase1a_summary_requires_b1_component_reports(tmp_path):
     gate_dir = tmp_path / "baseline-candidate-gate"
     gate_dir.mkdir(parents=True)
     output = gate_dir / PHASE1A_SUMMARY
@@ -242,13 +515,137 @@ def test_phase1a_summary_accepts_complete_green_reports(tmp_path):
     _write_simple_success_report(gate_dir, APK_AUDIT_REPORT)
     _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
 
+    assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 1
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is False
+    assert payload["gate_level"] == PARTIAL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["missing_reports"] == ["apk_debug_derivation", "apk_equivalence"]
+    assert payload["failed_reports"] == []
+    assert payload["reports"]["apk_debug_derivation"]["filename"] == APK_DEBUG_REPORT
+    assert payload["reports"]["apk_equivalence"]["filename"] == APK_EQUIVALENCE_REPORT
+    assert f"missing required report: {APK_DEBUG_REPORT}" in payload["errors"]
+    assert f"missing required report: {APK_EQUIVALENCE_REPORT}" in payload["errors"]
+
+
+@pytest.mark.config
+def test_candidate_summary_accepts_b1_green_as_partial_when_b2_missing(tmp_path):
+    gate_dir = tmp_path / "baseline-candidate-gate"
+    gate_dir.mkdir(parents=True)
+    output = gate_dir / PHASE1A_SUMMARY
+
+    _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
+    _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
+    _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
+    _write_simple_success_report(gate_dir, APK_AUDIT_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_DEBUG_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_EQUIVALENCE_REPORT)
+    _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
+
     assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 0
 
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["success"] is True
+    assert payload["gate_level"] == PARTIAL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
     assert payload["missing_reports"] == []
     assert payload["failed_reports"] == []
-    assert all(report["success"] for report in payload["reports"].values())
+    assert payload["reports"]["apk_debug_derivation"]["filename"] == APK_DEBUG_REPORT
+    assert payload["reports"]["apk_equivalence"]["filename"] == APK_EQUIVALENCE_REPORT
+    assert payload["reports"]["apk_cdp_smoke"]["filename"] == APK_CDP_SMOKE_REPORT
+    assert payload["reports"]["apk_cdp_smoke"]["present"] is False
+    assert payload["reports"]["apk_cdp_smoke"]["success"] is False
+    assert payload["b2_runtime"] == {
+        "required_for_full_candidate_gate": True,
+        "present": False,
+        "success": False,
+        "report": "apk_cdp_smoke",
+        "scope": {
+            "platform": "Android emulator",
+            "webview_cdp": True,
+            "manual_phone_testing": False,
+            "harmonyos_covered": False,
+        },
+    }
+    assert all(report["success"] for name, report in payload["reports"].items() if name != "apk_cdp_smoke")
+
+
+@pytest.mark.config
+def test_candidate_summary_promotes_to_full_gate_only_with_b2_runtime(tmp_path):
+    gate_dir = tmp_path / "baseline-candidate-gate"
+    gate_dir.mkdir(parents=True)
+    output = gate_dir / PHASE1A_SUMMARY
+
+    _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
+    _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
+    _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
+    _write_simple_success_report(gate_dir, APK_AUDIT_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_DEBUG_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_EQUIVALENCE_REPORT)
+    _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
+    _write_b1_component_success_report(gate_dir, APK_CDP_SMOKE_REPORT)
+
+    assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["gate_level"] == FULL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is True
+    assert payload["default_matrix_mutated"] is False
+    assert payload["missing_reports"] == []
+    assert payload["failed_reports"] == []
+    assert payload["reports"]["apk_cdp_smoke"]["present"] is True
+    assert payload["reports"]["apk_cdp_smoke"]["success"] is True
+    assert payload["b2_runtime"]["present"] is True
+    assert payload["b2_runtime"]["success"] is True
+
+
+@pytest.mark.config
+def test_candidate_summary_rejects_failing_b2_runtime_without_phase2_promotion(tmp_path):
+    gate_dir = tmp_path / "baseline-candidate-gate"
+    gate_dir.mkdir(parents=True)
+    output = gate_dir / PHASE1A_SUMMARY
+
+    _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
+    _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
+    _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
+    _write_simple_success_report(gate_dir, APK_AUDIT_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_DEBUG_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_EQUIVALENCE_REPORT)
+    _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
+    (gate_dir / APK_CDP_SMOKE_REPORT).write_text(
+        json.dumps(
+            {
+                "success": False,
+                "gate_level": FULL_GATE_COMPONENT_LEVEL,
+                "counts_for_phase2_promotion": False,
+                "default_matrix_mutated": False,
+                "errors": ["base: runtime failure"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 1
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is False
+    assert payload["gate_level"] == PARTIAL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["missing_reports"] == []
+    assert payload["failed_reports"] == ["apk_cdp_smoke"]
+    assert payload["reports"]["apk_cdp_smoke"]["present"] is True
+    assert payload["reports"]["apk_cdp_smoke"]["success"] is False
+    assert payload["b2_runtime"]["present"] is True
+    assert payload["b2_runtime"]["success"] is False
+    assert "base: runtime failure" in payload["errors"]
 
 
 @pytest.mark.config
