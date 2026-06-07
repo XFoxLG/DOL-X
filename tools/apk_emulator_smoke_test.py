@@ -10,12 +10,17 @@ same runtime checks/report shape as the ZIP browser smoke where practical.
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
+import socket
+import struct
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import asdict
 from pathlib import Path
@@ -253,6 +258,400 @@ def _wait_for_cdp_page(browser: Any, timeout_ms: int) -> Any:
     raise RuntimeError("CDP connection did not expose a WebView page")
 
 
+class _CdpObject:
+    def __init__(self, **kwargs: Any) -> None:
+        self.__dict__.update(kwargs)
+
+
+class _CdpDialog:
+    def __init__(self, page: "_AndroidWebViewCdpPage", dialog_type: str, message: str) -> None:
+        self._page = page
+        self.type = dialog_type
+        self.message = message
+        self.accepted = False
+
+    def accept(self) -> None:
+        self._page._send_command("Page.handleJavaScriptDialog", {"accept": True})
+        self.accepted = True
+
+
+class _CdpWebSocketSession:
+    """Small dependency-free WebSocket client for Android WebView page CDP."""
+
+    _GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+    def __init__(self, websocket_url: str, timeout_seconds: float) -> None:
+        self.websocket_url = websocket_url
+        self.timeout_seconds = timeout_seconds
+        self._socket = self._connect(websocket_url, timeout_seconds)
+        self._next_id = 0
+        self._pending: dict[int, dict[str, Any]] = {}
+        self._event_callback: Any | None = None
+
+    def set_event_callback(self, callback: Any) -> None:
+        self._event_callback = callback
+
+    def send_command(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self._next_id += 1
+        message_id = self._next_id
+        payload: dict[str, Any] = {"id": message_id, "method": method}
+        if params is not None:
+            payload["params"] = params
+        self._send_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+
+        deadline = time.monotonic() + (timeout_seconds or self.timeout_seconds)
+        while time.monotonic() < deadline:
+            if message_id in self._pending:
+                return self._pop_response(message_id, method)
+            remaining = max(0.05, deadline - time.monotonic())
+            self._socket.settimeout(min(remaining, 0.5))
+            try:
+                self._receive_message()
+            except socket.timeout:
+                continue
+        raise RuntimeError(f"timed out waiting for CDP response to {method}")
+
+    def drain_events(self, timeout_seconds: float) -> None:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            self._socket.settimeout(min(max(remaining, 0.01), 0.25))
+            try:
+                self._receive_message()
+            except socket.timeout:
+                continue
+
+    def close(self) -> None:
+        try:
+            self._send_frame(0x8, b"")
+        except OSError:
+            pass
+        self._socket.close()
+
+    def _pop_response(self, message_id: int, method: str) -> dict[str, Any]:
+        response = self._pending.pop(message_id)
+        if error := response.get("error"):
+            message = error.get("message") if isinstance(error, dict) else str(error)
+            raise RuntimeError(f"CDP {method} failed: {message}")
+        result = response.get("result", {})
+        return result if isinstance(result, dict) else {"value": result}
+
+    def _receive_message(self) -> None:
+        raw = self._receive_text()
+        message = json.loads(raw)
+        if "id" in message:
+            self._pending[int(message["id"])] = message
+            return
+        if self._event_callback is not None and "method" in message:
+            self._event_callback(message)
+
+    def _connect(self, websocket_url: str, timeout_seconds: float) -> socket.socket:
+        parsed = urllib.parse.urlparse(websocket_url)
+        if parsed.scheme != "ws":
+            raise RuntimeError(f"only ws:// CDP endpoints are supported, got {websocket_url!r}")
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 80
+        path = parsed.path or "/"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+
+        sock = socket.create_connection((host, port), timeout=timeout_seconds)
+        key = base64.b64encode(os.urandom(16)).decode("ascii")
+        request = "\r\n".join(
+            [
+                f"GET {path} HTTP/1.1",
+                f"Host: {host}:{port}",
+                "Upgrade: websocket",
+                "Connection: Upgrade",
+                f"Sec-WebSocket-Key: {key}",
+                "Sec-WebSocket-Version: 13",
+                "",
+                "",
+            ]
+        )
+        sock.sendall(request.encode("ascii"))
+        header = b""
+        while b"\r\n\r\n" not in header:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise RuntimeError("CDP WebSocket closed during handshake")
+            header += chunk
+        status_line, _, header_blob = header.partition(b"\r\n")
+        if b" 101 " not in status_line:
+            raise RuntimeError(f"CDP WebSocket handshake failed: {status_line.decode('ascii', errors='replace')}")
+        headers = self._parse_headers(header_blob.decode("ascii", errors="replace"))
+        expected_accept = base64.b64encode(hashlib.sha1(f"{key}{self._GUID}".encode("ascii")).digest()).decode(
+            "ascii"
+        )
+        if headers.get("sec-websocket-accept") != expected_accept:
+            raise RuntimeError("CDP WebSocket handshake returned an unexpected accept token")
+        return sock
+
+    @staticmethod
+    def _parse_headers(header_blob: str) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        for line in header_blob.splitlines():
+            if not line or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            headers[key.strip().lower()] = value.strip()
+        return headers
+
+    def _send_text(self, payload: str) -> None:
+        self._send_frame(0x1, payload.encode("utf-8"))
+
+    def _send_frame(self, opcode: int, payload: bytes) -> None:
+        mask = os.urandom(4)
+        length = len(payload)
+        if length <= 125:
+            header = bytes([0x80 | opcode, 0x80 | length])
+        elif length <= 0xFFFF:
+            header = bytes([0x80 | opcode, 0x80 | 126]) + struct.pack("!H", length)
+        else:
+            header = bytes([0x80 | opcode, 0x80 | 127]) + struct.pack("!Q", length)
+        masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+        self._socket.sendall(header + mask + masked)
+
+    def _receive_text(self) -> str:
+        payload_parts: list[bytes] = []
+        text_opcode_seen = False
+        while True:
+            first, second = self._read_exact(2)
+            fin = bool(first & 0x80)
+            opcode = first & 0x0F
+            masked = bool(second & 0x80)
+            length = second & 0x7F
+            if length == 126:
+                length = struct.unpack("!H", self._read_exact(2))[0]
+            elif length == 127:
+                length = struct.unpack("!Q", self._read_exact(8))[0]
+            mask = self._read_exact(4) if masked else b""
+            payload = self._read_exact(length) if length else b""
+            if masked:
+                payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+
+            if opcode == 0x8:
+                raise RuntimeError("CDP WebSocket closed")
+            if opcode == 0x9:
+                self._send_frame(0xA, payload)
+                continue
+            if opcode == 0xA:
+                continue
+            if opcode == 0x1:
+                text_opcode_seen = True
+                payload_parts.append(payload)
+            elif opcode == 0x0 and text_opcode_seen:
+                payload_parts.append(payload)
+            else:
+                continue
+            if fin:
+                return b"".join(payload_parts).decode("utf-8")
+
+    def _read_exact(self, length: int) -> bytes:
+        chunks: list[bytes] = []
+        remaining = length
+        while remaining:
+            chunk = self._socket.recv(remaining)
+            if not chunk:
+                raise RuntimeError("CDP WebSocket closed while reading frame")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+
+_NO_EVALUATE_ARG = object()
+
+
+def _remote_object_text(remote_object: dict[str, Any]) -> str:
+    if "value" in remote_object:
+        return str(remote_object["value"])
+    if "unserializableValue" in remote_object:
+        return str(remote_object["unserializableValue"])
+    if "description" in remote_object:
+        return str(remote_object["description"])
+    return str(remote_object.get("type") or "")
+
+
+def _stack_trace_location(stack_trace: dict[str, Any] | None) -> dict[str, Any]:
+    call_frames = (stack_trace or {}).get("callFrames") or []
+    if not call_frames:
+        return {}
+    frame = call_frames[0]
+    return {
+        "url": frame.get("url") or "",
+        "lineNumber": frame.get("lineNumber", 0),
+        "columnNumber": frame.get("columnNumber", 0),
+    }
+
+
+class _AndroidWebViewCdpPage:
+    """Playwright-like page facade backed by a WebView page-target CDP socket."""
+
+    def __init__(
+        self,
+        websocket_url: str,
+        timeout_ms: int,
+        target: dict[str, Any],
+        *,
+        session: _CdpWebSocketSession | None = None,
+    ) -> None:
+        self.websocket_url = websocket_url
+        self.url = str(target.get("url") or "")
+        self.setup_errors: list[dict[str, str]] = []
+        self._timeout_seconds = max(timeout_ms / 1000, 1)
+        self._handlers: dict[str, list[Any]] = {}
+        self._requests: dict[str, dict[str, Any]] = {}
+        self._session = session or _CdpWebSocketSession(websocket_url, self._timeout_seconds)
+        self._session.set_event_callback(self._handle_event)
+        for method in ("Runtime.enable", "Page.enable", "Network.enable"):
+            try:
+                self._send_command(method)
+            except RuntimeError as exc:
+                self.setup_errors.append({"method": method, "error": str(exc)})
+
+    def __enter__(self) -> "_AndroidWebViewCdpPage":
+        return self
+
+    def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+        self.close()
+
+    def on(self, event_name: str, handler: Any) -> None:
+        self._handlers.setdefault(event_name, []).append(handler)
+
+    def evaluate(self, script: str, arg: Any = _NO_EVALUATE_ARG) -> Any:
+        expression = f"({script})()" if arg is _NO_EVALUATE_ARG else f"({script})({json.dumps(arg, ensure_ascii=False)})"
+        response = self._send_command(
+            "Runtime.evaluate",
+            {
+                "expression": expression,
+                "returnByValue": True,
+                "awaitPromise": True,
+                "userGesture": True,
+            },
+        )
+        if exception := response.get("exceptionDetails"):
+            raise RuntimeError(_format_exception_details(exception))
+        remote_result = response.get("result", {})
+        if isinstance(remote_result, dict) and "value" in remote_result:
+            return remote_result["value"]
+        if isinstance(remote_result, dict) and remote_result.get("type") == "undefined":
+            return None
+        return remote_result.get("description") if isinstance(remote_result, dict) else remote_result
+
+    def wait_for_timeout(self, timeout_ms: int) -> None:
+        self._session.drain_events(max(timeout_ms, 0) / 1000)
+
+    def screenshot(self, *, path: str, full_page: bool = False) -> None:
+        del full_page
+        response = self._send_command("Page.captureScreenshot", {"format": "png", "fromSurface": True})
+        data = response.get("data")
+        if not isinstance(data, str):
+            raise RuntimeError("Page.captureScreenshot did not return image data")
+        screenshot_path = Path(path)
+        screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+        screenshot_path.write_bytes(base64.b64decode(data))
+
+    def close(self) -> None:
+        self._session.close()
+
+    def _send_command(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return self._session.send_command(method, params, timeout_seconds=self._timeout_seconds)
+
+    def _emit(self, event_name: str, payload: Any) -> None:
+        for handler in self._handlers.get(event_name, []):
+            handler(payload)
+
+    def _handle_event(self, message: dict[str, Any]) -> None:
+        method = str(message.get("method") or "")
+        params = message.get("params") if isinstance(message.get("params"), dict) else {}
+        if method == "Runtime.consoleAPICalled":
+            args = params.get("args") if isinstance(params.get("args"), list) else []
+            text = " ".join(_remote_object_text(arg) for arg in args if isinstance(arg, dict))
+            location = _stack_trace_location(params.get("stackTrace"))
+            self._emit("console", _CdpObject(type=params.get("type") or "log", text=text, location=location))
+        elif method == "Runtime.exceptionThrown":
+            self._emit("pageerror", _format_exception_details(params.get("exceptionDetails") or {}))
+        elif method == "Network.requestWillBeSent":
+            request_id = str(params.get("requestId") or "")
+            request = params.get("request") if isinstance(params.get("request"), dict) else {}
+            self._requests[request_id] = {
+                "url": request.get("url") or "",
+                "method": request.get("method") or "GET",
+                "resource_type": str(params.get("type") or "other").lower(),
+            }
+        elif method == "Network.loadingFailed":
+            request = self._requests.get(str(params.get("requestId") or ""), {})
+            self._emit(
+                "requestfailed",
+                _CdpObject(
+                    url=request.get("url") or "",
+                    method=request.get("method") or "GET",
+                    resource_type=request.get("resource_type") or "other",
+                    failure=params.get("errorText") or "request failed",
+                ),
+            )
+        elif method == "Network.responseReceived":
+            response = params.get("response") if isinstance(params.get("response"), dict) else {}
+            self._emit(
+                "response",
+                _CdpObject(
+                    url=response.get("url") or "",
+                    status=int(response.get("status") or 0),
+                    status_text=response.get("statusText") or "",
+                ),
+            )
+        elif method == "Page.frameNavigated":
+            frame = params.get("frame") if isinstance(params.get("frame"), dict) else {}
+            if not frame.get("parentId") and frame.get("url"):
+                self.url = str(frame["url"])
+        elif method == "Page.javascriptDialogOpening":
+            dialog = _CdpDialog(self, str(params.get("type") or "alert"), str(params.get("message") or ""))
+            self._emit("dialog", dialog)
+            if not dialog.accepted:
+                dialog.accept()
+
+
+def _format_exception_details(details: dict[str, Any]) -> str:
+    exception = details.get("exception") if isinstance(details.get("exception"), dict) else {}
+    return str(exception.get("description") or exception.get("value") or details.get("text") or details)
+
+
+def _select_cdp_page_target(targets: list[Any]) -> dict[str, Any] | None:
+    typed_targets = [target for target in targets if isinstance(target, dict)]
+    websocket_targets = [target for target in typed_targets if target.get("webSocketDebuggerUrl")]
+    page_targets = [target for target in websocket_targets if target.get("type") == "page"]
+    candidates = page_targets or websocket_targets
+    if not candidates:
+        return None
+
+    def score(target: dict[str, Any]) -> tuple[int, int]:
+        url = str(target.get("url") or "")
+        title = str(target.get("title") or "")
+        is_local_game = url.startswith("https://localhost/") or url.startswith("http://localhost/")
+        return (0 if is_local_game else 1, 0 if title else 1)
+
+    return sorted(candidates, key=score)[0]
+
+
+def _target_websocket_url(cdp_url: str, target: dict[str, Any]) -> str:
+    raw_url = str(target.get("webSocketDebuggerUrl") or "")
+    if raw_url.startswith("ws://"):
+        return raw_url
+    if not raw_url:
+        raise RuntimeError("selected Android WebView CDP target did not expose webSocketDebuggerUrl")
+    parsed = urllib.parse.urlparse(cdp_url)
+    if not parsed.netloc:
+        raise RuntimeError(f"cannot resolve relative CDP WebSocket URL from {cdp_url!r}")
+    path = raw_url if raw_url.startswith("/") else f"/{raw_url}"
+    return urllib.parse.urlunparse(("ws", parsed.netloc, path, "", "", ""))
+
+
 def _record_apk_identity(report: BrowserSmokeReport, apk_path: Path, profile_name: str) -> None:
     normalized_name = apk_path.name.lower().replace("_", "-")
     required_tokens = ("ucb", "more-love", "custom-spellbook", "cheat-extended", "maplebirch")
@@ -298,19 +697,6 @@ def _run_webview_browser_smoke(
     settle_ms: int,
     cdp_diagnostics: dict[str, Any],
 ) -> BrowserSmokeReport:
-    try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:  # pragma: no cover - exercised by CI environment.
-        report = BrowserSmokeReport(
-            target=str(apk_path),
-            profile=profile_name,
-            report_only=False,
-            ci_context=collect_ci_context(),
-        )
-        _add_issue(report, Issue("high", "playwright_missing", "runner", str(exc)))
-        return report
-
     profile = PROFILES[profile_name]
     report = BrowserSmokeReport(
         target=str(apk_path),
@@ -324,64 +710,83 @@ def _run_webview_browser_smoke(
     embedded_mods = _extract_static_embedded_mods(apk_path)
     report.observations["embedded_mods"] = [asdict(info) for info in embedded_mods]
 
+    target = _select_cdp_page_target(cdp_diagnostics.get("targets", []))
+    if target is None:
+        _add_issue(
+            report,
+            Issue(
+                "high",
+                "apk_cdp_page_target_missing",
+                "runner",
+                "Android WebView CDP endpoint did not expose a page target with webSocketDebuggerUrl",
+            ),
+        )
+        return report
+
+    websocket_url = _target_websocket_url(cdp_url, target)
+    report.observations["apk_cdp_page_target"] = {
+        "id": target.get("id"),
+        "type": target.get("type"),
+        "title": target.get("title"),
+        "url": target.get("url"),
+        "webSocketDebuggerUrl": websocket_url,
+    }
+
     try:
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.connect_over_cdp(cdp_url, timeout=timeout_ms)
-            try:
-                page = _wait_for_cdp_page(browser, timeout_ms)
-                _attach_page_events(report, page)
-                page.wait_for_timeout(settle_ms)
-                report.served_url = page.url
+        with _AndroidWebViewCdpPage(websocket_url, timeout_ms, target) as page:
+            if page.setup_errors:
+                report.observations["apk_cdp_setup_errors"] = page.setup_errors
+            _attach_page_events(report, page)
+            page.wait_for_timeout(settle_ms)
+            report.served_url = page.url
 
-                _run_startup_interactions(report, page, profile)
-                global_names = tuple(
-                    dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
+            _run_startup_interactions(report, page, profile)
+            global_names = tuple(
+                dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
+            )
+            page_state = page.evaluate(_page_state_script(global_names), global_names)
+            report.observations["page_state"] = page_state
+            report.observations["runtime_globals"] = {
+                global_name: (page_state.get("globals", {}) or {}).get(global_name)
+                for global_name in profile.diagnostic_globals
+            }
+            report.observations["browser_boot"] = {
+                "navigation_ok": True,
+                "served_url": page.url,
+                "ready_state": page_state.get("readyState"),
+                "has_jquery": page_state.get("hasJQuery"),
+                "has_sugarcube": page_state.get("hasSugarCube"),
+                "has_mod_data_value_zip_list": page_state.get("hasModDataValueZipList"),
+                "mod_data_value_zip_list_length": page_state.get("modDataValueZipListLength"),
+                "dialog_count": len(report.observations.get("dialogs", [])),
+                "popup_count": 0,
+                "console_message_count": len(report.console_messages),
+                "network_failure_count": len(report.network_failures),
+            }
+            _record_game_ready(report, page)
+            _attempt_enter_game(report, page)
+            final_game_ready = _record_game_ready(report, page, add_issues=False)
+            _check_required_mods(report, profile, embedded_mods)
+
+            observed_passage = final_game_ready.get("passage")
+            if expected_passage and observed_passage != expected_passage:
+                _add_issue(
+                    report,
+                    Issue(
+                        "high",
+                        "expected_passage_not_reached",
+                        "apk_cdp_smoke",
+                        f"expected passage {expected_passage!r}, got {observed_passage!r}",
+                    ),
                 )
-                page_state = page.evaluate(_page_state_script(), global_names)
-                report.observations["page_state"] = page_state
-                report.observations["runtime_globals"] = {
-                    global_name: (page_state.get("globals", {}) or {}).get(global_name)
-                    for global_name in profile.diagnostic_globals
-                }
-                report.observations["browser_boot"] = {
-                    "navigation_ok": True,
-                    "served_url": page.url,
-                    "ready_state": page_state.get("readyState"),
-                    "has_jquery": page_state.get("hasJQuery"),
-                    "has_sugarcube": page_state.get("hasSugarCube"),
-                    "has_mod_data_value_zip_list": page_state.get("hasModDataValueZipList"),
-                    "mod_data_value_zip_list_length": page_state.get("modDataValueZipListLength"),
-                    "dialog_count": len(report.observations.get("dialogs", [])),
-                    "popup_count": 0,
-                    "console_message_count": len(report.console_messages),
-                    "network_failure_count": len(report.network_failures),
-                }
-                _record_game_ready(report, page)
-                _attempt_enter_game(report, page)
-                final_game_ready = _record_game_ready(report, page, add_issues=False)
-                _check_required_mods(report, profile, embedded_mods)
 
-                observed_passage = final_game_ready.get("passage")
-                if expected_passage and observed_passage != expected_passage:
-                    _add_issue(
-                        report,
-                        Issue(
-                            "high",
-                            "expected_passage_not_reached",
-                            "apk_cdp_smoke",
-                            f"expected passage {expected_passage!r}, got {observed_passage!r}",
-                        ),
-                    )
-
-                screenshot_path = output_dir / "browser-smoke-final.png"
-                try:
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                    page.screenshot(path=str(screenshot_path), full_page=True)
-                    report.observations["screenshot"] = {"path": str(screenshot_path), "full_page": True}
-                except PlaywrightError as exc:
-                    _add_issue(report, Issue("warning", "screenshot_failed", "runner", str(exc)))
-            finally:
-                browser.close()
+            screenshot_path = output_dir / "browser-smoke-final.png"
+            try:
+                output_dir.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(screenshot_path), full_page=True)
+                report.observations["screenshot"] = {"path": str(screenshot_path), "full_page": True}
+            except Exception as exc:  # noqa: BLE001 - screenshot is useful but non-blocking.
+                _add_issue(report, Issue("warning", "screenshot_failed", "runner", str(exc)))
     except Exception as exc:  # noqa: BLE001 - preserve CDP failures as report artifacts.
         _add_issue(report, Issue("high", "apk_cdp_smoke_error", "runner", str(exc)))
 
