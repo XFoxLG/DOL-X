@@ -160,3 +160,127 @@ def test_apk_webview_smoke_reports_missing_page_target(tmp_path):
     )
 
     assert [issue.kind for issue in report.issues if issue.severity == "high"] == ["apk_cdp_page_target_missing"]
+
+
+@pytest.mark.config
+def test_apk_cdp_console_array_preview_keeps_simple_frameworks_lookup_warning():
+    text = apk_emulator_smoke_test._remote_object_text(
+        {
+            "type": "object",
+            "subtype": "array",
+            "description": "Array(2)",
+            "preview": {
+                "type": "object",
+                "subtype": "array",
+                "overflow": False,
+                "properties": [
+                    {"name": "0", "type": "string", "value": "Simple Frameworks"},
+                    {"name": "1", "type": "string", "value": "ModOrderContainer"},
+                ],
+            },
+        }
+    )
+
+    issue = apk_emulator_smoke_test._classify_apk_cdp_message(
+        "console.error",
+        f"ModOrderContainer getByNameOne() cannot find name. {text}",
+    )
+
+    assert text == "[Simple Frameworks, ModOrderContainer]"
+    assert issue.severity == "warning"
+    assert issue.kind == "simple_frameworks_optional_lookup"
+
+
+@pytest.mark.config
+def test_apk_cdp_remote_loader_failed_fetch_is_optional_remote_mod_list():
+    issue = apk_emulator_smoke_test._classify_apk_cdp_message(
+        "console.error",
+        "TypeError: Failed to fetch\n    at RemoteLoader.load (webpack://SC2-mod-loader-framework/./src/BeforeSC2/ModZipReader.ts?:1127:31)",
+    )
+
+    assert issue.severity == "warning"
+    assert issue.kind == "optional_remote_mod_list"
+
+
+@pytest.mark.config
+def test_apk_cdp_transport_close_is_adapter_warning_and_reconnects_once():
+    report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    calls = {"operation": 0, "reconnect": 0}
+
+    class FakePage:
+        def reconnect(self) -> None:
+            calls["reconnect"] += 1
+
+    def operation() -> str:
+        calls["operation"] += 1
+        if calls["operation"] == 1:
+            raise RuntimeError("CDP WebSocket closed while reading frame")
+        return "ok"
+
+    issue = apk_emulator_smoke_test._classify_apk_cdp_smoke_exception(
+        RuntimeError("CDP WebSocket closed while reading frame")
+    )
+    result = apk_emulator_smoke_test._with_cdp_reconnect(report, FakePage(), "page_state", operation)
+
+    assert issue.severity == "warning"
+    assert issue.kind == "apk_cdp_adapter_closed"
+    assert result == "ok"
+    assert calls == {"operation": 2, "reconnect": 1}
+    assert report.observations["apk_cdp_reconnects"] == [
+        {"phase": "page_state", "error": "CDP WebSocket closed while reading frame"}
+    ]
+
+
+@pytest.mark.config
+def test_apk_cdp_downgrades_cordova_pageerror_only_after_ready_passage():
+    ready_report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    message = "Error: Java exception was raised during method invocation\n    at androidExec (https://localhost/cordova.js:992:40)"
+    ready_report.observations["pageerror_context"] = [{"message": message, "url": "https://localhost/index.html"}]
+    apk_emulator_smoke_test._add_issue(
+        ready_report,
+        apk_emulator_smoke_test.Issue("high", "unexpected_browser_error", "pageerror", message),
+    )
+
+    apk_emulator_smoke_test._downgrade_ready_cordova_pageerrors(
+        ready_report,
+        {"ready": True, "passage": "Orphanage Intro"},
+        "Orphanage Intro",
+    )
+
+    assert ready_report.observations["pageerror_context"] == []
+    assert ready_report.observations["apk_cdp_benign_pageerrors"] == [
+        {"message": message, "url": "https://localhost/index.html"}
+    ]
+    assert [(issue.severity, issue.kind) for issue in ready_report.issues] == [
+        ("warning", "cordova_android_exec_after_ready")
+    ]
+
+    not_ready_report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    not_ready_report.observations["pageerror_context"] = [{"message": message}]
+    apk_emulator_smoke_test._add_issue(
+        not_ready_report,
+        apk_emulator_smoke_test.Issue("high", "unexpected_browser_error", "pageerror", message),
+    )
+
+    apk_emulator_smoke_test._downgrade_ready_cordova_pageerrors(
+        not_ready_report,
+        {"ready": False, "passage": None},
+        "Orphanage Intro",
+    )
+
+    assert not_ready_report.observations["pageerror_context"] == [{"message": message}]
+    assert [(issue.severity, issue.kind) for issue in not_ready_report.issues] == [
+        ("high", "unexpected_browser_error")
+    ]
