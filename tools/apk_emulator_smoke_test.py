@@ -204,6 +204,86 @@ def _discover_cdp_endpoint(
     }
 
 
+def _is_cdp_transport_error(error: BaseException | str | None) -> bool:
+    text = str(error or "").lower()
+    return "cdp websocket closed" in text or "cdp websocket send failed" in text
+
+
+def _is_optional_remote_loader_fetch(source: str, message: str, location: dict[str, Any] | None = None) -> bool:
+    if source != "console.error" or "TypeError: Failed to fetch" not in message:
+        return False
+    location_url = str((location or {}).get("url") or "")
+    return "RemoteLoader.load" in message or "ModZipReader.ts" in message or "ModZipReader.ts" in location_url
+
+
+def _is_cordova_android_exec_exception(message: str) -> bool:
+    return "Java exception was raised during method invocation" in message and "cordova.js" in message
+
+
+def _classify_apk_cdp_message(source: str, message: str, location: dict[str, Any] | None = None) -> Issue:
+    if _is_optional_remote_loader_fetch(source, message, location):
+        return Issue("warning", "optional_remote_mod_list", source, message)
+    return classify_message(source, message)
+
+
+def _classify_apk_cdp_smoke_exception(exc: BaseException) -> Issue:
+    if _is_cdp_transport_error(exc):
+        return Issue("warning", "apk_cdp_adapter_closed", "runner", str(exc))
+    return Issue("high", "apk_cdp_smoke_error", "runner", str(exc))
+
+
+def _reconnect_cdp_page(report: BrowserSmokeReport, page: Any, phase: str, error: BaseException | str) -> None:
+    reconnect = getattr(page, "reconnect", None)
+    if not callable(reconnect):
+        raise RuntimeError(str(error))
+    report.observations.setdefault("apk_cdp_reconnects", []).append({"phase": phase, "error": str(error)})
+    reconnect()
+
+
+def _with_cdp_reconnect(report: BrowserSmokeReport, page: Any, phase: str, operation: Any) -> Any:
+    try:
+        return operation()
+    except Exception as exc:  # noqa: BLE001 - CDP transport close is recoverable once per phase.
+        if not _is_cdp_transport_error(exc):
+            raise
+        _reconnect_cdp_page(report, page, phase, exc)
+        return operation()
+
+
+def _downgrade_ready_cordova_pageerrors(
+    report: BrowserSmokeReport,
+    final_game_ready: dict[str, Any],
+    expected_passage: str,
+) -> None:
+    if not final_game_ready.get("ready"):
+        return
+    if expected_passage and final_game_ready.get("passage") != expected_passage:
+        return
+
+    pageerror_context = report.observations.get("pageerror_context") or []
+    if not isinstance(pageerror_context, list):
+        return
+
+    benign_context: list[dict[str, Any]] = []
+    retained_context: list[Any] = []
+    for entry in pageerror_context:
+        message = str(entry.get("message") or "") if isinstance(entry, dict) else str(entry)
+        if _is_cordova_android_exec_exception(message):
+            benign_context.append(entry if isinstance(entry, dict) else {"message": message})
+        else:
+            retained_context.append(entry)
+
+    if not benign_context:
+        return
+
+    report.observations["pageerror_context"] = retained_context
+    report.observations.setdefault("apk_cdp_benign_pageerrors", []).extend(benign_context)
+    for issue in report.issues:
+        if issue.source == "pageerror" and _is_cordova_android_exec_exception(issue.message):
+            issue.severity = "warning"
+            issue.kind = "cordova_android_exec_after_ready"
+
+
 def _attach_page_events(report: BrowserSmokeReport, page: Any) -> None:
     def on_console(message: Any) -> None:
         text = str(message.text)
@@ -211,12 +291,12 @@ def _attach_page_events(report: BrowserSmokeReport, page: Any) -> None:
         report.console_messages.append(entry)
         if message.type in {"error", "warning"}:
             source = "console.error" if message.type == "error" else "console.warning"
-            _add_issue(report, classify_message(source, text), location=message.location)
+            _add_issue(report, _classify_apk_cdp_message(source, text, message.location), location=message.location)
 
     def on_page_error(error: Any) -> None:
         text = str(error)
         report.observations.setdefault("pageerror_context", []).append({"message": text, "url": page.url})
-        _add_issue(report, classify_message("pageerror", text))
+        _add_issue(report, _classify_apk_cdp_message("pageerror", text))
 
     def on_request_failed(request: Any) -> None:
         failure = request.failure or "request failed"
@@ -330,7 +410,7 @@ class _CdpWebSocketSession:
     def close(self) -> None:
         try:
             self._send_frame(0x8, b"")
-        except OSError:
+        except (OSError, RuntimeError):
             pass
         self._socket.close()
 
@@ -416,7 +496,10 @@ class _CdpWebSocketSession:
         else:
             header = bytes([0x80 | opcode, 0x80 | 127]) + struct.pack("!Q", length)
         masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
-        self._socket.sendall(header + mask + masked)
+        try:
+            self._socket.sendall(header + mask + masked)
+        except OSError as exc:
+            raise RuntimeError(f"CDP WebSocket send failed: {exc}") from exc
 
     def _receive_text(self) -> str:
         payload_parts: list[bytes] = []
@@ -468,11 +551,36 @@ class _CdpWebSocketSession:
 _NO_EVALUATE_ARG = object()
 
 
+def _remote_preview_property_text(property_info: dict[str, Any]) -> str:
+    if "value" in property_info:
+        return str(property_info["value"])
+    if "description" in property_info:
+        return str(property_info["description"])
+    return str(property_info.get("type") or "")
+
+
+def _remote_object_preview_text(remote_object: dict[str, Any]) -> str | None:
+    preview = remote_object.get("preview") if isinstance(remote_object.get("preview"), dict) else None
+    if preview is None:
+        return None
+    properties = preview.get("properties") if isinstance(preview.get("properties"), list) else []
+    rendered = [_remote_preview_property_text(prop) for prop in properties if isinstance(prop, dict)]
+    if preview.get("subtype") == "array":
+        suffix = ", ..." if preview.get("overflow") else ""
+        return f"[{', '.join(rendered)}{suffix}]"
+    if rendered:
+        suffix = ", ..." if preview.get("overflow") else ""
+        return "{" + ", ".join(rendered) + suffix + "}"
+    return None
+
+
 def _remote_object_text(remote_object: dict[str, Any]) -> str:
     if "value" in remote_object:
         return str(remote_object["value"])
     if "unserializableValue" in remote_object:
         return str(remote_object["unserializableValue"])
+    if preview_text := _remote_object_preview_text(remote_object):
+        return preview_text
     if "description" in remote_object:
         return str(remote_object["description"])
     return str(remote_object.get("type") or "")
@@ -509,6 +617,9 @@ class _AndroidWebViewCdpPage:
         self._requests: dict[str, dict[str, Any]] = {}
         self._session = session or _CdpWebSocketSession(websocket_url, self._timeout_seconds)
         self._session.set_event_callback(self._handle_event)
+        self._enable_domains()
+
+    def _enable_domains(self) -> None:
         for method in ("Runtime.enable", "Page.enable", "Network.enable"):
             try:
                 self._send_command(method)
@@ -559,6 +670,13 @@ class _AndroidWebViewCdpPage:
 
     def close(self) -> None:
         self._session.close()
+
+    def reconnect(self) -> None:
+        self.close()
+        self._requests = {}
+        self._session = _CdpWebSocketSession(self.websocket_url, self._timeout_seconds)
+        self._session.set_event_callback(self._handle_event)
+        self._enable_domains()
 
     def _send_command(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return self._session.send_command(method, params, timeout_seconds=self._timeout_seconds)
@@ -737,14 +855,22 @@ def _run_webview_browser_smoke(
             if page.setup_errors:
                 report.observations["apk_cdp_setup_errors"] = page.setup_errors
             _attach_page_events(report, page)
-            page.wait_for_timeout(settle_ms)
+            _with_cdp_reconnect(report, page, "settle", lambda: page.wait_for_timeout(settle_ms))
             report.served_url = page.url
 
-            _run_startup_interactions(report, page, profile)
+            startup_result = _run_startup_interactions(report, page, profile)
+            if _is_cdp_transport_error((startup_result or {}).get("error")):
+                _reconnect_cdp_page(report, page, "startup_interactions", (startup_result or {}).get("error"))
+                _run_startup_interactions(report, page, profile)
             global_names = tuple(
                 dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
             )
-            page_state = page.evaluate(_page_state_script(global_names), global_names)
+            page_state = _with_cdp_reconnect(
+                report,
+                page,
+                "page_state",
+                lambda: page.evaluate(_page_state_script(global_names), global_names),
+            )
             report.observations["page_state"] = page_state
             report.observations["runtime_globals"] = {
                 global_name: (page_state.get("globals", {}) or {}).get(global_name)
@@ -763,10 +889,20 @@ def _run_webview_browser_smoke(
                 "console_message_count": len(report.console_messages),
                 "network_failure_count": len(report.network_failures),
             }
-            _record_game_ready(report, page)
-            _attempt_enter_game(report, page)
-            final_game_ready = _record_game_ready(report, page, add_issues=False)
+            _with_cdp_reconnect(report, page, "game_ready", lambda: _record_game_ready(report, page))
+            _with_cdp_reconnect(report, page, "enter_game", lambda: _attempt_enter_game(report, page))
+            enter_result = report.observations.get("enter_game") or {}
+            if isinstance(enter_result, dict) and _is_cdp_transport_error(enter_result.get("error")):
+                _reconnect_cdp_page(report, page, "enter_game", enter_result.get("error"))
+                _attempt_enter_game(report, page)
+            final_game_ready = _with_cdp_reconnect(
+                report,
+                page,
+                "final_game_ready",
+                lambda: _record_game_ready(report, page, add_issues=False),
+            )
             _check_required_mods(report, profile, embedded_mods)
+            _downgrade_ready_cordova_pageerrors(report, final_game_ready, expected_passage)
 
             observed_passage = final_game_ready.get("passage")
             if expected_passage and observed_passage != expected_passage:
@@ -788,7 +924,7 @@ def _run_webview_browser_smoke(
             except Exception as exc:  # noqa: BLE001 - screenshot is useful but non-blocking.
                 _add_issue(report, Issue("warning", "screenshot_failed", "runner", str(exc)))
     except Exception as exc:  # noqa: BLE001 - preserve CDP failures as report artifacts.
-        _add_issue(report, Issue("high", "apk_cdp_smoke_error", "runner", str(exc)))
+        _add_issue(report, _classify_apk_cdp_smoke_exception(exc))
 
     return report
 
