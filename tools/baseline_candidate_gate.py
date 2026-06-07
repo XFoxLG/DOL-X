@@ -128,7 +128,6 @@ WEBVIEW_DEBUG_SMALI_SNIPPET = (
 )
 DEBUG_KEYSTORE_ALIAS = "dolx-smoke-debug"
 DEBUG_KEYSTORE_PASSWORD = "dolxdebug"
-DEBUG_SIGNER_SKIP_ZIPALIGN_ARG = "--skipZipAlign"
 
 
 @dataclass(frozen=True)
@@ -1357,7 +1356,6 @@ def _derive_debug_apk_with_apktool(
             DEBUG_KEYSTORE_PASSWORD,
             "--ksPass",
             DEBUG_KEYSTORE_PASSWORD,
-            DEBUG_SIGNER_SKIP_ZIPALIGN_ARG,
             "-o",
             str(signed_dir),
         ],
