@@ -236,6 +236,61 @@ def test_apk_cdp_transport_close_is_adapter_warning_and_reconnects_once():
 
 
 @pytest.mark.config
+def test_apk_cdp_page_reconnect_refreshes_page_target(monkeypatch):
+    created_sessions: list[str] = []
+
+    class FakeSession:
+        def __init__(self, websocket_url: str, timeout_seconds: float) -> None:
+            del timeout_seconds
+            created_sessions.append(websocket_url)
+            self.websocket_url = websocket_url
+            self.closed = False
+
+        def set_event_callback(self, callback: Any) -> None:
+            self.callback = callback
+
+        def send_command(
+            self,
+            method: str,
+            params: dict[str, Any] | None = None,
+            *,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            del method, params, timeout_seconds
+            return {}
+
+        def close(self) -> None:
+            self.closed = True
+
+    refreshed_targets = [
+        {
+            "id": "new-game",
+            "type": "page",
+            "title": "Degrees of Lewdity",
+            "url": "https://localhost/index.html",
+            "webSocketDebuggerUrl": "/devtools/page/new-game",
+        }
+    ]
+
+    monkeypatch.setattr(apk_emulator_smoke_test, "_CdpWebSocketSession", FakeSession)
+    monkeypatch.setattr(apk_emulator_smoke_test, "_fetch_json", lambda url, *, timeout=5.0: refreshed_targets)
+
+    page = apk_emulator_smoke_test._AndroidWebViewCdpPage(
+        "ws://127.0.0.1:9222/devtools/page/old-game",
+        60_000,
+        {"url": "https://localhost/index.html"},
+    )
+
+    page.reconnect()
+
+    assert created_sessions == [
+        "ws://127.0.0.1:9222/devtools/page/old-game",
+        "ws://127.0.0.1:9222/devtools/page/new-game",
+    ]
+    assert page.websocket_url == "ws://127.0.0.1:9222/devtools/page/new-game"
+
+
+@pytest.mark.config
 def test_apk_cdp_downgrades_cordova_pageerror_only_after_ready_passage():
     ready_report = apk_emulator_smoke_test.BrowserSmokeReport(
         target="apk",
