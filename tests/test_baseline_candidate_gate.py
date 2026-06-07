@@ -39,6 +39,7 @@ from tools.baseline_candidate_gate import (
     derive_debug_apk_target,
     build_manifest,
     parse_args,
+    run_apk_cdp_smokes,
     summarize_apk_cdp_smoke_reports,
     summarize_browser_reports,
     summarize_phase1a_gate,
@@ -254,6 +255,156 @@ def test_stable_replacement_readiness_cli_is_exposed():
 
     assert args.command == "stable-replacement-readiness"
     assert args.output.name == STABLE_REPLACEMENT_READINESS_REPORT
+
+
+@pytest.mark.config
+def test_run_apk_cdp_cli_is_exposed():
+    args = parse_args(
+        [
+            "run-apk-cdp",
+            "apk-debug-artifacts",
+            "--reports-dir",
+            "apk-cdp-smoke",
+            "--profile",
+            "custom-profile",
+        ]
+    )
+
+    assert args.command == "run-apk-cdp"
+    assert args.target.name == "apk-debug-artifacts"
+    assert args.reports_dir.name == "apk-cdp-smoke"
+    assert args.profile == "custom-profile"
+
+
+@pytest.mark.config
+def test_run_apk_cdp_cli_dispatches_runner(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_runner(target, reports_dir, profile):
+        calls.append((target, reports_dir, profile))
+        return 7
+
+    monkeypatch.setattr(baseline_candidate_gate, "run_apk_cdp_smokes", fake_runner)
+    target = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+
+    assert (
+        baseline_candidate_gate.main(
+            [
+                "run-apk-cdp",
+                str(target),
+                "--reports-dir",
+                str(reports_dir),
+                "--profile",
+                "profile-x",
+            ]
+        )
+        == 7
+    )
+    assert calls == [(target, reports_dir, "profile-x")]
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_invokes_helper_for_all_candidate_debug_apks(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(apk_dir, slug)
+    calls = []
+
+    class Result:
+        returncode = 0
+
+    def fake_run(cmd, check):
+        calls.append(cmd)
+        assert check is False
+        return Result()
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 0
+    assert len(calls) == len(DEFAULT_STABLE_CODE_ORDER)
+    assert [cmd[cmd.index("--slug") + 1] for cmd in calls] == list(DEFAULT_STABLE_CODE_ORDER)
+    assert [cmd[cmd.index("--output-dir") + 1] for cmd in calls] == [
+        str(reports_dir / slug) for slug in DEFAULT_STABLE_CODE_ORDER
+    ]
+    assert all(cmd[0] == baseline_candidate_gate.sys.executable for cmd in calls)
+    assert all(cmd[1] == "tools/apk_emulator_smoke_test.py" for cmd in calls)
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_writes_failure_report_for_missing_candidate(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER[:-1]:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        returncode = 0
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", lambda cmd, check: Result())
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 1
+    missing_slug = DEFAULT_STABLE_CODE_ORDER[-1]
+    payload = json.loads((reports_dir / missing_slug / "apk-emulator-smoke.json").read_text(encoding="utf-8"))
+
+    assert payload["success"] is False
+    assert payload["gate_level"] == FULL_GATE_COMPONENT_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["default_matrix_mutated"] is False
+    assert payload["slug"] == missing_slug
+    assert any("missing smoke-debug candidate APK" in error for error in payload["errors"])
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_writes_fallback_report_when_helper_fails_without_report(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        returncode = 3
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", lambda cmd, check: Result())
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 1
+    payload = json.loads((reports_dir / "base" / "apk-emulator-smoke.json").read_text(encoding="utf-8"))
+
+    assert payload["success"] is False
+    assert payload["gate_level"] == FULL_GATE_COMPONENT_LEVEL
+    assert any("APK CDP smoke helper exited with 3" in error for error in payload["errors"])
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_preserves_helper_report_when_helper_fails(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        returncode = 4
+
+    def fake_run(cmd, check):
+        assert check is False
+        slug = cmd[cmd.index("--slug") + 1]
+        output_dir = reports_dir / slug
+        output_dir.mkdir(parents=True, exist_ok=True)
+        marker = {"success": False, "slug": slug, "errors": ["helper-written"]}
+        (output_dir / "apk-emulator-smoke.json").write_text(json.dumps(marker), encoding="utf-8")
+        return Result()
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 1
+    payload = json.loads((reports_dir / "base" / "apk-emulator-smoke.json").read_text(encoding="utf-8"))
+
+    assert payload["errors"] == ["helper-written"]
 
 
 @pytest.mark.config

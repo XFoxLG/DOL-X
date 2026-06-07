@@ -157,23 +157,11 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            APK_DIR="${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"
-            for slug in base au-f au-m au-a; do
-              if [[ "$slug" == "base" ]]; then
-                APK_FILE=$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -name "*ucb-more-love-custom-spellbook-cheat-extended-maplebirch*" -name "*smoke-debug.apk" ! -name "*-au-*" | sort | head -n 1)
-              else
-                APK_FILE=$(find "$APK_DIR" -maxdepth 1 -type f -name "*.apk" -name "*-${slug}-*" -name "*cheat-extended-maplebirch*" -name "*smoke-debug.apk" | sort | head -n 1)
-              fi
-              if [[ -z "$APK_FILE" ]]; then
-                echo "::error::missing smoke-debug candidate APK for ${slug}"
-                exit 1
-              fi
-              python tools/apk_emulator_smoke_test.py "$APK_FILE" \
-                --slug "$slug" \
-                --profile "$PROFILE" \
-                --output-dir "${GATE_DIR}/apk-cdp-smoke/${slug}"
-            done
+          script: >-
+            python tools/baseline_candidate_gate.py run-apk-cdp
+            "${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"
+            --reports-dir "${GATE_DIR}/apk-cdp-smoke"
+            --profile "$PROFILE"
 
       - name: Summarize candidate APK CDP smokes
         if: always()
