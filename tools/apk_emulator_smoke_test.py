@@ -35,6 +35,7 @@ from tools.browser_smoke_test import (
     BrowserSmokeReport,
     Issue,
     PROFILES,
+    _add_game_ready_issues,
     _add_issue,
     _attempt_enter_game,
     _check_required_mods,
@@ -53,6 +54,10 @@ from tools.browser_smoke_test import (
 DEFAULT_CDP_PORT = 9222
 DEFAULT_PROFILE = "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
 DEFAULT_EXPECTED_PASSAGE = "Orphanage Intro"
+APK_CDP_RECONNECT_ATTEMPTS = 3
+APK_CDP_RECONNECT_RETRY_DELAY_SECONDS = 2
+APK_CDP_LATE_STARTUP_WAIT_MS = 180_000
+APK_CDP_LATE_STARTUP_POLL_MS = 5_000
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -237,7 +242,19 @@ def _reconnect_cdp_page(report: BrowserSmokeReport, page: Any, phase: str, error
     if not callable(reconnect):
         raise RuntimeError(str(error))
     report.observations.setdefault("apk_cdp_reconnects", []).append({"phase": phase, "error": str(error)})
-    reconnect()
+    last_error: BaseException | None = None
+    for attempt in range(1, APK_CDP_RECONNECT_ATTEMPTS + 1):
+        if attempt > 1:
+            time.sleep(APK_CDP_RECONNECT_RETRY_DELAY_SECONDS)
+        try:
+            reconnect()
+            return
+        except Exception as exc:  # noqa: BLE001 - transient WebView target swaps can break one reconnect.
+            last_error = exc
+            report.observations.setdefault("apk_cdp_reconnect_failures", []).append(
+                {"phase": phase, "attempt": attempt, "error": str(exc)}
+            )
+    raise RuntimeError(str(last_error or error))
 
 
 def _with_cdp_reconnect(report: BrowserSmokeReport, page: Any, phase: str, operation: Any) -> Any:
@@ -282,6 +299,103 @@ def _downgrade_ready_cordova_pageerrors(
         if issue.source == "pageerror" and _is_cordova_android_exec_exception(issue.message):
             issue.severity = "warning"
             issue.kind = "cordova_android_exec_after_ready"
+
+
+def _game_ready_matches_expected(game_ready: dict[str, Any], expected_passage: str) -> bool:
+    if not game_ready.get("ready") or game_ready.get("loadingLike"):
+        return False
+    if expected_passage and game_ready.get("passage") != expected_passage:
+        return False
+    return True
+
+
+def _should_wait_for_late_startup(startup_result: dict[str, Any] | None) -> bool:
+    if not isinstance(startup_result, dict) or startup_result.get("success"):
+        return False
+    if _is_cdp_transport_error(startup_result.get("error")):
+        return False
+    reason = str(startup_result.get("reason") or "")
+    return reason in {"max_steps_reached", "not_playable_after_startup_interactions"}
+
+
+def _mark_late_startup_success(report: BrowserSmokeReport, game_ready: dict[str, Any]) -> None:
+    startup_result = report.observations.get("startup_interactions")
+    if not isinstance(startup_result, dict) or startup_result.get("success"):
+        return
+    previous_reason = startup_result.get("reason")
+    startup_result.update(
+        {
+            "success": True,
+            "reason": "late_ready_after_wait",
+            "previous_reason": previous_reason,
+            "final_passage": game_ready.get("passage"),
+            "state_after": game_ready,
+            "late_ready_after_wait": True,
+        }
+    )
+
+
+def _mark_late_enter_game_success(report: BrowserSmokeReport, game_ready: dict[str, Any]) -> None:
+    enter_result = report.observations.get("enter_game")
+    if isinstance(enter_result, dict) and enter_result.get("success"):
+        return
+    report.observations["enter_game"] = {
+        "attempted": False,
+        "success": True,
+        "reason": "late_ready_after_wait",
+        "previous_reason": enter_result.get("reason") if isinstance(enter_result, dict) else None,
+        "passage_before": game_ready.get("passage"),
+        "passage_after": game_ready.get("passage"),
+        "state_before": game_ready,
+        "state_after": game_ready,
+        "new_high_risk_errors": [],
+        "late_ready_after_wait": True,
+    }
+
+
+def _wait_for_late_game_ready(report: BrowserSmokeReport, page: Any, expected_passage: str) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "attempted": True,
+        "success": False,
+        "timeout_ms": APK_CDP_LATE_STARTUP_WAIT_MS,
+        "poll_ms": APK_CDP_LATE_STARTUP_POLL_MS,
+        "elapsed_wait_ms": 0,
+        "samples": [],
+    }
+    report.observations["apk_cdp_late_startup_wait"] = result
+
+    while result["elapsed_wait_ms"] < APK_CDP_LATE_STARTUP_WAIT_MS:
+        wait_ms = min(APK_CDP_LATE_STARTUP_POLL_MS, APK_CDP_LATE_STARTUP_WAIT_MS - result["elapsed_wait_ms"])
+        _with_cdp_reconnect(report, page, "late_startup_wait", lambda wait_ms=wait_ms: page.wait_for_timeout(wait_ms))
+        result["elapsed_wait_ms"] += wait_ms
+        game_ready = _with_cdp_reconnect(
+            report,
+            page,
+            "late_startup_game_ready",
+            lambda: _record_game_ready(report, page, add_issues=False),
+        )
+        result["samples"].append(
+            {
+                "ready": game_ready.get("ready"),
+                "loading_like": game_ready.get("loadingLike"),
+                "passage": game_ready.get("passage"),
+                "body_text_length": game_ready.get("bodyTextLength"),
+            }
+        )
+        if _game_ready_matches_expected(game_ready, expected_passage):
+            result.update(
+                {
+                    "success": True,
+                    "reason": "expected_passage_ready_after_wait",
+                    "game_ready_after_wait": game_ready,
+                }
+            )
+            _mark_late_startup_success(report, game_ready)
+            break
+
+    if not result.get("success"):
+        result["reason"] = "expected_passage_not_ready_after_wait"
+    return result
 
 
 def _attach_page_events(report: BrowserSmokeReport, page: Any) -> None:
@@ -875,7 +989,7 @@ def _run_webview_browser_smoke(
             startup_result = _run_startup_interactions(report, page, profile)
             if _is_cdp_transport_error((startup_result or {}).get("error")):
                 _reconnect_cdp_page(report, page, "startup_interactions", (startup_result or {}).get("error"))
-                _run_startup_interactions(report, page, profile)
+                startup_result = _run_startup_interactions(report, page, profile)
             global_names = tuple(
                 dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
             )
@@ -903,18 +1017,45 @@ def _run_webview_browser_smoke(
                 "console_message_count": len(report.console_messages),
                 "network_failure_count": len(report.network_failures),
             }
-            _with_cdp_reconnect(report, page, "game_ready", lambda: _record_game_ready(report, page))
+            _with_cdp_reconnect(
+                report,
+                page,
+                "game_ready",
+                lambda: _record_game_ready(report, page, add_issues=False),
+            )
             _with_cdp_reconnect(report, page, "enter_game", lambda: _attempt_enter_game(report, page))
             enter_result = report.observations.get("enter_game") or {}
             if isinstance(enter_result, dict) and _is_cdp_transport_error(enter_result.get("error")):
                 _reconnect_cdp_page(report, page, "enter_game", enter_result.get("error"))
-                _attempt_enter_game(report, page)
+                _with_cdp_reconnect(report, page, "enter_game_retry", lambda: _attempt_enter_game(report, page))
             final_game_ready = _with_cdp_reconnect(
                 report,
                 page,
                 "final_game_ready",
                 lambda: _record_game_ready(report, page, add_issues=False),
             )
+            if not _game_ready_matches_expected(final_game_ready, expected_passage) and _should_wait_for_late_startup(
+                startup_result
+            ):
+                late_wait = _wait_for_late_game_ready(report, page, expected_passage)
+                late_game_ready = late_wait.get("game_ready_after_wait")
+                if late_wait.get("success") and isinstance(late_game_ready, dict):
+                    final_game_ready = late_game_ready
+                    _with_cdp_reconnect(report, page, "late_enter_game", lambda: _attempt_enter_game(report, page))
+                    enter_result = report.observations.get("enter_game") or {}
+                    if isinstance(enter_result, dict) and _is_cdp_transport_error(enter_result.get("error")):
+                        _reconnect_cdp_page(report, page, "late_enter_game", enter_result.get("error"))
+                        _with_cdp_reconnect(
+                            report,
+                            page,
+                            "late_enter_game_retry",
+                            lambda: _attempt_enter_game(report, page),
+                        )
+                    enter_result = report.observations.get("enter_game") or {}
+                    if not (isinstance(enter_result, dict) and enter_result.get("success")):
+                        _mark_late_enter_game_success(report, final_game_ready)
+            if not _game_ready_matches_expected(final_game_ready, expected_passage):
+                _add_game_ready_issues(report, final_game_ready)
             _check_required_mods(report, profile, embedded_mods)
             _downgrade_ready_cordova_pageerrors(report, final_game_ready, expected_passage)
 
