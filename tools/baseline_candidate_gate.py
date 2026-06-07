@@ -1998,6 +1998,105 @@ def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
     return 0 if success else 1
 
 
+def _write_apk_cdp_failure_report(
+    slug: str,
+    output_dir: Path,
+    errors: list[str],
+    *,
+    target: Path | None = None,
+    profile: str = PROFILE,
+) -> None:
+    """Write a per-slug CDP report when the runner cannot invoke the smoke helper."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "success": False,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "runtime_scope": {
+            "platform": "Android emulator",
+            "webview_cdp": True,
+            "manual_phone_testing": False,
+            "harmonyos_covered": False,
+        },
+        "target": str(target) if target else None,
+        "slug": slug,
+        "package": load_build_config().identity_package,
+        "profile": profile,
+        "cdp_url": None,
+        "cdp_socket": None,
+        "cdp_targets": [],
+        "browser_summary": {
+            "success": False,
+            "issue_counts": {"high": 1},
+            "browser_diagnostics": {"pageerror_count": 0},
+            "game_ready": {},
+            "enter_game": {"success": False},
+            "startup_interactions": {"success": False},
+            "package_identity": {"profile_slug_match": False},
+        },
+        "browser_summary_path": str(output_dir / "browser-smoke-summary.json"),
+        "browser_report_path": str(output_dir / "browser-smoke-report.json"),
+        "markdown_report_path": str(output_dir / "browser-smoke-report.md"),
+        "logcat_path": str(output_dir / "logcat.txt"),
+        "screenshot_path": "",
+        "commands": [],
+        "errors": errors,
+        "elapsed_seconds": 0,
+    }
+    _write_json(output_dir / "apk-emulator-smoke.json", payload)
+
+
+def run_apk_cdp_smokes(target: Path, reports_dir: Path, profile: str = PROFILE) -> int:
+    """Run Android emulator/WebView CDP smokes for all candidate debug APKs.
+
+    The GitHub emulator action executes its ``script`` input one command at a
+    time, so keep slug iteration in Python instead of relying on a multiline
+    shell loop.
+    """
+    debug_apks = _artifact_candidates(target, "apk")
+    debug_by_slug = {_slug_for_artifact(path): path for path in debug_apks}
+    failures: list[str] = []
+
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        output_dir = Path(reports_dir) / slug
+        apk_path = debug_by_slug.get(slug)
+        if apk_path is None:
+            error = f"missing smoke-debug candidate APK for {slug} under {target}"
+            failures.append(error)
+            _write_apk_cdp_failure_report(slug, output_dir, [error], profile=profile)
+            print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
+            continue
+
+        cmd = [
+            sys.executable,
+            "tools/apk_emulator_smoke_test.py",
+            str(apk_path),
+            "--slug",
+            slug,
+            "--profile",
+            profile,
+            "--output-dir",
+            str(output_dir),
+        ]
+        try:
+            result = subprocess.run(cmd, check=False)
+        except OSError as exc:
+            error = f"{slug}: failed to run APK CDP smoke helper: {exc}"
+            failures.append(error)
+            _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
+            print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
+            continue
+        if result.returncode != 0:
+            error = f"{slug}: APK CDP smoke helper exited with {result.returncode}"
+            failures.append(error)
+            if not (output_dir / "apk-emulator-smoke.json").exists():
+                _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
+            print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
+
+    return 0 if not failures else 1
+
+
 def _build_report_success(payload: dict[str, Any]) -> bool:
     """Return success for helper build reports that cover all candidates."""
     if "success" in payload:
@@ -2243,6 +2342,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     browser_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "browser-smoke")
     browser_parser.add_argument("--output", type=Path, default=_gate_dir() / ZIP_BROWSER_SUMMARY)
 
+    run_apk_cdp_parser = subparsers.add_parser(
+        "run-apk-cdp",
+        help="Run strict candidate Android emulator/WebView CDP smoke reports",
+    )
+    run_apk_cdp_parser.add_argument(
+        "target",
+        type=Path,
+        help="Smoke-debug APK file or directory produced by derive-debug-apk",
+    )
+    run_apk_cdp_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "apk-cdp-smoke")
+    run_apk_cdp_parser.add_argument("--profile", default=PROFILE)
+
     apk_cdp_parser = subparsers.add_parser(
         "summarize-apk-cdp",
         help="Summarize strict candidate Android emulator/WebView CDP smoke reports",
@@ -2302,6 +2413,8 @@ def main(argv: list[str] | None = None) -> int:
         return audit_apk_equivalence_target(args.release_target, args.debug_target, args.output)
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
+    if args.command == "run-apk-cdp":
+        return run_apk_cdp_smokes(args.target, args.reports_dir, args.profile)
     if args.command == "summarize-apk-cdp":
         return summarize_apk_cdp_smoke_reports(args.reports_dir, args.output)
     if args.command == "summarize-phase1a":
