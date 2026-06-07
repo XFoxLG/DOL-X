@@ -613,6 +613,7 @@ class _AndroidWebViewCdpPage:
         self.url = str(target.get("url") or "")
         self.setup_errors: list[dict[str, str]] = []
         self._timeout_seconds = max(timeout_ms / 1000, 1)
+        self._cdp_url = _cdp_url_from_websocket_url(websocket_url)
         self._handlers: dict[str, list[Any]] = {}
         self._requests: dict[str, dict[str, Any]] = {}
         self._session = session or _CdpWebSocketSession(websocket_url, self._timeout_seconds)
@@ -674,6 +675,12 @@ class _AndroidWebViewCdpPage:
     def reconnect(self) -> None:
         self.close()
         self._requests = {}
+        targets = _fetch_json(f"{self._cdp_url}/json/list", timeout=self._timeout_seconds)
+        target = _select_cdp_page_target(targets if isinstance(targets, list) else [])
+        if target is None:
+            raise RuntimeError("Android WebView CDP reconnect did not expose a page target")
+        self.websocket_url = _target_websocket_url(self._cdp_url, target)
+        self.url = str(target.get("url") or self.url)
         self._session = _CdpWebSocketSession(self.websocket_url, self._timeout_seconds)
         self._session.set_event_callback(self._handle_event)
         self._enable_domains()
@@ -768,6 +775,13 @@ def _target_websocket_url(cdp_url: str, target: dict[str, Any]) -> str:
         raise RuntimeError(f"cannot resolve relative CDP WebSocket URL from {cdp_url!r}")
     path = raw_url if raw_url.startswith("/") else f"/{raw_url}"
     return urllib.parse.urlunparse(("ws", parsed.netloc, path, "", "", ""))
+
+
+def _cdp_url_from_websocket_url(websocket_url: str) -> str:
+    parsed = urllib.parse.urlparse(websocket_url)
+    if not parsed.netloc:
+        raise RuntimeError(f"cannot resolve CDP HTTP URL from {websocket_url!r}")
+    return urllib.parse.urlunparse(("http", parsed.netloc, "", "", "", ""))
 
 
 def _record_apk_identity(report: BrowserSmokeReport, apk_path: Path, profile_name: str) -> None:
