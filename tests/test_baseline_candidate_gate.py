@@ -4,6 +4,7 @@ import base64
 import io
 import json
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -497,6 +498,70 @@ def test_baseline_candidate_apk_debug_derivation_uses_static_overlay_without_jav
         assert debug_apk is not None
         assert 'android:debuggable="true"' in _read_zip_member(debug_apk, "AndroidManifest.xml")
         assert WEBVIEW_DEBUG_INVOKE in _read_zip_member(debug_apk, "smali/dolx/smokedebug/WebViewDebugHook.smali")
+
+
+@pytest.mark.config
+def test_baseline_candidate_apk_debug_derivation_allows_signer_zipalign(tmp_path, monkeypatch):
+    release_apk = _write_binary_manifest_candidate_apk(tmp_path, "base")
+    debug_dir = tmp_path / "apk-debug-artifacts"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "apktool.jar").write_text("", encoding="utf-8")
+    (workspace / "uber-apk-signer.jar").write_text("", encoding="utf-8")
+    signer_commands = []
+
+    def fake_runner(cmd, **kwargs):
+        if cmd[:3] == ["java", "-jar", str(workspace / "apktool.jar")] and cmd[3] == "d":
+            work_dir = Path(cmd[cmd.index("-o") + 1])
+            work_dir.mkdir(parents=True, exist_ok=True)
+            (work_dir / "AndroidManifest.xml").write_text(
+                '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+                "<application /></manifest>",
+                encoding="utf-8",
+            )
+            smali_path = work_dir / "smali" / "org" / "example" / "MainActivity.smali"
+            smali_path.parent.mkdir(parents=True, exist_ok=True)
+            smali_path.write_text(
+                "\n".join(
+                    [
+                        ".class public Lorg/example/MainActivity;",
+                        ".super Landroid/app/Activity;",
+                        ".method protected onCreate(Landroid/os/Bundle;)V",
+                        "    .locals 1",
+                        "    return-void",
+                        ".end method",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+        elif cmd[:3] == ["java", "-jar", str(workspace / "apktool.jar")] and cmd[3] == "b":
+            work_dir = Path(cmd[4])
+            patch_apk = Path(cmd[cmd.index("-o") + 1])
+            patch_apk.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(patch_apk, "w") as zf:
+                zf.writestr("AndroidManifest.xml", (work_dir / "AndroidManifest.xml").read_text(encoding="utf-8"))
+                zf.writestr("classes.dex", b"debug-dex")
+        elif cmd[:3] == ["java", "-jar", str(workspace / "uber-apk-signer.jar")]:
+            signer_commands.append(cmd)
+            unsigned_apk = Path(cmd[cmd.index("-a") + 1])
+            signed_dir = Path(cmd[cmd.index("-o") + 1])
+            signed_dir.mkdir(parents=True, exist_ok=True)
+            (signed_dir / "signed.apk").write_bytes(unsigned_apk.read_bytes())
+        return baseline_candidate_gate.subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(baseline_candidate_gate.shutil, "which", lambda name: "java" if name == "java" else None)
+
+    record = baseline_candidate_gate.derive_debug_apk(
+        release_apk,
+        debug_dir,
+        workspace=workspace,
+        command_runner=fake_runner,
+    )
+
+    assert record.success is True
+    assert signer_commands
+    assert all("--skipZipAlign" not in command for command in signer_commands)
 
 
 @pytest.mark.config
