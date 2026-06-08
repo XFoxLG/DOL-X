@@ -159,7 +159,6 @@ jobs:
           DOLX_GITHUB_SHA: ${{ github.sha }}
           DOLX_ARTIFACT_NAME: baseline-candidate-apk-debug-artifacts
           APK_CDP_SLUGS: ${{ inputs.apk_cdp_slugs }}
-          APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG: ${{ inputs.apk_cdp_slugs != '' && '--require-selected-success' || '' }}
         with:
           api-level: 35
           arch: x86_64
@@ -170,8 +169,7 @@ jobs:
             "${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"
             --reports-dir "${GATE_DIR}/apk-cdp-smoke"
             --profile "$PROFILE"
-            ${APK_CDP_SLUGS:+--slugs $APK_CDP_SLUGS}
-            $APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG
+            --targeted-slugs "$APK_CDP_SLUGS"
 
       - name: Summarize candidate APK CDP smokes
         if: ${{ always() && inputs.apk_cdp_slugs == '' }}

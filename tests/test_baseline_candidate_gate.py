@@ -278,6 +278,7 @@ def test_run_apk_cdp_cli_is_exposed():
     assert args.reports_dir.name == "apk-cdp-smoke"
     assert args.profile == "custom-profile"
     assert args.slugs is None
+    assert args.targeted_slugs == ""
     assert args.require_selected_success is False
 
 
@@ -297,6 +298,23 @@ def test_run_apk_cdp_cli_accepts_targeted_slug_subset():
     assert args.command == "run-apk-cdp"
     assert args.slugs == ["au-f", "au-a"]
     assert args.require_selected_success is True
+
+
+@pytest.mark.config
+def test_run_apk_cdp_cli_accepts_workflow_targeted_slug_string():
+    args = parse_args(
+        [
+            "run-apk-cdp",
+            "apk-debug-artifacts",
+            "--targeted-slugs",
+            "au-f au-a",
+        ]
+    )
+
+    assert args.command == "run-apk-cdp"
+    assert args.slugs is None
+    assert args.targeted_slugs == "au-f au-a"
+    assert args.require_selected_success is False
 
 
 @pytest.mark.config
@@ -329,6 +347,34 @@ def test_run_apk_cdp_cli_dispatches_runner(tmp_path, monkeypatch):
         == 7
     )
     assert calls == [(target, reports_dir, "profile-x", ("au-f", "au-a"), True)]
+
+
+@pytest.mark.config
+def test_run_apk_cdp_cli_dispatches_workflow_targeted_slug_string(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_runner(target, reports_dir, profile, slugs, require_selected_success):
+        calls.append((target, reports_dir, profile, slugs, require_selected_success))
+        return 3
+
+    monkeypatch.setattr(baseline_candidate_gate, "run_apk_cdp_smokes", fake_runner)
+    target = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+
+    assert (
+        baseline_candidate_gate.main(
+            [
+                "run-apk-cdp",
+                str(target),
+                "--reports-dir",
+                str(reports_dir),
+                "--targeted-slugs",
+                "au-f au-a",
+            ]
+        )
+        == 3
+    )
+    assert calls == [(target, reports_dir, baseline_candidate_gate.PROFILE, ("au-f", "au-a"), True)]
 
 
 @pytest.mark.config
