@@ -164,6 +164,161 @@ def test_apk_webview_smoke_reports_missing_page_target(tmp_path):
 
 
 @pytest.mark.config
+def test_apk_cdp_dialog_handler_supplies_profile_prompt_password():
+    report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    handlers: dict[str, Any] = {}
+
+    class FakePage:
+        url = "https://localhost/index.html"
+
+        def on(self, event_name: str, handler: Any) -> None:
+            handlers[event_name] = handler
+
+    class FakeDialog:
+        type = "prompt"
+        message = "Custom-Spellbook password"
+        default_value = ""
+
+        def __init__(self) -> None:
+            self.accepted_prompt_text: str | None = None
+
+        def accept(self, prompt_text: str | None = None) -> None:
+            self.accepted_prompt_text = prompt_text
+
+    profile = apk_emulator_smoke_test.PROFILES["ucb-more-love-custom-spellbook-cheat-extended-maplebirch"]
+
+    apk_emulator_smoke_test._attach_page_events(report, FakePage(), profile)
+    dialog = FakeDialog()
+    handlers["dialog"](dialog)
+
+    assert dialog.accepted_prompt_text == "DOL-Custom-Spellbook-Mod"
+    assert report.observations["dialogs"] == [
+        {
+            "type": "prompt",
+            "message": "Custom-Spellbook password",
+            "default_value": "",
+            "accepted": True,
+            "password_supplied": True,
+            "password_prompt_matched": True,
+        }
+    ]
+
+
+@pytest.mark.config
+def test_apk_cdp_dialog_handler_records_non_prompt_without_password():
+    report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    handlers: dict[str, Any] = {}
+
+    class FakePage:
+        url = "https://localhost/index.html"
+
+        def on(self, event_name: str, handler: Any) -> None:
+            handlers[event_name] = handler
+
+    class FakeDialog:
+        type = "alert"
+        message = "hello"
+        default_value = None
+
+        def __init__(self) -> None:
+            self.accepted_prompt_text = "not-called"
+
+        def accept(self, prompt_text: str | None = None) -> None:
+            self.accepted_prompt_text = prompt_text
+
+    profile = apk_emulator_smoke_test.PROFILES["ucb-more-love-custom-spellbook-cheat-extended-maplebirch"]
+
+    apk_emulator_smoke_test._attach_page_events(report, FakePage(), profile)
+    dialog = FakeDialog()
+    handlers["dialog"](dialog)
+
+    assert dialog.accepted_prompt_text is None
+    assert report.observations["dialogs"] == [
+        {
+            "type": "alert",
+            "message": "hello",
+            "default_value": None,
+            "accepted": True,
+            "password_supplied": False,
+            "password_prompt_matched": False,
+        }
+    ]
+
+
+@pytest.mark.config
+def test_apk_cdp_dialog_handler_does_not_supply_password_to_empty_prompt():
+    report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    handlers: dict[str, Any] = {}
+
+    class FakePage:
+        url = "https://localhost/index.html"
+
+        def on(self, event_name: str, handler: Any) -> None:
+            handlers[event_name] = handler
+
+    class FakeDialog:
+        type = "prompt"
+        message = ""
+        default_value = ""
+
+        def __init__(self) -> None:
+            self.accepted_prompt_text = "not-called"
+
+        def accept(self, prompt_text: str | None = None) -> None:
+            self.accepted_prompt_text = prompt_text
+
+    profile = apk_emulator_smoke_test.PROFILES["ucb-more-love-custom-spellbook-cheat-extended-maplebirch"]
+
+    apk_emulator_smoke_test._attach_page_events(report, FakePage(), profile)
+    dialog = FakeDialog()
+    handlers["dialog"](dialog)
+
+    assert dialog.accepted_prompt_text is None
+    assert report.observations["dialogs"] == [
+        {
+            "type": "prompt",
+            "message": "",
+            "default_value": "",
+            "accepted": True,
+            "password_supplied": False,
+            "password_prompt_matched": False,
+        }
+    ]
+
+
+@pytest.mark.config
+def test_apk_cdp_dialog_accept_sends_prompt_text_to_cdp():
+    commands: list[tuple[str, dict[str, Any] | None]] = []
+
+    class FakePage:
+        def _send_command(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+            commands.append((method, params))
+            return {}
+
+    dialog = apk_emulator_smoke_test._CdpDialog(FakePage(), "prompt", "password?", "")
+
+    dialog.accept("DOL-Custom-Spellbook-Mod")
+
+    assert dialog.accepted is True
+    assert dialog.prompt_text == "DOL-Custom-Spellbook-Mod"
+    assert commands == [
+        ("Page.handleJavaScriptDialog", {"accept": True, "promptText": "DOL-Custom-Spellbook-Mod"})
+    ]
+
+
+@pytest.mark.config
 def test_apk_cdp_console_array_preview_keeps_simple_frameworks_lookup_warning():
     text = apk_emulator_smoke_test._remote_object_text(
         {
