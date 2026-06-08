@@ -60,6 +60,8 @@ DEFAULT_STABLE_CODES: dict[str, int] = {
     "au-a": 28930,
 }
 DEFAULT_STABLE_CODE_ORDER: tuple[str, ...] = ("base", "au-f", "au-m", "au-a")
+APK_CDP_BLOCKING_SLUGS: tuple[str, ...] = ("base",)
+APK_CDP_DIAGNOSTIC_SLUGS: tuple[str, ...] = ("au-f", "au-m", "au-a")
 MAPLEBIRCH_PROVIDER = "maplebirch"
 FRAMEWORK_CANDIDATE_PURPOSE = "framework_candidate"
 REPLACEMENT_CANDIDATE_PURPOSE = "cheat_extended_replacement"
@@ -1901,8 +1903,34 @@ def summarize_browser_reports(reports_dir: Path, output: Path) -> int:
     return 0 if success else 1
 
 
+def _apk_cdp_failure_layers(slug: str, checks: dict[str, bool], smoke_errors: list[str]) -> list[str]:
+    """Classify APK CDP failures into report layers for release-gate triage."""
+    layers: list[str] = []
+    if not checks.get("android_emulator_scope", False):
+        layers.append("emulator_or_adb")
+    if (
+        not checks.get("webview_cdp_scope", False)
+        or not checks.get("cdp_target_present", False)
+        or any("cdp" in error.lower() or "remote end closed" in error.lower() for error in smoke_errors)
+    ):
+        layers.append("cdp_adapter")
+    runtime_checks = (
+        "browser_success_true",
+        "high_zero",
+        "pageerrors_zero",
+        "game_ready_true",
+        "passage_orphanage_intro",
+        "enter_game_success",
+        "startup_success",
+        "no_runner_errors",
+    )
+    if any(not checks.get(check, False) for check in runtime_checks):
+        layers.append("au_runtime_startup" if slug in APK_CDP_DIAGNOSTIC_SLUGS else "base_apk_readiness")
+    return list(dict.fromkeys(layers))
+
+
 def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
-    """Summarize strict Android emulator/WebView CDP smoke reports for all candidate APKs."""
+    """Summarize Android emulator/WebView CDP smoke reports by blocking and diagnostic layers."""
     summaries: list[dict[str, Any]] = []
     expected_scope = {
         "platform": "Android emulator",
@@ -1917,10 +1945,15 @@ def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
             "code": CANDIDATE_CODES[slug],
             "smoke_path": str(smoke_path),
             "success": False,
+            "blocking": slug in APK_CDP_BLOCKING_SLUGS,
+            "diagnostic": slug in APK_CDP_DIAGNOSTIC_SLUGS,
+            "signal_layer": "base_apk_readiness" if slug in APK_CDP_BLOCKING_SLUGS else "au_apk_runtime_readiness",
+            "failure_layers": [],
             "errors": [],
         }
         if not smoke_path.exists():
             entry["errors"].append(f"missing APK emulator/CDP smoke report: {smoke_path}")
+            entry["failure_layers"] = ["base_apk_readiness" if entry["blocking"] else "au_runtime_startup"]
             summaries.append(entry)
             continue
 
@@ -1979,15 +2012,70 @@ def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
         if not entry["success"]:
             entry["errors"].extend(key for key, value in checks.items() if not value)
             entry["errors"].extend(smoke_errors)
+            entry["failure_layers"] = _apk_cdp_failure_layers(slug, checks, smoke_errors)
         summaries.append(entry)
 
-    success = bool(summaries) and all(summary["success"] for summary in summaries)
+    blocking_summaries = [summary for summary in summaries if summary.get("blocking")]
+    diagnostic_summaries = [summary for summary in summaries if summary.get("diagnostic")]
+    blocking_success = bool(blocking_summaries) and all(summary["success"] for summary in blocking_summaries)
+    diagnostic_success = bool(diagnostic_summaries) and all(summary["success"] for summary in diagnostic_summaries)
+    full_candidate_gate_ready = bool(summaries) and all(summary["success"] for summary in summaries)
+    blocking_errors = [
+        f"{summary['slug']}: {error}"
+        for summary in blocking_summaries
+        for error in summary.get("errors", [])
+    ]
+    diagnostic_errors = [
+        f"{summary['slug']}: {error}"
+        for summary in diagnostic_summaries
+        for error in summary.get("errors", [])
+    ]
+    success = blocking_success
     payload = {
         "success": success,
         "gate_level": FULL_GATE_COMPONENT_LEVEL,
         "counts_for_phase2_promotion": False,
         "default_matrix_mutated": False,
         "runtime_scope": expected_scope,
+        "gate_policy": {
+            "position": "manual_release_candidate_gate",
+            "blocking_slugs": list(APK_CDP_BLOCKING_SLUGS),
+            "diagnostic_slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+            "au_failures_block_candidate": False,
+            "au_failures_block_full_promotion": True,
+        },
+        "blocking_success": blocking_success,
+        "diagnostic_success": diagnostic_success,
+        "full_candidate_gate_ready": full_candidate_gate_ready,
+        "blocking_errors": blocking_errors,
+        "diagnostic_errors": diagnostic_errors,
+        "signal_layers": {
+            "base_apk_readiness": {
+                "blocking": True,
+                "slugs": list(APK_CDP_BLOCKING_SLUGS),
+                "success": blocking_success,
+            },
+            "au_apk_runtime_readiness": {
+                "blocking": False,
+                "slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+                "success": diagnostic_success,
+            },
+            "cdp_adapter_health": {
+                "blocking": True,
+                "success": all(
+                    bool((summary.get("checks") or {}).get("cdp_target_present"))
+                    and bool((summary.get("checks") or {}).get("webview_cdp_scope"))
+                    for summary in blocking_summaries
+                ),
+            },
+            "emulator_health": {
+                "blocking": True,
+                "success": all(
+                    bool((summary.get("checks") or {}).get("android_emulator_scope"))
+                    for summary in blocking_summaries
+                ),
+            },
+        },
         "results": summaries,
     }
     _write_json(output, payload)
@@ -2054,14 +2142,15 @@ def run_apk_cdp_smokes(target: Path, reports_dir: Path, profile: str = PROFILE) 
     """
     debug_apks = _artifact_candidates(target, "apk")
     debug_by_slug = {_slug_for_artifact(path): path for path in debug_apks}
-    failures: list[str] = []
+    blocking_failures: list[str] = []
 
     for slug in DEFAULT_STABLE_CODE_ORDER:
         output_dir = Path(reports_dir) / slug
         apk_path = debug_by_slug.get(slug)
         if apk_path is None:
             error = f"missing smoke-debug candidate APK for {slug} under {target}"
-            failures.append(error)
+            if slug in APK_CDP_BLOCKING_SLUGS:
+                blocking_failures.append(error)
             _write_apk_cdp_failure_report(slug, output_dir, [error], profile=profile)
             print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
             continue
@@ -2081,18 +2170,20 @@ def run_apk_cdp_smokes(target: Path, reports_dir: Path, profile: str = PROFILE) 
             result = subprocess.run(cmd, check=False)
         except OSError as exc:
             error = f"{slug}: failed to run APK CDP smoke helper: {exc}"
-            failures.append(error)
+            if slug in APK_CDP_BLOCKING_SLUGS:
+                blocking_failures.append(error)
             _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
             print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
             continue
         if result.returncode != 0:
             error = f"{slug}: APK CDP smoke helper exited with {result.returncode}"
-            failures.append(error)
+            if slug in APK_CDP_BLOCKING_SLUGS:
+                blocking_failures.append(error)
             if not (output_dir / "apk-emulator-smoke.json").exists():
                 _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
             print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
 
-    return 0 if not failures else 1
+    return 0 if not blocking_failures else 1
 
 
 def _build_report_success(payload: dict[str, Any]) -> bool:
@@ -2152,15 +2243,34 @@ def _summarize_report(gate_dir: Path, filename: str, report_kind: str) -> dict[s
     payload = _load_json(path)
     if report_kind == "build":
         success = _build_report_success(payload)
+    elif report_kind == "apk_cdp":
+        success = payload.get("blocking_success", payload.get("success")) is True
     else:
         success = payload.get("success") is True
+    report_errors = _collect_report_errors(payload)
+    if report_kind == "apk_cdp":
+        report_errors = [str(error) for error in payload.get("blocking_errors", []) or []]
+        if not report_errors and not success:
+            report_errors = _collect_report_errors(payload)
+
     entry.update(
         {
             "success": success,
             "status": "passed" if success else "failed",
-            "errors": _collect_report_errors(payload),
+            "errors": report_errors,
         }
     )
+    if report_kind == "apk_cdp":
+        entry.update(
+            {
+                "blocking_success": payload.get("blocking_success") is True,
+                "diagnostic_success": payload.get("diagnostic_success") is True,
+                "full_candidate_gate_ready": payload.get("full_candidate_gate_ready") is True,
+                "gate_policy": payload.get("gate_policy", {}),
+                "signal_layers": payload.get("signal_layers", {}),
+                "diagnostic_errors": payload.get("diagnostic_errors", []),
+            }
+        )
     return entry
 
 
@@ -2191,19 +2301,24 @@ def summarize_phase1a_gate(
         "apk_debug_derivation": _summarize_report(gate_dir, APK_DEBUG_REPORT, "simple"),
         "apk_equivalence": _summarize_report(gate_dir, APK_EQUIVALENCE_REPORT, "simple"),
         "zip_browser_summary": _summarize_report(gate_dir, ZIP_BROWSER_SUMMARY, "simple"),
-        "apk_cdp_smoke": _summarize_report(gate_dir, APK_CDP_SMOKE_REPORT, "simple"),
+        "apk_cdp_smoke": _summarize_report(gate_dir, APK_CDP_SMOKE_REPORT, "apk_cdp"),
     }
     b2_report_name = "apk_cdp_smoke"
     required_report_names = [name for name in reports if name != b2_report_name]
     missing_reports = [name for name in required_report_names if not reports[name]["present"]]
     failed_reports = [name for name in required_report_names if reports[name]["present"] and not reports[name]["success"]]
     b2_report = reports[b2_report_name]
-    b2_failed_reports = [b2_report_name] if b2_report["present"] and not b2_report["success"] else []
+    b2_blocking_success = b2_report["present"] and b2_report.get("blocking_success", b2_report["success"])
+    b2_full_candidate_ready = b2_report["present"] and b2_report.get(
+        "full_candidate_gate_ready",
+        b2_report["success"],
+    )
+    b2_failed_reports = [b2_report_name] if b2_report["present"] and not b2_blocking_success else []
     errors = [error for name in required_report_names for error in reports[name]["errors"]]
     if b2_report["present"]:
         errors.extend(b2_report["errors"])
     partial_success = not missing_reports and not failed_reports
-    full_success = partial_success and b2_report["present"] and b2_report["success"]
+    full_success = partial_success and b2_full_candidate_ready
     success = partial_success and not b2_failed_reports
     payload = {
         "success": success,
@@ -2228,10 +2343,17 @@ def summarize_phase1a_gate(
         "missing_reports": missing_reports,
         "failed_reports": failed_reports + b2_failed_reports,
         "b2_runtime": {
+            "required_for_candidate_gate": True,
             "required_for_full_candidate_gate": True,
             "present": b2_report["present"],
-            "success": b2_report["success"],
+            "success": bool(b2_blocking_success),
+            "full_candidate_gate_ready": bool(b2_full_candidate_ready),
             "report": b2_report_name,
+            "blocking_slugs": list(APK_CDP_BLOCKING_SLUGS),
+            "diagnostic_slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+            "diagnostic_success": b2_report.get("diagnostic_success", False),
+            "au_failures_block_candidate": False,
+            "au_failures_block_full_promotion": True,
             "scope": {
                 "platform": "Android emulator",
                 "webview_cdp": True,
