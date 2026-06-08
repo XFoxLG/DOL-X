@@ -22,6 +22,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,7 @@ DEFAULT_PROFILE = "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
 DEFAULT_EXPECTED_PASSAGE = "Orphanage Intro"
 APK_CDP_RECONNECT_ATTEMPTS = 3
 APK_CDP_RECONNECT_RETRY_DELAY_SECONDS = 2
+APK_CDP_RECONNECT_DISCOVERY_TIMEOUT_SECONDS = 30
 APK_CDP_LATE_STARTUP_WAIT_MS = 180_000
 APK_CDP_LATE_STARTUP_POLL_MS = 5_000
 
@@ -766,12 +768,14 @@ class _AndroidWebViewCdpPage:
         target: dict[str, Any],
         *,
         session: _CdpWebSocketSession | None = None,
+        reconnect_endpoint: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.websocket_url = websocket_url
         self.url = str(target.get("url") or "")
         self.setup_errors: list[dict[str, str]] = []
         self._timeout_seconds = max(timeout_ms / 1000, 1)
         self._cdp_url = _cdp_url_from_websocket_url(websocket_url)
+        self._reconnect_endpoint = reconnect_endpoint
         self._handlers: dict[str, list[Any]] = {}
         self._requests: dict[str, dict[str, Any]] = {}
         self._session = session or _CdpWebSocketSession(websocket_url, self._timeout_seconds)
@@ -830,18 +834,56 @@ class _AndroidWebViewCdpPage:
     def close(self) -> None:
         self._session.close()
 
-    def reconnect(self) -> None:
-        self.close()
-        self._requests = {}
-        targets = _fetch_json(f"{self._cdp_url}/json/list", timeout=self._timeout_seconds)
-        target = _select_cdp_page_target(targets if isinstance(targets, list) else [])
-        if target is None:
-            raise RuntimeError("Android WebView CDP reconnect did not expose a page target")
+    def _connect_to_target(self, target: dict[str, Any]) -> None:
+        setup_error_start = len(self.setup_errors)
         self.websocket_url = _target_websocket_url(self._cdp_url, target)
         self.url = str(target.get("url") or self.url)
         self._session = _CdpWebSocketSession(self.websocket_url, self._timeout_seconds)
         self._session.set_event_callback(self._handle_event)
         self._enable_domains()
+        setup_errors = self.setup_errors[setup_error_start:]
+        for setup_error in setup_errors:
+            if _is_cdp_transport_error(setup_error.get("error")):
+                raise RuntimeError(str(setup_error.get("error")))
+
+    def _rediscover_targets(self) -> list[Any]:
+        if not callable(self._reconnect_endpoint):
+            return []
+        endpoint = self._reconnect_endpoint()
+        if isinstance(endpoint, dict) and endpoint.get("success") is False:
+            raise RuntimeError(str(endpoint.get("error") or "Android WebView CDP rediscovery failed"))
+        cdp_url = endpoint.get("cdp_url") if isinstance(endpoint, dict) else None
+        if cdp_url:
+            self._cdp_url = str(cdp_url)
+        targets = endpoint.get("targets") if isinstance(endpoint, dict) else []
+        return targets if isinstance(targets, list) else []
+
+    def reconnect(self) -> None:
+        self.close()
+        self._requests = {}
+        last_error: BaseException | None = None
+        try:
+            targets = _fetch_json(f"{self._cdp_url}/json/list", timeout=self._timeout_seconds)
+            target = _select_cdp_page_target(targets if isinstance(targets, list) else [])
+            if target is not None:
+                try:
+                    self._connect_to_target(target)
+                    return
+                except Exception as exc:  # noqa: BLE001 - stale adb forward can expose a dead target.
+                    last_error = exc
+        except Exception as exc:  # noqa: BLE001 - stale adb forward can close before returning JSON.
+            last_error = exc
+
+        try:
+            targets = self._rediscover_targets()
+        except Exception as exc:  # noqa: BLE001 - surface rediscovery failure after stale target details.
+            last_error = exc
+            targets = []
+        target = _select_cdp_page_target(targets)
+        if target is not None:
+            self._connect_to_target(target)
+            return
+        raise RuntimeError(str(last_error or "Android WebView CDP reconnect did not expose a page target"))
 
     def _send_command(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return self._session.send_command(method, params, timeout_seconds=self._timeout_seconds)
@@ -992,6 +1034,7 @@ def _run_webview_browser_smoke(
     timeout_ms: int,
     settle_ms: int,
     cdp_diagnostics: dict[str, Any],
+    reconnect_endpoint: Callable[[], dict[str, Any]] | None = None,
 ) -> BrowserSmokeReport:
     profile = PROFILES[profile_name]
     report = BrowserSmokeReport(
@@ -1029,7 +1072,10 @@ def _run_webview_browser_smoke(
     }
 
     try:
-        with _AndroidWebViewCdpPage(websocket_url, timeout_ms, target) as page:
+        page_kwargs: dict[str, Any] = {}
+        if reconnect_endpoint is not None:
+            page_kwargs["reconnect_endpoint"] = reconnect_endpoint
+        with _AndroidWebViewCdpPage(websocket_url, timeout_ms, target, **page_kwargs) as page:
             if page.setup_errors:
                 report.observations["apk_cdp_setup_errors"] = page.setup_errors
             report.observations["dialog_password_configured"] = profile.dialog_password is not None
@@ -1186,6 +1232,21 @@ def run_apk_emulator_smoke(args: argparse.Namespace) -> int:
             errors.append(str(cdp.get("error") or "failed to discover Android WebView CDP endpoint"))
 
         if cdp.get("success"):
+            def rediscover_cdp_endpoint() -> dict[str, Any]:
+                refreshed = _discover_cdp_endpoint(
+                    args.adb,
+                    package_name,
+                    commands,
+                    cdp_port=args.cdp_port,
+                    timeout_seconds=APK_CDP_RECONNECT_DISCOVERY_TIMEOUT_SECONDS,
+                )
+                cdp.setdefault("reconnect_discoveries", []).append(refreshed)
+                if refreshed.get("success"):
+                    cdp["cdp_url"] = refreshed.get("cdp_url", cdp.get("cdp_url"))
+                    cdp["socket"] = refreshed.get("socket")
+                    cdp["targets"] = refreshed.get("targets", [])
+                return refreshed
+
             browser_report = _run_webview_browser_smoke(
                 apk_path,
                 output_dir,
@@ -1195,6 +1256,7 @@ def run_apk_emulator_smoke(args: argparse.Namespace) -> int:
                 args.timeout_ms,
                 args.settle_ms,
                 cdp,
+                rediscover_cdp_endpoint,
             )
     except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
         errors.append(str(exc))
