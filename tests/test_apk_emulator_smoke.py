@@ -44,10 +44,18 @@ def test_apk_webview_smoke_uses_page_target_cdp_adapter(tmp_path, monkeypatch):
     class FakePage:
         setup_errors: list[dict[str, str]] = []
 
-        def __init__(self, websocket_url: str, timeout_ms: int, target: dict[str, Any]) -> None:
+        def __init__(
+            self,
+            websocket_url: str,
+            timeout_ms: int,
+            target: dict[str, Any],
+            *,
+            reconnect_endpoint: Any = None,
+        ) -> None:
             calls["websocket_url"] = websocket_url
             calls["timeout_ms"] = timeout_ms
             calls["target"] = target
+            calls["reconnect_endpoint"] = reconnect_endpoint
             self.url = str(target["url"])
             self.handlers: dict[str, Any] = {}
 
@@ -124,6 +132,9 @@ def test_apk_webview_smoke_uses_page_target_cdp_adapter(tmp_path, monkeypatch):
         ],
     }
 
+    def reconnect_endpoint() -> dict[str, Any]:
+        return {"success": True, "targets": cdp_diagnostics["targets"]}
+
     report = apk_emulator_smoke_test._run_webview_browser_smoke(
         apk_path,
         tmp_path,
@@ -133,11 +144,13 @@ def test_apk_webview_smoke_uses_page_target_cdp_adapter(tmp_path, monkeypatch):
         60_000,
         5_000,
         cdp_diagnostics,
+        reconnect_endpoint,
     )
 
     assert calls["entered"] is True
     assert calls["exited"] is True
     assert calls["websocket_url"] == "ws://127.0.0.1:9222/devtools/page/game"
+    assert calls["reconnect_endpoint"] is reconnect_endpoint
     assert calls["settle_ms"] == 5_000
     assert report.served_url == "https://localhost/index.html"
     assert report.observations["apk_cdp_page_target"]["webSocketDebuggerUrl"] == calls["websocket_url"]
@@ -820,6 +833,88 @@ def test_apk_cdp_page_reconnect_refreshes_page_target(monkeypatch):
         "ws://127.0.0.1:9222/devtools/page/new-game",
     ]
     assert page.websocket_url == "ws://127.0.0.1:9222/devtools/page/new-game"
+
+
+@pytest.mark.config
+def test_apk_cdp_page_reconnect_rediscovers_after_stale_target(monkeypatch):
+    created_sessions: list[str] = []
+    rediscover_calls = 0
+
+    class FakeSession:
+        def __init__(self, websocket_url: str, timeout_seconds: float) -> None:
+            del timeout_seconds
+            created_sessions.append(websocket_url)
+            if (
+                websocket_url == "ws://127.0.0.1:9222/devtools/page/old-game"
+                and created_sessions.count(websocket_url) > 1
+            ):
+                raise RuntimeError("Remote end closed connection without response")
+            self.websocket_url = websocket_url
+            self.closed = False
+
+        def set_event_callback(self, callback: Any) -> None:
+            self.callback = callback
+
+        def send_command(
+            self,
+            method: str,
+            params: dict[str, Any] | None = None,
+            *,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            del method, params, timeout_seconds
+            return {}
+
+        def close(self) -> None:
+            self.closed = True
+
+    stale_targets = [
+        {
+            "id": "old-game",
+            "type": "page",
+            "title": "Degrees of Lewdity",
+            "url": "https://localhost/index.html",
+            "webSocketDebuggerUrl": "/devtools/page/old-game",
+        }
+    ]
+
+    def rediscover_endpoint() -> dict[str, Any]:
+        nonlocal rediscover_calls
+        rediscover_calls += 1
+        return {
+            "success": True,
+            "cdp_url": "http://127.0.0.1:9333",
+            "socket": "webview_devtools_remote_9999",
+            "targets": [
+                {
+                    "id": "new-game",
+                    "type": "page",
+                    "title": "Degrees of Lewdity",
+                    "url": "https://localhost/index.html",
+                    "webSocketDebuggerUrl": "/devtools/page/new-game",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(apk_emulator_smoke_test, "_CdpWebSocketSession", FakeSession)
+    monkeypatch.setattr(apk_emulator_smoke_test, "_fetch_json", lambda url, *, timeout=5.0: stale_targets)
+
+    page = apk_emulator_smoke_test._AndroidWebViewCdpPage(
+        "ws://127.0.0.1:9222/devtools/page/old-game",
+        60_000,
+        {"url": "https://localhost/index.html"},
+        reconnect_endpoint=rediscover_endpoint,
+    )
+
+    page.reconnect()
+
+    assert rediscover_calls == 1
+    assert created_sessions == [
+        "ws://127.0.0.1:9222/devtools/page/old-game",
+        "ws://127.0.0.1:9222/devtools/page/old-game",
+        "ws://127.0.0.1:9333/devtools/page/new-game",
+    ]
+    assert page.websocket_url == "ws://127.0.0.1:9333/devtools/page/new-game"
 
 
 @pytest.mark.config
