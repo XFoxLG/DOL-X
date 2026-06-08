@@ -2133,24 +2133,38 @@ def _write_apk_cdp_failure_report(
     _write_json(output_dir / "apk-emulator-smoke.json", payload)
 
 
-def run_apk_cdp_smokes(target: Path, reports_dir: Path, profile: str = PROFILE) -> int:
-    """Run Android emulator/WebView CDP smokes for all candidate debug APKs.
+def run_apk_cdp_smokes(
+    target: Path,
+    reports_dir: Path,
+    profile: str = PROFILE,
+    slugs: tuple[str, ...] | None = None,
+    require_selected_success: bool = False,
+) -> int:
+    """Run Android emulator/WebView CDP smokes for candidate debug APKs.
 
     The GitHub emulator action executes its ``script`` input one command at a
     time, so keep slug iteration in Python instead of relying on a multiline
     shell loop.
     """
+    selected_slugs = slugs or DEFAULT_STABLE_CODE_ORDER
+    invalid_slugs = [slug for slug in selected_slugs if slug not in DEFAULT_STABLE_CODE_ORDER]
+    if invalid_slugs:
+        raise ValueError(f"unknown APK CDP candidate slug(s): {', '.join(invalid_slugs)}")
+
     debug_apks = _artifact_candidates(target, "apk")
     debug_by_slug = {_slug_for_artifact(path): path for path in debug_apks}
     blocking_failures: list[str] = []
+    selected_failures: list[str] = []
 
-    for slug in DEFAULT_STABLE_CODE_ORDER:
+    for slug in selected_slugs:
         output_dir = Path(reports_dir) / slug
         apk_path = debug_by_slug.get(slug)
         if apk_path is None:
             error = f"missing smoke-debug candidate APK for {slug} under {target}"
             if slug in APK_CDP_BLOCKING_SLUGS:
                 blocking_failures.append(error)
+            if require_selected_success:
+                selected_failures.append(error)
             _write_apk_cdp_failure_report(slug, output_dir, [error], profile=profile)
             print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
             continue
@@ -2172,6 +2186,8 @@ def run_apk_cdp_smokes(target: Path, reports_dir: Path, profile: str = PROFILE) 
             error = f"{slug}: failed to run APK CDP smoke helper: {exc}"
             if slug in APK_CDP_BLOCKING_SLUGS:
                 blocking_failures.append(error)
+            if require_selected_success:
+                selected_failures.append(error)
             _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
             print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
             continue
@@ -2179,11 +2195,13 @@ def run_apk_cdp_smokes(target: Path, reports_dir: Path, profile: str = PROFILE) 
             error = f"{slug}: APK CDP smoke helper exited with {result.returncode}"
             if slug in APK_CDP_BLOCKING_SLUGS:
                 blocking_failures.append(error)
+            if require_selected_success:
+                selected_failures.append(error)
             if not (output_dir / "apk-emulator-smoke.json").exists():
                 _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
             print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
 
-    return 0 if not blocking_failures else 1
+    return 0 if not blocking_failures and not selected_failures else 1
 
 
 def _build_report_success(payload: dict[str, Any]) -> bool:
@@ -2473,6 +2491,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     run_apk_cdp_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "apk-cdp-smoke")
     run_apk_cdp_parser.add_argument("--profile", default=PROFILE)
+    run_apk_cdp_parser.add_argument(
+        "--slugs",
+        nargs="+",
+        choices=DEFAULT_STABLE_CODE_ORDER,
+        help="Optional candidate slug subset for targeted APK CDP diagnostics",
+    )
+    run_apk_cdp_parser.add_argument(
+        "--require-selected-success",
+        action="store_true",
+        help="Fail if any selected APK CDP slug fails; intended for targeted diagnostics",
+    )
 
     apk_cdp_parser = subparsers.add_parser(
         "summarize-apk-cdp",
@@ -2534,7 +2563,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
     if args.command == "run-apk-cdp":
-        return run_apk_cdp_smokes(args.target, args.reports_dir, args.profile)
+        return run_apk_cdp_smokes(
+            args.target,
+            args.reports_dir,
+            args.profile,
+            tuple(args.slugs or ()),
+            args.require_selected_success,
+        )
     if args.command == "summarize-apk-cdp":
         return summarize_apk_cdp_smoke_reports(args.reports_dir, args.output)
     if args.command == "summarize-phase1a":

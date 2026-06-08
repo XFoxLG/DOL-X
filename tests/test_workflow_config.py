@@ -82,6 +82,9 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
 
     assert "name: Baseline Candidate Gate" in workflow
     assert "workflow_dispatch:" in workflow
+    assert "apk_cdp_slugs:" in workflow
+    assert "Optional space-separated APK CDP slugs for targeted diagnostics" in workflow
+    assert 'default: ""' in workflow
     assert "phase1a-candidate-gate:" in workflow
     assert 'CANDIDATE_CODES: "57602,58626,59650,61698"' in workflow
     assert "Check stable replacement readiness" in workflow
@@ -132,7 +135,13 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
     assert '"${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"' in apk_cdp_block
     assert '--reports-dir "${GATE_DIR}/apk-cdp-smoke"' in apk_cdp_block
     assert '--profile "$PROFILE"' in apk_cdp_block
+    assert "APK_CDP_SLUGS: ${{ inputs.apk_cdp_slugs }}" in apk_cdp_block
+    assert "APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" in apk_cdp_block
+    assert "${APK_CDP_SLUGS:+--slugs $APK_CDP_SLUGS}" in apk_cdp_block
+    assert "$APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" in apk_cdp_block
+    assert "--require-selected-success" in apk_cdp_block
     assert "Summarize candidate APK CDP smokes" in workflow
+    assert "if: ${{ always() && inputs.apk_cdp_slugs == '' }}" in workflow
     assert "summarize-apk-cdp" in workflow
     assert "baseline-candidate-apk-cdp-smoke.json" in workflow
     assert "Summarize candidate gate" in workflow

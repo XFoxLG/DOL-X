@@ -402,7 +402,15 @@ def _wait_for_late_game_ready(report: BrowserSmokeReport, page: Any, expected_pa
     return result
 
 
-def _attach_page_events(report: BrowserSmokeReport, page: Any) -> None:
+def _should_supply_dialog_password(dialog_type: str, message: str, default_value: Any, profile: Any) -> bool:
+    if dialog_type != "prompt" or getattr(profile, "dialog_password", None) is None:
+        return False
+    prompt_context = f"{message}\n{default_value or ''}".lower()
+    password_markers = ("custom-spellbook", "custom spellbook", "spellbook", "password", "密码")
+    return any(marker in prompt_context for marker in password_markers)
+
+
+def _attach_page_events(report: BrowserSmokeReport, page: Any, profile: Any) -> None:
     def on_console(message: Any) -> None:
         text = str(message.text)
         entry = {"type": message.type, "text": text, "location": message.location}
@@ -435,9 +443,29 @@ def _attach_page_events(report: BrowserSmokeReport, page: Any) -> None:
         _add_issue(report, classify_message("http_error", f"{response.url} HTTP {response.status}"), url=response.url)
 
     def on_dialog(dialog: Any) -> None:
-        entry = {"type": dialog.type, "message": dialog.message, "accepted": True}
+        default_value = getattr(dialog, "default_value", None)
+        if callable(default_value):
+            default_value = default_value()
+        entry = {
+            "type": dialog.type,
+            "message": dialog.message,
+            "default_value": default_value,
+            "accepted": True,
+            "password_supplied": False,
+            "password_prompt_matched": False,
+        }
+        try:
+            if _should_supply_dialog_password(dialog.type, dialog.message, default_value, profile):
+                dialog.accept(profile.dialog_password)
+                entry["password_supplied"] = True
+                entry["password_prompt_matched"] = True
+            else:
+                dialog.accept()
+        except Exception as exc:  # noqa: BLE001 - keep CDP smoke reports even if dialog handling breaks.
+            entry["accepted"] = False
+            entry["error"] = str(exc)
+            _add_issue(report, Issue("high", "dialog_handling_failed", "runner", str(exc)))
         report.observations.setdefault("dialogs", []).append(entry)
-        dialog.accept()
 
     page.on("console", on_console)
     page.on("pageerror", on_page_error)
@@ -462,14 +490,26 @@ class _CdpObject:
 
 
 class _CdpDialog:
-    def __init__(self, page: "_AndroidWebViewCdpPage", dialog_type: str, message: str) -> None:
+    def __init__(
+        self,
+        page: "_AndroidWebViewCdpPage",
+        dialog_type: str,
+        message: str,
+        default_value: str | None = None,
+    ) -> None:
         self._page = page
         self.type = dialog_type
         self.message = message
+        self.default_value = default_value
         self.accepted = False
+        self.prompt_text: str | None = None
 
-    def accept(self) -> None:
-        self._page._send_command("Page.handleJavaScriptDialog", {"accept": True})
+    def accept(self, prompt_text: str | None = None) -> None:
+        params: dict[str, Any] = {"accept": True}
+        if self.type == "prompt" and prompt_text is not None:
+            params["promptText"] = prompt_text
+            self.prompt_text = prompt_text
+        self._page._send_command("Page.handleJavaScriptDialog", params)
         self.accepted = True
 
 
@@ -854,7 +894,13 @@ class _AndroidWebViewCdpPage:
             if not frame.get("parentId") and frame.get("url"):
                 self.url = str(frame["url"])
         elif method == "Page.javascriptDialogOpening":
-            dialog = _CdpDialog(self, str(params.get("type") or "alert"), str(params.get("message") or ""))
+            default_prompt = params.get("defaultPrompt")
+            dialog = _CdpDialog(
+                self,
+                str(params.get("type") or "alert"),
+                str(params.get("message") or ""),
+                str(default_prompt) if default_prompt is not None else None,
+            )
             self._emit("dialog", dialog)
             if not dialog.accepted:
                 dialog.accept()
@@ -986,7 +1032,8 @@ def _run_webview_browser_smoke(
         with _AndroidWebViewCdpPage(websocket_url, timeout_ms, target) as page:
             if page.setup_errors:
                 report.observations["apk_cdp_setup_errors"] = page.setup_errors
-            _attach_page_events(report, page)
+            report.observations["dialog_password_configured"] = profile.dialog_password is not None
+            _attach_page_events(report, page, profile)
             _with_cdp_reconnect(report, page, "settle", lambda: page.wait_for_timeout(settle_ms))
             report.served_url = page.url
 
