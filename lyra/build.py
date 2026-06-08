@@ -18,6 +18,12 @@ from typing import Optional
 from .paths import BuildPaths
 from .version import LyraVersion, VersionRegistry
 from .config import ModCode
+from .compatibility import (
+    MORE_LOVE_DRAG_PATCH_KEY,
+    compatibility_source_errors,
+    compatibility_surface_by_key,
+    is_patch_success_status,
+)
 from .lyra_mod import build_lyra_mod
 from .combo import CombinationCalculator
 from .config_loader import load_build_config, get_config_loader
@@ -404,6 +410,13 @@ class PackageBuilder(ABC):
         if mod_config.cache_name != MORE_LOVE_CACHE_NAME:
             return mod_path
 
+        patch_surface = compatibility_surface_by_key(MORE_LOVE_DRAG_PATCH_KEY)
+        source_errors = compatibility_source_errors(patch_surface, mod_config)
+        if source_errors:
+            raise RuntimeError(
+                "More Love drag event compatibility patch source mismatch: " + "; ".join(source_errors)
+            )
+
         patched_path = (
             self.paths.temp_dir
             / f"{MORE_LOVE_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.patched.mod.zip"
@@ -413,12 +426,10 @@ class PackageBuilder(ABC):
         if status == "patched":
             logger.info("More Love drag event compatibility patch applied")
             return patched_path
-        if status != "already_patched":
-            logger.warning(
-                "More Love drag event compatibility patch skipped: %s",
-                status,
-            )
-        return mod_path
+        if is_patch_success_status(status):
+            logger.info("More Love drag event compatibility patch already present")
+            return mod_path
+        raise RuntimeError(f"More Love drag event compatibility patch failed: {status}")
 
     def _inject_modloader_mods(self) -> list[str]:
         """
