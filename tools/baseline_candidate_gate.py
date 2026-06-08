@@ -2498,6 +2498,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Optional candidate slug subset for targeted APK CDP diagnostics",
     )
     run_apk_cdp_parser.add_argument(
+        "--targeted-slugs",
+        default="",
+        help="Space-separated candidate slug subset from workflow_dispatch; non-empty values require selected success",
+    )
+    run_apk_cdp_parser.add_argument(
         "--require-selected-success",
         action="store_true",
         help="Fail if any selected APK CDP slug fails; intended for targeted diagnostics",
@@ -2563,12 +2568,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
     if args.command == "run-apk-cdp":
+        targeted_slugs = tuple(str(args.targeted_slugs).split())
+        selected_slugs = targeted_slugs or tuple(args.slugs or ())
         return run_apk_cdp_smokes(
             args.target,
             args.reports_dir,
             args.profile,
-            tuple(args.slugs or ()),
-            args.require_selected_success,
+            selected_slugs,
+            args.require_selected_success or bool(targeted_slugs),
         )
     if args.command == "summarize-apk-cdp":
         return summarize_apk_cdp_smoke_reports(args.reports_dir, args.output)

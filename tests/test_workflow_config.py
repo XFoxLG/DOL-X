@@ -136,10 +136,10 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
     assert '--reports-dir "${GATE_DIR}/apk-cdp-smoke"' in apk_cdp_block
     assert '--profile "$PROFILE"' in apk_cdp_block
     assert "APK_CDP_SLUGS: ${{ inputs.apk_cdp_slugs }}" in apk_cdp_block
-    assert "APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" in apk_cdp_block
-    assert "${APK_CDP_SLUGS:+--slugs $APK_CDP_SLUGS}" in apk_cdp_block
-    assert "$APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" in apk_cdp_block
-    assert "--require-selected-success" in apk_cdp_block
+    assert "APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" not in apk_cdp_block
+    assert "${APK_CDP_SLUGS:+--slugs $APK_CDP_SLUGS}" not in apk_cdp_block
+    assert "$APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" not in apk_cdp_block
+    assert '--targeted-slugs "$APK_CDP_SLUGS"' in apk_cdp_block
     assert "Summarize candidate APK CDP smokes" in workflow
     assert "if: ${{ always() && inputs.apk_cdp_slugs == '' }}" in workflow
     assert "summarize-apk-cdp" in workflow
