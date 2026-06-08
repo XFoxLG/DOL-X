@@ -237,6 +237,39 @@ def test_apk_cdp_transport_close_is_adapter_warning_and_reconnects_once():
 
 
 @pytest.mark.config
+def test_apk_cdp_remote_end_close_is_adapter_warning_and_reconnects_once():
+    report = apk_emulator_smoke_test.BrowserSmokeReport(
+        target="apk",
+        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        report_only=False,
+    )
+    calls = {"operation": 0, "reconnect": 0}
+
+    class FakePage:
+        def reconnect(self) -> None:
+            calls["reconnect"] += 1
+
+    def operation() -> str:
+        calls["operation"] += 1
+        if calls["operation"] == 1:
+            raise RuntimeError("Remote end closed connection without response")
+        return "ok"
+
+    issue = apk_emulator_smoke_test._classify_apk_cdp_smoke_exception(
+        RuntimeError("Remote end closed connection without response")
+    )
+    result = apk_emulator_smoke_test._with_cdp_reconnect(report, FakePage(), "page_state", operation)
+
+    assert issue.severity == "warning"
+    assert issue.kind == "apk_cdp_adapter_closed"
+    assert result == "ok"
+    assert calls == {"operation": 2, "reconnect": 1}
+    assert report.observations["apk_cdp_reconnects"] == [
+        {"phase": "page_state", "error": "Remote end closed connection without response"}
+    ]
+
+
+@pytest.mark.config
 def test_apk_cdp_reconnect_retries_failed_reconnect_attempt(monkeypatch):
     report = apk_emulator_smoke_test.BrowserSmokeReport(
         target="apk",

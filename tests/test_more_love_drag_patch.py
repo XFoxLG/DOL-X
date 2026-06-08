@@ -12,6 +12,7 @@ from lyra.build import (
     ZipBuilder,
     patch_more_love_drag_event_handlers,
 )
+from lyra.config_loader import load_build_config
 from lyra.paths import BuildPaths
 
 
@@ -52,6 +53,10 @@ def _read_entries(path, member_name: str) -> list[str]:
             for member in zf.infolist()
             if member.filename == member_name
         ]
+
+
+def _more_love_config():
+    return next(mod for mod in load_build_config().modloader_mods if mod.cache_name == "more_love")
 
 
 @pytest.mark.config
@@ -124,10 +129,7 @@ def test_more_love_injection_uses_build_local_patched_payload(tmp_path):
     source = paths.get_mod_cache_path("more_love")
     _write_more_love_payload(source)
 
-    injected_path = builder._modloader_mod_path_for_injection(
-        SimpleNamespace(cache_name="more_love"),
-        source,
-    )
+    injected_path = builder._modloader_mod_path_for_injection(_more_love_config(), source)
 
     assert injected_path != source
     assert injected_path.exists()
@@ -148,3 +150,32 @@ def test_non_more_love_payload_injection_uses_original_path(tmp_path):
     )
 
     assert injected_path == source
+
+
+@pytest.mark.config
+def test_more_love_injection_fails_closed_when_patch_needle_drifts(tmp_path):
+    paths = BuildPaths(workspace=tmp_path)
+    builder = ZipBuilder(BuildTask(pack_type="zip", mod_code=24834, paths=paths))
+    source = paths.get_mod_cache_path("more_love")
+    _write_more_love_payload(source, "function dragMLIM(ev) { return true; }\n")
+
+    with pytest.raises(RuntimeError, match="patch failed: patch_needle_not_found"):
+        builder._modloader_mod_path_for_injection(_more_love_config(), source)
+
+
+@pytest.mark.config
+def test_more_love_injection_fails_closed_when_source_metadata_drifts(tmp_path):
+    paths = BuildPaths(workspace=tmp_path)
+    builder = ZipBuilder(BuildTask(pack_type="zip", mod_code=24834, paths=paths))
+    source = paths.get_mod_cache_path("more_love")
+    _write_more_love_payload(source)
+
+    drifted_config = SimpleNamespace(
+        cache_name="more_love",
+        github_repo="example/wrong",
+        release_tag="More-Love-Interests-Mod-v0.1.6.0",
+        asset_pattern="More.Love.Interests.Mod.mod.zip",
+    )
+
+    with pytest.raises(RuntimeError, match="source mismatch"):
+        builder._modloader_mod_path_for_injection(drifted_config, source)

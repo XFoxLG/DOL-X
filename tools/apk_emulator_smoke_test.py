@@ -211,7 +211,11 @@ def _discover_cdp_endpoint(
 
 def _is_cdp_transport_error(error: BaseException | str | None) -> bool:
     text = str(error or "").lower()
-    return "cdp websocket closed" in text or "cdp websocket send failed" in text
+    return (
+        "cdp websocket closed" in text
+        or "cdp websocket send failed" in text
+        or "remote end closed connection without response" in text
+    )
 
 
 def _is_optional_remote_loader_fetch(source: str, message: str, location: dict[str, Any] | None = None) -> bool:
