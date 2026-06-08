@@ -2,6 +2,12 @@ name: Baseline Candidate Gate
 
 on:
   workflow_dispatch:
+    inputs:
+      apk_cdp_slugs:
+        description: "Optional space-separated APK CDP slugs for targeted diagnostics; empty runs the full APK CDP gate"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: baseline-candidate-gate-${{ github.ref }}
@@ -152,6 +158,8 @@ jobs:
           DOLX_WORKFLOW_HEAD_SHA: ${{ github.sha }}
           DOLX_GITHUB_SHA: ${{ github.sha }}
           DOLX_ARTIFACT_NAME: baseline-candidate-apk-debug-artifacts
+          APK_CDP_SLUGS: ${{ inputs.apk_cdp_slugs }}
+          APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG: ${{ inputs.apk_cdp_slugs != '' && '--require-selected-success' || '' }}
         with:
           api-level: 35
           arch: x86_64
@@ -162,16 +170,18 @@ jobs:
             "${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"
             --reports-dir "${GATE_DIR}/apk-cdp-smoke"
             --profile "$PROFILE"
+            ${APK_CDP_SLUGS:+--slugs $APK_CDP_SLUGS}
+            $APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG
 
       - name: Summarize candidate APK CDP smokes
-        if: always()
+        if: ${{ always() && inputs.apk_cdp_slugs == '' }}
         run: |
           python tools/baseline_candidate_gate.py summarize-apk-cdp \
             --reports-dir "${GATE_DIR}/apk-cdp-smoke" \
             --output "${GATE_DIR}/baseline-candidate-apk-cdp-smoke.json"
 
       - name: Summarize candidate gate
-        if: always()
+        if: ${{ always() && inputs.apk_cdp_slugs == '' }}
         run: |
           python tools/baseline_candidate_gate.py summarize-phase1a \
             --gate-dir "${GATE_DIR}" \

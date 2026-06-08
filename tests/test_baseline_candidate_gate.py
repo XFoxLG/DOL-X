@@ -277,14 +277,34 @@ def test_run_apk_cdp_cli_is_exposed():
     assert args.target.name == "apk-debug-artifacts"
     assert args.reports_dir.name == "apk-cdp-smoke"
     assert args.profile == "custom-profile"
+    assert args.slugs is None
+    assert args.require_selected_success is False
+
+
+@pytest.mark.config
+def test_run_apk_cdp_cli_accepts_targeted_slug_subset():
+    args = parse_args(
+        [
+            "run-apk-cdp",
+            "apk-debug-artifacts",
+            "--slugs",
+            "au-f",
+            "au-a",
+            "--require-selected-success",
+        ]
+    )
+
+    assert args.command == "run-apk-cdp"
+    assert args.slugs == ["au-f", "au-a"]
+    assert args.require_selected_success is True
 
 
 @pytest.mark.config
 def test_run_apk_cdp_cli_dispatches_runner(tmp_path, monkeypatch):
     calls = []
 
-    def fake_runner(target, reports_dir, profile):
-        calls.append((target, reports_dir, profile))
+    def fake_runner(target, reports_dir, profile, slugs, require_selected_success):
+        calls.append((target, reports_dir, profile, slugs, require_selected_success))
         return 7
 
     monkeypatch.setattr(baseline_candidate_gate, "run_apk_cdp_smokes", fake_runner)
@@ -300,11 +320,15 @@ def test_run_apk_cdp_cli_dispatches_runner(tmp_path, monkeypatch):
                 str(reports_dir),
                 "--profile",
                 "profile-x",
+                "--slugs",
+                "au-f",
+                "au-a",
+                "--require-selected-success",
             ]
         )
         == 7
     )
-    assert calls == [(target, reports_dir, "profile-x")]
+    assert calls == [(target, reports_dir, "profile-x", ("au-f", "au-a"), True)]
 
 
 @pytest.mark.config
@@ -334,6 +358,34 @@ def test_run_apk_cdp_smokes_invokes_helper_for_all_candidate_debug_apks(tmp_path
     ]
     assert all(cmd[0] == baseline_candidate_gate.sys.executable for cmd in calls)
     assert all(cmd[1] == "tools/apk_emulator_smoke_test.py" for cmd in calls)
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_invokes_helper_for_targeted_slug_subset(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    targeted_slugs = ("au-f", "au-a")
+    for slug in targeted_slugs:
+        _write_candidate_apk(apk_dir, slug)
+    calls = []
+
+    class Result:
+        returncode = 0
+
+    def fake_run(cmd, check):
+        calls.append(cmd)
+        assert check is False
+        return Result()
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir, slugs=targeted_slugs) == 0
+    assert [cmd[cmd.index("--slug") + 1] for cmd in calls] == list(targeted_slugs)
+    assert [cmd[cmd.index("--output-dir") + 1] for cmd in calls] == [
+        str(reports_dir / slug) for slug in targeted_slugs
+    ]
+    assert not (reports_dir / "base" / "apk-emulator-smoke.json").exists()
 
 
 @pytest.mark.config
@@ -455,6 +507,38 @@ def test_run_apk_cdp_smokes_does_not_block_on_diagnostic_au_helper_failures(tmp_
     monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
 
     assert run_apk_cdp_smokes(apk_dir, reports_dir) == 0
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_can_require_selected_diagnostic_success(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    targeted_slugs = ("au-f", "au-a")
+    for slug in targeted_slugs:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        def __init__(self, returncode: int) -> None:
+            self.returncode = returncode
+
+    def fake_run(cmd, check):
+        assert check is False
+        slug = cmd[cmd.index("--slug") + 1]
+        output_dir = reports_dir / slug
+        output_dir.mkdir(parents=True, exist_ok=True)
+        marker = {"success": slug == "au-f", "slug": slug, "errors": [] if slug == "au-f" else ["au runtime"]}
+        (output_dir / "apk-emulator-smoke.json").write_text(json.dumps(marker), encoding="utf-8")
+        return Result(0 if slug == "au-f" else 4)
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
+
+    assert run_apk_cdp_smokes(
+        apk_dir,
+        reports_dir,
+        slugs=targeted_slugs,
+        require_selected_success=True,
+    ) == 1
 
 
 @pytest.mark.config
