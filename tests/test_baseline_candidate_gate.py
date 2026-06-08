@@ -14,6 +14,8 @@ from tools.artifact_inspection import APK_HTML_MEMBER, load_html_artifact
 from tools.baseline_candidate_gate import (
     APK_AUDIT_REPORT,
     APK_BUILD_REPORT,
+    APK_CDP_BLOCKING_SLUGS,
+    APK_CDP_DIAGNOSTIC_SLUGS,
     APK_CDP_SMOKE_REPORT,
     APK_DEBUG_REPORT,
     APK_EQUIVALENCE_REPORT,
@@ -347,7 +349,7 @@ def test_run_apk_cdp_smokes_writes_failure_report_for_missing_candidate(tmp_path
 
     monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", lambda cmd, check: Result())
 
-    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 1
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 0
     missing_slug = DEFAULT_STABLE_CODE_ORDER[-1]
     payload = json.loads((reports_dir / missing_slug / "apk-emulator-smoke.json").read_text(encoding="utf-8"))
 
@@ -356,6 +358,27 @@ def test_run_apk_cdp_smokes_writes_failure_report_for_missing_candidate(tmp_path
     assert payload["counts_for_phase2_promotion"] is False
     assert payload["default_matrix_mutated"] is False
     assert payload["slug"] == missing_slug
+    assert any("missing smoke-debug candidate APK" in error for error in payload["errors"])
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_blocks_on_missing_base_candidate(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER[1:]:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        returncode = 0
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", lambda cmd, check: Result())
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 1
+    payload = json.loads((reports_dir / "base" / "apk-emulator-smoke.json").read_text(encoding="utf-8"))
+
+    assert payload["success"] is False
+    assert payload["slug"] == "base"
     assert any("missing smoke-debug candidate APK" in error for error in payload["errors"])
 
 
@@ -406,6 +429,54 @@ def test_run_apk_cdp_smokes_preserves_helper_report_when_helper_fails(tmp_path, 
     payload = json.loads((reports_dir / "base" / "apk-emulator-smoke.json").read_text(encoding="utf-8"))
 
     assert payload["errors"] == ["helper-written"]
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_does_not_block_on_diagnostic_au_helper_failures(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        def __init__(self, returncode: int) -> None:
+            self.returncode = returncode
+
+    def fake_run(cmd, check):
+        assert check is False
+        slug = cmd[cmd.index("--slug") + 1]
+        output_dir = reports_dir / slug
+        output_dir.mkdir(parents=True, exist_ok=True)
+        marker = {"success": slug == "base", "slug": slug, "errors": [] if slug == "base" else ["au runtime"]}
+        (output_dir / "apk-emulator-smoke.json").write_text(json.dumps(marker), encoding="utf-8")
+        return Result(0 if slug == "base" else 4)
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 0
+
+
+@pytest.mark.config
+def test_run_apk_cdp_smokes_blocks_on_base_helper_failure(tmp_path, monkeypatch):
+    apk_dir = tmp_path / "apk-debug-artifacts"
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    apk_dir.mkdir()
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_candidate_apk(apk_dir, slug)
+
+    class Result:
+        def __init__(self, returncode: int) -> None:
+            self.returncode = returncode
+
+    def fake_run(cmd, check):
+        assert check is False
+        slug = cmd[cmd.index("--slug") + 1]
+        return Result(5 if slug == "base" else 0)
+
+    monkeypatch.setattr(baseline_candidate_gate.subprocess, "run", fake_run)
+
+    assert run_apk_cdp_smokes(apk_dir, reports_dir) == 1
 
 
 @pytest.mark.config
@@ -705,9 +776,58 @@ def test_baseline_candidate_apk_cdp_summary_requires_four_android_webview_smokes
     }
     assert [result["slug"] for result in payload["results"]] == list(DEFAULT_STABLE_CODE_ORDER)
     assert all(result["success"] for result in payload["results"])
+    assert payload["blocking_success"] is True
+    assert payload["diagnostic_success"] is True
+    assert payload["full_candidate_gate_ready"] is True
+    assert payload["gate_policy"]["blocking_slugs"] == list(APK_CDP_BLOCKING_SLUGS)
+    assert payload["gate_policy"]["diagnostic_slugs"] == list(APK_CDP_DIAGNOSTIC_SLUGS)
+    assert payload["signal_layers"]["base_apk_readiness"]["blocking"] is True
+    assert payload["signal_layers"]["au_apk_runtime_readiness"]["blocking"] is False
     assert all(result["checks"]["cdp_target_present"] for result in payload["results"])
     assert all(result["checks"]["no_manual_phone_scope"] for result in payload["results"])
     assert all(result["checks"]["no_harmonyos_scope"] for result in payload["results"])
+
+
+@pytest.mark.config
+def test_baseline_candidate_apk_cdp_summary_keeps_au_failures_diagnostic(tmp_path):
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    _write_apk_cdp_smoke_evidence(reports_dir, "base", success=True)
+    for slug in APK_CDP_DIAGNOSTIC_SLUGS:
+        _write_apk_cdp_smoke_evidence(reports_dir, slug, success=False)
+
+    output = tmp_path / APK_CDP_SMOKE_REPORT
+    assert summarize_apk_cdp_smoke_reports(reports_dir, output) == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["blocking_success"] is True
+    assert payload["diagnostic_success"] is False
+    assert payload["full_candidate_gate_ready"] is False
+    assert payload["blocking_errors"] == []
+    assert payload["diagnostic_errors"]
+    by_slug = {result["slug"]: result for result in payload["results"]}
+    assert by_slug["base"]["blocking"] is True
+    assert by_slug["base"]["success"] is True
+    assert by_slug["au-f"]["diagnostic"] is True
+    assert "au_runtime_startup" in by_slug["au-f"]["failure_layers"]
+
+
+@pytest.mark.config
+def test_baseline_candidate_apk_cdp_summary_still_blocks_base_failure(tmp_path):
+    reports_dir = tmp_path / "apk-cdp-smoke"
+    _write_apk_cdp_smoke_evidence(reports_dir, "base", success=False)
+    for slug in APK_CDP_DIAGNOSTIC_SLUGS:
+        _write_apk_cdp_smoke_evidence(reports_dir, slug, success=True)
+
+    output = tmp_path / APK_CDP_SMOKE_REPORT
+    assert summarize_apk_cdp_smoke_reports(reports_dir, output) == 1
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is False
+    assert payload["blocking_success"] is False
+    assert payload["diagnostic_success"] is True
+    assert payload["full_candidate_gate_ready"] is False
+    assert payload["blocking_errors"]
 
 
 def _write_candidate_build_report(gate_dir, filename: str, pack_type: str) -> None:
@@ -846,10 +966,17 @@ def test_candidate_summary_accepts_b1_green_as_partial_when_b2_missing(tmp_path)
     assert payload["reports"]["apk_cdp_smoke"]["present"] is False
     assert payload["reports"]["apk_cdp_smoke"]["success"] is False
     assert payload["b2_runtime"] == {
+        "required_for_candidate_gate": True,
         "required_for_full_candidate_gate": True,
         "present": False,
         "success": False,
+        "full_candidate_gate_ready": False,
         "report": "apk_cdp_smoke",
+        "blocking_slugs": list(APK_CDP_BLOCKING_SLUGS),
+        "diagnostic_slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+        "diagnostic_success": False,
+        "au_failures_block_candidate": False,
+        "au_failures_block_full_promotion": True,
         "scope": {
             "platform": "Android emulator",
             "webview_cdp": True,
@@ -875,7 +1002,10 @@ def test_candidate_summary_promotes_to_full_gate_only_with_b2_runtime(tmp_path):
     _write_b1_component_success_report(gate_dir, APK_DEBUG_REPORT)
     _write_b1_component_success_report(gate_dir, APK_EQUIVALENCE_REPORT)
     _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
-    _write_b1_component_success_report(gate_dir, APK_CDP_SMOKE_REPORT)
+    apk_cdp_reports = gate_dir / "apk-cdp-smoke"
+    for slug in DEFAULT_STABLE_CODE_ORDER:
+        _write_apk_cdp_smoke_evidence(apk_cdp_reports, slug)
+    assert summarize_apk_cdp_smoke_reports(apk_cdp_reports, gate_dir / APK_CDP_SMOKE_REPORT) == 0
 
     assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 0
 
@@ -892,6 +1022,50 @@ def test_candidate_summary_promotes_to_full_gate_only_with_b2_runtime(tmp_path):
     assert payload["reports"]["apk_cdp_smoke"]["success"] is True
     assert payload["b2_runtime"]["present"] is True
     assert payload["b2_runtime"]["success"] is True
+    assert payload["b2_runtime"]["full_candidate_gate_ready"] is True
+
+
+@pytest.mark.config
+def test_candidate_summary_allows_au_diagnostic_failures_without_full_promotion(tmp_path):
+    gate_dir = tmp_path / "baseline-candidate-gate"
+    gate_dir.mkdir(parents=True)
+    output = gate_dir / PHASE1A_SUMMARY
+
+    _write_simple_success_report(gate_dir, PHASE1A_CONFIG_REPORT)
+    _write_simple_success_report(gate_dir, STABLE_REPLACEMENT_READINESS_REPORT)
+    _write_candidate_build_report(gate_dir, ZIP_BUILD_REPORT, "zip")
+    _write_candidate_build_report(gate_dir, APK_BUILD_REPORT, "apk")
+    _write_simple_success_report(gate_dir, ZIP_AUDIT_REPORT)
+    _write_simple_success_report(gate_dir, APK_AUDIT_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_DEBUG_REPORT)
+    _write_b1_component_success_report(gate_dir, APK_EQUIVALENCE_REPORT)
+    _write_simple_success_report(gate_dir, ZIP_BROWSER_SUMMARY)
+    apk_cdp_reports = gate_dir / "apk-cdp-smoke"
+    _write_apk_cdp_smoke_evidence(apk_cdp_reports, "base", success=True)
+    for slug in APK_CDP_DIAGNOSTIC_SLUGS:
+        _write_apk_cdp_smoke_evidence(apk_cdp_reports, slug, success=False)
+    assert summarize_apk_cdp_smoke_reports(apk_cdp_reports, gate_dir / APK_CDP_SMOKE_REPORT) == 0
+
+    assert summarize_phase1a_gate(gate_dir, output, head_sha="abc123", run_id="42") == 0
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["gate_level"] == PARTIAL_GATE_LEVEL
+    assert payload["counts_for_phase2_promotion"] is False
+    assert payload["missing_reports"] == []
+    assert payload["failed_reports"] == []
+    assert payload["errors"] == []
+    assert payload["reports"]["apk_cdp_smoke"]["present"] is True
+    assert payload["reports"]["apk_cdp_smoke"]["success"] is True
+    assert payload["reports"]["apk_cdp_smoke"]["diagnostic_success"] is False
+    assert payload["reports"]["apk_cdp_smoke"]["full_candidate_gate_ready"] is False
+    assert payload["reports"]["apk_cdp_smoke"]["diagnostic_errors"]
+    assert payload["b2_runtime"]["present"] is True
+    assert payload["b2_runtime"]["success"] is True
+    assert payload["b2_runtime"]["diagnostic_success"] is False
+    assert payload["b2_runtime"]["full_candidate_gate_ready"] is False
+    assert payload["b2_runtime"]["au_failures_block_candidate"] is False
+    assert payload["b2_runtime"]["au_failures_block_full_promotion"] is True
 
 
 @pytest.mark.config

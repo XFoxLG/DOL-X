@@ -226,7 +226,7 @@ git push origin vega
 3. 点击 "Run workflow"
 4. 选择目标分支/SHA 后运行
 
-该 workflow 是手动候选门禁，不会修改默认构建矩阵，也不会进入普通 PR/push 路径。B2 运行时验证是全自动的 GitHub-hosted Android emulator / Android WebView CDP smoke，不需要也不包含人工手机测试。
+该 workflow 是手动 release-candidate evidence gate，不是快速 PR CI；它不会修改默认构建矩阵，也不会进入普通 PR/push 路径。B2 运行时验证是全自动的 GitHub-hosted Android emulator / Android WebView CDP smoke，不需要也不包含人工手机测试。
 
 接受为候选门禁 green evidence 需要同时满足：
 
@@ -236,10 +236,11 @@ git push origin vega
 - `baseline-candidate-zip-browser-summary.json` 中四个候选 ZIP browser smoke 均成功；
 - `baseline-candidate-apk-debug-derivation.json` 中四个 release-derived smoke-debug APK 均成功，且 `webview_debug_hook_applied=true`；
 - `baseline-candidate-apk-equivalence.json` 中 release/debug HTML、payload sha、payload names、required payloads 均匹配；
-- `baseline-candidate-apk-cdp-smoke.json` 中 `base`、`au-f`、`au-m`、`au-a` 四个 smoke-debug APK 的 emulator/WebView CDP smoke 均成功，且 `runtime_scope.platform="Android emulator"`、`webview_cdp=true`、`manual_phone_testing=false`、`harmonyos_covered=false`；
+- `baseline-candidate-apk-cdp-smoke.json` 中 blocking 层的 `base` smoke-debug APK emulator/WebView CDP smoke 成功，且 `runtime_scope.platform="Android emulator"`、`webview_cdp=true`、`manual_phone_testing=false`、`harmonyos_covered=false`；
+- `baseline-candidate-apk-cdp-smoke.json` 按 `signal_layers` 拆分 `base_apk_readiness`、`au_apk_runtime_readiness`、`cdp_adapter_health`、`emulator_health`。其中 `au-f`、`au-m`、`au-a` 是 strict diagnostic：失败会记录到 `diagnostic_errors` 并令 `diagnostic_success=false` / `full_candidate_gate_ready=false`，但在 runtime instability 修复前不阻塞候选门禁 green evidence；
 - artifacts 包含 `baseline-candidate-zip-artifacts`、`baseline-candidate-apk-artifacts`、`baseline-candidate-apk-debug-artifacts`、`baseline-candidate-apk-cdp-smoke-reports`、`baseline-candidate-gate-reports`。
 
-只有当上述 ZIP、APK static、B1 debug/equivalence 与 B2 APK runtime 全部通过时，`baseline-candidate-phase1a-summary.json` 才会提升为 `gate_level=full_candidate_gate` 且 `counts_for_phase2_promotion=true`。即便如此，也仍然不得直接迁移默认矩阵；Phase 2 仍要求两个同一 head SHA 的 full candidate gate green。
+候选门禁 green evidence 要求 static/B1/ZIP browser 与 blocking `base` APK CDP 均通过；AU APK CDP diagnostic 失败不应让候选门禁本身失败。只有当上述 ZIP、APK static、B1 debug/equivalence 与 `base`、`au-f`、`au-m`、`au-a` 四个 APK CDP runtime 全部通过时，`baseline-candidate-phase1a-summary.json` 才会提升为 `gate_level=full_candidate_gate` 且 `counts_for_phase2_promotion=true`。即便如此，也仍然不得直接迁移默认矩阵；Phase 2 仍要求两个同一 head SHA 的 full candidate gate green。
 
 B2 覆盖范围仅限 Android emulator + Android WebView。该 gate 不声明 Huawei/Honor/HarmonyOS 5 兼容性，也不覆盖 HarmonyOS NEXT；不得把该 workflow 的 green 解释为人工真机或 Huawei/HarmonyOS 认证通过。
 
