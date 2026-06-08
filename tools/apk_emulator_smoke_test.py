@@ -317,7 +317,7 @@ def _should_wait_for_late_startup(startup_result: dict[str, Any] | None) -> bool
     if not isinstance(startup_result, dict) or startup_result.get("success"):
         return False
     if _is_cdp_transport_error(startup_result.get("error")):
-        return False
+        return True
     reason = str(startup_result.get("reason") or "")
     return reason in {"max_steps_reached", "not_playable_after_startup_interactions"}
 
@@ -1040,7 +1040,8 @@ def _run_webview_browser_smoke(
             startup_result = _run_startup_interactions(report, page, profile)
             if _is_cdp_transport_error((startup_result or {}).get("error")):
                 _reconnect_cdp_page(report, page, "startup_interactions", (startup_result or {}).get("error"))
-                startup_result = _run_startup_interactions(report, page, profile)
+                if isinstance(startup_result, dict):
+                    startup_result["cdp_reconnect_after_error"] = True
             global_names = tuple(
                 dict.fromkeys([*profile.required_globals, *profile.warning_globals, *profile.diagnostic_globals])
             )

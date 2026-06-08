@@ -633,6 +633,141 @@ def test_apk_webview_smoke_accepts_late_startup_readiness(tmp_path, monkeypatch)
 
 
 @pytest.mark.config
+def test_apk_webview_smoke_waits_after_startup_transport_reconnect(tmp_path, monkeypatch):
+    transport_error = "CDP WebSocket closed while reading frame"
+    calls: dict[str, Any] = {"startup": 0, "reconnect": 0, "waits": []}
+
+    class FakePage:
+        setup_errors: list[dict[str, str]] = []
+
+        def __init__(self, websocket_url: str, timeout_ms: int, target: dict[str, Any]) -> None:
+            del websocket_url, timeout_ms
+            self.url = str(target["url"])
+
+        def __enter__(self) -> "FakePage":
+            return self
+
+        def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
+            return None
+
+        def on(self, event_name: str, handler: Any) -> None:
+            del event_name, handler
+
+        def wait_for_timeout(self, timeout_ms: int) -> None:
+            calls["waits"].append(timeout_ms)
+
+        def reconnect(self) -> None:
+            calls["reconnect"] += 1
+
+        def evaluate(self, script: str, arg: Any = None) -> dict[str, Any]:
+            del arg
+            assert "probeConfig" in script
+            return {
+                "readyState": "complete",
+                "hasJQuery": True,
+                "hasSugarCube": True,
+                "hasModDataValueZipList": True,
+                "modDataValueZipListLength": 7,
+                "globals": {
+                    "maplebirchFrameworks": "object",
+                    "CE_options": "object",
+                    "SCMLSimpleFramework": "object",
+                },
+            }
+
+        def screenshot(self, *, path: str, full_page: bool = False) -> None:
+            del full_page
+            Path(path).write_bytes(b"fake-png")
+
+    readiness_states = [
+        {"ready": False, "loadingLike": True, "passage": None, "bodyTextLength": 100},
+        {"ready": False, "loadingLike": True, "passage": None, "bodyTextLength": 500},
+        {"ready": True, "loadingLike": False, "passage": "Orphanage Intro", "bodyTextLength": 1500},
+    ]
+
+    def fake_record_game_ready(report, page, *, add_issues=True):
+        del page, add_issues
+        state = readiness_states.pop(0) if readiness_states else {
+            "ready": True,
+            "loadingLike": False,
+            "passage": "Orphanage Intro",
+            "bodyTextLength": 1500,
+        }
+        report.observations["game_ready"] = state
+        return state
+
+    def fake_startup_interactions(report, page, profile):
+        del page, profile
+        calls["startup"] += 1
+        result = {
+            "attempted": True,
+            "success": False,
+            "reason": "startup_interaction_error",
+            "error": transport_error,
+        }
+        report.observations["startup_interactions"] = result
+        return result
+
+    def fake_attempt_enter_game(report, page):
+        del page
+        report.observations["enter_game"] = {"attempted": False, "success": False, "reason": "game_not_ready"}
+
+    def fake_check_required_mods(report, profile, embedded_mods):
+        del profile, embedded_mods
+        report.observations["required_mods"] = {}
+
+    monkeypatch.setattr(apk_emulator_smoke_test, "_AndroidWebViewCdpPage", FakePage)
+    monkeypatch.setattr(apk_emulator_smoke_test, "_extract_static_embedded_mods", lambda _apk_path: [])
+    monkeypatch.setattr(apk_emulator_smoke_test, "_record_game_ready", fake_record_game_ready)
+    monkeypatch.setattr(apk_emulator_smoke_test, "_run_startup_interactions", fake_startup_interactions)
+    monkeypatch.setattr(apk_emulator_smoke_test, "_attempt_enter_game", fake_attempt_enter_game)
+    monkeypatch.setattr(apk_emulator_smoke_test, "_check_required_mods", fake_check_required_mods)
+    monkeypatch.setattr(apk_emulator_smoke_test, "APK_CDP_LATE_STARTUP_WAIT_MS", 15_000)
+    monkeypatch.setattr(apk_emulator_smoke_test, "APK_CDP_LATE_STARTUP_POLL_MS", 5_000)
+
+    apk_path = tmp_path / "dol-ucb-more-love-custom-spellbook-cheat-extended-maplebirch-smoke-debug.apk"
+    cdp_diagnostics = {
+        "success": True,
+        "targets": [
+            {
+                "id": "game",
+                "type": "page",
+                "title": "Degrees of Lewdity",
+                "url": "https://localhost/index.html",
+                "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/page/game",
+            }
+        ],
+    }
+
+    report = apk_emulator_smoke_test._run_webview_browser_smoke(
+        apk_path,
+        tmp_path,
+        "ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
+        "http://127.0.0.1:9222",
+        "Orphanage Intro",
+        60_000,
+        5_000,
+        cdp_diagnostics,
+    )
+
+    high_kinds = [issue.kind for issue in report.issues if issue.severity == "high"]
+    assert "expected_passage_not_reached" not in high_kinds
+    assert calls["startup"] == 1
+    assert calls["reconnect"] == 1
+    assert report.observations["apk_cdp_reconnects"] == [
+        {"phase": "startup_interactions", "error": transport_error}
+    ]
+    startup = report.observations["startup_interactions"]
+    assert startup["success"] is True
+    assert startup["reason"] == "late_ready_after_wait"
+    assert startup["previous_reason"] == "startup_interaction_error"
+    assert startup["error"] == transport_error
+    assert startup["cdp_reconnect_after_error"] is True
+    assert report.observations["apk_cdp_late_startup_wait"]["success"] is True
+    assert report.observations["enter_game"]["success"] is True
+
+
+@pytest.mark.config
 def test_apk_cdp_page_reconnect_refreshes_page_target(monkeypatch):
     created_sessions: list[str] = []
 
