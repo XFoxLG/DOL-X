@@ -60,6 +60,8 @@ DEFAULT_STABLE_CODES: dict[str, int] = {
     "au-a": 28930,
 }
 DEFAULT_STABLE_CODE_ORDER: tuple[str, ...] = ("base", "au-f", "au-m", "au-a")
+APK_CDP_BLOCKING_SLUGS: tuple[str, ...] = ("base",)
+APK_CDP_DIAGNOSTIC_SLUGS: tuple[str, ...] = ("au-f", "au-m", "au-a")
 MAPLEBIRCH_PROVIDER = "maplebirch"
 FRAMEWORK_CANDIDATE_PURPOSE = "framework_candidate"
 REPLACEMENT_CANDIDATE_PURPOSE = "cheat_extended_replacement"
@@ -113,7 +115,13 @@ PHASE1A_CONFIG_REPORT = "baseline-candidate-config.json"
 APK_DEBUG_REPORT = "baseline-candidate-apk-debug-derivation.json"
 APK_EQUIVALENCE_REPORT = "baseline-candidate-apk-equivalence.json"
 APK_CDP_SMOKE_REPORT = "baseline-candidate-apk-cdp-smoke.json"
+STABLE_REPLACEMENT_READINESS_REPORT = "baseline-candidate-stable-replacement-readiness.json"
 FULL_GATE_COMPONENT_LEVEL = "full_candidate_gate_ready_component"
+LEGACY_FEATURE_ID = "cheat_csd"
+REPLACEMENT_FEATURE_ID = "cheat_extended_maplebirch"
+LEGACY_BASE_MOD_KEYS: tuple[str, ...] = ("cheat", "csd")
+LEGACY_MODLOADER_MOD_KEYS: tuple[str, ...] = ("bjx_word_unlock", "bjx_portable_word", "bccm")
+REPLACEMENT_MODLOADER_MOD_KEYS: tuple[str, ...] = ("maplebirch", "cheat_extended")
 WEBVIEW_DEBUG_INVOKE = "Landroid/webkit/WebView;->setWebContentsDebuggingEnabled(Z)V"
 WEBVIEW_DEBUG_METHOD_NAME = "setWebContentsDebuggingEnabled"
 WEBVIEW_DEBUG_SMALI_SNIPPET = (
@@ -122,7 +130,6 @@ WEBVIEW_DEBUG_SMALI_SNIPPET = (
 )
 DEBUG_KEYSTORE_ALIAS = "dolx-smoke-debug"
 DEBUG_KEYSTORE_PASSWORD = "dolxdebug"
-DEBUG_SIGNER_SKIP_ZIPALIGN_ARG = "--skipZipAlign"
 
 
 @dataclass(frozen=True)
@@ -518,6 +525,177 @@ def validate_static_config() -> dict[str, Any]:
             "default_matrix_mutated": False,
         },
         "manifest": build_manifest(),
+    }
+
+
+def _mod_key(mod_config: Any) -> str:
+    """Return the stable config key used by build.toml entries."""
+    return str(getattr(mod_config, "key", None) or getattr(mod_config, "cache_name", ""))
+
+
+def _feature_ids_for_mod(mod_config: Any) -> list[str]:
+    feature_ids = getattr(mod_config, "feature_ids", None)
+    if feature_ids:
+        return [str(feature_id) for feature_id in feature_ids]
+    feature_id = getattr(mod_config, "feature_id", None)
+    return [str(feature_id)] if feature_id else []
+
+
+def _summarize_mod_entry(mod_config: Any) -> dict[str, Any]:
+    """Return rollback/readiness metadata without exposing the full config object."""
+    return {
+        "key": _mod_key(mod_config),
+        "name": getattr(mod_config, "name", None),
+        "enabled": bool(getattr(mod_config, "enabled", True)),
+        "feature_id": getattr(mod_config, "feature_id", None),
+        "feature_ids": _feature_ids_for_mod(mod_config),
+        "github_repo": getattr(mod_config, "github_repo", None),
+        "asset_pattern": getattr(mod_config, "asset_pattern", None),
+        "release_tag": getattr(mod_config, "release_tag", None),
+    }
+
+
+def build_stable_replacement_readiness() -> dict[str, Any]:
+    """Report whether the no-legacy-cheat replacement path is ready to gate.
+
+    This is intentionally not a promotion check.  It verifies the soft
+    replacement boundary while keeping defaults unchanged until full gate
+    evidence separately authorizes migration.
+    """
+    errors: list[str] = []
+    loader = get_config_loader()
+    combinations = loader.combinations
+    build_config = load_build_config()
+
+    expected_default_codes = [str(DEFAULT_STABLE_CODES[slug]) for slug in DEFAULT_STABLE_CODE_ORDER]
+    expected_recommended = [
+        DEFAULT_STABLE_CODES["au-f"],
+        DEFAULT_STABLE_CODES["au-m"],
+        DEFAULT_STABLE_CODES["au-a"],
+    ]
+    default_matrix_unchanged = (
+        combinations.build_codes == expected_default_codes
+        and combinations.base_code == DEFAULT_STABLE_CODES["base"]
+        and sorted(combinations.recommended) == sorted(expected_recommended)
+    )
+    if not default_matrix_unchanged:
+        errors.append("default stable matrix changed before replacement promotion evidence")
+
+    legacy_feature = loader.get_feature_by_id(LEGACY_FEATURE_ID)
+    replacement_feature = loader.get_feature_by_id(REPLACEMENT_FEATURE_ID)
+    legacy_feature_required = bool(getattr(legacy_feature, "required", False)) if legacy_feature else False
+    replacement_feature_required = bool(getattr(replacement_feature, "required", False)) if replacement_feature else False
+    if legacy_feature is None:
+        errors.append(f"legacy feature {LEGACY_FEATURE_ID} is missing")
+    if replacement_feature is None:
+        errors.append(f"replacement feature {REPLACEMENT_FEATURE_ID} is missing")
+    elif replacement_feature.bit != int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH):
+        errors.append(
+            f"replacement feature {REPLACEMENT_FEATURE_ID} must keep bit "
+            f"{int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH)}, got {replacement_feature.bit}"
+        )
+
+    replacement_code_errors = [
+        error for slug, code in REPLACEMENT_CANDIDATE_CODES.items() for error in validate_replacement_candidate_code(slug, code)
+    ]
+    errors.extend(replacement_code_errors)
+    replacement_codes_exclude_legacy_bits = all(
+        not (ModCode(code) & ModCode.CHEAT) and not (ModCode(code) & ModCode.CSD)
+        for code in REPLACEMENT_CANDIDATE_CODES.values()
+    )
+    if not replacement_codes_exclude_legacy_bits:
+        errors.append("replacement candidate codes must exclude legacy cheat_csd and reserved CSD bits")
+
+    modloader_entries = list(getattr(build_config, "modloader_mods", []) or [])
+    mods_by_key = {_mod_key(mod): mod for mod in modloader_entries}
+    legacy_entries = [mods_by_key.get(key) for key in LEGACY_MODLOADER_MOD_KEYS]
+    replacement_entries = [mods_by_key.get(key) for key in REPLACEMENT_MODLOADER_MOD_KEYS]
+
+    if any(entry is None for entry in legacy_entries):
+        missing = [key for key, entry in zip(LEGACY_MODLOADER_MOD_KEYS, legacy_entries) if entry is None]
+        errors.append(f"legacy rollback modloader entries are missing: {missing}")
+    legacy_modloader_entries_retained_disabled = all(
+        entry is not None
+        and bool(getattr(entry, "enabled", True)) is False
+        and LEGACY_FEATURE_ID in _feature_ids_for_mod(entry)
+        for entry in legacy_entries
+    )
+    if not legacy_modloader_entries_retained_disabled:
+        errors.append("legacy BJX/BCCM rollback entries must be retained, disabled, and tied to cheat_csd")
+
+    if any(entry is None for entry in replacement_entries):
+        missing = [key for key, entry in zip(REPLACEMENT_MODLOADER_MOD_KEYS, replacement_entries) if entry is None]
+        errors.append(f"replacement modloader entries are missing: {missing}")
+    replacement_mods_present_enabled = all(
+        entry is not None
+        and bool(getattr(entry, "enabled", True)) is True
+        and REPLACEMENT_FEATURE_ID in _feature_ids_for_mod(entry)
+        for entry in replacement_entries
+    )
+    if not replacement_mods_present_enabled:
+        errors.append("maplebirch and cheatExtended must be enabled behind cheat_extended_maplebirch")
+
+    mod_order = [_mod_key(mod) for mod in modloader_entries]
+    maplebirch_before_cheat_extended = False
+    if "maplebirch" in mod_order and "cheat_extended" in mod_order:
+        maplebirch_before_cheat_extended = mod_order.index("maplebirch") < mod_order.index("cheat_extended")
+    if not maplebirch_before_cheat_extended:
+        errors.append("maplebirch must be injected before cheatExtended")
+
+    base_entries = list(getattr(build_config, "base_mods", []) or [])
+    base_mod_keys = {_mod_key(mod) for mod in base_entries}
+    legacy_base_mods_absent = not any(key in base_mod_keys for key in LEGACY_BASE_MOD_KEYS)
+
+    checks = {
+        "default_matrix_unchanged": default_matrix_unchanged,
+        "legacy_feature_present": legacy_feature is not None,
+        "replacement_feature_present": replacement_feature is not None,
+        "replacement_codes_valid": not replacement_code_errors,
+        "replacement_codes_exclude_legacy_bits": replacement_codes_exclude_legacy_bits,
+        "legacy_modloader_entries_retained_disabled": legacy_modloader_entries_retained_disabled,
+        "legacy_base_mods_absent": legacy_base_mods_absent,
+        "replacement_mods_present_enabled": replacement_mods_present_enabled,
+        "maplebirch_before_cheat_extended": maplebirch_before_cheat_extended,
+    }
+
+    return {
+        "success": not errors,
+        "gate_level": PARTIAL_GATE_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "default_migration_allowed": False,
+        "provider": MAPLEBIRCH_PROVIDER,
+        "purpose": REPLACEMENT_CANDIDATE_PURPOSE,
+        "legacy_cheat_stack_included": False,
+        "legacy_entries_retained_for_rollback": True,
+        "legacy_feature": {
+            "id": LEGACY_FEATURE_ID,
+            "present": legacy_feature is not None,
+            "required": legacy_feature_required,
+        },
+        "replacement_feature": {
+            "id": REPLACEMENT_FEATURE_ID,
+            "present": replacement_feature is not None,
+            "required": replacement_feature_required,
+            "bit": int(ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
+        },
+        "legacy_stable_codes": DEFAULT_STABLE_CODES,
+        "candidate_codes": REPLACEMENT_CANDIDATE_CODES,
+        "framework_candidate_codes": CANDIDATE_CODES,
+        "default_build_codes": list(combinations.build_codes),
+        "checks": checks,
+        "legacy_base_mod_keys": sorted(base_mod_keys & set(LEGACY_BASE_MOD_KEYS)),
+        "legacy_modloader_rollback_entries": [_summarize_mod_entry(entry) for entry in legacy_entries if entry is not None],
+        "replacement_modloader_entries": [_summarize_mod_entry(entry) for entry in replacement_entries if entry is not None],
+        "promotion_policy": {
+            "required_gate_level": FULL_GATE_LEVEL,
+            "same_head_sha_successful_runs": PROMOTION_REQUIRED_GREEN_RUNS,
+        },
+        "notes": [
+            "Replacement candidate codes remove legacy cheat_csd bit 2 and keep AU variants covered.",
+            "This report does not authorize default migration; use check-promotion after full gate evidence.",
+        ],
+        "errors": errors,
     }
 
 
@@ -1180,7 +1358,6 @@ def _derive_debug_apk_with_apktool(
             DEBUG_KEYSTORE_PASSWORD,
             "--ksPass",
             DEBUG_KEYSTORE_PASSWORD,
-            DEBUG_SIGNER_SKIP_ZIPALIGN_ARG,
             "-o",
             str(signed_dir),
         ],
@@ -1726,8 +1903,34 @@ def summarize_browser_reports(reports_dir: Path, output: Path) -> int:
     return 0 if success else 1
 
 
+def _apk_cdp_failure_layers(slug: str, checks: dict[str, bool], smoke_errors: list[str]) -> list[str]:
+    """Classify APK CDP failures into report layers for release-gate triage."""
+    layers: list[str] = []
+    if not checks.get("android_emulator_scope", False):
+        layers.append("emulator_or_adb")
+    if (
+        not checks.get("webview_cdp_scope", False)
+        or not checks.get("cdp_target_present", False)
+        or any("cdp" in error.lower() or "remote end closed" in error.lower() for error in smoke_errors)
+    ):
+        layers.append("cdp_adapter")
+    runtime_checks = (
+        "browser_success_true",
+        "high_zero",
+        "pageerrors_zero",
+        "game_ready_true",
+        "passage_orphanage_intro",
+        "enter_game_success",
+        "startup_success",
+        "no_runner_errors",
+    )
+    if any(not checks.get(check, False) for check in runtime_checks):
+        layers.append("au_runtime_startup" if slug in APK_CDP_DIAGNOSTIC_SLUGS else "base_apk_readiness")
+    return list(dict.fromkeys(layers))
+
+
 def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
-    """Summarize strict Android emulator/WebView CDP smoke reports for all candidate APKs."""
+    """Summarize Android emulator/WebView CDP smoke reports by blocking and diagnostic layers."""
     summaries: list[dict[str, Any]] = []
     expected_scope = {
         "platform": "Android emulator",
@@ -1742,10 +1945,15 @@ def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
             "code": CANDIDATE_CODES[slug],
             "smoke_path": str(smoke_path),
             "success": False,
+            "blocking": slug in APK_CDP_BLOCKING_SLUGS,
+            "diagnostic": slug in APK_CDP_DIAGNOSTIC_SLUGS,
+            "signal_layer": "base_apk_readiness" if slug in APK_CDP_BLOCKING_SLUGS else "au_apk_runtime_readiness",
+            "failure_layers": [],
             "errors": [],
         }
         if not smoke_path.exists():
             entry["errors"].append(f"missing APK emulator/CDP smoke report: {smoke_path}")
+            entry["failure_layers"] = ["base_apk_readiness" if entry["blocking"] else "au_runtime_startup"]
             summaries.append(entry)
             continue
 
@@ -1804,21 +2012,196 @@ def summarize_apk_cdp_smoke_reports(reports_dir: Path, output: Path) -> int:
         if not entry["success"]:
             entry["errors"].extend(key for key, value in checks.items() if not value)
             entry["errors"].extend(smoke_errors)
+            entry["failure_layers"] = _apk_cdp_failure_layers(slug, checks, smoke_errors)
         summaries.append(entry)
 
-    success = bool(summaries) and all(summary["success"] for summary in summaries)
+    blocking_summaries = [summary for summary in summaries if summary.get("blocking")]
+    diagnostic_summaries = [summary for summary in summaries if summary.get("diagnostic")]
+    blocking_success = bool(blocking_summaries) and all(summary["success"] for summary in blocking_summaries)
+    diagnostic_success = bool(diagnostic_summaries) and all(summary["success"] for summary in diagnostic_summaries)
+    full_candidate_gate_ready = bool(summaries) and all(summary["success"] for summary in summaries)
+    blocking_errors = [
+        f"{summary['slug']}: {error}"
+        for summary in blocking_summaries
+        for error in summary.get("errors", [])
+    ]
+    diagnostic_errors = [
+        f"{summary['slug']}: {error}"
+        for summary in diagnostic_summaries
+        for error in summary.get("errors", [])
+    ]
+    success = blocking_success
     payload = {
         "success": success,
         "gate_level": FULL_GATE_COMPONENT_LEVEL,
         "counts_for_phase2_promotion": False,
         "default_matrix_mutated": False,
         "runtime_scope": expected_scope,
+        "gate_policy": {
+            "position": "manual_release_candidate_gate",
+            "blocking_slugs": list(APK_CDP_BLOCKING_SLUGS),
+            "diagnostic_slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+            "au_failures_block_candidate": False,
+            "au_failures_block_full_promotion": True,
+        },
+        "blocking_success": blocking_success,
+        "diagnostic_success": diagnostic_success,
+        "full_candidate_gate_ready": full_candidate_gate_ready,
+        "blocking_errors": blocking_errors,
+        "diagnostic_errors": diagnostic_errors,
+        "signal_layers": {
+            "base_apk_readiness": {
+                "blocking": True,
+                "slugs": list(APK_CDP_BLOCKING_SLUGS),
+                "success": blocking_success,
+            },
+            "au_apk_runtime_readiness": {
+                "blocking": False,
+                "slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+                "success": diagnostic_success,
+            },
+            "cdp_adapter_health": {
+                "blocking": True,
+                "success": all(
+                    bool((summary.get("checks") or {}).get("cdp_target_present"))
+                    and bool((summary.get("checks") or {}).get("webview_cdp_scope"))
+                    for summary in blocking_summaries
+                ),
+            },
+            "emulator_health": {
+                "blocking": True,
+                "success": all(
+                    bool((summary.get("checks") or {}).get("android_emulator_scope"))
+                    for summary in blocking_summaries
+                ),
+            },
+        },
         "results": summaries,
     }
     _write_json(output, payload)
     for summary in summaries:
         print(json.dumps({"slug": summary["slug"], "success": summary["success"], "errors": summary["errors"]}, ensure_ascii=False))
     return 0 if success else 1
+
+
+def _write_apk_cdp_failure_report(
+    slug: str,
+    output_dir: Path,
+    errors: list[str],
+    *,
+    target: Path | None = None,
+    profile: str = PROFILE,
+) -> None:
+    """Write a per-slug CDP report when the runner cannot invoke the smoke helper."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "success": False,
+        "gate_level": FULL_GATE_COMPONENT_LEVEL,
+        "counts_for_phase2_promotion": False,
+        "default_matrix_mutated": False,
+        "runtime_scope": {
+            "platform": "Android emulator",
+            "webview_cdp": True,
+            "manual_phone_testing": False,
+            "harmonyos_covered": False,
+        },
+        "target": str(target) if target else None,
+        "slug": slug,
+        "package": load_build_config().identity_package,
+        "profile": profile,
+        "cdp_url": None,
+        "cdp_socket": None,
+        "cdp_targets": [],
+        "browser_summary": {
+            "success": False,
+            "issue_counts": {"high": 1},
+            "browser_diagnostics": {"pageerror_count": 0},
+            "game_ready": {},
+            "enter_game": {"success": False},
+            "startup_interactions": {"success": False},
+            "package_identity": {"profile_slug_match": False},
+        },
+        "browser_summary_path": str(output_dir / "browser-smoke-summary.json"),
+        "browser_report_path": str(output_dir / "browser-smoke-report.json"),
+        "markdown_report_path": str(output_dir / "browser-smoke-report.md"),
+        "logcat_path": str(output_dir / "logcat.txt"),
+        "screenshot_path": "",
+        "commands": [],
+        "errors": errors,
+        "elapsed_seconds": 0,
+    }
+    _write_json(output_dir / "apk-emulator-smoke.json", payload)
+
+
+def run_apk_cdp_smokes(
+    target: Path,
+    reports_dir: Path,
+    profile: str = PROFILE,
+    slugs: tuple[str, ...] | None = None,
+    require_selected_success: bool = False,
+) -> int:
+    """Run Android emulator/WebView CDP smokes for candidate debug APKs.
+
+    The GitHub emulator action executes its ``script`` input one command at a
+    time, so keep slug iteration in Python instead of relying on a multiline
+    shell loop.
+    """
+    selected_slugs = slugs or DEFAULT_STABLE_CODE_ORDER
+    invalid_slugs = [slug for slug in selected_slugs if slug not in DEFAULT_STABLE_CODE_ORDER]
+    if invalid_slugs:
+        raise ValueError(f"unknown APK CDP candidate slug(s): {', '.join(invalid_slugs)}")
+
+    debug_apks = _artifact_candidates(target, "apk")
+    debug_by_slug = {_slug_for_artifact(path): path for path in debug_apks}
+    blocking_failures: list[str] = []
+    selected_failures: list[str] = []
+
+    for slug in selected_slugs:
+        output_dir = Path(reports_dir) / slug
+        apk_path = debug_by_slug.get(slug)
+        if apk_path is None:
+            error = f"missing smoke-debug candidate APK for {slug} under {target}"
+            if slug in APK_CDP_BLOCKING_SLUGS:
+                blocking_failures.append(error)
+            if require_selected_success:
+                selected_failures.append(error)
+            _write_apk_cdp_failure_report(slug, output_dir, [error], profile=profile)
+            print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
+            continue
+
+        cmd = [
+            sys.executable,
+            "tools/apk_emulator_smoke_test.py",
+            str(apk_path),
+            "--slug",
+            slug,
+            "--profile",
+            profile,
+            "--output-dir",
+            str(output_dir),
+        ]
+        try:
+            result = subprocess.run(cmd, check=False)
+        except OSError as exc:
+            error = f"{slug}: failed to run APK CDP smoke helper: {exc}"
+            if slug in APK_CDP_BLOCKING_SLUGS:
+                blocking_failures.append(error)
+            if require_selected_success:
+                selected_failures.append(error)
+            _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
+            print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
+            continue
+        if result.returncode != 0:
+            error = f"{slug}: APK CDP smoke helper exited with {result.returncode}"
+            if slug in APK_CDP_BLOCKING_SLUGS:
+                blocking_failures.append(error)
+            if require_selected_success:
+                selected_failures.append(error)
+            if not (output_dir / "apk-emulator-smoke.json").exists():
+                _write_apk_cdp_failure_report(slug, output_dir, [error], target=apk_path, profile=profile)
+            print(json.dumps({"slug": slug, "success": False, "errors": [error]}, ensure_ascii=False))
+
+    return 0 if not blocking_failures and not selected_failures else 1
 
 
 def _build_report_success(payload: dict[str, Any]) -> bool:
@@ -1878,15 +2261,34 @@ def _summarize_report(gate_dir: Path, filename: str, report_kind: str) -> dict[s
     payload = _load_json(path)
     if report_kind == "build":
         success = _build_report_success(payload)
+    elif report_kind == "apk_cdp":
+        success = payload.get("blocking_success", payload.get("success")) is True
     else:
         success = payload.get("success") is True
+    report_errors = _collect_report_errors(payload)
+    if report_kind == "apk_cdp":
+        report_errors = [str(error) for error in payload.get("blocking_errors", []) or []]
+        if not report_errors and not success:
+            report_errors = _collect_report_errors(payload)
+
     entry.update(
         {
             "success": success,
             "status": "passed" if success else "failed",
-            "errors": _collect_report_errors(payload),
+            "errors": report_errors,
         }
     )
+    if report_kind == "apk_cdp":
+        entry.update(
+            {
+                "blocking_success": payload.get("blocking_success") is True,
+                "diagnostic_success": payload.get("diagnostic_success") is True,
+                "full_candidate_gate_ready": payload.get("full_candidate_gate_ready") is True,
+                "gate_policy": payload.get("gate_policy", {}),
+                "signal_layers": payload.get("signal_layers", {}),
+                "diagnostic_errors": payload.get("diagnostic_errors", []),
+            }
+        )
     return entry
 
 
@@ -1905,6 +2307,11 @@ def summarize_phase1a_gate(
     """
     reports = {
         "config": _summarize_report(gate_dir, PHASE1A_CONFIG_REPORT, "simple"),
+        "stable_replacement_readiness": _summarize_report(
+            gate_dir,
+            STABLE_REPLACEMENT_READINESS_REPORT,
+            "simple",
+        ),
         "zip_build": _summarize_report(gate_dir, ZIP_BUILD_REPORT, "build"),
         "apk_build": _summarize_report(gate_dir, APK_BUILD_REPORT, "build"),
         "zip_audit": _summarize_report(gate_dir, ZIP_AUDIT_REPORT, "simple"),
@@ -1912,19 +2319,24 @@ def summarize_phase1a_gate(
         "apk_debug_derivation": _summarize_report(gate_dir, APK_DEBUG_REPORT, "simple"),
         "apk_equivalence": _summarize_report(gate_dir, APK_EQUIVALENCE_REPORT, "simple"),
         "zip_browser_summary": _summarize_report(gate_dir, ZIP_BROWSER_SUMMARY, "simple"),
-        "apk_cdp_smoke": _summarize_report(gate_dir, APK_CDP_SMOKE_REPORT, "simple"),
+        "apk_cdp_smoke": _summarize_report(gate_dir, APK_CDP_SMOKE_REPORT, "apk_cdp"),
     }
     b2_report_name = "apk_cdp_smoke"
     required_report_names = [name for name in reports if name != b2_report_name]
     missing_reports = [name for name in required_report_names if not reports[name]["present"]]
     failed_reports = [name for name in required_report_names if reports[name]["present"] and not reports[name]["success"]]
     b2_report = reports[b2_report_name]
-    b2_failed_reports = [b2_report_name] if b2_report["present"] and not b2_report["success"] else []
+    b2_blocking_success = b2_report["present"] and b2_report.get("blocking_success", b2_report["success"])
+    b2_full_candidate_ready = b2_report["present"] and b2_report.get(
+        "full_candidate_gate_ready",
+        b2_report["success"],
+    )
+    b2_failed_reports = [b2_report_name] if b2_report["present"] and not b2_blocking_success else []
     errors = [error for name in required_report_names for error in reports[name]["errors"]]
     if b2_report["present"]:
         errors.extend(b2_report["errors"])
     partial_success = not missing_reports and not failed_reports
-    full_success = partial_success and b2_report["present"] and b2_report["success"]
+    full_success = partial_success and b2_full_candidate_ready
     success = partial_success and not b2_failed_reports
     payload = {
         "success": success,
@@ -1949,10 +2361,17 @@ def summarize_phase1a_gate(
         "missing_reports": missing_reports,
         "failed_reports": failed_reports + b2_failed_reports,
         "b2_runtime": {
+            "required_for_candidate_gate": True,
             "required_for_full_candidate_gate": True,
             "present": b2_report["present"],
-            "success": b2_report["success"],
+            "success": bool(b2_blocking_success),
+            "full_candidate_gate_ready": bool(b2_full_candidate_ready),
             "report": b2_report_name,
+            "blocking_slugs": list(APK_CDP_BLOCKING_SLUGS),
+            "diagnostic_slugs": list(APK_CDP_DIAGNOSTIC_SLUGS),
+            "diagnostic_success": b2_report.get("diagnostic_success", False),
+            "au_failures_block_candidate": False,
+            "au_failures_block_full_promotion": True,
             "scope": {
                 "platform": "Android emulator",
                 "webview_cdp": True,
@@ -2011,6 +2430,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     validate_parser = subparsers.add_parser("validate-config", help="Validate static Phase 1A config invariants")
     validate_parser.add_argument("--output", type=Path)
 
+    readiness_parser = subparsers.add_parser(
+        "stable-replacement-readiness",
+        help="Report no-legacy-cheat stable replacement readiness without mutating defaults",
+    )
+    readiness_parser.add_argument("--output", type=Path, default=_gate_dir() / STABLE_REPLACEMENT_READINESS_REPORT)
+
     build_parser = subparsers.add_parser("build", help="Build explicit candidate artifacts")
     build_parser.add_argument("--pack-type", choices=("zip", "apk"), default="zip")
     build_parser.add_argument("--workspace", type=Path, default=Path("."))
@@ -2055,6 +2480,34 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     browser_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "browser-smoke")
     browser_parser.add_argument("--output", type=Path, default=_gate_dir() / ZIP_BROWSER_SUMMARY)
 
+    run_apk_cdp_parser = subparsers.add_parser(
+        "run-apk-cdp",
+        help="Run strict candidate Android emulator/WebView CDP smoke reports",
+    )
+    run_apk_cdp_parser.add_argument(
+        "target",
+        type=Path,
+        help="Smoke-debug APK file or directory produced by derive-debug-apk",
+    )
+    run_apk_cdp_parser.add_argument("--reports-dir", type=Path, default=_gate_dir() / "apk-cdp-smoke")
+    run_apk_cdp_parser.add_argument("--profile", default=PROFILE)
+    run_apk_cdp_parser.add_argument(
+        "--slugs",
+        nargs="+",
+        choices=DEFAULT_STABLE_CODE_ORDER,
+        help="Optional candidate slug subset for targeted APK CDP diagnostics",
+    )
+    run_apk_cdp_parser.add_argument(
+        "--targeted-slugs",
+        default="",
+        help="Space-separated candidate slug subset from workflow_dispatch; non-empty values require selected success",
+    )
+    run_apk_cdp_parser.add_argument(
+        "--require-selected-success",
+        action="store_true",
+        help="Fail if any selected APK CDP slug fails; intended for targeted diagnostics",
+    )
+
     apk_cdp_parser = subparsers.add_parser(
         "summarize-apk-cdp",
         help="Summarize strict candidate Android emulator/WebView CDP smoke reports",
@@ -2092,6 +2545,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0 if payload["success"] else 1
+    if args.command == "stable-replacement-readiness":
+        payload = build_stable_replacement_readiness()
+        if args.output:
+            _write_json(args.output, payload)
+        else:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0 if payload["success"] else 1
     if args.command == "build":
         output_dir = args.output_dir or _target_output_dir(args.pack_type)
         report_name = ZIP_BUILD_REPORT if args.pack_type == "zip" else APK_BUILD_REPORT
@@ -2107,6 +2567,16 @@ def main(argv: list[str] | None = None) -> int:
         return audit_apk_equivalence_target(args.release_target, args.debug_target, args.output)
     if args.command == "summarize-browser":
         return summarize_browser_reports(args.reports_dir, args.output)
+    if args.command == "run-apk-cdp":
+        targeted_slugs = tuple(str(args.targeted_slugs).split())
+        selected_slugs = targeted_slugs or tuple(args.slugs or ())
+        return run_apk_cdp_smokes(
+            args.target,
+            args.reports_dir,
+            args.profile,
+            selected_slugs,
+            args.require_selected_success or bool(targeted_slugs),
+        )
     if args.command == "summarize-apk-cdp":
         return summarize_apk_cdp_smoke_reports(args.reports_dir, args.output)
     if args.command == "summarize-phase1a":

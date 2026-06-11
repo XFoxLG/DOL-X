@@ -82,8 +82,14 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
 
     assert "name: Baseline Candidate Gate" in workflow
     assert "workflow_dispatch:" in workflow
+    assert "apk_cdp_slugs:" in workflow
+    assert "Optional space-separated APK CDP slugs for targeted diagnostics" in workflow
+    assert 'default: ""' in workflow
     assert "phase1a-candidate-gate:" in workflow
     assert 'CANDIDATE_CODES: "57602,58626,59650,61698"' in workflow
+    assert "Check stable replacement readiness" in workflow
+    assert "stable-replacement-readiness" in workflow
+    assert "baseline-candidate-stable-replacement-readiness.json" in workflow
     assert "Build candidate ZIP artifacts" in workflow
     assert "Build candidate APK artifacts" in workflow
     assert workflow.count("python tools/baseline_candidate_gate.py build") == 2
@@ -116,11 +122,26 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
     assert "arch: x86_64" in workflow
     assert "profile: pixel_6" in workflow
     assert "DOLX_ARTIFACT_NAME: baseline-candidate-apk-debug-artifacts" in workflow
-    assert "for slug in base au-f au-m au-a" in workflow
-    assert workflow.count("python tools/apk_emulator_smoke_test.py") == 1
-    assert '--slug "$slug"' in workflow
-    assert '--output-dir "${GATE_DIR}/apk-cdp-smoke/${slug}"' in workflow
+    apk_cdp_block = workflow.split("Run candidate APK CDP smokes", 1)[1].split(
+        "Summarize candidate APK CDP smokes", 1
+    )[0]
+    assert "for slug in base au-f au-m au-a" not in apk_cdp_block
+    assert "APK_FILE=$(find" not in apk_cdp_block
+    assert "python tools/apk_emulator_smoke_test.py" not in apk_cdp_block
+    assert '--slug "$slug"' not in apk_cdp_block
+    assert '--output-dir "${GATE_DIR}/apk-cdp-smoke/${slug}"' not in apk_cdp_block
+    assert "script: >-" in apk_cdp_block
+    assert workflow.count("python tools/baseline_candidate_gate.py run-apk-cdp") == 1
+    assert '"${{ github.workspace }}/${GATE_DIR}/apk-debug-artifacts"' in apk_cdp_block
+    assert '--reports-dir "${GATE_DIR}/apk-cdp-smoke"' in apk_cdp_block
+    assert '--profile "$PROFILE"' in apk_cdp_block
+    assert "APK_CDP_SLUGS: ${{ inputs.apk_cdp_slugs }}" in apk_cdp_block
+    assert "APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" not in apk_cdp_block
+    assert "${APK_CDP_SLUGS:+--slugs $APK_CDP_SLUGS}" not in apk_cdp_block
+    assert "$APK_CDP_REQUIRE_SELECTED_SUCCESS_ARG" not in apk_cdp_block
+    assert '--targeted-slugs "$APK_CDP_SLUGS"' in apk_cdp_block
     assert "Summarize candidate APK CDP smokes" in workflow
+    assert "if: ${{ always() && inputs.apk_cdp_slugs == '' }}" in workflow
     assert "summarize-apk-cdp" in workflow
     assert "baseline-candidate-apk-cdp-smoke.json" in workflow
     assert "Summarize candidate gate" in workflow
@@ -145,6 +166,8 @@ def test_baseline_candidate_gate_workflow_is_manual_candidate_only_with_b2_runti
     assert "!${{ github.workspace }}/output/baseline-candidate-gate/apk-debug-artifacts/**" in workflow
 
     assert "Run candidate APK browser smokes" not in workflow
+    assert workflow.index("Check stable replacement readiness") > workflow.index("Validate Phase 1A static config")
+    assert workflow.index("Check stable replacement readiness") < workflow.index("Prepare game packages")
     assert workflow.index("Run candidate APK CDP smokes") > workflow.index("Audit release/debug APK equivalence")
 
     assert "Baseline Candidate Gate" not in build_workflow
