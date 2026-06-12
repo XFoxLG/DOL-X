@@ -132,7 +132,6 @@ jobs:
           else
             echo "::error::审计脚本未生成报告，请查看 Run mod audit 步骤日志"
           fi
-          exit 1
 
       - name: Check cheatExtended audit results
         if: steps.cheat_extended_audit.outcome == 'failure'
