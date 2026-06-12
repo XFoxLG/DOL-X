@@ -106,10 +106,10 @@ conflicts_with = []
 
 [[features]]
 id = "cheat_csd"
-name = "作弊CSD"
+name = "作弊CSD（已废弃）"
 bit = 2
-required = true     # 必选
-skip = false
+required = false
+skip = true
 depends_on = []
 conflicts_with = []
 
@@ -144,7 +144,7 @@ conflicts_with = []
 id = "cheat_extended_maplebirch"
 name = "cheatExtended+maplebirch"
 bit = 32768
-required = false
+required = true
 skip = false
 depends_on = []
 conflicts_with = []

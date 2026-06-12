@@ -1,14 +1,14 @@
 # MOD 组合配置
 
-# 稳定自用构建列表：UCB + more-love + custom-spellbook。
-# cheatExtended+maplebirch 保留为实验 feature，不进入默认构建。
-build_codes = ["24834", "25858", "26882", "28930"]
+# 稳定自用构建列表：UCB + more-love + custom-spellbook + cheatExtended+maplebirch。
+# cheat_csd (bit 2) 已废弃，替换为 cheat_extended_maplebirch (bit 32768)。
+build_codes = ["57346", "58370", "59394", "61442"]
 
-# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook。
-base_code = 24834
+# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook + cheatExtended。
+base_code = 57346
 
 # 推荐的组合（优先显示）
-recommended = [25858, 26882, 28930]
+recommended = [58370, 59394, 61442]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。
