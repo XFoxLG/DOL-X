@@ -34,7 +34,7 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"57601", "58625", "59649", "61697"}
+        expected_codes = {"57600", "58624", "59648", "61696"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,13 +52,13 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_57601(self):
-        """验证稳定基础版代码为 57601"""
+    def test_base_code_is_57600(self):
+        """验证稳定基础版代码为 57600（UCB + more_love + custom_spellbook + cheatExtended，无 BESC）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 57601, (
-            f"基础版代码应为 57601，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 57600, (
+            f"基础版代码应为 57600，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -83,10 +83,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (57601) 不包含 AU"""
+        """验证基础版 (57600) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 57601
+        base_code = 57600
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -98,14 +98,27 @@ class TestBuildMatrix:
                 f"基础版 {base_code} 不应包含 AU feature {feature_id} (bit={feature.bit})"
             )
 
+    def test_base_version_no_besc(self):
+        """验证基础版不应包含 BESC (bit=1)"""
+        config_loader = get_config_loader()
+        combinations_config = config_loader.combinations
+        
+        base_code = combinations_config.base_code
+        besc_feature = config_loader.get_feature_by_id("besc")
+        assert besc_feature is not None
+        
+        assert not (base_code & besc_feature.bit), (
+            f"基础版 {base_code} 不应包含 BESC (bit={besc_feature.bit})"
+        )
+
     def test_au_versions_have_au(self):
         """验证 AU 三版本包含对应 AU feature"""
         config_loader = get_config_loader()
         
         au_variants = [
-            (58625, "au-f"),
-            (59649, "au-m"),
-            (61697, "au-a"),
+            (58624, "au-f"),
+            (59648, "au-m"),
+            (61696, "au-a"),
         ]
         
         for code, feature_id in au_variants:
