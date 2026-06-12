@@ -1,45 +1,70 @@
-# DOL-X / XFox 自用整合包发布仓库
+# DOL-X / XFox 自用整合包
+
+[![Build](https://github.com/XFoxLG/DOL-X/actions/workflows/build.yaml/badge.svg)](https://github.com/XFoxLG/DOL-X/actions/workflows/build.yaml)
 
 ## 目录
 
-- [目录](#目录)
 - [简介](#简介)
-  - [关于本仓库](#关于本仓库)
-- [各版本说明](#各版本说明)
+- [特色](#特色)
 - [下载](#下载)
-- [在线](#在线)
+- [版本说明](#版本说明)
 - [疑难解答](#疑难解答)
 - [更新日志](#更新日志)
-- [整合包使用须知](#整合包使用须知)
+- [使用须知](#使用须知)
 - [Credits](#credits)
 
 ---
 
 ## 简介
 
-### 关于本仓库
+DOL-X 是基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统的自用整合包项目。
 
-DOL-X 是 XFox 自用整合包发布仓库，用于产出可直接下载的 ZIP/APK 整合包。
+本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 GitHub Actions 自动化构建，提供多种 Mod 组合，并跟随游戏和汉化更新。
 
-本仓库基于 [汉化仓库][github-chs] 的汉化产物制作整合包，复用并同步 [DoL-Lyra/Lyra][github-lyra] 的构建/打包流程，使用 Github Actions 提供多种 Mod 组合可供选择，并跟随汉化仓库更新。
+**本仓库不是 DoL 或汉化组官方发布渠道**
 
-[DoL-Lyra/Lyra][github-lyra] 是 DOL-X 的直接上游构建流程来源，不是本仓库的项目身份；DOL-X/XFox 才是本仓库当前维护和交付的自用整合包项目。
+## 特色
 
-**该仓库并非 DoL 或汉化组官方发布渠道**
+- ✅ **自动化构建**：GitHub Actions 云端构建，每周自动检测更新
+- ✅ **多版本支持**：基础版 + 3 个 AU 变体（AU-F、AU-M、AU-A）
+- ✅ **现代框架**：秋枫白桦框架 + cheatExtended 作弊扩展
+- ✅ **完整集成**：ModLoader + 汉化 + 美化包（BESC + UCB）
+- ✅ **双平台**：ZIP（浏览器版）+ APK（Android 版）
 
-## 各版本说明
+### 包含的 Mod
 
-->->-> [【版本说明】](https://dol-lyra.github.io/hub/docs/) <-<-<-
+**基础 Mod**（所有版本）：
+- ModLoader GUI - 模组管理器
+- ModI18N - 汉化支持
+- More Love Interests - 更多恋人
+- Custom Spellbook - 自定义魔法书
+- maplebirch - 秋枫白桦框架
+- cheatExtended - 作弊扩展
+
+**可选 AU 系列**：
+- AU-F：AU Female + AU Face 扩展
+- AU-M：AU Male + AU Face 扩展
+- AU-A：AU Androgynous + AU Face 扩展
 
 ## 下载
 
-->->-> [【下载站】](https://dol-lyra.github.io/hub/) <-<-<-
+访问 [Releases](https://github.com/XFoxLG/DOL-X/releases) 下载最新版本。
 
-## 在线
+### 版本选择
 
-[【DoL-Lyra Github Pages】](https://dol-lyra.github.io)
+| 版本 | Build Code | 说明 |
+|------|------------|------|
+| 基础版 | 57601 | 无 AU，适合标准游玩 |
+| AU-F 版 | 58625 | AU Female + 面部扩展 |
+| AU-M 版 | 59649 | AU Male + 面部扩展 |
+| AU-A 版 | 61697 | AU Androgynous + 面部扩展 |
 
-> 在线版仅使用 `BESC+作弊+CSD` 构建，需要其他版本请前往下载本地版
+## 版本说明
+
+当前构建配置：
+- **基础 Mod**：BESC + UCB + more_love + custom_spellbook + maplebirch + cheatExtended
+- **游戏版本**：跟随汉化仓库更新
+- **构建方式**：GitHub Actions 云端自动化
 
 ## 疑难解答
 
