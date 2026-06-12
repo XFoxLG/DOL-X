@@ -120,7 +120,7 @@ bit = 1
 required = false
 skip = false
 depends_on = []
-conflicts_with = ["susato", "goose", "au-f", "au-m", "au-a"]
+conflicts_with = ["susato", "goose"]
 
 [[features]]
 id = "more_love"
