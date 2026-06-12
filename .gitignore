@@ -69,3 +69,15 @@ base/
 .trellis/
 AGENTS.md
 PROJECT_REVIEW.md
+
+# Copyright-protected encrypted mod content (AU Face, etc.)
+*.crypt
+*.salt
+*.nonce
+au_face_manual_analysis/
+reverse_analysis_output/
+remote-baseline-gate-*/
+gh_actions_log.txt
+runs.json
+runs_check.json
+runs_after_delete.json
