@@ -23,12 +23,41 @@ DOL-X 是基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统的自�
 
 **本仓库不是 DoL 或汉化组官方发布渠道**
 
+---
+
+## 与上游 DoL-Lyra 的关系
+
+DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"**上游友好**"策略：
+
+- ✅ **核心同步**：保持构建系统 (`lyra/`) 与上游同步，跟随上游 bug 修复和性能优化
+- 🎨 **Mod 独立**：维护独立的 Mod 矩阵和组合策略，针对自用场景优化
+- 📚 **文档完整**：详细记录与上游的差异和决策理由
+
+### 主要差异
+
+| 对比项 | 上游 Lyra | DOL-X |
+|--------|-----------|-------|
+| **身份标识** | Lyra | XFox |
+| **基础美化** | BESC 推荐 | UCB 唯一 |
+| **AU 组合** | AU（单独） | AU+UCB |
+| **作弊 Mod** | cheat + CSD | cheatExtended + maplebirch |
+| **矩阵规模** | ~10 个版本 | 4 个版本（精简） |
+
+### 相关文档
+
+- 📖 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md) - 为什么这样选择 Mod 组合？
+- 📊 [完整差异总结](UPSTREAM_DIFF_SUMMARY.md) - 与上游 Lyra 的详细对比
+- 🔄 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 同步策略和边界
+- ✅ [同步检查清单](UPSTREAM_SYNC_CHECKLIST.md) - 如何保持与上游同步
+
+---
+
 ## 特色
 
 - ✅ **自动化构建**：GitHub Actions 云端构建，每周自动检测更新
 - ✅ **多版本支持**：基础版 + 3 个 AU 变体（AU-F、AU-M、AU-A）
 - ✅ **现代框架**：秋枫白桦框架 + cheatExtended 作弊扩展
-- ✅ **完整集成**：ModLoader + 汉化 + 美化包（BESC + UCB）
+- ✅ **完整集成**：ModLoader + 汉化 + 美化包（UCB）
 - ✅ **双平台**：ZIP（浏览器版）+ APK（Android 版）
 
 ### 包含的 Mod
@@ -54,17 +83,21 @@ DOL-X 是基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统的自�
 
 | 版本 | Build Code | 说明 |
 |------|------------|------|
-| 基础版 | 57601 | 无 AU，适合标准游玩 |
-| AU-F 版 | 58625 | AU Female + 面部扩展 |
-| AU-M 版 | 59649 | AU Male + 面部扩展 |
-| AU-A 版 | 61697 | AU Androgynous + 面部扩展 |
+| 基础版 | 57600 | UCB 美化 + more_love + custom_spellbook + cheatExtended |
+| AU-F 版 | 58624 | 基础版 + AU Female + AU Face 扩展 |
+| AU-M 版 | 59648 | 基础版 + AU Male + AU Face 扩展 |
+| AU-A 版 | 61696 | 基础版 + AU Androgynous + AU Face 扩展 |
+
+> **注意**：Build Code 已于 2026-06-13 修复，移除了错误的 BESC bit。详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md)。
 
 ## 版本说明
 
 当前构建配置：
-- **基础 Mod**：BESC + UCB + more_love + custom_spellbook + maplebirch + cheatExtended
+- **基础 Mod**：UCB + more_love + custom_spellbook + maplebirch + cheatExtended
 - **游戏版本**：跟随汉化仓库更新
 - **构建方式**：GitHub Actions 云端自动化
+
+> **2026-06-13 更新**：移除 BESC，改用 UCB 作为唯一战斗美化。详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md)。
 
 ## 疑难解答
 

@@ -1,16 +1,21 @@
 # MOD 组合配置
 
-# 稳定自用构建列表：BESC + UCB + more-love + custom-spellbook + cheatExtended+maplebirch。
-# cheat_csd (bit 2) 已废弃，替换为 cheat_extended_maplebirch (bit 32768)。
-# 计算：1 (besc) + 256 (ucb) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheat_extended_maplebirch) = 57601
-# AU 变体：+ 1024 (au-f) = 58625, + 2048 (au-m) = 59649, + 4096 (au-a) = 61697
-build_codes = ["57601", "58625", "59649", "61697"]
+# DOL-X 自用构建列表：UCB + more-love + custom-spellbook + cheatExtended+maplebirch
+# 策略说明：
+#   - 与上游差异：上游推荐 BESC（单独）或 AU（单独），DOL-X 使用 UCB+AU 组合
+#   - 原因：UCB 提供战斗美化，与 AU 体型美化不冲突，且覆盖范围互补
+#   - 参考：上游也提供 UCB+AU 组合（非推荐但可用）
+#
+# 移除 BESC (bit 1)，使用 UCB (bit 256) 作为基础美化。
+# 计算：256 (ucb) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheat_extended_maplebirch) = 57600
+# AU 变体：+ 1024 (au-f) = 58624, + 2048 (au-m) = 59648, + 4096 (au-a) = 61696
+build_codes = ["57600", "58624", "59648", "61696"]
 
-# 基础版显示名称对应的组合：BESC + UCB + more-love + custom-spellbook + cheatExtended。
-base_code = 57601
+# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook + cheatExtended
+base_code = 57600
 
 # 推荐的组合（优先显示）
-recommended = [58370, 59394, 61442]
+recommended = [58624, 59648, 61696]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。
