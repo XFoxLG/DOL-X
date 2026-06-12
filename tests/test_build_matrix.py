@@ -34,7 +34,7 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"57346", "58370", "59394", "61442"}
+        expected_codes = {"57601", "58625", "59649", "61697"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,13 +52,13 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_57346(self):
-        """验证稳定基础版代码为 57346"""
+    def test_base_code_is_57601(self):
+        """验证稳定基础版代码为 57601"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 57346, (
-            f"基础版代码应为 57346，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 57601, (
+            f"基础版代码应为 57601，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -83,10 +83,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (57346) 不包含 AU"""
+        """验证基础版 (57601) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 57346
+        base_code = 57601
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -103,9 +103,9 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         
         au_variants = [
-            (58370, "au-f"),
-            (59394, "au-m"),
-            (61442, "au-a"),
+            (58625, "au-f"),
+            (59649, "au-m"),
+            (61697, "au-a"),
         ]
         
         for code, feature_id in au_variants:
@@ -221,18 +221,18 @@ class TestBuildMatrix:
 
         assert findings == []
 
-    def test_all_versions_have_cheat_or_csd(self):
-        """验证所有版本都包含作弊或 CSD"""
+    def test_all_versions_have_cheat_extended_maplebirch(self):
+        """验证所有版本都包含 cheatExtended+maplebirch"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
         
-        cheat_feature = config_loader.get_feature_by_id("cheat_csd")
-        assert cheat_feature is not None, "cheat_csd feature 不存在"
+        cheat_extended_feature = config_loader.get_feature_by_id("cheat_extended_maplebirch")
+        assert cheat_extended_feature is not None, "cheat_extended_maplebirch feature 不存在"
         
         for code_str in combinations_config.build_codes:
             code = int(code_str)
-            assert (code & cheat_feature.bit), (
-                f"版本 {code} 应包含 cheat_csd (bit={cheat_feature.bit})"
+            assert (code & cheat_extended_feature.bit), (
+                f"版本 {code} 应包含 cheat_extended_maplebirch (bit={cheat_extended_feature.bit})"
             )
 
     def test_all_versions_have_more_love_and_custom_spellbook(self):

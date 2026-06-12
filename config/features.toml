@@ -111,7 +111,7 @@ bit = 2
 required = false
 skip = true
 depends_on = []
-conflicts_with = []
+conflicts_with = ["cheat_extended_maplebirch"]
 
 [[features]]
 id = "besc"
