@@ -45,49 +45,6 @@
         "只注入 AU 三版本",
         "依赖 AU 主模组"
       ]
-    },
-    "bjx_word_unlock": {
-      "name": "言灵解放",
-      "github_repo": "cphxj123/Dol-BJX-Mods",
-      "asset_pattern": "言灵解放1.1.0.zip",
-      "release_tag": "1.1.0",
-      "download_url": "https://github.com/cphxj123/Dol-BJX-Mods/raw/main/%E8%A8%80%E7%81%B5%E8%A7%A3%E6%94%BE1.1.0.zip",
-      "last_tested_version": "1.1.0",
-      "last_tested_sha256": "498249cd73c07e641723041eb1b7e0b135f4ba0247d0005832420e33efbe8fbe",
-      "last_tested_dol_version": null,
-      "notes": [
-        "绑定 cheat_csd，所有当前自用版本注入",
-        "cphxj123/Dol-BJX-Mods 无 release，使用仓库 raw 直链下载"
-      ]
-    },
-    "bjx_portable_word": {
-      "name": "随身言灵",
-      "github_repo": "cphxj123/Dol-BJX-Mods",
-      "asset_pattern": "随身言灵1.1.0.zip",
-      "release_tag": "1.1.0",
-      "download_url": "https://github.com/cphxj123/Dol-BJX-Mods/raw/main/%E9%9A%8F%E8%BA%AB%E8%A8%80%E7%81%B51.1.0.zip",
-      "last_tested_version": "1.1.0",
-      "last_tested_sha256": "08a7afd0b254287132bfa26a6bb8f224157f1964ab316834cc7b37cdb69532f4",
-      "last_tested_dol_version": null,
-      "notes": [
-        "绑定 cheat_csd，所有当前自用版本注入",
-        "cphxj123/Dol-BJX-Mods 无 release，使用仓库 raw 直链下载"
-      ]
-    },
-    "bccm": {
-      "name": "随时施法",
-      "github_repo": "Tony70124/BetterCheatCommandManagement-for-DOL",
-      "asset_pattern": "BCCM_v2.1.4.zip",
-      "release_tag": "v2.1.4",
-      "download_url": "https://github.com/Tony70124/BetterCheatCommandManagement-for-DOL/releases/download/v2.1.4/BCCM_v2.1.4.zip",
-      "last_tested_version": "v2.1.4",
-      "last_tested_sha256": "d79fb858d72bb97702c766aff28905280fd0dd1214e5ffec7c549b56a498528a",
-      "last_tested_dol_version": null,
-      "notes": [
-        "绑定 cheat_csd，所有当前自用版本注入",
-        "发布页 expanded_assets 确认资源名为 BCCM_v2.1.4.zip",
-        "Cheat 作为 base_mod 先注入，BCCM 在 modloader_mods 阶段后注入"
-      ]
     }
   }
 }
