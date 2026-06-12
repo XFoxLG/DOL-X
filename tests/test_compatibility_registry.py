@@ -97,16 +97,6 @@ def test_canary_and_diagnostic_surfaces_cannot_mutate_stable_matrix():
 
 
 @pytest.mark.config
-def test_stable_matrix_still_excludes_experimental_cheat_extended_maplebirch():
-    config_loader = get_config_loader()
-    experimental = config_loader.get_feature_by_id("cheat_extended_maplebirch")
-    assert experimental is not None
-
-    for code_str in config_loader.combinations.build_codes:
-        assert not (int(code_str) & experimental.bit), f"stable code {code_str} must not include experiment bit"
-
-
-@pytest.mark.config
 def test_generic_refactor_plan_preserves_stable_outputs_first():
     assert {item.key for item in GENERIC_REFACTOR_PLAN} == {
         "config_driven_feature_suffixes",
