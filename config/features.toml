@@ -12,7 +12,7 @@ bit = 4096
 required = false
 skip = false
 depends_on = []
-conflicts_with = ["besc", "susato", "goose", "au-f", "au-m"]
+conflicts_with = ["susato", "goose", "au-f", "au-m"]
 
 [[features]]
 id = "au-m"
@@ -21,7 +21,7 @@ bit = 2048
 required = false
 skip = false
 depends_on = []
-conflicts_with = ["besc", "susato", "goose", "au-f", "au-a"]
+conflicts_with = ["susato", "goose", "au-f", "au-a"]
 
 [[features]]
 id = "au-f"
@@ -30,7 +30,7 @@ bit = 1024
 required = false
 skip = false
 depends_on = []
-conflicts_with = ["besc", "susato", "goose", "au-m", "au-a"]
+conflicts_with = ["susato", "goose", "au-m", "au-a"]
 
 [[features]]
 id = "goose"
@@ -39,7 +39,7 @@ bit = 512
 required = false
 skip = false
 depends_on = []
-conflicts_with = ["besc", "susato", "au-f", "au-m", "au-a"]
+conflicts_with = ["besc", "susato", "ucb", "au-f", "au-m", "au-a"]
 
 [[features]]
 id = "ucb"
@@ -57,7 +57,7 @@ bit = 128
 required = false
 skip = true                                                # 跳过，不生成包含此功能的组合
 depends_on = []
-conflicts_with = ["besc", "goose", "au-f", "au-m", "au-a"]
+conflicts_with = ["besc", "goose", "ucb", "au-f", "au-m", "au-a"]
 
 [[features]]
 id = "wax"
