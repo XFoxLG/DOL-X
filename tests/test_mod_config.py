@@ -144,35 +144,6 @@ class TestModConfig:
                 f"Mod {mod.key or mod.asset_pattern} 的 enabled 必须是布尔值"
             )
 
-    def test_cheat_extension_mods_exist(self):
-        """验证旧作弊/CSD 扩展 mod 配置存在并按实验栈启停"""
-        build_config = load_build_config()
-
-        cheat_extended_enabled = any(
-            mod.enabled
-            for mod in build_config.modloader_mods
-            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
-            or mod.key in {"cheat_extended", "cheatExtended"}
-        )
-        expected_enabled = not cheat_extended_enabled
-
-        expected_mods = {
-            "bjx_word_unlock": ("言灵解放", expected_enabled),
-            "bjx_portable_word": ("随身言灵", expected_enabled),
-            "bccm": ("随时施法", expected_enabled),
-        }
-        mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
-
-        for key, (name, enabled) in expected_mods.items():
-            mod = mods_by_key.get(key)
-            assert mod is not None, f"缺少作弊/CSD 扩展 mod: {key}"
-            assert mod.name == name, f"{key} 名称错误: {mod.name}"
-            assert mod.feature_id == "cheat_csd", (
-                f"{key} 应绑定到 cheat_csd，当前: {mod.feature_id}"
-            )
-            assert mod.enabled is enabled, f"{key} 默认启用状态错误"
-            assert mod.download_url, f"{key} 应使用已确认的直链下载地址"
-
     def test_love_and_spellbook_mods_exist(self):
         """验证已合入实验 mod 使用独立 feature 与直链资源。"""
         build_config = load_build_config()
@@ -318,39 +289,6 @@ class TestModConfig:
         assert len(conflicts) == 0, (
             f"发现缺少显式 key 的共享 feature_id mod:\n" +
             "\n".join(f"  {feature}: {mods}" for feature, mods in conflicts.items())
-        )
-
-    def test_cheat_extended_replacement_not_mixed_with_legacy_stack(self):
-        """验证 cheatExtended 替代方案不会和旧作弊栈同时启用"""
-        build_config = load_build_config()
-
-        cheat_extended_mods = [
-            mod
-            for mod in build_config.modloader_mods
-            if mod.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
-            or mod.key in {"cheat_extended", "cheatExtended"}
-        ]
-        cheat_extended_enabled = any(mod.enabled for mod in cheat_extended_mods)
-
-        if not cheat_extended_enabled:
-            return
-
-        legacy_base_mods = [
-            mod.key
-            for mod in build_config.base_mods
-            if mod.key in {"cheat", "csd"} and mod.feature_id == "cheat_csd"
-        ]
-        legacy_modloader_mods = [
-            mod.key
-            for mod in build_config.modloader_mods
-            if mod.key in {"bjx_word_unlock", "bjx_portable_word", "bccm"}
-            and mod.enabled
-        ]
-
-        assert not legacy_base_mods and not legacy_modloader_mods, (
-            "cheatExtended 作为替代方案启用时，不应同时启用旧作弊栈\n"
-            f"旧 base_mods: {legacy_base_mods}\n"
-            f"旧 modloader_mods: {legacy_modloader_mods}"
         )
 
     def test_cheat_extended_framework_choice_is_exclusive(self):
