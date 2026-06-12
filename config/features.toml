@@ -48,7 +48,7 @@ bit = 256
 required = false
 skip = false
 depends_on = []
-conflicts_with = []
+conflicts_with = ["goose", "susato"]
 
 [[features]]
 id = "susato"
