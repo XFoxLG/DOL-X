@@ -78,6 +78,9 @@ python tools/dev_server.py --watch mods/my_mod
 # 查看状态
 git status
 
+# 推送到自己的仓库
+git push origin vega
+
 # 拉取上游更新
 git fetch upstream
 
@@ -96,8 +99,13 @@ git cherry-pick <commit-hash>
 # 合并上游分支
 git merge upstream/vega
 
-# 推送到远程
-git push origin vega
+# 创建 Release（自动触发云端构建）
+git tag v0.5.8.10-3.1.13-20260613
+git push origin v0.5.8.10-3.1.13-20260613
+
+# 查看构建状态
+# https://github.com/XFoxLG/DOL-X/actions
+```
 ```
 
 ---
