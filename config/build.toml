@@ -22,8 +22,8 @@ prepare_package = "prepare_package"
 
 [github]
 # GitHub 发布配置
-owner = "sakarie9"
-repo = "DoL-Lyra"
+owner = "XFoxLG"
+repo = "DOL-X"
 
 [identity]
 # 自用整合包标识，仅用于产物文件名、APK 显示名称和包名。
