@@ -13,10 +13,10 @@
 python main.py matrix
 
 # 构建特定代码
-python main.py build --codes 57601
+python main.py build --codes 57600
 
 # 构建 AU 变体
-python main.py build --codes 58625,59649,61697
+python main.py build --codes 58624,59648,61696
 
 # 使用 profile 构建
 python main.py build --profile standard
@@ -116,20 +116,20 @@ git push origin v0.5.8.10-3.1.13-20260613
 
 | Code | 组合 | 说明 |
 |------|------|------|
-| **57601** | BESC + UCB + more_love + custom_spellbook + cheatExtended+maplebirch | **基础版（推荐）** |
-| **58625** | 上述 + AU-F | **AU 面部扩展** |
-| **59649** | 上述 + AU-M | **AU 武术** |
-| **61697** | 上述 + AU-A | **AU 小巷** |
+| **57600** | UCB + more_love + custom_spellbook + cheatExtended+maplebirch | **基础版（推荐）** |
+| **58624** | 上述 + AU-F | **AU 面部扩展** |
+| **59648** | 上述 + AU-M | **AU 武术** |
+| **61696** | 上述 + AU-A | **AU 小巷** |
 
 ### Build Code 计算
 
 ```
-57601 = 1 (BESC) + 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch)
+57600 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch)
 
 AU 变体：
-58625 = 57601 + 1024 (AU-F)
-59649 = 57601 + 2048 (AU-M)
-61697 = 57601 + 4096 (AU-A)
+58624 = 57600 + 1024 (AU-F)
+59648 = 57600 + 2048 (AU-M)
+61696 = 57600 + 4096 (AU-A)
 ```
 
 ---
@@ -138,7 +138,7 @@ AU 变体：
 
 | Feature | Bit | 十六进制 | 说明 | 状态 |
 |---------|-----|----------|------|------|
-| BESC | 1 | 0x1 | 基础图片包 | ✅ 启用 |
+| BESC | 1 | 0x1 | 基础图片包 | ❌ **已禁用（skip=true）** |
 | cheat_csd | 2 | 0x2 | 旧作弊模组 | ❌ 已废弃 |
 | reserved | 4 | 0x4 | 保留位 | ⚠️ 跳过 |
 | BJ特写 | 8 | 0x8 | BJ特写 | ⚠️ 跳过 |
@@ -146,7 +146,7 @@ AU 变体：
 | HIKARI | 32 | 0x20 | Hikari 图片包 | ⚠️ 依赖 BESC |
 | WAX | 64 | 0x40 | Wax 图片包 | ⚠️ 跳过 |
 | SUSATO | 128 | 0x80 | Susato 图片包 | ⚠️ 跳过 |
-| **UCB** | **256** | **0x100** | **UCB 图片包** | **✅ 启用** |
+| **UCB** | **256** | **0x100** | **UCB 战斗美化** | **✅ 启用** |
 | GOOSE | 512 | 0x200 | Goose 图片包 | ⚠️ 冲突 |
 | **AU-F** | **1024** | **0x400** | **AU Face 面部扩展** | **✅ 启用** |
 | **AU-M** | **2048** | **0x800** | **AU 武术** | **✅ 启用** |

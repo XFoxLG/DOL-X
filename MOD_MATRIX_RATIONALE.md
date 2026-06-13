@@ -51,7 +51,6 @@
 **非推荐版本**：
 - BESC+UCB（code=259）
 - UCB+AU-F（code=1282）
-- 等等
 
 **上游文档**: https://dol-lyra.github.io/hub/docs/
 
@@ -60,7 +59,7 @@
 **选择**：
 - 基础版：UCB（单独）
 - AU 版本：AU+UCB（组合）
-- **不使用 BESC**
+- **不使用 BESC**（features.toml 中 skip=true）
 
 **差异总结**：
 
@@ -68,7 +67,7 @@
 |--------|-----------|-------|
 | 推荐基础美化 | BESC | UCB |
 | AU 组合 | AU（单独） | AU+UCB |
-| BESC 使用 | 推荐使用 | 不使用 |
+| BESC 使用 | 推荐使用 | **不使用（skip=true）** |
 | 额外 Mod | cheat + CSD | more_love + custom_spellbook + cheatExtended+maplebirch |
 
 ---
@@ -76,6 +75,13 @@
 ## 决策理由
 
 ### 为什么使用 UCB 而非 BESC？
+
+**配置状态**：
+- `config/features.toml`: BESC 设置为 `skip=true`（跳过，不生成包含此功能的组合）
+- `config/build.toml`: BESC 配置保留但添加注释说明不使用
+- `config/combinations.toml`: build_codes 不包含 BESC bit（bit 1）
+
+**决策理由**：
 
 1. **战斗覆盖**
    - UCB（Universal Combat Beautification）专注战斗场景美化
@@ -89,10 +95,17 @@
    - 构建系统按顺序应用 imagepack：BESC → HIKARI → GOOSE → UCB
    - 如果同时包含 BESC 和 UCB，UCB 会覆盖 BESC 的战斗图片
    - 因此 BESC+UCB 组合中，最终效果接近 UCB（单独）
+   - **上游也不推荐 BESC+UCB 组合**（code=259）
 
 4. **自用定位**
    - DOL-X 是自用整合包，战斗美化优先级高于综合美化
    - UCB 图片质量稳定，更新活跃
+   - 避免冗余下载和构建时间
+
+5. **配置保留**
+   - `config/build.toml` 中保留 BESC imagepack 配置
+   - 未来如需恢复：修改 `features.toml` 中 `skip=false`，添加 bit 1 到 build_codes
+   - 保留配置方便快速回退决策
 
 ### 为什么 AU 版本使用 AU+UCB？
 
