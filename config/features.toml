@@ -48,7 +48,7 @@ bit = 256
 required = false
 skip = false
 depends_on = []
-conflicts_with = ["goose", "susato"]
+conflicts_with = ["besc", "goose", "susato"]
 
 [[features]]
 id = "susato"
@@ -118,9 +118,9 @@ id = "besc"
 name = "BESC"
 bit = 1
 required = false
-skip = false
+skip = true  # DOL-X不使用BESC，使用UCB作为唯一战斗美化
 depends_on = []
-conflicts_with = ["susato", "goose"]
+conflicts_with = ["susato", "goose", "ucb"]  # UCB会覆盖BESC图片
 
 [[features]]
 id = "more_love"

@@ -68,6 +68,11 @@ pattern = "saveAs("
 replacement = "cordova.plugins.saveDialog.saveFile("
 
 # 图片包配置
+
+# BESC imagepack配置（保留用于未来可能的快速恢复）
+# 当前DOL-X不使用BESC（features.toml中skip=true），使用UCB作为战斗美化
+# 理由：UCB最后应用会覆盖BESC的战斗图片，避免冗余下载和构建时间
+# 如需恢复：修改features.toml中skip=false，添加bit 1到build_codes
 [imagepacks.besc]
 name = "besc"
 urls = [
