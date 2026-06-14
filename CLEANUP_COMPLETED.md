@@ -233,7 +233,7 @@ python main.py build --codes 58625
 
 **A**: 
 1. 查看 GitHub Actions 日志
-2. 本地运行 `python main.py build --codes 57601`
+2. 本地运行 `python main.py build --codes 57600`
 3. 检查配置文件语法：`python main.py matrix`
 
 ### Q: 如何验证 tag 是否真的删除了？
