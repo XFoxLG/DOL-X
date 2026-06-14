@@ -81,3 +81,24 @@ gh_actions_log.txt
 runs.json
 runs_check.json
 runs_after_delete.json
+
+# Reverse engineering tools (local only, not for public)
+tools/reverse_au_face.py
+tools/au_face_interceptor.js
+.github/workflows/reverse-au-face.yml
+
+# Temporary test and commit scripts
+test_phase*.py
+run_tests.py
+commit_*.py
+direct_commit*.py
+push_to_github.py
+EXECUTE_CLEANUP_REVERSE.py
+
+# Temporary project documentation
+DOL-X_PROJECT_*.md
+CHEATEXTENDED_*.md
+TECHNICAL_FEASIBILITY_*.md
+PROJECT_REVIEW_COMPLETED.md
+EXECUTION_SUMMARY.md
+CLEANUP_REVERSE_ENGINEERING.md
