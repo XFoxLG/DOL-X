@@ -22,18 +22,18 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 57600 | UCB + more_love + custom_spellbook + cheatExtended | 基础版，战斗美化 |
-| 58624 | AU-F + UCB + more_love + custom_spellbook + cheatExtended | 女性体型 + 战斗美化 |
-| 59648 | AU-M + UCB + more_love + custom_spellbook + cheatExtended | 男性体型 + 战斗美化 |
-| 61696 | AU-A + UCB + more_love + custom_spellbook + cheatExtended | 中性体型 + 战斗美化 |
+| 516352 | UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 基础版，完整 Mod 集合 |
+| 517376 | AU-F + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 女性体型 + 完整 Mod |
+| 518400 | AU-M + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 男性体型 + 完整 Mod |
+| 520448 | AU-A + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 中性体型 + 完整 Mod |
 
 ### Feature Bits 分解
 
 ```
-57600 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch)
-58624 = 57600 + 1024 (AU-F)
-59648 = 57600 + 2048 (AU-M)
-61696 = 57600 + 4096 (AU-A)
+516352 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (longer_combat)
+517376 = 516352 + 1024 (AU-F)
+518400 = 516352 + 2048 (AU-M)
+520448 = 516352 + 4096 (AU-A)
 ```
 
 ---
@@ -68,7 +68,7 @@
 | 推荐基础美化 | BESC | UCB |
 | AU 组合 | AU（单独） | AU+UCB |
 | BESC 使用 | 推荐使用 | **不使用（skip=true）** |
-| 额外 Mod | cheat + CSD | more_love + custom_spellbook + cheatExtended+maplebirch |
+| 额外 Mod | cheat + CSD | more_love + custom_spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + longer_combat |
 
 ---
 
