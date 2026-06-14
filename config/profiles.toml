@@ -11,23 +11,23 @@ build_code = 256
 id = "standard"
 name = "标准自用整合包"
 description = "UCB + more_love + custom_spellbook + cheatExtended"
-build_code = 57346
+build_code = 57600
 recommended = true
 
 [[profiles]]
 id = "au-f-standard"
 name = "AU-F 标准整合"
 description = "AU-F + UCB + more_love + custom_spellbook + cheatExtended"
-build_code = 58370
+build_code = 58624
 
 [[profiles]]
 id = "au-m-standard"
 name = "AU-M 标准整合"
 description = "AU-M + UCB + more_love + custom_spellbook + cheatExtended"
-build_code = 59394
+build_code = 59648
 
 [[profiles]]
 id = "au-a-standard"
 name = "AU-A 标准整合"
 description = "AU-A + UCB + more_love + custom_spellbook + cheatExtended"
-build_code = 61442
+build_code = 61696
