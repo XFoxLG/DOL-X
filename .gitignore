@@ -156,3 +156,6 @@ TECHNICAL_FEASIBILITY_*.md
 PROJECT_REVIEW_COMPLETED.md
 EXECUTION_SUMMARY.md
 CLEANUP_REVERSE_ENGINEERING.md
+
+# Local documentation and scripts (not for upload)
+.local/
