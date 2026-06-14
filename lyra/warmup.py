@@ -129,7 +129,13 @@ class ResourceWarmer:
 
         # 下载并解压每个图片包
         for pack_name in sorted(all_packs):
-            self._download_dolp_pack(pack_name)
+            # 映射包名到配置名（例如 mysterious -> ucb）
+            config_name = None
+            for beautify_name, pack_list in self.DOLP_PACKS.items():
+                if pack_name in pack_list:
+                    config_name = beautify_name
+                    break
+            self._download_dolp_pack(pack_name, config_name)
 
         # 仅处理当前构建列表会用到的美化包。
         processors = {
@@ -141,13 +147,14 @@ class ResourceWarmer:
         for name in required_beautify:
             processors[name]()
 
-    def _download_dolp_pack(self, pack_name: str):
+    def _download_dolp_pack(self, pack_name: str, config_name: str = None):
         """
         下载单个 DoL+ 图片包
         支持多 URL fallback 机制
 
         Args:
-            pack_name: 包名称
+            pack_name: 包名称（如 mysterious）
+            config_name: 配置名称（如 ucb），用于查找多 URL 配置
         """
         tar_path = self.paths.temp_dir / f"dolp-{pack_name}.tar.gz"
         extract_dir = self.paths.temp_dir / f"dolp-{pack_name}"
@@ -160,12 +167,14 @@ class ResourceWarmer:
         logger.info(f"  下载: {pack_name}")
         
         # 获取图片包配置（支持多 URL）
-        imagepack_config = self.config.imagepacks.get(pack_name)
+        imagepack_config = None
+        if config_name:
+            imagepack_config = self.config.imagepacks.get(config_name)
         
         # 如果有配置且有 URLs，使用配置的 URLs
         if imagepack_config and imagepack_config.urls:
             urls = imagepack_config.urls
-            logger.info(f"  找到 {len(urls)} 个 URL")
+            logger.info(f"  找到 {len(urls)} 个 URL（配置: {config_name}）")
         else:
             # 否则使用默认 URL
             urls = [f"{self.config.dolp_base_url}/{pack_name}"]
