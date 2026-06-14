@@ -396,6 +396,36 @@ git cherry-pick --continue
 
 ---
 
+## 美化兼容性说明
+
+### UCB 与 AU 是否冲突？
+
+**不冲突**。根据技术验证：
+- UCB 专注战斗场景（`img/sex/`）
+- AU 专注体型和面部（`img/body/`、`img/face/`）
+- 两者路径无重叠
+
+详见 [UCB 兼容性报告](docs/UCB_COMPATIBILITY_REPORT.md)。
+
+### 为什么不用 BESC？
+
+DOL-X 选择 UCB 作为唯一战斗美化，原因：
+1. UCB 最后应用会覆盖 BESC 的战斗图片
+2. 上游也不推荐 BESC+UCB 组合（code=259）
+3. 避免冗余下载和构建时间
+
+详见 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md)。
+
+### 贴吧美化（KR/BJ 特写）与 UCB 兼容吗？
+
+**需要自行测试**。DOL-X 官方仅支持 DOLP 的美化包（UCB、Hikari、Goose）。
+
+贴吧美化理论上与 UCB 兼容（特写美化应该不在 `img/sex/`），但未经实测。
+
+安装方法：将美化包的 `img/` 目录复制到游戏的 `game/img/` 目录。
+
+---
+
 ## 环境变量
 
 ### 可选配置
