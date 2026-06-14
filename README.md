@@ -92,10 +92,28 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ## 版本说明
 
+### 当前稳定版本（2026-06-14+）
+
 当前构建配置：
 - **基础 Mod**：UCB + more_love + custom_spellbook + maplebirch + cheatExtended
+- **Build Codes**：57600 / 58624 / 59648 / 61696
 - **游戏版本**：跟随汉化仓库更新
 - **构建方式**：GitHub Actions 云端自动化
+- **测试状态**：所有测试通过（14/14）✅
+
+### ⚠️ 历史版本兼容性警告
+
+**已废弃版本（2026-06-13 及之前）**：
+- Build Codes：~~57346 / 58370 / 59394 / 61442~~
+- **问题**：配置错误（缺少 UCB 美化，cheat_csd 残留）
+- **状态**：技术上可运行，但不推荐使用
+- **建议**：请下载最新的 GitHub Actions 构建产物
+
+**如何获取最新版本**：
+1. 访问 [Actions 页面](https://github.com/XFoxLG/DOL-X/actions?query=branch%3Avega+is%3Asuccess)
+2. 点击最新的成功构建（绿色✓）
+3. 下载 Artifacts 中的 `dol-builds-zip` 或 `dol-builds-apk`
+4. 产物保留期：90 天
 
 > **2026-06-13 更新**：移除 BESC，改用 UCB 作为唯一战斗美化。详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md)。
 

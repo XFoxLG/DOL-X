@@ -1,0 +1,15 @@
+# Mod 兼容性矩阵
+# 当组合数超过 20 或社区冲突报告频繁时启用
+
+# 示例（未启用）：
+# [[incompatibilities]]
+# mod_a = "maplebirch"
+# mod_a_version = ">=3.1.14"
+# mod_b = "cheatExtended"
+# mod_b_version = "<=1.17"
+# reason = "maplebirch 3.1.14 移除了 maplebirchFrameworks，cheatExtended <=1.17 依赖该 API"
+
+# [[incompatibilities]]
+# mod_a = "Simple Frameworks"
+# mod_b = "maplebirch"
+# reason = "Simple Frameworks 和 maplebirch 是互斥的框架提供者"
