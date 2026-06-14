@@ -93,7 +93,7 @@ python tools/dev_server.py --watch mods/my_mod
 
 #### 2. 游戏逻辑测试（`tests/test_game_logic.py`）
 ```python
-@pytest.mark.parametrize("build_code", ["57601", "58625"])
+@pytest.mark.parametrize("build_code", ["57600", "58624"])
 def test_orphanage_intro_flow(build_code):
     """测试孤儿院开场流程"""
     result = run_browser_smoke(
