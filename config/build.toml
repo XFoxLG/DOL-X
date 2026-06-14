@@ -100,7 +100,12 @@ urls = ["{dolp_base}/dolp", "{dolp_base}/goosefem", "{dolp_base}/goosefemsubs"]
 
 [imagepacks.ucb]
 name = "ucb"
-urls = ["{dolp_base}/mysterious"]
+# 优先使用 GitHub Release 镜像（绕过 GitGud.io IP 限制）
+# Fallback 到 GitGud.io（如果镜像失败）
+urls = [
+    "https://github.com/XFoxLG/DOL-X/releases/download/imagepack-mirror-v1/degrees-of-lewdity-plus-master-imagepacks-mysterious.tar.gz",
+    "{dolp_base}/mysterious"
+]
 files_to_remove = [
     "img/sex/missionary/active/virginkiller/chest.png",
     "img/sex/missionary/active/virginkiller/waist.png",
