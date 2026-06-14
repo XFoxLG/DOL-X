@@ -165,24 +165,27 @@ class ResourceWarmer:
         # 如果有配置且有 URLs，使用配置的 URLs
         if imagepack_config and imagepack_config.urls:
             urls = imagepack_config.urls
+            logger.info(f"  找到 {len(urls)} 个 URL")
         else:
             # 否则使用默认 URL
             urls = [f"{self.config.dolp_base_url}/{pack_name}"]
+            logger.info(f"  使用默认 URL")
         
         # 尝试每个 URL，直到成功
         last_error = None
-        for url in urls:
+        for idx, url in enumerate(urls, 1):
             try:
-                logger.info(f"  尝试: {url[:80]}...")
+                logger.info(f"  [{idx}/{len(urls)}] 尝试: {url[:100]}...")
                 download_file(url, tar_path, quiet=True)
-                logger.info(f"  下载成功")
+                logger.info(f"  下载成功！")
                 break  # 下载成功，退出循环
             except Exception as e:
                 last_error = e
-                logger.warning(f"  失败: {str(e)[:100]}")
+                logger.warning(f"  [{idx}/{len(urls)}] 失败: {str(e)[:150]}")
                 continue
         else:
             # 所有 URL 都失败
+            logger.error(f"  所有 {len(urls)} 个 URL 均失败")
             raise last_error or Exception(f"无法下载 {pack_name}")
 
         # 解压
