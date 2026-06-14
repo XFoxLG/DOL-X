@@ -193,6 +193,17 @@ asset_pattern = "*.mod.zip"
 release_tag = "1.3.2"
 download_url = "https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/releases/download/1.3.2/Meas.Picvary.NPC.all.mod.1.3.2.mod.zip"
 
+[[modloader_mods]]
+key = "longer_combat"
+name = "更长的遭遇战"
+enabled = true
+github_repo = "emicoto/DOLMods"
+asset_pattern = "LongerCombat*.mod.zip"
+# 使用非官方修复版 (ReFix V2.4 by 隨風飄逸)
+# 原作者: 狐千月, 非官方修复: a1066160186
+# 支持 maplebirch 框架 (verified in registLC.js)
+download_url = "https://github.com/user-attachments/files/21724488/LongerCombat.ver1.2.0.build_1_Fixed_Unofficial_V2.zip"
+
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）
