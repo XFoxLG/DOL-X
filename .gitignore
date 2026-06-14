@@ -57,7 +57,8 @@ htmlcov/
 *.log
 
 my.secrets
-.vscode
+.vscode/
+.vscode/settings.json
 DoL-ModLoader*
 tests/
 !lyra/tests/
@@ -100,6 +101,8 @@ DOL-X_PROJECT_*.md
 TECHNICAL_FEASIBILITY_*.md
 EXECUTION_SUMMARY.md
 *CLEANUP*.md
+CLEANUP_PLAN.md
+BUILD_VERIFICATION_REPORT.md
 
 # CheatExtended 分析
 CHEATEXTENDED_*.md

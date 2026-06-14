@@ -9,8 +9,15 @@ on:
     paths-ignore:
       - "README.md"
       - "LICENSE"
+      - "docs/**"                                      # 文档修改不触发
+      - ".vscode/**"                                   # VSCode 配置不触发
+      - "*.md"                                         # 所有 Markdown 文件
+      - ".gitignore"
+      - "CLEANUP_PLAN.md"
+      - "BUILD_VERIFICATION_REPORT.md"
       - ".github/workflows/trigger.yaml"
       - ".github/workflows/deploy-hub.yaml"
+      - ".github/workflows/compatibility.yaml"         # 兼容性测试单独管理
   workflow_dispatch:
 
 jobs:

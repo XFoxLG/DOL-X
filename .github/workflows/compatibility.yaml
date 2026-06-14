@@ -1,13 +1,15 @@
 name: Compatibility Tests
 
 on:
-  workflow_run:
-    workflows: ["Build"]
-    types:
-      - completed
-    branches:
-      - vega
-      - "experiment/**"
+  # 暂时禁用自动触发，只允许手动运行
+  # Compatibility Tests 持续失败，需要修复后再启用自动触发
+  # workflow_run:
+  #   workflows: ["Build"]
+  #   types:
+  #     - completed
+  #   branches:
+  #     - vega
+  #     - "experiment/**"
   workflow_dispatch:
     inputs:
       build_run_id:
