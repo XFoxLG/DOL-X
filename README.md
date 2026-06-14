@@ -48,6 +48,14 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - 📖 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md) - 为什么这样选择 Mod 组合？
 - 📊 [完整差异总结](UPSTREAM_DIFF_SUMMARY.md) - 与上游 Lyra 的详细对比
 - 🔄 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 同步策略和边界
+
+### Mod 开发
+
+想开发自己的 Mod？DOL-X 提供完整的开发工具链：
+
+- 🚀 [TypeScript Mod 模板](https://github.com/XFoxLG/DOL-X-TS-Mod-Template) - 现代化 TS 开发环境
+- 📚 [高级 Mod 开发指南](docs/ADVANCED_MOD_DEV.md) - 完整开发文档
+- 🔧 [ModLoader 文档](docs/MODLOADER_OVERVIEW.md) - ModLoader 使用说明
 - ✅ [同步检查清单](UPSTREAM_SYNC_CHECKLIST.md) - 如何保持与上游同步
 
 ---
