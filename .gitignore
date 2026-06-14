@@ -87,6 +87,57 @@ tools/reverse_au_face.py
 tools/au_face_interceptor.js
 .github/workflows/reverse-au-face.yml
 
+# === DOL-X 临时文档和脚本（不应公开）===
+# 时间戳报告
+*_REPORT_202*.md
+*_20[0-9][0-9][0-9][0-9][0-9][0-9].md
+
+# AI 生成的项目审阅文档
+DOL-X_PROJECT_*.md
+*_REVIEW*.md
+*_UNDERSTANDING*.md
+*_INTEGRATION_PLAN*.md
+TECHNICAL_FEASIBILITY_*.md
+EXECUTION_SUMMARY.md
+*CLEANUP*.md
+
+# CheatExtended 分析
+CHEATEXTENDED_*.md
+CHEAT_EXTENDED_*.md
+
+# 临时研究和分析文档
+*_RESEARCH.md
+*_ANALYSIS.md
+FRAMEWORK_PROVIDER_*.md
+*_EVALUATION.md
+*SPIKE*.md
+
+# Phase 完成总结
+*_COMPLETION_SUMMARY.md
+*_SUMMARY.md
+PHASE*_*.md
+
+# 临时自动化脚本
+automate_*.py
+execute_*.py
+run_phase*.py
+DELETE_*.py
+COMPLETE_*.py
+
+# 内部使用指南
+MIGRATION_NOTICE.md
+PROFILE_USAGE.md
+UNATTENDED_EXECUTION_GUIDE.md
+UPSTREAM_FRIENDLY_STRATEGY.md
+
+# 临时测试工具
+tools/adb_resolution.py
+tools/analyze_au_standalone.py
+tools/functional_smoke_test.py
+tools/mumu_apk_smoke.py
+tools/resolver_evidence_collector.py
+tests/test_mumu_apk_smoke.py
+
 # Temporary test and commit scripts
 test_phase*.py
 run_tests.py
