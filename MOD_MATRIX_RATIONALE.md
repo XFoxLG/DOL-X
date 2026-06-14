@@ -183,6 +183,23 @@ DOL-X 的选择：
 
 ---
 
+## 技术验证
+
+**UCB 与 AU 兼容性验证**:
+
+根据 [UCB 兼容性验证报告](docs/UCB_COMPATIBILITY_REPORT.md) 的深度分析：
+
+1. **UCB 官方设计**: 仅替换战斗图片（DoLModding Wiki 明确说明）
+2. **路径无重叠**: UCB 在 `img/sex/`、`img/combat/`，AU 在 `img/body/`、`img/face/`
+3. **加载机制不同**: AU 通过 ModLoader 运行时加载，优先级高于 imagepack
+4. **兼容性保障**: DOL-X 已实现 `_apply_au_face_compatibility_aliases()` 处理路径别名
+
+**结论**: UCB + AU 组合技术可行，不存在冲突。
+
+详细验证过程见 [UCB_COMPATIBILITY_REPORT.md](docs/UCB_COMPATIBILITY_REPORT.md)。
+
+---
+
 ## 未来调整可能性
 
 ### 可能添加的 Mod
