@@ -222,6 +222,39 @@ python tools/dev_server.py --watch mods/my_mod
 # 4. 显示测试结果
 ```
 
+### 场景 4: 验证美化兼容性
+
+**参考文档**: [UCB 兼容性报告](UCB_COMPATIBILITY_REPORT.md)
+
+如果想验证新美化包与 UCB 的兼容性：
+
+1. **解压美化包**，查看 `img/` 目录结构
+2. **对比 UCB 的路径**（主要是 `img/sex/`、`img/combat/`）
+3. **判断重叠**：如果有重叠，后应用的会覆盖前面的
+4. **测试验证**：构建游戏 → 浏览器打开 → 检查图片是否正常加载
+
+**工具推荐**:
+- `tools/analyze_imagepack_overlap.py`（待实现，参考 [UCB_COMPATIBILITY_REPORT.md](UCB_COMPATIBILITY_REPORT.md) 阶段 2）
+- 手动对比：`ls -R img/ > file_list.txt`
+
+**UCB 路径特征**（仅作参考，以实际文件为准）:
+```
+img/sex/           # 战斗/性场景
+img/combat/        # 战斗 NPC（可能）
+img/tentacles/     # 触手场景（可能）
+```
+
+**AU 路径特征**（通过 ModLoader mod 加载）:
+```
+img/body/          # 体型美化
+img/face/          # 面部扩展
+```
+
+**关键点**：
+- Imagepack（如 UCB）在构建时复制到 `game/img/`
+- ModLoader mod（如 AU）在运行时加载，优先级更高
+- 即使路径相同，ModLoader mod 也会覆盖 imagepack
+
 ---
 
 ## 相关文档
