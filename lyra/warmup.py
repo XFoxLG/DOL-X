@@ -144,11 +144,11 @@ class ResourceWarmer:
     def _download_dolp_pack(self, pack_name: str):
         """
         下载单个 DoL+ 图片包
+        支持多 URL fallback 机制
 
         Args:
             pack_name: 包名称
         """
-        url = f"{self.config.dolp_base_url}/{pack_name}"
         tar_path = self.paths.temp_dir / f"dolp-{pack_name}.tar.gz"
         extract_dir = self.paths.temp_dir / f"dolp-{pack_name}"
 
@@ -158,7 +158,32 @@ class ResourceWarmer:
             return
 
         logger.info(f"  下载: {pack_name}")
-        download_file(url, tar_path, quiet=True)
+        
+        # 获取图片包配置（支持多 URL）
+        imagepack_config = self.config.imagepacks.get(pack_name)
+        
+        # 如果有配置且有 URLs，使用配置的 URLs
+        if imagepack_config and imagepack_config.urls:
+            urls = imagepack_config.urls
+        else:
+            # 否则使用默认 URL
+            urls = [f"{self.config.dolp_base_url}/{pack_name}"]
+        
+        # 尝试每个 URL，直到成功
+        last_error = None
+        for url in urls:
+            try:
+                logger.info(f"  尝试: {url[:80]}...")
+                download_file(url, tar_path, quiet=True)
+                logger.info(f"  下载成功")
+                break  # 下载成功，退出循环
+            except Exception as e:
+                last_error = e
+                logger.warning(f"  失败: {str(e)[:100]}")
+                continue
+        else:
+            # 所有 URL 都失败
+            raise last_error or Exception(f"无法下载 {pack_name}")
 
         # 解压
         img_dir = extract_dir / "img"
