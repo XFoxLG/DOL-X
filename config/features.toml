@@ -148,3 +148,30 @@ required = true
 skip = false
 depends_on = []
 conflicts_with = []
+
+[[features]]
+id = "custom_hair"
+name = "自定义染发"
+bit = 65536
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "mae_picvary"
+name = "NPC侧边栏头像"
+bit = 131072
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "longer_combat"
+name = "更长的遭遇战"
+bit = 262144
+required = true
+skip = false
+depends_on = []
+conflicts_with = []

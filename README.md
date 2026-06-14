@@ -75,6 +75,9 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - ModI18N - 汉化支持
 - More Love Interests - 更多恋人
 - Custom Spellbook - 自定义魔法书
+- Custom Hair - 自定义染发
+- Mae's Picvary - NPC侧边栏头像
+- Longer Combat (Fixed) - 更长的遭遇战（非官方修复版）
 - maplebirch - 秋枫白桦框架
 - cheatExtended - 作弊扩展
 
@@ -91,12 +94,16 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 | 版本 | Build Code | 说明 |
 |------|------------|------|
-| 基础版 | 57600 | UCB 美化 + more_love + custom_spellbook + cheatExtended |
-| AU-F 版 | 58624 | 基础版 + AU Female + AU Face 扩展 |
-| AU-M 版 | 59648 | 基础版 + AU Male + AU Face 扩展 |
-| AU-A 版 | 61696 | 基础版 + AU Androgynous + AU Face 扩展 |
+| 基础版 | 516352 | UCB 美化 + 完整 Mod 集合 |
+| AU-F 版 | 517376 | 基础版 + AU Female + AU Face 扩展 |
+| AU-M 版 | 518400 | 基础版 + AU Male + AU Face 扩展 |
+| AU-A 版 | 520448 | 基础版 + AU Androgynous + AU Face 扩展 |
 
-> **注意**：Build Code 已于 2026-06-13 修复，移除了错误的 BESC bit。详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md)。
+> **⚠️ 重要更新（2026-06-15）**：
+> - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、longer_combat）
+> - **版本兼容性警告**：Custom Hair Mod 仅支持 DoL v0.5.2.7 - v0.5.2.10，升级游戏版本前请查阅 [已知问题文档](docs/KNOWN_ISSUES.md)
+> - Longer Combat 使用非官方修复版，已验证与 maplebirch 框架兼容
+> - 详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md) 和 [已知问题文档](docs/KNOWN_ISSUES.md)
 
 ## 版本说明
 
