@@ -162,6 +162,39 @@ Upstream also does not recommend BESC+UCB (code=259).
 
 ---
 
+## Recent Fixes
+
+### 2026-06-15: maplebirch Framework Downgrade (v4.1.7 → v3.1.13)
+
+**Problem**:
+- maplebirchExpansion v1.2.4 incompatible with maplebirch v4.1.7
+- Error: `R.use is not a function` in `dist/maplebirch.js`
+- Game settings interface broken, expansion features unavailable
+
+**Root Cause**:
+- maplebirch v4.1.7 (2026-06-14) removed/changed `R.use` API
+- maplebirchExpansion v1.2.4 (2026-03-11) still uses old API
+- Expansion released before framework v4.x breaking changes
+
+**Solution**:
+- Downgraded maplebirch to v3.1.13 (last stable v3.x)
+- Updated [`config/build.toml`](config/build.toml): changed release_tag and download_url
+- Updated [`config/mods.lock.json`](config/mods.lock.json): documented downgrade reason
+- v3.1.13 confirmed compatible with expansion v1.2.4
+
+**Trade-offs**:
+- Lost v4.1.7 features: time travel UI optimization, NPC transformation improvements
+- Kept expansion features: longer combat, music player, tattoos, sanity/spirituality attributes
+- **Will upgrade to v4.x when maplebirchExpansion v1.2.5+ is released with compatibility**
+
+**AU Face Expansion "Duplicate Loading"**:
+- NOT a bug - normal ModLoader encrypted mod workflow
+- v1.1.0 (Local) = encrypted container → decrypts to v1.2.8 (SideLoadLazy)
+- Game only uses v1.2.8 (decrypted version)
+- Mod Manager shows both for transparency (decryption process)
+
+---
+
 ## Testing Instructions
 
 ### Before Committing
