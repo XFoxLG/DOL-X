@@ -11,10 +11,27 @@
       "last_tested_version": "v4.1.7",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-15",
       "notes": [
         "升级自 v3.1.13",
         "新特性: 时间旅行作弊、NPC转化优化、存档系统优化",
-        "已知问题: maplebirchExpansion LongerCombat Bug (Issue #1)"
+        "本地构建验证通过 (Build Code 516352)",
+        "已集成到基础版本构建"
+      ]
+    },
+    "custom_hair": {
+      "name": "自定义染发",
+      "github_repo": "HiddenCirno/DoL-CustomHair",
+      "asset_pattern": "CustomHair.zip",
+      "release_tag": "CustomHair",
+      "last_tested_version": "CustomHair",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-15",
+      "notes": [
+        "下载链接已修复 (CustomHair-1.0 → CustomHair)",
+        "兼容性: DoL v0.5.2.7 - v0.5.2.10",
+        "本地构建验证通过"
       ]
     },
     "cheat_extended": {

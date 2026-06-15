@@ -186,9 +186,9 @@ name = "自定义染发"
 enabled = true
 feature_id = "custom_hair"
 github_repo = "HiddenCirno/DoL-CustomHair"
-asset_pattern = "*.mod.zip"
-release_tag = "CustomHair-1.0"
-download_url = "https://github.com/HiddenCirno/DoL-CustomHair/releases/download/CustomHair-1.0/CustomHair-1.0.mod.zip"
+asset_pattern = "*.zip"
+release_tag = "CustomHair"
+download_url = "https://github.com/HiddenCirno/DoL-CustomHair/releases/download/CustomHair/CustomHair.zip"
 
 [[modloader_mods]]
 key = "mae_picvary"
@@ -196,9 +196,9 @@ name = "NPC侧边栏头像"
 enabled = true
 feature_id = "mae_picvary"
 github_repo = "Maenoko/Mae-s-Picvary-NPC-mod"
-asset_pattern = "*.mod.zip"
-release_tag = "1.3.2"
-download_url = "https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/releases/download/1.3.2/Meas.Picvary.NPC.all.mod.1.3.2.mod.zip"
+asset_pattern = "*.zip"
+release_tag = "DOL"
+download_url = "https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/releases/download/DOL/Mea.s.Picvary.NPC.all.mod.1.3.2.zip"
 
 [[modloader_mods]]
 key = "longer_combat"
