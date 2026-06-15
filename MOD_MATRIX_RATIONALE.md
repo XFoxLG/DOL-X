@@ -1,6 +1,6 @@
 # DOL-X Mod 矩阵决策说明
 
-**最后更新**: 2026-06-13  
+**最后更新**: 2026-06-15  
 **版本**: v1.0
 
 ---
@@ -22,15 +22,15 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 516352 | UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 基础版，完整 Mod 集合 |
-| 517376 | AU-F + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 女性体型 + 完整 Mod |
-| 518400 | AU-M + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 男性体型 + 完整 Mod |
-| 520448 | AU-A + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat | 中性体型 + 完整 Mod |
+| 516352 | UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 基础版，完整 Mod 集合 |
+| 517376 | AU-F + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 女性体型 + 完整 Mod |
+| 518400 | AU-M + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 男性体型 + 完整 Mod |
+| 520448 | AU-A + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 中性体型 + 完整 Mod |
 
 ### Feature Bits 分解
 
 ```
-516352 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (longer_combat)
+516352 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
 517376 = 516352 + 1024 (AU-F)
 518400 = 516352 + 2048 (AU-M)
 520448 = 516352 + 4096 (AU-A)
@@ -68,7 +68,7 @@
 | 推荐基础美化 | BESC | UCB |
 | AU 组合 | AU（单独） | AU+UCB |
 | BESC 使用 | 推荐使用 | **不使用（skip=true）** |
-| 额外 Mod | cheat + CSD | more_love + custom_spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + longer_combat |
+| 额外 Mod | cheat + CSD | more_love + custom_spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion |
 
 ---
 
@@ -171,19 +171,60 @@
 - **注意**: 只有 main 分支，模组列表中提到的 "DOL 分支" 可能已合并
 - **决策**: 增强 UI 体验，不影响游戏机制
 
-### 为什么添加 LongerCombat Fixed（更长的遭遇战修复版）？
+### 为什么使用 maplebirchExpansion 而非独立 LongerCombat？
 
-**添加时间**: 2026-06-15
+**替换时间**: 2026-06-15  
+**原 Mod**: LongerCombat Fixed (ReFix V2.4 by 隨風飄逸)  
+**新 Mod**: maplebirchExpansion v1.2.4 (官方框架扩展)
 
-- **功能**: 延长战斗时长，支持中途射精和多人战个别射精
-- **来源**: https://github.com/emicoto/DOLMods （原版）
-- **修复版**: https://github.com/emicoto/DOLMods/issues/35 （非官方修复）
-- **作者链**: 狐千月（原作者）→ a1066160186（非官方修复）→ 隨風飄逸（ReFix）
-- **框架支持**: 实际代码支持 maplebirch（在 registLC.js 中明确检测）
-- **重要发现**: boot.json 依赖列表只提到 Simple Frameworks，但这是旧的/未更新的。实际代码使用运行时检测，同时支持 Simple Frameworks 和 maplebirch
-- **兼容性**: 依赖 maplebirch 框架（DOL-X 已有），与现有 mod 无冲突
-- **类型**: ModLoader mod，作为必选包含在所有构建中
-- **决策**: 代码优先原则 - 当 boot.json 与实际代码不一致时，以代码为准
+**替换原因**：
+
+1. **版本冲突问题**
+   - 独立 LongerCombat mod 的 `boot.json` 声明依赖 Simple Frameworks v2.0.5
+   - DOL-X 使用 maplebirch v4.1.7，导致依赖检查失败
+   - 运行时出现 `setup is not defined` 等致命错误
+
+2. **官方集成**
+   - maplebirchExpansion 是 maplebirch 框架的官方扩展包
+   - 由框架作者 MaplebirchLeaf 维护，兼容性有保障
+   - v1.2.4 更新日志明确提到"删除更长遭遇战的中途射精功能"、"优化更长遭遇战衔接文本"
+   - 说明该扩展包**已内置更长遭遇战功能**
+
+3. **功能更丰富**
+   - 除了更长遭遇战，还包含：
+     - 作弊集（额外的作弊功能）
+     - 音乐播放器
+     - 定制纹身系统
+     - 核心属性扩展：理智、灵性
+     - 新增恐惧/侵蚀状态
+     - 6级等级属性提升至7级
+     - 日食新月触发规则
+   
+4. **完美兼容**
+   - 专为 maplebirch v4.x 设计
+   - 不会出现框架版本检查失败
+   - 无需非官方修复补丁
+
+5. **长期维护**
+   - 官方扩展包持续更新（最新版 2026-03-11）
+   - 与框架同步更新，兼容性有保障
+   - 独立 LongerCombat 原作者已停更
+
+**技术对比**：
+
+| 对比项 | LongerCombat Fixed | maplebirchExpansion |
+|--------|-------------------|---------------------|
+| 维护状态 | 非官方修复，原作者停更 | 官方维护，持续更新 |
+| 框架兼容 | boot.json 依赖冲突 | 原生兼容 v4.x |
+| 功能范围 | 仅遭遇战延长 | 遭遇战+作弊+音乐+纹身+属性 |
+| 安装方式 | GitHub Issue 附件 | GitHub Release |
+| 版本管理 | 无版本号追踪 | 有明确版本标签 |
+
+**决策**：使用 maplebirchExpansion 代替独立的 LongerCombat，bit 262144 保持不变。
+
+**来源**：
+- 官方仓库: https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion
+- Release: https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/tag/release-v1.2.4
 
 ### 为什么不添加旧版作弊扩展（HSSkyBoy）？
 
@@ -278,7 +319,7 @@ DOL-X 的 Mod 矩阵设计遵循以下原则：
 1. **最小化冲突**：移除会被后续 mod 覆盖的内容（如 BESC）
 2. **保持简洁**：只包含必需的 mod，避免冗余
 3. **上游友好**：核心构建系统保持兼容，Mod 选择在自治范围内
-4. **代码优先**：当 boot.json 与实际代码不一致时，以代码为准（如 LongerCombat）
+4. **官方优先**：优先选择官方维护的版本（如 maplebirchExpansion）
 5. **功能完整**：优先选择功能更强、维护更活跃的版本（如新版作弊扩展）
 
 ---

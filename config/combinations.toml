@@ -1,17 +1,17 @@
 # MOD 组合配置
 
-# DOL-X 自用构建列表：UCB + more-love + custom-spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + longer_combat
+# DOL-X 自用构建列表：UCB + more-love + custom-spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
 # 策略说明：
 #   - 与上游差异：上游推荐 BESC（单独）或 AU（单独），DOL-X 使用 UCB+AU 组合
 #   - 原因：UCB 提供战斗美化，与 AU 体型美化不冲突，且覆盖范围互补
 #   - 参考：上游也提供 UCB+AU 组合（非推荐但可用）
 #
 # 移除 BESC (bit 1)，使用 UCB (bit 256) 作为基础美化。
-# 计算：256 (ucb) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (longer_combat) = 516352
+# 计算：256 (ucb) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) = 516352
 # AU 变体：+ 1024 (au-f) = 517376, + 2048 (au-m) = 518400, + 4096 (au-a) = 520448
 build_codes = ["516352", "517376", "518400", "520448"]
 
-# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat
+# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion
 base_code = 516352
 
 # 推荐的组合（优先显示）
