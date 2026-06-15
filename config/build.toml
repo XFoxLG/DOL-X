@@ -201,16 +201,17 @@ release_tag = "DOL"
 download_url = "https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/releases/download/DOL/Mea.s.Picvary.NPC.all.mod.1.3.2.zip"
 
 [[modloader_mods]]
-key = "longer_combat"
-name = "更长的遭遇战"
+key = "maplebirch_expansion"
+name = "maplebirch扩展包"
 enabled = true
-feature_id = "longer_combat"
-github_repo = "emicoto/DOLMods"
-asset_pattern = "LongerCombat*.mod.zip"
-# 使用非官方修复版 (ReFix V2.4 by 隨風飄逸)
-# 原作者: 狐千月, 非官方修复: a1066160186
-# 支持 maplebirch 框架 (verified in registLC.js)
-download_url = "https://github.com/user-attachments/files/21724488/LongerCombat.ver1.2.0.build_1_Fixed_Unofficial_V2.zip"
+feature_id = "maplebirch_expansion"
+github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchExpansion"
+asset_pattern = "maplebirchEx-v*.zip"
+release_tag = "release-v1.2.4"
+# maplebirch 官方扩展包，内置更长遭遇战功能
+# 额外功能：作弊集、音乐播放器、定制纹身、核心属性扩展等
+# 完美兼容 maplebirch v4.x 框架
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/download/release-v1.2.4/maplebirchEx-v1.2.4.zip"
 
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
