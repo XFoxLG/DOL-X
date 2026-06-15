@@ -6,17 +6,17 @@
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "asset_pattern": "maplebirch-0.5.8.10-v4.1.7.mod.zip",
-      "release_tag": "maplebirch-release-v4.1.7",
-      "last_tested_version": "v4.1.7",
+      "asset_pattern": "maplebirch-0.5.8.10-v3.1.13.mod.zip",
+      "release_tag": "maplebirch-release-v3.1.13",
+      "last_tested_version": "v3.1.13",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-15",
       "notes": [
-        "升级自 v3.1.13",
-        "新特性: 时间旅行作弊、NPC转化优化、存档系统优化",
-        "本地构建验证通过 (Build Code 516352)",
-        "已集成到基础版本构建"
+        "降级自 v4.1.7 以兼容 maplebirchExpansion v1.2.4",
+        "v4.1.7 移除/变更了 R.use API，导致扩展包无法加载",
+        "v3.1.13 是已验证的稳定版本，与扩展包完美兼容",
+        "待 maplebirchExpansion 更新支持 v4.x 后再升级"
       ]
     },
     "maplebirch_expansion": {
