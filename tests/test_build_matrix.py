@@ -6,7 +6,7 @@ Phase 1: 构建矩阵配置测试
 - polyfill 已关闭
 - 基础版 (516352) 不注入 AU 扩展
 - AU 三版本 (517376/518400/520448) 注入 AU 扩展
-- 所有版本都包含 more_love、custom_spellbook、cheatExtended+maplebirch、custom_hair、mae_picvary、longer_combat
+- 所有版本都包含 more_love、custom_spellbook、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion
 - 没有在线版相关配置
 """
 import pytest
@@ -52,7 +52,7 @@ class TestBuildMatrix:
         )
 
     def test_base_code_is_516352(self):
-        """验证稳定基础版代码为 516352（UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + longer_combat，无 BESC）"""
+        """验证稳定基础版代码为 516352（UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion，无 BESC）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
@@ -257,7 +257,7 @@ class TestBuildMatrix:
             "custom_spellbook",
             "custom_hair",
             "mae_picvary",
-            "longer_combat",
+            "maplebirch_expansion",
         ]
         for feature_id in required_features:
             feature = config_loader.get_feature_by_id(feature_id)
