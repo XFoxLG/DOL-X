@@ -168,10 +168,10 @@ depends_on = []
 conflicts_with = []
 
 [[features]]
-id = "longer_combat"
-name = "更长的遭遇战"
+id = "maplebirch_expansion"
+name = "maplebirch扩展包"
 bit = 262144
 required = true
 skip = false
-depends_on = []
+depends_on = ["cheat_extended_maplebirch"]  # 依赖 maplebirch 框架
 conflicts_with = []
