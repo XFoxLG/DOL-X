@@ -177,8 +177,8 @@ enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
-release_tag = "V1.18(Dev20260325)"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.18%28Dev20260325%29/cheat_extended.mod.zip"
+release_tag = "V1.19"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.19/cheat_extended.mod.zip"
 
 [[modloader_mods]]
 key = "custom_hair"
