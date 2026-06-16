@@ -6,17 +6,16 @@
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "asset_pattern": "maplebirch-0.5.8.10-v4.1.7.mod.zip",
-      "release_tag": "maplebirch-release-v4.1.7",
-      "last_tested_version": "v4.1.7",
+      "asset_pattern": "maplebirch-0.5.8.10-v3.1.14.mod.zip",
+      "release_tag": "maplebirch-release-v3.1.14",
+      "last_tested_version": "v3.1.14",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-16",
       "notes": [
-        "升级到v4.1.7以满足Cheat Extended v1.19要求（>=3.2.5）",
-        "v3.2.x系列不存在（v3.1.14直接跳到v4.0.2）",
-        "⚠️ 已知不兼容：maplebirchExpansion v1.2.4（R.use API问题）",
-        "移除expansion以完成升级，等待expansion更新支持v4.x"
+        "降级到 v3.1.14 以支持 maplebirchExpansion v1.2.4",
+        "v4.1.7 的 R.use API 变更导致 expansion 不兼容",
+        "等待 expansion 发布 v4.x 兼容版本后再升级"
       ]
     },
     "maplebirch_expansion": {
@@ -27,12 +26,13 @@
       "last_tested_version": "v1.2.4",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-15",
+      "last_tested_date": "2026-06-16",
       "notes": [
-        "⚠️ 临时禁用：不兼容maplebirch v4.1.7（R.use API已变更）",
-        "从build matrix移除（262144 bit）",
-        "等待上游更新或自行Fork修复R.use API调用",
-        "丢失功能：更长遭遇战、音乐播放器、定制纹身、理智/灵性属性"
+        "与 maplebirch v3.1.14 完全兼容",
+        "提供：音乐播放器、理智/灵性属性、更长遭遇战、定制纹身",
+        "已知 Bug：LongerCombat 倍率计算错误（见 GitHub Issue #1）",
+        "不兼容 maplebirch v4.x（R.use API 变更）",
+        "等待作者发布 v4.x 兼容版本"
       ]
     },
     "custom_hair": {
@@ -54,13 +54,15 @@
       "name": "Cheat Extended",
       "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
       "asset_pattern": "cheat_extended.mod.zip",
-      "release_tag": "V1.19",
-      "last_tested_version": "v1.19",
+      "release_tag": "V1.18(Dev20260325)",
+      "last_tested_version": "v1.18",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-16",
       "notes": [
-        "依赖 maplebirch >=3.1.0",
-        "已验证兼容 v4.1.7"
+        "降级到 v1.18 以兼容 maplebirch v3.1.14",
+        "v1.19 要求 maplebirch ≥3.2.5（实际需要 v4.x）",
+        "v1.18 核心功能完整，缺失 v1.19 新增：农场助手、成就解锁器、战斗技能"
       ]
     },
     "mae_picvary": {
