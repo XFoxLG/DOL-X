@@ -54,15 +54,15 @@
       "name": "Cheat Extended",
       "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
       "asset_pattern": "cheat_extended.mod.zip",
-      "release_tag": "V1.18(Dev20260325)",
-      "last_tested_version": "v1.18",
+      "release_tag": "V1.17(dev)",
+      "last_tested_version": "v1.17",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-16",
       "notes": [
-        "降级到 v1.18 以兼容 maplebirch v3.1.14",
+        "降级到 v1.17 以兼容 maplebirch v3.1.14（v1.18不存在）",
         "v1.19 要求 maplebirch ≥3.2.5（实际需要 v4.x）",
-        "v1.18 核心功能完整，缺失 v1.19 新增：农场助手、成就解锁器、战斗技能"
+        "v1.17 核心功能完整，缺失 v1.19 新增：农场助手、成就解锁器、战斗技能"
       ]
     },
     "mae_picvary": {
