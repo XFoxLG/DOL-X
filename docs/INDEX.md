@@ -8,6 +8,7 @@
 
 - [README](../README.md) - 项目简介和快速开始
 - [QUICK_REFERENCE](../QUICK_REFERENCE.md) - 快速命令参考
+- [CHEAT_EXTENDED_FAQ](CHEAT_EXTENDED_FAQ.md) - Cheat Extended 使用常见问题
 
 ## 开发文档
 
