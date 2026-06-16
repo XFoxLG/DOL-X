@@ -166,9 +166,9 @@ name = "maplebirch"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchframework"
-asset_pattern = "maplebirch-0.5.8.10-v4.1.7.mod.zip"
-release_tag = "maplebirch-release-v4.1.7"
-download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.7/maplebirch-0.5.8.10-v4.1.7.mod.zip"
+asset_pattern = "maplebirch-0.5.8.10-v3.1.14.mod.zip"
+release_tag = "maplebirch-release-v3.1.14"
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v3.1.14/maplebirch-0.5.8.10-v3.1.14.mod.zip"
 
 [[modloader_mods]]
 key = "cheat_extended"
@@ -177,8 +177,8 @@ enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
-release_tag = "V1.19"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.19/cheat_extended.mod.zip"
+release_tag = "V1.18(Dev20260325)"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.18(Dev20260325)/cheat_extended.mod.zip"
 
 [[modloader_mods]]
 key = "custom_hair"
