@@ -107,6 +107,8 @@ BUILD_VERIFICATION_REPORT.md
 # CheatExtended 分析
 CHEATEXTENDED_*.md
 CHEAT_EXTENDED_*.md
+# 但允许 docs/ 下的用户文档
+!docs/CHEAT_EXTENDED_FAQ.md
 
 # 临时研究和分析文档
 *_RESEARCH.md

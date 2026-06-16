@@ -217,6 +217,51 @@ When maplebirchExpansion supports v4.x:
 - Document version constraints in `mods.lock.json` for future reference
 - Keep fallback versions when upstream deletes releases
 
+### Cheat Extended v1.17+ UI Design (2026-06-17 调研)
+
+**Context**: 用户反馈"点击侧边栏作弊扩展按钮没有弹出界面"
+
+**调研结论**: ✅ **这是v1.17+的正式设计特性，非bug**
+
+**UI架构变更** (v1.16及以前 → v1.17+):
+- **旧版设计** (推测): 集中式面板 - 点击按钮打开统一作弊设置界面
+- **新版设计** (v1.17+): 分散式原生集成 - 功能分布在多个入口
+
+**v1.17更新说明** (官方README):
+```
+嘗試重新設計側邊欄相關按鈕顯示方式，避免相關UI太過佔空間
+```
+
+**正确使用方式**:
+
+1. **侧边栏** (快捷功能触发器):
+   - 一键状态恢复 + PC高潮
+   - 言靈实时显示 (三代言靈系统)
+   - 空间节点传送 (孤儿院卧室、伊甸家、随身衣柜)
+
+2. **游戏选项菜单 (Options)** (主要设置入口):
+   - 属性控制面板
+   - 战斗设置 (伤害加倍/疼痛衰减)
+   - 时间控制
+   - 商业功能配置
+
+3. **场景内Widget** (情境功能):
+   - 孤儿院卧室 → 随身衣柜
+   - 战斗场景 → 敌人HP/AP显示
+   - 言靈编辑界面
+
+**设计理念**:
+- **原生集成**: 功能融入游戏原有UI，而非独立外挂面板
+- **情境触发**: 功能在需要的场景自动显示
+- **快捷优先**: 高频操作放在侧边栏一键触发
+
+**证据来源**:
+- 官方README (chris81605/Degrees-of-Lewdity_Cheat_Extended)
+- v1.17 Release Notes明确记载UI重构
+- 功能列表按"功能点"组织，无"打开主面板"说明
+
+**测试更新**: 见 `docs/MANUAL_TESTING_CHECKLIST.md` 更新的测试清单
+
 ### 2026-06-15: maplebirch Framework Downgrade (v4.1.7 → v3.1.13)
 
 **Problem**:
