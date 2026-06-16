@@ -6,17 +6,17 @@
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "asset_pattern": "maplebirch-0.5.8.10-v3.1.13.mod.zip",
-      "release_tag": "maplebirch-release-v3.1.13",
-      "last_tested_version": "v3.1.13",
+      "asset_pattern": "maplebirch-0.5.8.10-v4.1.7.mod.zip",
+      "release_tag": "maplebirch-release-v4.1.7",
+      "last_tested_version": "v4.1.7",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-15",
+      "last_tested_date": "2026-06-16",
       "notes": [
-        "降级自 v4.1.7 以兼容 maplebirchExpansion v1.2.4",
-        "v4.1.7 移除/变更了 R.use API，导致扩展包无法加载",
-        "v3.1.13 是已验证的稳定版本，与扩展包完美兼容",
-        "待 maplebirchExpansion 更新支持 v4.x 后再升级"
+        "升级到v4.1.7以满足Cheat Extended v1.19要求（>=3.2.5）",
+        "v3.2.x系列不存在（v3.1.14直接跳到v4.0.2）",
+        "⚠️ 已知不兼容：maplebirchExpansion v1.2.4（R.use API问题）",
+        "移除expansion以完成升级，等待expansion更新支持v4.x"
       ]
     },
     "maplebirch_expansion": {
@@ -29,10 +29,10 @@
       "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-15",
       "notes": [
-        "官方框架扩展包，依赖 maplebirch v4.x",
-        "内置功能: 更长遭遇战、作弊集、音乐播放器、定制纹身",
-        "核心属性扩展: 理智、灵性，新增恐惧/侵蚀状态",
-        "替代独立的 LongerCombat mod（避免版本冲突）"
+        "⚠️ 临时禁用：不兼容maplebirch v4.1.7（R.use API已变更）",
+        "从build matrix移除（262144 bit）",
+        "等待上游更新或自行Fork修复R.use API调用",
+        "丢失功能：更长遭遇战、音乐播放器、定制纹身、理智/灵性属性"
       ]
     },
     "custom_hair": {
