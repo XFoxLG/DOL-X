@@ -132,9 +132,15 @@ github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUandrogynous.model"
 release_tag = "mod"
 
+# DOL-X specific: Temporarily disabled due to image positioning issues
+# Root cause: maplebirch v3.1.14 lacks v4.1.7's basehead.png path fix
+# Will re-enable after upgrading to maplebirch v4.x (when expansion v1.2.5+ released)
+# See: AGENTS.md § Recent Fixes § 2026-06-17 AU Face Mitigation
+# DO NOT remove this during upstream sync
 [[modloader_mods]]
 key = "au_face"
 name = "AU面部扩展"
+enabled = false  # Temporary mitigation
 feature_ids = ["au-f", "au-m", "au-a"]
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUsDoL.facial.expansion.mod.zip"
