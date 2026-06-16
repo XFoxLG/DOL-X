@@ -344,39 +344,39 @@ git push origin vega
 
 ### Local Build Limitations
 
-**DO NOT** run full builds locally. Local environment lacks:
-- Java (APK signing)
-- unrar (imagepack extraction)
-- Stable network (large downloads)
+**CRITICAL: DO NOT attempt full builds locally**
 
-**Local Environment**:
-- **OS**: Windows 10 (No WSL, No Linux subsystem)
-- **Shell**: Git Bash (default for automation, configured in `.vscode/settings.json`)
-- **Python**: 3.12+ (for tests and utilities only)
-- **Build Target**: GitHub Actions (all production builds)
+Local environment (Windows 10, no WSL) lacks:
+- Java runtime (APK signing)
+- unrar binary (imagepack extraction)
+- Stable network (large mod downloads timeout)
 
-**What CAN be done locally**:
-```bash
-# Run tests
-python -m pytest tests/ -v
-
-# Check mod URLs
-curl -I <download_url>
-
-# Git operations
-git status
-git diff
-gh run list
-
-# Python utilities
-python main.py matrix  # List build combinations
+**Build Pipeline**:
+```mermaid
+graph LR
+    Local[Local Dev<br/>Windows 10] -->|pytest only| Tests[Unit Tests]
+    Local -->|git push| GitHub[GitHub Actions]
+    GitHub -->|Ubuntu runner| Build[Full Build]
+    Build -->|artifacts| Download[ZIP/APK Downloads]
+    
+    style Local fill:#f9f,stroke:#333
+    style GitHub fill:#0969da,stroke:#333,color:#fff
+    style Build fill:#2da44e,stroke:#333,color:#fff
 ```
 
-**What CANNOT be done locally**:
-- Full builds (missing Java, unrar)
-- APK signing (requires Java + keystore)
-- Imagepack extraction (requires unrar)
-- Large file downloads (network instability)
+**Local capabilities** (✅):
+- `pytest tests/ -v` (unit/config tests)
+- `curl -I <url>` (verify mod URLs)
+- `python main.py matrix` (list combinations)
+- Git operations (`status`, `diff`, `gh run list`)
+
+**Must use GitHub Actions** (❌):
+- Full builds (`python main.py build --codes <code>`)
+- APK signing
+- Imagepack extraction
+- Production artifact generation
+
+**Automation Shell**: Git Bash only (PowerShell 5.1 has AMSI crashes)
 
 ### Cursor Agent Shell Environment
 
@@ -390,6 +390,58 @@ If Shell commands fail with `AccessViolationException`:
 - Cursor Agent Shell tool used PowerShell 5.1 by default (now fixed)
 - AMSI (Anti-Malware Scan Interface) crashes on complex scripts
 - **Solution**: Now using Git Bash for all automation
+
+---
+
+## Recent Fixes (2026-06-17)
+
+### AU Face Temporary Mitigation
+
+**Problem**:
+- AU Face expansion shows misaligned hair/face on sidebar
+- Root cause: maplebirch v3.1.14 lacks v4.1.7's `basehead.png` path fix
+- Only affects sidebar rendering; body images work correctly
+
+**Decision**:
+- Temporarily disable AU Face (`config/build.toml`: `enabled = false`)
+- AU beauty imagepacks (body models) remain functional
+- Face images fallback to default/UCB variants
+
+**Impact**:
+- AU body types (female/male/androgynous) work normally
+- Facial detail enhancements unavailable
+- No runtime errors or gameplay impact
+
+**Future Resolution**:
+- Wait for maplebirchExpansion v1.2.5+ (v4.x compatible)
+- Upgrade path: maplebirch v4.1.7 + cheat v1.19 + expansion v1.2.5
+- Re-enable AU Face after framework upgrade
+
+**Related**:
+- See: `.local/framework_upgrade_analysis.md`
+- See: `.local/cheat_extended_v118_investigation.md`
+- Upstream fix: maplebirch v4.1.7 (2026-06-14)
+
+### Cheat Extended v1.18 Manual Build
+
+**Background**:
+- Official v1.18 release deleted by author
+- v1.19 requires maplebirch v4.x (incompatible with current v3.1.14)
+- Git tag `V1.18(Dev20260325)` still exists
+
+**Investigation Results**:
+- ✅ v1.18 has NO maplebirch dependency
+- ✅ Compatible with v3.1.14
+- ✅ Successfully built from source (121 KB)
+- ⚠️ Requires manual maintenance (no official release)
+
+**Decision**: Keep v1.17 for stability
+- v1.17 has official release (easier maintenance)
+- v1.18 offers minimal improvements over v1.17
+- Both lack v1.19's new features (farm helper, achievement unlocker)
+- Will upgrade to v1.19 when framework reaches v4.x
+
+**Build artifact**: `workspace/cheat_extended-1.18-dev20260325.mod.zip` (available for future use)
 
 ---
 
@@ -448,6 +500,50 @@ jobs:
 - 58624 (原 58625): AU-F + UCB + more_love + spellbook + cheat
 - 59648 (原 59649): AU-M + UCB + more_love + spellbook + cheat
 - 61696 (原 61697): AU-A + UCB + more_love + spellbook + cheat
+
+---
+
+## Documentation Maintenance Strategy
+
+### When to Update AGENTS.md
+
+**Immediate update** (same commit):
+- New mod added/removed
+- Build configuration changed
+- Environment constraints changed
+- Security policy changed
+
+**Next-day update** (follow-up commit):
+- Detailed investigation results (link to `.local/` reports)
+- Complex troubleshooting outcomes
+- Performance optimization findings
+
+### Decision Record Retention
+
+**Keep permanently** (in `## Recent Fixes`):
+- Breaking changes and mitigations
+- Version compatibility decisions
+- Security-related fixes
+- Upstream sync conflicts
+
+**Archive after resolution** (move to `.local/historical/`):
+- Temporary workarounds (after permanent fix applied)
+- Experimental investigations (after decision made)
+- Detailed analysis docs (after executive summary added to AGENTS.md)
+
+### Upstream Sync Documentation Consistency
+
+**Single source of truth**: `UPSTREAM_SYNC_CHECKLIST.md`
+
+**Other docs must reference** (not duplicate):
+- `AGENTS.md` → link to checklist
+- `docs/UPSTREAM_SYNC_GUIDE.md` → detailed procedures
+- `.github/workflows/*.yaml` → automation implementation
+
+**During sync**:
+1. Check checklist for DO NOT items
+2. Re-verify docs mention DOL-X as current project
+3. Preserve `XFox` identity in configs
 
 ---
 
