@@ -164,6 +164,59 @@ Upstream also does not recommend BESC+UCB (code=259).
 
 ## Recent Fixes
 
+### 2026-06-16: Stable Configuration (maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
+
+**Problem**:
+- maplebirchExpansion v1.2.4 incompatible with maplebirch v4.x (R.use API breaking change)
+- Cheat Extended v1.19 requires maplebirch ≥3.2.5 (but v3.2.x doesn't exist, needs v4.x)
+- Cheat Extended v1.18 release deleted by author (only tag remains)
+- Need stable configuration with all features working
+
+**Investigation**:
+- Checked cheat extended Git history: v1.18 tags exist but releases deleted
+- v1.18(Dev20260325) and v1.18(Dev) tags point to commit 22faf42 (2026-02-07)
+- Author removed v1.18 releases when publishing v1.19
+- v1.17(dev) release still available and stable
+
+**Solution (Stable Downgrade Path)**:
+1. **maplebirch**: v4.1.7 → v3.1.14
+   - v3.1.14 is latest v3.x, supports maplebirchExpansion v1.2.4
+   - Maintains all core framework features
+   
+2. **cheat extended**: v1.19 → v1.17
+   - v1.17 is last stable release with maplebirch v3.x compatibility
+   - Core features intact (NPC control, time control, stat editing)
+   - Missing v1.19 additions: farm helper, achievement unlocker, combat skills
+   
+3. **maplebirchExpansion**: v1.2.4 (enabled)
+   - Provides: music player, sanity/spirituality attributes, longer combat, custom tattoos
+   - Fully compatible with maplebirch v3.1.14
+
+**Build Configuration**:
+- Updated `config/build.toml`: maplebirch v3.1.14, cheat v1.17
+- Updated `config/combinations.toml`: restore 262144 bit (maplebirch_expansion)
+- Build codes: 516352 (base), 517376 (AU-F), 518400 (AU-M), 520448 (AU-A)
+- GitHub Actions build: 27610025173 (SUCCESS, 3m31s)
+
+**Known Limitations**:
+- AU face expansion image positioning issue (needs v4.1.7 fix)
+- Cheat v1.19 features unavailable (farm helper, achievement unlocker)
+- Temporary until maplebirchExpansion releases v4.x compatible version
+
+**Future Upgrade Path**:
+When maplebirchExpansion supports v4.x:
+1. Upgrade maplebirch v3.1.14 → v4.1.7
+2. Upgrade cheat extended v1.17 → v1.19
+3. Update maplebirchExpansion to v4.x compatible version
+4. Fix AU face expansion positioning
+5. Unlock all v1.19 features
+
+**Lessons Learned**:
+- Always check if release exists, not just tags: `curl -I <download_url>`
+- Use `gh api repos/{owner}/{repo}/releases` to list available releases
+- Document version constraints in `mods.lock.json` for future reference
+- Keep fallback versions when upstream deletes releases
+
 ### 2026-06-15: maplebirch Framework Downgrade (v4.1.7 → v3.1.13)
 
 **Problem**:
@@ -251,10 +304,34 @@ git push origin vega
 - unrar (imagepack extraction)
 - Stable network (large downloads)
 
-**DO** run tests locally:
+**Local Environment**:
+- **OS**: Windows 10 (No WSL, No Linux subsystem)
+- **Shell**: Git Bash (default for automation, configured in `.vscode/settings.json`)
+- **Python**: 3.12+ (for tests and utilities only)
+- **Build Target**: GitHub Actions (all production builds)
+
+**What CAN be done locally**:
 ```bash
+# Run tests
 python -m pytest tests/ -v
+
+# Check mod URLs
+curl -I <download_url>
+
+# Git operations
+git status
+git diff
+gh run list
+
+# Python utilities
+python main.py matrix  # List build combinations
 ```
+
+**What CANNOT be done locally**:
+- Full builds (missing Java, unrar)
+- APK signing (requires Java + keystore)
+- Imagepack extraction (requires unrar)
+- Large file downloads (network instability)
 
 ### Cursor Agent Shell Environment
 
@@ -483,4 +560,4 @@ pytest tests/test_build_matrix.py -v
 
 ---
 
-**Last Updated**: 2026-06-15 (Mod 更新：maplebirchExpansion 代替 LongerCombat，Cheat Extended V1.19，Maplebirch v4.1.7)
+**Last Updated**: 2026-06-16 (稳定配置：maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
