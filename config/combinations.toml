@@ -1,21 +1,23 @@
 # MOD 组合配置
 
-# DOL-X 自用构建列表：UCB + more-love + custom-spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
+# DOL-X 自用构建列表（v4.1.7测试）：UCB + more-love + custom-spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary
+# ⚠️ 移除 maplebirch_expansion (bit 262144) - v1.2.4不兼容maplebirch v4.1.7（R.use API问题）
 # 策略说明：
-#   - 与上游差异：上游推荐 BESC（单独）或 AU（单独），DOL-X 使用 UCB+AU 组合
-#   - 原因：UCB 提供战斗美化，与 AU 体型美化不冲突，且覆盖范围互补
-#   - 参考：上游也提供 UCB+AU 组合（非推荐但可用）
+#   - 升级框架到v4.1.7以满足Cheat Extended v1.19要求（>=3.2.5，但v3.2.x不存在）
+#   - 牺牲expansion功能（更长遭遇战、音乐播放器、理智/灵性属性）换取Cheat功能
+#   - 待expansion更新支持v4.x后再恢复
 #
-# 移除 BESC (bit 1)，使用 UCB (bit 256) 作为基础美化。
-# 计算：256 (ucb) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) = 516352
-# AU 变体：+ 1024 (au-f) = 517376, + 2048 (au-m) = 518400, + 4096 (au-a) = 520448
-build_codes = ["516352", "517376", "518400", "520448"]
+# 计算（移除262144）：
+# 原: 516352 = 256 + 8192 + 16384 + 32768 + 65536 + 131072 + 262144
+# 新: 254208 = 256 + 8192 + 16384 + 32768 + 65536 + 131072
+# AU 变体：+ 1024 (au-f) = 255232, + 2048 (au-m) = 256256, + 4096 (au-a) = 258304
+build_codes = ["254208", "255232", "256256", "258304"]
 
-# 基础版显示名称对应的组合：UCB + more-love + custom-spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion
-base_code = 516352
+# 基础版显示名称对应的组合（无AU）
+base_code = 254208
 
 # 推荐的组合（优先显示）
-recommended = [517376, 518400, 520448]
+recommended = [255232, 256256, 258304]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。
