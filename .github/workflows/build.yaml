@@ -6,6 +6,7 @@ on:
       - vega
     tags:
       - "*"
+      - "!*-mirror-*"  # 忽略镜像 tags (imagepack-mirror-*, cheat-extended-mirror-*)
     paths-ignore:
       - "README.md"
       - "LICENSE"
