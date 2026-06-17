@@ -115,18 +115,21 @@ files_to_remove = [
 # 通过 feature_id / feature_ids 关联 features.toml 中的功能定义。
 # feature_ids 表示命中任意一个 feature 时注入，key 用作唯一缓存名。
 [[modloader_mods]]
+key = "au_f"
 feature_id = "au-f"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUfemale.model"
 release_tag = "mod"
 
 [[modloader_mods]]
+key = "au_m"
 feature_id = "au-m"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUmale.model"
 release_tag = "mod"
 
 [[modloader_mods]]
+key = "au_a"
 feature_id = "au-a"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUandrogynous.model"
@@ -157,16 +160,6 @@ release_tag = "More-Love-Interests-Mod-v0.1.6.0"
 download_url = "https://github.com/Nephthelana/DoL-More-Love-Interests-Mod/releases/download/More-Love-Interests-Mod-v0.1.6.0/More.Love.Interests.Mod.mod.zip"
 
 [[modloader_mods]]
-key = "custom_spellbook"
-name = "自定义魔法书"
-enabled = true
-feature_id = "custom_spellbook"
-github_repo = "ZeroRing233/DOL-Custom-Spellbook-Mod"
-asset_pattern = "Custom-Spellbook-1.0.0.mod.zip"
-release_tag = "1.0.0-alpha"
-download_url = "https://github.com/ZeroRing233/DOL-Custom-Spellbook-Mod/releases/download/1.0.0-alpha/Custom-Spellbook-1.0.0.mod.zip"
-
-[[modloader_mods]]
 key = "maplebirch"
 name = "maplebirch"
 enabled = true
@@ -184,7 +177,7 @@ feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
 release_tag = "V1.17(dev)"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.17(dev)/cheat_extended.mod.zip"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.17%28dev%29/cheat_extended.mod.zip"
 
 [[modloader_mods]]
 key = "custom_hair"
