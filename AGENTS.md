@@ -5,7 +5,7 @@ language: Python 3.12+
 build: GitHub Actions
 upstream: DoL-Lyra/Lyra
 status: Active Development
-updated: 2026-06-15
+updated: 2026-06-17
 ---
 
 # AGENTS.md
@@ -26,16 +26,39 @@ Context for AI coding agents working on DOL-X.
 ### What DOL-X Does
 
 Provides 4 build configurations (build_codes):
-- 57600: UCB + more_love + spellbook + cheat
-- 58624: AU-F + UCB + more_love + spellbook + cheat
-- 59648: AU-M + UCB + more_love + spellbook + cheat
-- 61696: AU-A + UCB + more_love + spellbook + cheat
+- 57600: UCB + more_love + spellbook + cheat + expansion
+- 58624: AU-F + UCB + more_love + spellbook + cheat + expansion
+- 59648: AU-M + UCB + more_love + spellbook + cheat + expansion
+- 61696: AU-A + UCB + more_love + spellbook + cheat + expansion
 
 ### What DOL-X Does NOT Do
 
 - Public releases (self-use only)
 - Reverse engineering of encrypted mods (use publicly available only)
 - Local full builds (delegate to GitHub Actions)
+
+### Environment Constraints
+
+**CRITICAL: DO NOT attempt full builds locally**
+
+Local environment (Windows 10, no WSL) lacks:
+- Java runtime (APK signing)
+- unrar binary (imagepack extraction)
+- Stable network (large mod downloads timeout)
+
+**Local capabilities** (✅):
+- `pytest tests/ -v` (unit/config tests)
+- `curl -I <url>` (verify mod URLs)
+- `python main.py matrix` (list combinations)
+- Git operations (`status`, `diff`, `gh run list`)
+
+**Must use GitHub Actions** (❌):
+- Full builds (`python main.py build --codes <code>`)
+- APK signing
+- Imagepack extraction
+- Production artifact generation
+
+**Automation Shell**: Git Bash only (PowerShell 5.1 has AMSI crashes)
 
 ---
 
@@ -66,40 +89,86 @@ Provides 4 build configurations (build_codes):
 
 ---
 
-## Build Commands
+## Critical Constraints
 
-### Test (run locally)
+### Mod Version Locks
+
+- **maplebirch**: v3.1.14 (NOT v4.x)
+  - Reason: maplebirchExpansion v1.2.4 incompatible with v4.x API
+  - Upgrade blocked until expansion v1.2.5+ released
+  - See: `.local/framework_upgrade_analysis.md`
+- **cheat extended**: v1.17 (NOT v1.19)
+  - Reason: v1.19 requires maplebirch v4.x (min v3.2.5, actual v4.x)
+  - v1.17 provides full yanling system functionality
+- **AU Face expansion**: disabled (skip=true)
+  - Reason: facial sprite positioning bug with maplebirch v3.1.14
+  - Fixed in maplebirch v4.1.7 (`basehead.png` path correction)
+  - Will re-enable after framework upgrade to v4.x
+  - AU body mods (AU-F/M/A) still active and working
+
+**History**: See `.local/framework_upgrade_analysis.md` for investigation details
+
+### Cheat Extended UI (v1.17+)
+
+**Entry points** (NOT a single "cheat panel"):
+1. **Sidebar**: Quick actions (restore stats, teleport, yanling display)
+2. **Options menu**: Main settings (attributes, combat, time control)
+3. **In-game widgets**: Context features (wardrobe, enemy HP/AP, yanling editor)
+
+**Yanling System Architecture**:
+- **Custom Yanling Set** (Options → Cheat Extended → "Yanling Set" tab):
+  - User-written SugarCube code (e.g., `<<set $money += 1000>>`)
+  - Stored in `$cccheat[]` array
+  - Auto-executes on every page refresh
+  
+- **Quick Yanling** (Options → Cheat Extended → "Quick Yanling" tab + sidebar display):
+  - Pre-written cheat functions (e.g., "infinite oxygen", "daily auto-recovery")
+  - One-click enable/disable, no coding required
+  - Presets: status recovery, pepper spray, transformation traits, etc.
+  
+- **Custom Spellbook mod** (separate mod):
+  - In-game "magic book" item customization
+  - NOT related to Yanling system (doesn't use `$cccheat[]`)
+  - Function: modifies game's "spellbook" item behavior
+
+**Test checklist**: See `docs/MANUAL_TESTING_CHECKLIST.md`
+
+---
+
+## Build & Test
+
+### Local Test
 
 ```bash
-# Run all tests
+# Before committing: Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
-python -m pytest tests/test_build_matrix.py -v
+# After editing config/build.toml: Verify mod URLs
+pytest tests/test_mod_config.py -v
 
-# Run specific test
-python -m pytest tests/test_build_matrix.py::TestBuildMatrix::test_all_versions_have_ucb -v
+# After editing config/combinations.toml: Verify build matrix
+pytest tests/test_build_matrix.py -v
 ```
 
-**Always run tests before committing.**
-
-### Build (run on GitHub Actions)
+### Pre-Commit Checklist
 
 ```bash
-# List available combinations
-python main.py matrix
+# 1. Run tests
+python -m pytest tests/ -v
 
-# Build specific codes (locally, if needed)
-python main.py build --codes 57600
+# 2. Check sensitive files
+git status | grep -E "(AU_FACE|au_analysis|*_ANALYSIS)"
 
-# Prepare environment
-python main.py prepare --tag v0.5.8.10
-
-# Warmup cache
-python main.py warmup
+# 3. Commit
+git add <files> && git commit -m "..." && git push origin vega
 ```
 
-**For production builds, push to GitHub and download artifacts from Actions.**
+### CI Build (GitHub Actions)
+
+```bash
+gh run list --limit 3
+gh run view <run-id> --log-failed
+```
 
 ---
 
@@ -162,543 +231,91 @@ Upstream also does not recommend BESC+UCB (code=259).
 
 ---
 
-## Recent Fixes
-
-### 2026-06-16: Stable Configuration (maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
-
-**Problem**:
-- maplebirchExpansion v1.2.4 incompatible with maplebirch v4.x (R.use API breaking change)
-- Cheat Extended v1.19 requires maplebirch ≥3.2.5 (but v3.2.x doesn't exist, needs v4.x)
-- Cheat Extended v1.18 release deleted by author (only tag remains)
-- Need stable configuration with all features working
-
-**Investigation**:
-- Checked cheat extended Git history: v1.18 tags exist but releases deleted
-- v1.18(Dev20260325) and v1.18(Dev) tags point to commit 22faf42 (2026-02-07)
-- Author removed v1.18 releases when publishing v1.19
-- v1.17(dev) release still available and stable
-
-**Solution (Stable Downgrade Path)**:
-1. **maplebirch**: v4.1.7 → v3.1.14
-   - v3.1.14 is latest v3.x, supports maplebirchExpansion v1.2.4
-   - Maintains all core framework features
-   
-2. **cheat extended**: v1.19 → v1.17
-   - v1.17 is last stable release with maplebirch v3.x compatibility
-   - Core features intact (NPC control, time control, stat editing)
-   - Missing v1.19 additions: farm helper, achievement unlocker, combat skills
-   
-3. **maplebirchExpansion**: v1.2.4 (enabled)
-   - Provides: music player, sanity/spirituality attributes, longer combat, custom tattoos
-   - Fully compatible with maplebirch v3.1.14
-
-**Build Configuration**:
-- Updated `config/build.toml`: maplebirch v3.1.14, cheat v1.17
-- Updated `config/combinations.toml`: restore 262144 bit (maplebirch_expansion)
-- Build codes: 516352 (base), 517376 (AU-F), 518400 (AU-M), 520448 (AU-A)
-- GitHub Actions build: 27610025173 (SUCCESS, 3m31s)
-
-**Known Limitations**:
-- AU face expansion image positioning issue (needs v4.1.7 fix)
-- Cheat v1.19 features unavailable (farm helper, achievement unlocker)
-- Temporary until maplebirchExpansion releases v4.x compatible version
-
-**Future Upgrade Path**:
-When maplebirchExpansion supports v4.x:
-1. Upgrade maplebirch v3.1.14 → v4.1.7
-2. Upgrade cheat extended v1.17 → v1.19
-3. Update maplebirchExpansion to v4.x compatible version
-4. Fix AU face expansion positioning
-5. Unlock all v1.19 features
-
-**Lessons Learned**:
-- Always check if release exists, not just tags: `curl -I <download_url>`
-- Use `gh api repos/{owner}/{repo}/releases` to list available releases
-- Document version constraints in `mods.lock.json` for future reference
-- Keep fallback versions when upstream deletes releases
-
-### Cheat Extended v1.17+ UI Design (2026-06-17 调研)
-
-**Context**: 用户反馈"点击侧边栏作弊扩展按钮没有弹出界面"
-
-**调研结论**: ✅ **这是v1.17+的正式设计特性，非bug**
-
-**UI架构变更** (v1.16及以前 → v1.17+):
-- **旧版设计** (推测): 集中式面板 - 点击按钮打开统一作弊设置界面
-- **新版设计** (v1.17+): 分散式原生集成 - 功能分布在多个入口
-
-**v1.17更新说明** (官方README):
-```
-嘗試重新設計側邊欄相關按鈕顯示方式，避免相關UI太過佔空間
-```
-
-**正确使用方式**:
-
-1. **侧边栏** (快捷功能触发器):
-   - 一键状态恢复 + PC高潮
-   - 言靈实时显示 (三代言靈系统)
-   - 空间节点传送 (孤儿院卧室、伊甸家、随身衣柜)
-
-2. **游戏选项菜单 (Options)** (主要设置入口):
-   - 属性控制面板
-   - 战斗设置 (伤害加倍/疼痛衰减)
-   - 时间控制
-   - 商业功能配置
-
-3. **场景内Widget** (情境功能):
-   - 孤儿院卧室 → 随身衣柜
-   - 战斗场景 → 敌人HP/AP显示
-   - 言靈编辑界面
-
-**设计理念**:
-- **原生集成**: 功能融入游戏原有UI，而非独立外挂面板
-- **情境触发**: 功能在需要的场景自动显示
-- **快捷优先**: 高频操作放在侧边栏一键触发
-
-**证据来源**:
-- 官方README (chris81605/Degrees-of-Lewdity_Cheat_Extended)
-- v1.17 Release Notes明确记载UI重构
-- 功能列表按"功能点"组织，无"打开主面板"说明
-
-**测试更新**: 见 `docs/MANUAL_TESTING_CHECKLIST.md` 更新的测试清单
-
-### 2026-06-15: maplebirch Framework Downgrade (v4.1.7 → v3.1.13)
-
-**Problem**:
-- maplebirchExpansion v1.2.4 incompatible with maplebirch v4.1.7
-- Error: `R.use is not a function` in `dist/maplebirch.js`
-- Game settings interface broken, expansion features unavailable
-
-**Root Cause**:
-- maplebirch v4.1.7 (2026-06-14) removed/changed `R.use` API
-- maplebirchExpansion v1.2.4 (2026-03-11) still uses old API
-- Expansion released before framework v4.x breaking changes
-
-**Solution**:
-- Downgraded maplebirch to v3.1.13 (last stable v3.x)
-- Updated [`config/build.toml`](config/build.toml): changed release_tag and download_url
-- Updated [`config/mods.lock.json`](config/mods.lock.json): documented downgrade reason
-- v3.1.13 confirmed compatible with expansion v1.2.4
-
-**Trade-offs**:
-- Lost v4.1.7 features: time travel UI optimization, NPC transformation improvements
-- Kept expansion features: longer combat, music player, tattoos, sanity/spirituality attributes
-- **Will upgrade to v4.x when maplebirchExpansion v1.2.5+ is released with compatibility**
-
-**AU Face Expansion "Duplicate Loading"**:
-- NOT a bug - normal ModLoader encrypted mod workflow
-- v1.1.0 (Local) = encrypted container → decrypts to v1.2.8 (SideLoadLazy)
-- Game only uses v1.2.8 (decrypted version)
-- Mod Manager shows both for transparency (decryption process)
-
----
-
-## Testing Instructions
-
-### Before Committing
-
-```bash
-# 1. Run tests
-python -m pytest tests/ -v
-
-# 2. Check for untracked sensitive files
-git status | grep -E "(AU_FACE|au_analysis|*_ANALYSIS)"
-
-# 3. Stage changes
-git add <files>
-
-# 4. Commit
-git commit -m "..."
-
-# 5. Push
-git push origin vega
-```
-
-### After GitHub Actions Build
-
-1. Visit https://github.com/XFoxLG/DOL-X/actions
-2. Download artifacts from latest run
-3. Test locally if needed
-
----
-
 ## Security & Sensitive Information
 
-### Never Upload
+### ❌ Never Commit
 
-- Reverse engineering docs (e.g., `AU_FACE_DEPENDENCY_ANALYSIS_FINAL.md`)
-- Runtime analysis (e.g., `au_analysis_result.json`)
-- Credentials, keys, personal info
+- `AU_FACE_DEPENDENCY_ANALYSIS*.md` (reverse engineering)
+- `au_analysis_result.json` (runtime analysis)
+- `.env`, `credentials.json` (secrets)
 
-### Safe to Include
+### ✅ Safe to Commit
 
-- Public mod download links (GitHub Releases)
-- Official documentation references (DoL-Lyra Hub)
-- Encrypted mods for self-use (AU, AU Face)
+- `config/build.toml` (public mod URLs)
+- `config/mods.lock.json` (version records)
+- `docs/*.md` (documentation)
+- Encrypted mods (`AU.mod.zip`, `AU_FACE.mod.zip`)
 
-**.gitignore already covers most patterns.** Always check `git status` before committing.
-
----
-
-## Environment Constraints
-
-### Local Build Limitations
-
-**CRITICAL: DO NOT attempt full builds locally**
-
-Local environment (Windows 10, no WSL) lacks:
-- Java runtime (APK signing)
-- unrar binary (imagepack extraction)
-- Stable network (large mod downloads timeout)
-
-**Build Pipeline**:
-```mermaid
-graph LR
-    Local[Local Dev<br/>Windows 10] -->|pytest only| Tests[Unit Tests]
-    Local -->|git push| GitHub[GitHub Actions]
-    GitHub -->|Ubuntu runner| Build[Full Build]
-    Build -->|artifacts| Download[ZIP/APK Downloads]
-    
-    style Local fill:#f9f,stroke:#333
-    style GitHub fill:#0969da,stroke:#333,color:#fff
-    style Build fill:#2da44e,stroke:#333,color:#fff
-```
-
-**Local capabilities** (✅):
-- `pytest tests/ -v` (unit/config tests)
-- `curl -I <url>` (verify mod URLs)
-- `python main.py matrix` (list combinations)
-- Git operations (`status`, `diff`, `gh run list`)
-
-**Must use GitHub Actions** (❌):
-- Full builds (`python main.py build --codes <code>`)
-- APK signing
-- Imagepack extraction
-- Production artifact generation
-
-**Automation Shell**: Git Bash only (PowerShell 5.1 has AMSI crashes)
-
-### Cursor Agent Shell Environment
-
-**Default shell**: Git Bash (configured in `.vscode/settings.json`)
-- PowerShell 5.1 有 AMSI 崩溃问题
-- 所有自动化命令使用 Git Bash 执行
-
-### PowerShell AMSI Issue (Legacy)
-
-If Shell commands fail with `AccessViolationException`:
-- Cursor Agent Shell tool used PowerShell 5.1 by default (now fixed)
-- AMSI (Anti-Malware Scan Interface) crashes on complex scripts
-- **Solution**: Now using Git Bash for all automation
+**Pattern check**: `.gitignore` already covers sensitive patterns
 
 ---
 
-## Recent Fixes (2026-06-17)
+## Mod Matrix
 
-### AU Face Temporary Mitigation
+Current build codes: 57600, 58624, 59648, 61696  
+Formula: `base (516352) + AU variant (0/1024/2048/4096)`
 
-**Problem**:
-- AU Face expansion shows misaligned hair/face on sidebar
-- Root cause: maplebirch v3.1.14 lacks v4.1.7's `basehead.png` path fix
-- Only affects sidebar rendering; body images work correctly
+**Critical rules**:
+- ❌ NEVER add BESC (conflicts with UCB)
+- ❌ NEVER upgrade maplebirch to v4.x (expansion incompatible)
+- ✅ AU + UCB is safe (no path overlap)
 
-**Decision**:
-- Temporarily disable AU Face (`config/build.toml`: `enabled = false`)
-- AU beauty imagepacks (body models) remain functional
-- Face images fallback to default/UCB variants
-
-**Impact**:
-- AU body types (female/male/androgynous) work normally
-- Facial detail enhancements unavailable
-- No runtime errors or gameplay impact
-
-**Future Resolution**:
-- Wait for maplebirchExpansion v1.2.5+ (v4.x compatible)
-- Upgrade path: maplebirch v4.1.7 + cheat v1.19 + expansion v1.2.5
-- Re-enable AU Face after framework upgrade
-
-**Related**:
-- See: `.local/framework_upgrade_analysis.md`
-- See: `.local/cheat_extended_v118_investigation.md`
-- Upstream fix: maplebirch v4.1.7 (2026-06-14)
-
-### Cheat Extended v1.18 Manual Build
-
-**Background**:
-- Official v1.18 release deleted by author
-- v1.19 requires maplebirch v4.x (incompatible with current v3.1.14)
-- Git tag `V1.18(Dev20260325)` still exists
-
-**Investigation Results**:
-- ✅ v1.18 has NO maplebirch dependency
-- ✅ Compatible with v3.1.14
-- ✅ Successfully built from source (121 KB)
-- ⚠️ Requires manual maintenance (no official release)
-
-**Decision**: Keep v1.17 for stability
-- v1.17 has official release (easier maintenance)
-- v1.18 offers minimal improvements over v1.17
-- Both lack v1.19's new features (farm helper, achievement unlocker)
-- Will upgrade to v1.19 when framework reaches v4.x
-
-**Build artifact**: `workspace/cheat_extended-1.18-dev20260325.mod.zip` (available for future use)
+**Why these choices?** See [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md)
 
 ---
 
-## Recent Fixes (2026-06-15)
+## Common Issues
 
-### Mod Download Links Updated
+| Error | Quick Fix |
+|-------|-----------|
+| Mod download 404 | `curl -I <url>` → update `config/build.toml` |
+| Rate limit (403) | Already fixed (GITHUB_TOKEN in workflow) |
+| Test fails after config change | `git diff config/` → update `tests/test_*.py` |
 
-所有 modloader mods 下载链接已验证并更新：
-
-1. **cheat_extended**: V1.18 → V1.19
-   - 原因：V1.18(Dev20260325) 已从 GitHub 删除
-   - 新 URL: `https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.19/cheat_extended.mod.zip`
-   
-2. **maplebirch**: v3.1.13 → v4.1.7
-   - 新 tag: `maplebirch-release-v4.1.7`
-   - 新 asset: `maplebirch-0.5.8.10-v4.1.7.mod.zip`
-   
-3. **Custom Hair**: CustomHair-1.0 → CustomHair tag
-   - 原因：release tag 变更
-   - 修复 `config/build.toml` 中的 release_tag
-
-4. **Mae's Picvary**: 1.3.2 → DOL tag
-   - 原因：asset pattern 变更
-   - 新 asset_pattern: `maespicvary-DOL-.*\.mod\.zip`
-
-5. **maplebirch扩展包**: v1.2.4 (官方框架扩展)
-   - 替代独立的 LongerCombat mod（避免版本冲突）
-   - 内置功能：更长遭遇战、作弊集、音乐播放器、定制纹身
-   - 核心属性扩展：理智、灵性，新增恐惧/侵蚀状态
-   - 完美兼容 maplebirch v4.1.7
-
-### GitHub Actions Rate Limit Fixed
-
-添加 `GITHUB_TOKEN` 环境变量到 build job：
-- 匿名访问：60次/小时
-- 认证访问：5000次/小时
-
-配置位置：`.github/workflows/build.yaml`
-
-```yaml
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-### BESC Removed from Build Matrix
-
-- `config/features.toml`: BESC `skip=true`
-- `config/combinations.toml`: 移除 bit 1 (所有 build_codes 减 1)
-- 理由：UCB 最后应用，会覆盖 BESC 战斗图片
-
-**更新后的 build_codes**:
-- 57600 (原 57601): UCB + more_love + spellbook + cheat
-- 58624 (原 58625): AU-F + UCB + more_love + spellbook + cheat
-- 59648 (原 59649): AU-M + UCB + more_love + spellbook + cheat
-- 61696 (原 61697): AU-A + UCB + more_love + spellbook + cheat
+**Detailed steps**: See `docs/TROUBLESHOOTING.md`
 
 ---
 
-## Documentation Maintenance Strategy
+## Upstream Sync
 
-### When to Update AGENTS.md
-
-**Immediate update** (same commit):
-- New mod added/removed
-- Build configuration changed
-- Environment constraints changed
-- Security policy changed
-
-**Next-day update** (follow-up commit):
-- Detailed investigation results (link to `.local/` reports)
-- Complex troubleshooting outcomes
-- Performance optimization findings
-
-### Decision Record Retention
-
-**Keep permanently** (in `## Recent Fixes`):
-- Breaking changes and mitigations
-- Version compatibility decisions
-- Security-related fixes
-- Upstream sync conflicts
-
-**Archive after resolution** (move to `.local/historical/`):
-- Temporary workarounds (after permanent fix applied)
-- Experimental investigations (after decision made)
-- Detailed analysis docs (after executive summary added to AGENTS.md)
-
-### Upstream Sync Documentation Consistency
-
-**Single source of truth**: `UPSTREAM_SYNC_CHECKLIST.md`
-
-**Other docs must reference** (not duplicate):
-- `AGENTS.md` → link to checklist
-- `docs/UPSTREAM_SYNC_GUIDE.md` → detailed procedures
-- `.github/workflows/*.yaml` → automation implementation
-
-**During sync**:
-1. Check checklist for DO NOT items
-2. Re-verify docs mention DOL-X as current project
-3. Preserve `XFox` identity in configs
-
----
-
-## Upstream Sync Strategy
-
-### When Syncing Core Files
+**Core principle**: Keep `lyra/` aligned with upstream, maintain `config/combinations.toml` independently.
 
 ```bash
-# 1. Check upstream updates
-git fetch upstream
-git log upstream/vega..vega --oneline
+# Check upstream updates
+git fetch upstream && git log upstream/vega..vega --oneline
 
-# 2. Compare differences
-git diff upstream/vega...vega -- lyra/
-
-# 3. Selective sync (core system)
+# Sync core files
 git checkout upstream/vega -- lyra/build.py
-git add lyra/build.py
-git commit -m "sync: merge upstream build.py changes"
+git add lyra/ && git commit -m "sync: merge upstream changes"
 
-# 4. Run tests
+# Test
 python -m pytest tests/ -v
-
-# 5. Push
-git push origin vega
 ```
 
-### Conflict Resolution
+**Conflict resolution**:
+- Config files (`config/combinations.toml`): Keep DOL-X (`git checkout --ours`)
+- Core code (`lyra/`): Keep upstream (`git checkout --theirs`)
 
-- Config files (`config/build.toml`, `config/combinations.toml`): Keep DOL-X version (`git checkout --ours`)
-- Core code (`lyra/`): Keep upstream version (`git checkout --theirs`)
-- Other conflicts: Manual merge
+**Detailed checklist**: See `UPSTREAM_SYNC_CHECKLIST.md`
 
 ---
 
-## Key Decisions
-
-### Why UCB instead of BESC?
-
-- UCB applied last → overwrites BESC combat images
-- Upstream doesn't recommend BESC+UCB (code=259)
-- UCB-only avoids redundant downloads
-
-**Config**: `features.toml` has `skip=true` for BESC, `combinations.toml` excludes bit 1.
-
-**Documentation**: See `MOD_MATRIX_RATIONALE.md` for detailed reasoning.
-
-### Why UCB + AU?
-
-- UCB: combat scenes (`img/sex/`, `img/combat/`)
-- AU: body types (`img/body/`) + faces (`img/face/`)
-- **No path overlap** → compatible
-
-Verified in `docs/UCB_COMPATIBILITY_REPORT.md`.
-
-### Why cheatExtended + maplebirch?
-
-Replaces upstream's cheat+CSD with more feature-rich cheatExtended using maplebirch framework.
-
----
-
-## Documentation
-
-- [`README.md`](README.md) - Project intro (for humans)
-- [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md) - Command cheat sheet
-- [`MOD_MATRIX_RATIONALE.md`](MOD_MATRIX_RATIONALE.md) - Mod decision rationale
-- [`docs/INDEX.md`](docs/INDEX.md) - Documentation navigator
-- [`docs/UCB_COMPATIBILITY_REPORT.md`](docs/UCB_COMPATIBILITY_REPORT.md) - UCB compatibility verification
-- [`.local/`](.local/) - Temporary analysis (gitignored)
-
----
-
-## Common Tasks
-
-### Add a New Mod
-
-1. Edit `config/build.toml` (if modloader mod)
-2. Update `config/combinations.toml` (if changing build_codes)
-3. Run `pytest tests/test_mod_config.py -v`
-4. Build test: `python main.py build --codes <new_code>`
-5. Commit with clear rationale
-
-### Update from Upstream
-
-1. `git fetch upstream`
-2. Cherry-pick or merge: `git cherry-pick <hash>` or `git merge upstream/vega`
-3. Resolve conflicts (keep DOL-X identity & mod matrix)
-4. Run `pytest tests/ -v`
-5. Push: `git push origin vega`
-
-### Fix Test Failures
-
-1. Read error message carefully
-2. Check if config changed: `git diff config/`
-3. Run specific test: `pytest tests/test_<name>.py -v -s`
-4. Fix issue
-5. Verify: `pytest tests/ -v`
-
-### Troubleshooting Build Failures
-
-**Scenario 1: Mod download 404 error**
-```bash
-# 1. Verify URL manually
-curl -I <mod_url>
-
-# 2. Check GitHub releases
-gh release list --repo <owner/repo>
-
-# 3. Update config/build.toml with correct URL
-# 4. Run tests
-pytest tests/test_mod_config.py -v
-```
-
-**Scenario 2: GitHub Actions rate limit**
-```
-Error: 403 rate limit exceeded
-```
-**Fix**: Already fixed - `GITHUB_TOKEN` added to workflow.
-
-**Scenario 3: Test failures after config change**
-```bash
-# 1. Check what changed
-git diff config/
-
-# 2. Update test expectations
-# Edit tests/test_build_matrix.py
-
-# 3. Verify
-pytest tests/test_build_matrix.py -v
-```
-
----
-
-## Maintenance Checklist
+## Maintenance
 
 ### Weekly
-
-- [ ] Check GitHub Actions builds: `gh run list --limit 5`
-- [ ] Review open issues/PRs upstream
-- [ ] Verify mod download links still work
+- Check builds: `gh run list --limit 5`
+- Verify mod URLs still work
 
 ### After Upstream Updates
-
-- [ ] Fetch upstream: `git fetch upstream`
-- [ ] Check for breaking changes: `git log upstream/vega..vega`
-- [ ] Sync core files if needed
-- [ ] Run full test suite: `pytest tests/ -v`
+- Fetch: `git fetch upstream`
+- Check breaking changes: `git log upstream/vega..vega`
+- Sync if needed + run tests
 
 ### Before Major Changes
-
-- [ ] Create backup branch: `git branch backup-$(date +%Y%m%d)`
-- [ ] Document rationale in commit message
-- [ ] Run tests locally before pushing
-- [ ] Monitor GitHub Actions after push
+- Backup: `git branch backup-$(date +%Y%m%d)`
+- Document rationale in commit
+- Test locally before push
 
 ---
 
-**Last Updated**: 2026-06-16 (稳定配置：maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
+**Last Updated**: 2026-06-17 (maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
