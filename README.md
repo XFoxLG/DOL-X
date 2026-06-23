@@ -17,11 +17,13 @@
 
 ## 简介
 
-DOL-X 是基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统的自用整合包项目。
+DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统（直接上游构建流程来源），但不是本仓库的项目身份。
 
 本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 GitHub Actions 自动化构建，提供多种 Mod 组合，并跟随游戏和汉化更新。
 
 **本仓库不是 DoL 或汉化组官方发布渠道**
+
+**APK 包名**: DoL XFox (`com.vrelnir.dol.xfox`)
 
 ---
 
@@ -74,12 +76,11 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - ModLoader GUI - 模组管理器
 - ModI18N - 汉化支持
 - More Love Interests - 更多恋人
-- Custom Spellbook - 自定义魔法书
 - Custom Hair - 自定义染发
 - Mae's Picvary - NPC侧边栏头像
-- Longer Combat (Fixed) - 更长的遭遇战（非官方修复版）
 - maplebirch - 秋枫白桦框架
-- cheatExtended - 作弊扩展
+- maplebirch Expansion - 秋枫白桦扩展包（含更长遭遇战）
+- cheatExtended - 作弊扩展（含言灵集）
 
 **可选 AU 系列**：
 - AU-F：AU Female + AU Face 扩展
@@ -92,29 +93,38 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ### 版本选择
 
-| 版本 | Build Code | 说明 |
-|------|------------|------|
-| 基础版 | 516352 | UCB 美化 + 完整 Mod 集合 |
-| AU-F 版 | 517376 | 基础版 + AU Female + AU Face 扩展 |
-| AU-M 版 | 518400 | 基础版 + AU Male + AU Face 扩展 |
-| AU-A 版 | 520448 | 基础版 + AU Androgynous + AU Face 扩展 |
+| 版本 | Build Code | 说明 | 推荐 |
+|------|------------|------|------|
+| 基础版 | 499968 | UCB 美化 + 完整 Mod 集合（无 AU 模型） | ⚪ |
+| AU-F 版 | 500992 | 基础版 + AU Female + AU Face 扩展 | ⭐ |
+| AU-M 版 | 502016 | 基础版 + AU Male + AU Face 扩展 | ⭐ |
+| AU-A 版 | 504064 | 基础版 + AU Androgynous + AU Face 扩展 | ⭐ |
+
+> **💡 推荐说明**：
+> - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型
+> - ⚪ **基础版**：不含 AU 模型，适合偏好原版体型或自行加载 AU 模型的用户
+> 
+> **⚠️ AU Face 状态**：AU Face 扩展当前临时禁用（maplebirch v3.1.14 兼容性问题），仅影响侧边栏渲染，游戏内正常。等待框架升级到 v4.x 后将重新启用。
 
 > **⚠️ 重要更新（2026-06-15）**：
-> - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、longer_combat）
+> - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、maplebirch_expansion）
+> - **重要**：移除 Custom-Spellbook（功能已被 Cheat Extended 言灵集完全覆盖）
 > - **版本兼容性警告**：Custom Hair Mod 仅支持 DoL v0.5.2.7 - v0.5.2.10，升级游戏版本前请查阅 [已知问题文档](docs/KNOWN_ISSUES.md)
 > - Longer Combat 使用非官方修复版，已验证与 maplebirch 框架兼容
 > - 详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md) 和 [已知问题文档](docs/KNOWN_ISSUES.md)
 
 ## 版本说明
 
-### 当前稳定版本（2026-06-14+）
+### 当前稳定版本（2026-06-17+）
 
 当前构建配置：
-- **基础 Mod**：UCB + more_love + custom_spellbook + maplebirch + cheatExtended
-- **Build Codes**：57600 / 58624 / 59648 / 61696
+- **基础 Mod**：UCB + more_love + maplebirch + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion
+- **Build Codes**：499968 / 500992 / 502016 / 504064
 - **游戏版本**：跟随汉化仓库更新
 - **构建方式**：GitHub Actions 云端自动化
-- **测试状态**：所有测试通过（14/14）✅
+- **测试状态**：所有测试通过 ✅
+
+> **🔄 2026-06-17 更新**：移除 Custom-Spellbook（功能与 Cheat Extended 言灵集重复）。Build Codes 更新至 499968 系列。
 
 ### ⚠️ 历史版本兼容性警告
 
