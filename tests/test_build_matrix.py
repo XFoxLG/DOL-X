@@ -33,7 +33,7 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"499968", "500992", "502016", "504064"}
+        expected_codes = {"8364288", "8365312", "8366336", "8368384"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,12 +52,12 @@ class TestBuildMatrix:
         )
 
     def test_base_code_is_499968(self):
-        """验证稳定基础版代码为 499968（UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion，无 BESC，无 custom_spellbook）"""
+        """验证稳定基础版代码为 8364288（UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + 4个新mod，无 BESC，无 custom_spellbook）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 499968, (
-            f"基础版代码应为 499968，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 8364288, (
+            f"基础版代码应为 8364288，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -82,10 +82,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (499968) 不包含 AU"""
+        """验证基础版 (8364288) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 499968
+        base_code = 8364288
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -115,9 +115,9 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         
         au_variants = [
-            (500992, "au-f"),
-            (502016, "au-m"),
-            (504064, "au-a"),
+            (8365312, "au-f"),
+            (8366336, "au-m"),
+            (8368384, "au-a"),
         ]
         
         for code, feature_id in au_variants:
