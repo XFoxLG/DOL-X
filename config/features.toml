@@ -73,7 +73,7 @@ id = "hikari"
 name = "HIKARI"
 bit = 32
 required = false
-skip = false
+skip = true                # 跳过（依赖 besc，且 besc 已跳过）
 depends_on = ["besc"]
 conflicts_with = []
 
@@ -126,15 +126,6 @@ conflicts_with = ["susato", "goose", "ucb"]  # UCB会覆盖BESC图片
 id = "more_love"
 name = "更多恋人"
 bit = 8192
-required = false
-skip = false
-depends_on = []
-conflicts_with = []
-
-[[features]]
-id = "custom_spellbook"
-name = "自定义魔法书"
-bit = 16384
 required = false
 skip = false
 depends_on = []
