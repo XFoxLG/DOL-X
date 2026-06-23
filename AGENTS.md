@@ -94,20 +94,67 @@ Local environment (Windows 10, no WSL) is partially provisioned:
 
 ### Mod Version Locks
 
-- **maplebirch**: v3.1.14 (NOT v4.x)
-  - Reason: maplebirchExpansion v1.2.4 incompatible with v4.x API
-  - Upgrade blocked until expansion v1.2.5+ released
-  - See: `.local/framework_upgrade_analysis.md`
-- **cheat extended**: v1.17 (NOT v1.19)
-  - Reason: v1.19 requires maplebirch v4.x (min v3.2.5, actual v4.x)
-  - v1.17 provides full yanling system functionality
-- **AU Face expansion**: disabled (skip=true)
-  - Reason: facial sprite positioning bug with maplebirch v3.1.14
-  - Fixed in maplebirch v4.1.7 (`basehead.png` path correction)
-  - Will re-enable after framework upgrade to v4.x
+**2026-06-23 Update**: Framework upgraded to v4.x with temporary compatibility patch.
+
+- **maplebirch**: v4.1.8 (upgraded from v3.1.14)
+  - Fixed AU Face basehead.png path issue (fixed in v4.1.7)
+  - expansion v1.2.4 uses DOL-X local compat patch (see below)
+- **cheat extended**: v1.19 (upgraded from v1.17)
+  - Now compatible with maplebirch v4.x
+  - Expected fix for Custom Yanling Set widget error
+  - New features: Farm Helper, Achievement Unlocker, Combat Skills
+- **AU Face expansion**: re-enabled
+  - basehead.png path issue fixed in maplebirch v4.1.7
   - AU body mods (AU-F/M/A) still active and working
 
-**History**: See `.local/framework_upgrade_analysis.md` for investigation details
+### DOL-X Temporary Compatibility Patch (2026-06-23)
+
+**Patch for**: maplebirchExpansion v1.2.4 on maplebirch v4.x
+
+**Location**: `patches/expansion_v4_compat.js` (committed to repo for CI builds)
+
+**Purpose**: Polyfill `maplebirch.use()` which was removed in v4.x
+- v3.x: `maplebirch.use('ExMod')` pushed 'ExMod' into core array
+- v4.x: `use()` method removed, ModuleSystem only exposes modules with `exposed=true` AND no lifecycle methods
+- Patch: Wraps Expansion constructor to set `exposed=true` before `register()`
+
+**How it works**:
+```javascript
+// Detects v4.x (no use() method)
+if (typeof maplebirch.use !== 'function') {
+  // Wraps Expansion to inject exposed flag
+  window.Expansion = function() {
+    var instance = new OrigExpansion(maplebirch);
+    instance.exposed = true;  // Makes v4's ModuleSystem expose it
+    return instance;
+  };
+}
+```
+
+**End-of-Life Conditions** (remove patch when ANY met):
+1. expansion releases v1.2.5+ with native v4.x support
+2. expansion releases ANY version with v4.x compatibility
+3. Framework update makes this patch incompatible
+4. Next review: 2026-09-23 (3 months) if no expansion update
+
+**Monitoring**:
+```bash
+# Check for expansion updates
+gh api repos/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/latest --jq '.tag_name'
+
+# Check for framework updates
+gh api repos/MaplebirchLeaf/SCML-DOL-maplebirchframework/releases/latest --jq '.tag_name'
+```
+
+**Removal steps** (when conditions met):
+1. Verify expansion natively supports v4.x
+2. Delete `.local/patches/expansion_v4_compat.js`
+3. Remove patch references from `config/build.toml` comments
+4. Remove patch references from `config/mods.lock.json`
+5. Remove this section from AGENTS.md
+6. Commit: `chore: remove expansion v4.x compat patch (native support available)`
+
+**History**: See `.local/framework_upgrade_analysis.md` for v3 vs v4 API investigation
 
 ### Cheat Extended UI (v1.17+)
 
