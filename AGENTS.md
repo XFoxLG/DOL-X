@@ -5,12 +5,12 @@ language: Python 3.12+
 build: GitHub Actions
 upstream: DoL-Lyra/Lyra
 status: Active Development
-updated: 2026-06-17
+updated: 2026-06-18
 ---
 
 # AGENTS.md
 
-Context for AI coding agents working on DOL-X.
+Context for AI coding agents working on DOL-X. Treat this file as the project-level README for agents: it should contain the practical setup, validation, constraints, and decision records needed to work safely without cluttering human-facing README files.
 
 ---
 
@@ -26,10 +26,10 @@ Context for AI coding agents working on DOL-X.
 ### What DOL-X Does
 
 Provides 4 build configurations (build_codes):
-- 57600: UCB + more_love + spellbook + cheat + expansion
-- 58624: AU-F + UCB + more_love + spellbook + cheat + expansion
-- 59648: AU-M + UCB + more_love + spellbook + cheat + expansion
-- 61696: AU-A + UCB + more_love + spellbook + cheat + expansion
+- 499968: UCB + more_love + cheat + custom_hair + mae_picvary + expansion
+- 500992: AU-F + UCB + more_love + cheat + custom_hair + mae_picvary + expansion
+- 502016: AU-M + UCB + more_love + cheat + custom_hair + mae_picvary + expansion
+- 504064: AU-A + UCB + more_love + cheat + custom_hair + mae_picvary + expansion
 
 ### What DOL-X Does NOT Do
 
@@ -41,16 +41,17 @@ Provides 4 build configurations (build_codes):
 
 **CRITICAL: DO NOT attempt full builds locally**
 
-Local environment (Windows 10, no WSL) lacks:
-- Java runtime (APK signing)
-- unrar binary (imagepack extraction)
-- Stable network (large mod downloads timeout)
+Local environment (Windows 10, no WSL) is partially provisioned:
+- `bash` may not be on PATH in the Cursor agent shell; invoke `C:\Program Files\Git\bin\bash.exe` directly when bash is required
+- `unrar` is not installed in the agent environment
+- Large mod downloads and signed build steps still belong on GitHub Actions
 
 **Local capabilities** (✅):
 - `pytest tests/ -v` (unit/config tests)
 - `curl -I <url>` (verify mod URLs)
 - `python main.py matrix` (list combinations)
 - Git operations (`status`, `diff`, `gh run list`)
+- GitHub API checks with `gh api` when `GITHUB_TOKEN` is present
 
 **Must use GitHub Actions** (❌):
 - Full builds (`python main.py build --codes <code>`)
@@ -58,7 +59,7 @@ Local environment (Windows 10, no WSL) lacks:
 - Imagepack extraction
 - Production artifact generation
 
-**Automation Shell**: Git Bash only (PowerShell 5.1 has AMSI crashes)
+**Automation Shell**: Prefer Git Bash for scripted tasks. If the agent shell is PowerShell and `bash` is missing from PATH, use the absolute Git Bash path. Avoid long or AMSI-sensitive automation in PowerShell.
 
 ---
 
@@ -119,17 +120,14 @@ Local environment (Windows 10, no WSL) lacks:
 - **Custom Yanling Set** (Options → Cheat Extended → "Yanling Set" tab):
   - User-written SugarCube code (e.g., `<<set $money += 1000>>`)
   - Stored in `$cccheat[]` array
-  - Auto-executes on every page refresh
-  
+  - Executed manually through the Cheat Extended UI/sidebar; do not describe it as a page-refresh auto-run
+
 - **Quick Yanling** (Options → Cheat Extended → "Quick Yanling" tab + sidebar display):
   - Pre-written cheat functions (e.g., "infinite oxygen", "daily auto-recovery")
   - One-click enable/disable, no coding required
   - Presets: status recovery, pepper spray, transformation traits, etc.
-  
-- **Custom Spellbook mod** (separate mod):
-  - In-game "magic book" item customization
-  - NOT related to Yanling system (doesn't use `$cccheat[]`)
-  - Function: modifies game's "spellbook" item behavior
+
+**Custom Spellbook**: Not part of the current build matrix; Cheat Extended Yanling Set replaces its practical use case for this project.
 
 **Test checklist**: See `docs/MANUAL_TESTING_CHECKLIST.md`
 
@@ -252,8 +250,8 @@ Upstream also does not recommend BESC+UCB (code=259).
 
 ## Mod Matrix
 
-Current build codes: 57600, 58624, 59648, 61696  
-Formula: `base (516352) + AU variant (0/1024/2048/4096)`
+Current build codes: 499968, 500992, 502016, 504064  
+Formula: `base (499968) + AU variant (0/1024/2048/4096)`
 
 **Critical rules**:
 - ❌ NEVER add BESC (conflicts with UCB)
@@ -318,4 +316,4 @@ python -m pytest tests/ -v
 
 ---
 
-**Last Updated**: 2026-06-17 (maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
+**Last Updated**: 2026-06-18 (maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
