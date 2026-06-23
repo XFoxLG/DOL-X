@@ -126,6 +126,7 @@ jobs:
         with:
           name: dol-builds-zip-sample
           path: ${{ steps.sample.outputs.zip }}
+          retention-days: 30
 
       - name: Upload APK sample artifact (non-tag)
         if: github.ref_type != 'tag' && steps.sample.outputs.apk != ''
@@ -133,6 +134,7 @@ jobs:
         with:
           name: dol-builds-apk-sample
           path: ${{ steps.sample.outputs.apk }}
+          retention-days: 30
 
       - name: Upload cheatExtended/maplebirch canary ZIP artifact
         if: github.ref_name == 'experiment/cheat-extended-maplebirch' && steps.cheat_canary.outputs.zip != ''
@@ -140,6 +142,7 @@ jobs:
         with:
           name: dol-builds-cheat-canary-zip
           path: ${{ steps.cheat_canary.outputs.zip }}
+          retention-days: 30
 
       - name: Upload cheatExtended/maplebirch canary reports
         if: github.ref_name == 'experiment/cheat-extended-maplebirch'
@@ -150,18 +153,21 @@ jobs:
             ${{ github.workspace }}/output/cheat-extended-canary-stable-replacement-base-build.json
             ${{ github.workspace }}/output/html-smoke-cheat-canary-stable-replacement-base.json
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6
         with:
           name: dol-builds-zip
           path: ${{ github.workspace }}/output/*.zip
+          retention-days: 30
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v6
         with:
           name: dol-builds-apk
           path: ${{ github.workspace }}/output/*.apk
+          retention-days: 30
 
   release:
     runs-on: ubuntu-latest
