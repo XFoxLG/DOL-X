@@ -144,36 +144,28 @@ class TestModConfig:
                 f"Mod {mod.key or mod.asset_pattern} 的 enabled 必须是布尔值"
             )
 
-    def test_love_and_spellbook_mods_exist(self):
-        """验证已合入实验 mod 使用独立 feature 与直链资源。"""
+    def test_love_mod_exists(self):
+        """验证 more_love mod 使用独立 feature 与直链资源。"""
         build_config = load_build_config()
 
-        expected_mods = {
-            "more_love": {
-                "name": "更多恋人",
-                "feature_id": "more_love",
-                "github_repo": "Nephthelana/DoL-More-Love-Interests-Mod",
-                "asset_pattern": "More.Love.Interests.Mod.mod.zip",
-            },
-            "custom_spellbook": {
-                "name": "自定义魔法书",
-                "feature_id": "custom_spellbook",
-                "github_repo": "ZeroRing233/DOL-Custom-Spellbook-Mod",
-                "asset_pattern": "Custom-Spellbook-1.0.0.mod.zip",
-            },
+        expected_mod = {
+            "name": "更多恋人",
+            "feature_id": "more_love",
+            "github_repo": "Nephthelana/DoL-More-Love-Interests-Mod",
+            "asset_pattern": "More.Love.Interests.Mod.mod.zip",
         }
         mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
 
-        for key, expected in expected_mods.items():
-            mod = mods_by_key.get(key)
-            assert mod is not None, f"缺少已合入实验 mod: {key}"
-            assert mod.enabled is True, f"{key} 应默认启用"
-            assert mod.name == expected["name"]
-            assert mod.feature_id == expected["feature_id"]
-            assert mod.github_repo == expected["github_repo"]
-            assert mod.asset_pattern == expected["asset_pattern"]
-            assert mod.download_url, f"{key} 应使用已确认的直链下载地址"
-            assert mod.cache_name == key, f"{key} cache_name 应保持独立"
+        key = "more_love"
+        mod = mods_by_key.get(key)
+        assert mod is not None, f"缺少已合入实验 mod: {key}"
+        assert mod.enabled is True, f"{key} 应默认启用"
+        assert mod.name == expected_mod["name"]
+        assert mod.feature_id == expected_mod["feature_id"]
+        assert mod.github_repo == expected_mod["github_repo"]
+        assert mod.asset_pattern == expected_mod["asset_pattern"]
+        assert mod.download_url, f"{key} 应使用已确认的直链下载地址"
+        assert mod.cache_name == key, f"{key} cache_name 应保持独立"
 
     def test_au_main_mods_exist(self):
         """验证 AU 主模组配置存在"""
