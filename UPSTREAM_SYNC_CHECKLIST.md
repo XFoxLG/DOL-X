@@ -9,6 +9,43 @@ to keep DOL-X current with build-system and packaging improvements while
 preserving DOL-X-specific identity, build matrix, and candidate/rollback mod
 boundaries.
 
+## Sync Trigger Policy
+
+### When to Sync (Game-Version-Driven Strategy)
+
+**Primary Trigger**:
+- DoL base game releases new version (e.g., v0.5.8.11)
+- Contains important bug fixes or new features
+
+**Secondary Triggers**:
+- Chinese localization major update for new game version
+- Build system major improvements from upstream Lyra
+- Critical bug fixes affecting DOL-X
+
+**Delayed Sync Strategy**:
+- Wait 1-2 weeks after game version release
+- Confirm maplebirch, Cheat Extended, and other key mods released compatible versions
+- Check community feedback for serious issues
+- Reduces frequent syncs causing config conflicts
+
+### When NOT to Sync
+
+- ❌ Upstream mod matrix adjustments (DOL-X decides independently)
+- ❌ Upstream documentation updates (unless affecting build process)
+- ❌ Upstream experimental features (candidate/canary builds)
+- ❌ Frequent minor patches (accumulate until game version update)
+
+### Monthly Monitoring
+
+```bash
+# Check upstream status once per month
+git fetch upstream
+git log HEAD..upstream/vega --oneline --grep="v0\.5\.[0-9]"  # Find version updates
+
+# Check for game version updates
+gh api repos/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/releases/latest --jq '.tag_name'
+```
+
 ## Before sync
 
 - Confirm current branch is `vega` and working tree changes are intentional.
