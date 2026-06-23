@@ -135,15 +135,12 @@ github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUandrogynous.model"
 release_tag = "mod"
 
-# DOL-X specific: Temporarily disabled due to image positioning issues
-# Root cause: maplebirch v3.1.14 lacks v4.1.7's basehead.png path fix
-# Will re-enable after upgrading to maplebirch v4.x (when expansion v1.2.5+ released)
-# See: AGENTS.md § Recent Fixes § 2026-06-17 AU Face Mitigation
-# DO NOT remove this during upstream sync
+# DOL-X: Re-enabled after maplebirch v4.1.8 upgrade
+# basehead.png path issue fixed in v4.1.7
 [[modloader_mods]]
 key = "au_face"
 name = "AU面部扩展"
-enabled = false  # Temporary mitigation
+enabled = true
 feature_ids = ["au-f", "au-m", "au-a"]
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUsDoL.facial.expansion.mod.zip"
@@ -165,9 +162,12 @@ name = "maplebirch"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchframework"
-asset_pattern = "maplebirch-0.5.8.10-v3.1.14.mod.zip"
-release_tag = "maplebirch-release-v3.1.14"
-download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v3.1.14/maplebirch-0.5.8.10-v3.1.14.mod.zip"
+asset_pattern = "maplebirch-0.5.10.12-v4.1.8.mod.zip"
+release_tag = "maplebirch-release-v4.1.8"
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.8/maplebirch-0.5.10.12-v4.1.8.mod.zip"
+# DOL-X: Upgraded from v3.1.14 to v4.1.8
+# Fixes AU Face basehead.png path issue (fixed in v4.1.7)
+# expansion v1.2.4 uses local compat patch for maplebirch.use() removal
 
 [[modloader_mods]]
 key = "cheat_extended"
@@ -176,8 +176,10 @@ enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
-release_tag = "V1.17(dev)"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.17%28dev%29/cheat_extended.mod.zip"
+release_tag = "V1.19"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.19/cheat_extended.mod.zip"
+# DOL-X: Upgraded from v1.17 to v1.19
+# Expected fix for Custom Yanling Set widget error
 
 [[modloader_mods]]
 key = "custom_hair"
@@ -209,7 +211,9 @@ asset_pattern = "maplebirchEx-v*.zip"
 release_tag = "release-v1.2.4"
 # maplebirch 官方扩展包，内置更长遭遇战功能
 # 额外功能：作弊集、音乐播放器、定制纹身、核心属性扩展等
-# 完美兼容 maplebirch v4.x 框架
+# DOL-X temporary: v1.2.4 uses local compat patch (.local/patches/expansion_v4_compat.js)
+# for maplebirch.use() which was removed in v4.x
+# Remove patch when expansion v1.2.5+ releases with native v4.x support
 download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/download/release-v1.2.4/maplebirchEx-v1.2.4.zip"
 
 # 基础 mod 注入配置（按列表顺序处理）
