@@ -1,22 +1,23 @@
 # MOD 组合配置
 
-# DOL-X 自用构建列表（v3.1.14稳定版）：UCB + more-love + custom-spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
+# DOL-X 自用构建列表（v3.1.14稳定版）：UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
 # 策略说明：
 #   - 降级框架到v3.1.14以支持maplebirchExpansion v1.2.4（提供音乐播放器、理智/灵性、更长遭遇战）
 #   - 降级Cheat Extended到v1.18（v1.19需要v4.x，但v3.2.x不存在）
 #   - 牺牲AU面部扩展贴图修复（需要v4.1.7）和cheat v1.19新功能（农场助手、成就解锁器）
+#   - 移除Custom-Spellbook：Cheat Extended的言灵集功能已完全覆盖（2026-06-17实测）
 #   - 待expansion更新支持v4.x后统一升级
 #
 # 计算（包含所有必选mod）：
-# 基础: 516352 = 256 (ucb) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
-# AU 变体：+ 1024 (au-f) = 517376, + 2048 (au-m) = 518400, + 4096 (au-a) = 520448
-build_codes = ["516352", "517376", "518400", "520448"]
+# 基础: 499968 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
+# AU 变体：+ 1024 (au-f) = 500992, + 2048 (au-m) = 502016, + 4096 (au-a) = 504064
+build_codes = ["499968", "500992", "502016", "504064"]
 
 # 基础版显示名称对应的组合（无AU）
-base_code = 516352
+base_code = 499968
 
 # 推荐的组合（优先显示）
-recommended = [517376, 518400, 520448]
+recommended = [500992, 502016, 504064]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。
