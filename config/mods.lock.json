@@ -1,21 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-06-23T10:30:00Z",
+  "last_updated": "2026-06-23T13:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "asset_pattern": "maplebirch-0.5.8.10-v3.1.14.mod.zip",
-      "release_tag": "maplebirch-release-v3.1.14",
-      "last_tested_version": "v3.1.14",
+      "asset_pattern": "maplebirch-0.5.10.12-v4.1.8.mod.zip",
+      "release_tag": "maplebirch-release-v4.1.8",
+      "last_tested_version": "v4.1.8",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-16",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-06-23",
       "notes": [
-        "降级到 v3.1.14 以支持 maplebirchExpansion v1.2.4",
-        "v4.1.7 的 R.use API 变更导致 expansion 不兼容",
-        "等待 expansion 发布 v4.x 兼容版本后再升级"
+        "DOL-X: Upgraded from v3.1.14 to v4.1.8 (2026-06-23)",
+        "Fixes AU Face basehead.png path issue (fixed in v4.1.7)",
+        "expansion v1.2.4 uses DOL-X local compat patch (.local/patches/expansion_v4_compat.js)",
+        "Patch required: maplebirch.use() was removed in v4.x",
+        "Remove patch when expansion v1.2.5+ releases with native v4.x support"
       ]
     },
     "maplebirch_expansion": {
@@ -25,14 +27,15 @@
       "release_tag": "release-v1.2.4",
       "last_tested_version": "v1.2.4",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-16",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-06-23",
       "notes": [
-        "与 maplebirch v3.1.14 完全兼容",
+        "DOL-X temporary: Uses local compat patch for maplebirch v4.x (2026-06-23)",
+        "Patch location: .local/patches/expansion_v4_compat.js",
+        "Patch purpose: Polyfill maplebirch.use() which was removed in v4.x",
+        "Remove patch when: expansion v1.2.5+ releases OR author fixes v4.x compat",
         "提供：音乐播放器、理智/灵性属性、更长遭遇战、定制纹身",
-        "已知 Bug：LongerCombat 倍率计算错误（见 GitHub Issue #1）",
-        "不兼容 maplebirch v4.x（R.use API 变更）",
-        "等待作者发布 v4.x 兼容版本"
+        "已知 Bug：LongerCombat 倍率计算错误（见 GitHub Issue #1）"
       ]
     },
     "custom_hair": {
@@ -55,17 +58,16 @@
       "name": "Cheat Extended",
       "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
       "asset_pattern": "cheat_extended.mod.zip",
-      "release_tag": "V1.17(dev)",
-      "last_tested_version": "v1.17",
+      "release_tag": "V1.19",
+      "last_tested_version": "v1.19",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_dol_version": "0.5.10.12",
       "last_tested_date": "2026-06-23",
       "notes": [
-        "降级到 v1.17 以兼容 maplebirch v3.1.14（v1.18不存在）",
-        "v1.19 要求 maplebirch ≥3.2.5（实际需要 v4.x）",
-        "v1.17 核心功能完整，缺失 v1.19 新增：农场助手、成就解锁器、战斗技能",
-        "测试通过：Build #27995040396（2026-06-23）",
-        "快速言灵功能正常，自定义言灵集存在 widget 报错（中等影响）"
+        "DOL-X: Upgraded from v1.17 to v1.19 (2026-06-23)",
+        "Now compatible with maplebirch v4.x",
+        "Expected fix for Custom Yanling Set widget error (to be verified)",
+        "New features in v1.19: Farm Helper, Achievement Unlocker, Combat Skills"
       ]
     },
     "mae_picvary": {
@@ -133,15 +135,13 @@
       "release_tag": "facemod",
       "last_tested_version": "v1.2.8",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-17",
-      "status": "disabled_temp",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-06-23",
+      "status": "enabled",
       "notes": [
-        "临时禁用：图片定位错误（头发/面部在侧边栏错位）",
-        "根本原因：maplebirch v3.1.14 缺少 v4.1.7 的 basehead.png 路径修复",
-        "影响：仅侧边栏渲染，AU body imagepacks 正常工作",
-        "解决方案：等待 maplebirchExpansion v1.2.5+ (v4.x 兼容) 发布后升级框架",
-        "相关：https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/tag/maplebirch-release-v4.1.7",
+        "DOL-X: Re-enabled after maplebirch v4.1.8 upgrade (2026-06-23)",
+        "basehead.png path issue fixed in maplebirch v4.1.7",
+        "Previous issue: 头发/面部在侧边栏错位 (sidebar sprite positioning)",
         "只注入 AU 三版本",
         "依赖 AU 主模组"
       ]
