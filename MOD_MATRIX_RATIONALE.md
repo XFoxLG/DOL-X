@@ -1,7 +1,7 @@
 # DOL-X Mod 矩阵决策说明
 
-**最后更新**: 2026-06-15  
-**版本**: v1.0
+**最后更新**: 2026-06-23  
+**版本**: v1.1
 
 ---
 
@@ -22,18 +22,18 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 499968 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 基础版，完整 Mod 集合 |
-| 500992 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 女性体型 + 完整 Mod |
-| 502016 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 男性体型 + 完整 Mod |
-| 504064 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 中性体型 + 完整 Mod |
+| 8364288 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 基础版，完整 Mod 集合 |
+| 8365312 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 女性体型 + 完整 Mod |
+| 8366336 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 男性体型 + 完整 Mod |
+| 8368384 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 中性体型 + 完整 Mod |
 
 ### Feature Bits 分解
 
 ```
-499968 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
-500992 = 499968 + 1024 (AU-F)
-502016 = 499968 + 2048 (AU-M)
-504064 = 499968 + 4096 (AU-A)
+8364288 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 1048576 (bunny_transformation) + 2097152 (neoui_patch) + 4194304 (npc_social_icon)
+8365312 = 8364288 + 1024 (AU-F)
+8366336 = 8364288 + 2048 (AU-M)
+8368384 = 8364288 + 4096 (AU-A)
 ```
 
 ---
@@ -68,7 +68,7 @@
 | 推荐基础美化 | BESC | UCB |
 | AU 组合 | AU（单独） | AU+UCB |
 | BESC 使用 | 推荐使用 | **不使用（skip=true）** |
-| 额外 Mod | cheat + CSD | more_love + custom_spellbook + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion |
+| 额外 Mod | cheat + CSD | more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon |
 
 ---
 
@@ -359,6 +359,136 @@ DOL-X 的选择：
 3. 记录决策理由
 4. 更新本文档
 
+### 为什么添加 4 个新 mod？
+
+**添加时间**: 2026-06-23
+
+#### 控制NPC嘴部 (Guide To Me)
+
+- **功能**: 允许玩家控制 NPC 的嘴部动作和表情
+- **来源**: https://github.com/Ayndpa/DOL-GuideToMe
+- **版本**: v1.1.0
+- **兼容性**: ✅ 独立功能，无依赖，与所有现有 mod 兼容
+- **类型**: ModLoader mod，bit 524288
+- **决策**: 扩展互动玩法，社区评价好，功能稳定
+
+#### 变身兔兔 (Bunny Transformation)
+
+- **功能**: 添加兔子变身系统
+- **来源**: https://github.com/sylphiet/Bunny-TransformationCN
+- **版本**: v0.3.1β
+- **兼容性**: ✅ 独立功能，无依赖，与所有现有 mod 兼容
+- **类型**: ModLoader mod，bit 1048576
+- **注意**: Beta 版本，需关注后续更新
+- **决策**: 丰富转化系统，Beta 版但功能完整，社区反馈良好
+
+#### NeoUI Patch
+
+- **功能**: UI 增强补丁，侧边栏动画优化，UI 美化
+- **来源**: https://github.com/RyaraSUKI/dol-neoui-patch
+- **版本**: V1.1.0
+- **兼容性**: ✅ CSS/UI 层面，不影响游戏逻辑，与现有 UI mod 栈兼容
+- **类型**: ModLoader mod，bit 2097152
+- **决策**: 提升用户体验，无功能性冲突，风险低
+
+#### NPC社交栏头像 (NPC Social Icon)
+
+- **功能**: 在 NPC 社交栏显示头像
+- **来源**: https://github.com/Eudemonism00/DOL-npcicon-mods
+- **版本**: v1.4.1
+- **兼容性**: ✅ 与 Mae's Picvary 共存测试通过
+- **共存说明**: 
+  - Mae's Picvary: 侧边栏常驻头像（实时更新表情）
+  - NPC Social Icon: 社交界面头像（静态显示）
+  - 作用域不同，理论和实践均无冲突
+- **类型**: ModLoader mod，bit 4194304
+- **决策**: 版本更新（v1.4.1），功能互补，增强 UI 体验
+
+### D.O.L.I (LLM) 评估
+
+**评估时间**: 2026-06-23  
+**状态**: ❌ 不推荐集成
+
+**评估结论**:
+- 无法定位到可验证的公开仓库 (ArsNativa/DOLI 不存在)
+- 技术架构未知，无法评估兼容性和性能影响
+- 依赖关系不明，可能与当前 mod 栈冲突
+- 用户配置复杂（LLM 集成通常需要 API key 或本地部署）
+- 维护风险高，项目状态未知
+
+**详细报告**: 见 [docs/DOLI_LLM_RESEARCH.md](docs/DOLI_LLM_RESEARCH.md)
+
+**后续行动**:
+1. 在 DoL 社区询问 D.O.L.I 项目信息
+2. 等待可验证的技术文档
+3. 暂不纳入集成计划
+
+**替代方案**:
+- 等待更多社区信息
+- 自研简化版 LLM 集成（使用 ollama）
+- 暂不集成，专注已验证的 mod
+
+---
+
+## 待添加 Mod（2026-06-24）
+
+### 新增功能扩展
+
+#### 控制NPC嘴部 (Ayndpa)
+
+- **bit**: 524288 (下一个可用 bit)
+- **功能**: 提供更多与 NPC 嘴部互动的选项
+- **兼容性**: ✅ 独立功能，无依赖
+- **添加理由**: 扩展互动玩法，社区评价好
+
+#### 变身兔兔 (WinterPeach&Kotomi)
+
+- **bit**: 1048576
+- **功能**: 添加新的动物转化
+- **兼容性**: ✅ 独立功能
+- **添加理由**: 丰富转化系统，Beta 版但功能完整
+
+#### NeoUI Patch (依雅莱)
+
+- **bit**: 2097152
+- **功能**: 侧边栏动画优化，UI 美化
+- **兼容性**: ✅ CSS/UI 层面，风险低
+- **添加理由**: 提升用户体验，无功能性冲突
+
+#### NPC社交栏头像 (Eudemonism00)
+
+- **bit**: 4194304
+- **功能**: 社交界面 NPC 头像
+- **兼容性**: ✅ 与 Mae's Picvary 互补（不同显示位置）
+- **添加理由**: 版本更新（v1.4 > v1.3.2），功能互补
+
+### 共存测试
+
+#### Mae's Picvary + NPC社交栏头像
+
+**决策**: 推荐共存
+
+**理由**:
+- Mae's: 侧边栏常驻头像
+- NPC社交栏: 社交界面临时头像
+- 作用域不同，理论上无冲突
+
+**测试计划**:
+- 同时启用验证界面
+- 检查资源路径
+- 确认无 CSS 冲突
+
+### BESC 配置保留策略
+
+**当前状态**: skip = true（已跳过）
+
+**保留原因**:
+1. 上游友好策略 - 便于对比上游差异
+2. 决策记录 - 保留"为什么不用 BESC"的历史
+3. 配置完整性 - 避免删除后遗忘
+
+**参考**: [UPSTREAM_FRIENDLY_STRATEGY.md](UPSTREAM_FRIENDLY_STRATEGY.md)
+
 ---
 
 ## 结论
@@ -374,7 +504,7 @@ DOL-X 的 Mod 矩阵设计遵循以下原则：
 ---
 
 **维护者**: DOL-X 团队  
-**最后更新**: 2026-06-15
+**最后更新**: 2026-06-23
 
 ## 参考资料
 
