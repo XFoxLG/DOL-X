@@ -15,7 +15,7 @@
       "notes": [
         "DOL-X: Upgraded from v3.1.14 to v4.1.8 (2026-06-23)",
         "Fixes AU Face basehead.png path issue (fixed in v4.1.7)",
-        "expansion v1.2.4 uses DOL-X local compat patch (.local/patches/expansion_v4_compat.js)",
+        "expansion v1.2.4 uses DOL-X local compat patch (patches/expansion_v4_compat.js)",
         "Patch required: maplebirch.use() was removed in v4.x",
         "Remove patch when expansion v1.2.5+ releases with native v4.x support"
       ]
@@ -31,7 +31,7 @@
       "last_tested_date": "2026-06-23",
       "notes": [
         "DOL-X temporary: Uses local compat patch for maplebirch v4.x (2026-06-23)",
-        "Patch location: .local/patches/expansion_v4_compat.js",
+        "Patch location: patches/expansion_v4_compat.js",
         "Patch purpose: Polyfill maplebirch.use() which was removed in v4.x",
         "Remove patch when: expansion v1.2.5+ releases OR author fixes v4.x compat",
         "提供：音乐播放器、理智/灵性属性、更长遭遇战、定制纹身",
