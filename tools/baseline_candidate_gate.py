@@ -52,12 +52,12 @@ NAME = "baseline-candidate-gate"
 PARTIAL_GATE_LEVEL = "partial_candidate_gate"
 FULL_GATE_LEVEL = "full_candidate_gate"
 PROMOTION_REQUIRED_GREEN_RUNS = 2
-PROFILE = "ucb-more-love-custom-spellbook-cheat-extended-maplebirch"
+PROFILE = "ucb-more-love-cheat-extended-maplebirch"
 DEFAULT_STABLE_CODES: dict[str, int] = {
-    "base": 24834,
-    "au-f": 25858,
-    "au-m": 26882,
-    "au-a": 28930,
+    "base": 467202,  # CHEAT + UCB + MORE_LOVE + custom_hair + mae_picvary + expansion
+    "au-f": 468226,  # base + AU_FEMALE
+    "au-m": 469250,  # base + AU_MALE
+    "au-a": 471298,  # base + AU_ANDROGYNOUS
 }
 DEFAULT_STABLE_CODE_ORDER: tuple[str, ...] = ("base", "au-f", "au-m", "au-a")
 APK_CDP_BLOCKING_SLUGS: tuple[str, ...] = ("base",)
@@ -82,14 +82,16 @@ BASE_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("cheat_csd compatibility identity", ModCode.CHEAT),
     ("ucb", ModCode.UCB),
     ("more_love", ModCode.MORE_LOVE),
-    ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
+    # DOL-X: custom_spellbook removed (bit 16384), replaced by cheat_extended yanling
+    # ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
     ("cheat_extended_maplebirch", ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
 )
 REPLACEMENT_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("ucb", ModCode.UCB),
     ("more_love", ModCode.MORE_LOVE),
-    ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
     ("cheat_extended_maplebirch", ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
+    # DOL-X: custom_spellbook removed, replaced by cheat_extended yanling system
+    # ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
 )
 BASE_REQUIRED_APPLIED_MOD_TERMS: tuple[str, ...] = (
     "UCB",
