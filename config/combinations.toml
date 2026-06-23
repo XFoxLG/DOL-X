@@ -1,12 +1,12 @@
 # MOD 组合配置
 
-# DOL-X 自用构建列表（v3.1.14稳定版）：UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
+# DOL-X 自用构建列表（v4.1.8 稳定版 + 临时兼容补丁）：UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
 # 策略说明：
-#   - 降级框架到v3.1.14以支持maplebirchExpansion v1.2.4（提供音乐播放器、理智/灵性、更长遭遇战）
-#   - 降级Cheat Extended到v1.18（v1.19需要v4.x，但v3.2.x不存在）
-#   - 牺牲AU面部扩展贴图修复（需要v4.1.7）和cheat v1.19新功能（农场助手、成就解锁器）
-#   - 移除Custom-Spellbook：Cheat Extended的言灵集功能已完全覆盖（2026-06-17实测）
-#   - 待expansion更新支持v4.x后统一升级
+#   - 升级框架到 v4.1.8（修复 AU Face basehead.png 路径问题）
+#   - 升级 Cheat Extended 到 v1.19（完全兼容 v4.x，新增农场助手、成就解锁等功能）
+#   - expansion v1.2.4 临时兼容补丁（patches/expansion_v4_compat.js），等待 v1.2.5+ 原生支持 v4.x
+#   - 移除 Custom-Spellbook：Cheat Extended 的言灵集功能已完全覆盖（2026-06-17实测）
+#   - 待 expansion 更新支持 v4.x 后移除补丁
 #
 # 计算（包含所有必选mod）：
 # 基础: 499968 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
