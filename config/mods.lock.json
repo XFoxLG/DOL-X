@@ -78,6 +78,21 @@
         "测试阶段: 阶段 2.4 本地测试"
       ]
     },
+    "more_love": {
+      "name": "更多恋人",
+      "github_repo": "Nephthelana/DoL-More-Love-Interests-Mod",
+      "asset_pattern": "More.Love.Interests.Mod.mod.zip",
+      "release_tag": "More-Love-Interests-Mod-v0.1.6.0",
+      "last_tested_version": "v0.1.6.0",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-17",
+      "notes": [
+        "独立 feature，不依赖其他 mod",
+        "通过 build.toml 直链下载",
+        "兼容所有 imagepack 组合"
+      ]
+    },
     "au_f": {
       "name": "AU Female",
       "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
