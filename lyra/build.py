@@ -431,6 +431,44 @@ class PackageBuilder(ABC):
             return mod_path
         raise RuntimeError(f"More Love drag event compatibility patch failed: {status}")
 
+    def _create_expansion_compat_patch_mod(self) -> Path | None:
+        """
+        创建 expansion v4.x 兼容补丁的临时 mod
+        
+        为 maplebirchExpansion v1.2.4 生成兼容 maplebirch v4.x 的补丁 mod。
+        补丁通过 polyfill maplebirch.use() 方法确保 expansion 能正常加载。
+        
+        Returns:
+            补丁 mod 路径，如果补丁文件不存在则返回 None
+        """
+        patch_file = Path("patches/expansion_v4_compat.js")
+        if not patch_file.exists():
+            logger.debug("expansion v4.x 兼容补丁文件不存在，跳过")
+            return None
+        
+        # 创建临时 mod zip
+        patch_mod_path = self.paths.temp_dir / f"expansion_v4_compat-{self.task.code_str}.mod.zip"
+        
+        with zipfile.ZipFile(patch_mod_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            # boot.json
+            boot_json = {
+                "name": "DOL-X Expansion v4.x Compat Patch",
+                "version": "1.0.0-temp",
+                "styleFileList": [],
+                "scriptFileList": [],
+                "tweeFileList": [],
+                "imgFileList": [],
+                "imgFileReplaceList": [],
+                "addonPlugin": [],
+                "dependenceInfo": [],
+                "scriptFileList_inject_early": ["expansion_v4_compat.js"]
+            }
+            zf.writestr("boot.json", json.dumps(boot_json, ensure_ascii=False, indent=2))
+            zf.writestr("expansion_v4_compat.js", patch_file.read_text(encoding="utf-8"))
+        
+        logger.info(f"Created expansion v4.x compat patch mod: {patch_mod_path.name}")
+        return patch_mod_path
+
     def _inject_modloader_mods(self) -> list[str]:
         """
         注入 modloader mod 到 HTML
@@ -476,6 +514,24 @@ class PackageBuilder(ABC):
                         applied.append(mod_config.key or mod_config.asset_pattern)
                 else:
                     logger.warning(f"mod 文件不存在: {mod_path}")
+
+        # 检测是否需要注入 expansion 补丁
+        expansion_exists = any(
+            mod_config.cache_name == "maplebirch_expansion"
+            for mod_config in build_config.modloader_mods
+            if mod_config.enabled and any(
+                config_loader.get_feature_by_id(fid) 
+                and self.mod_code & config_loader.get_feature_by_id(fid).bit
+                for fid in mod_config.required_feature_ids
+            )
+        )
+        
+        if expansion_exists:
+            patch_mod = self._create_expansion_compat_patch_mod()
+            if patch_mod:
+                # 在所有 mod 之前注入补丁（确保在 expansion 加载前执行）
+                mod_paths.insert(0, patch_mod)
+                applied.insert(0, "expansion_v4_compat")
 
         if mod_paths:
             injector = ModInjector(self.paths)
