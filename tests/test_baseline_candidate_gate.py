@@ -186,10 +186,10 @@ def test_baseline_candidate_manifest_records_maplebirch_provider_and_replacement
 @pytest.mark.config
 def test_replacement_candidate_codes_exclude_legacy_cheat_stack_without_changing_defaults():
     assert REPLACEMENT_CANDIDATE_CODES == {
-        "base": 57600,
-        "au-f": 58624,
-        "au-m": 59648,
-        "au-a": 61696,
+        "base": 499968,
+        "au-f": 500992,
+        "au-m": 502016,
+        "au-a": 504064,
     }
     assert set(REPLACEMENT_CANDIDATE_CODES) == set(CANDIDATE_CODES)
     for slug, code in REPLACEMENT_CANDIDATE_CODES.items():
