@@ -217,6 +217,46 @@ release_tag = "release-v1.2.4"
 # Will need update for v4.x compatibility when framework upgrades
 download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/download/release-v1.2.4/maplebirchEx-v1.2.4.zip"
 
+[[modloader_mods]]
+key = "guide_to_me"
+name = "控制NPC嘴部"
+enabled = true
+feature_id = "guide_to_me"
+github_repo = "Ayndpa/DOL-GuideToMe"
+asset_pattern = "*.mod.zip"
+release_tag = "1.1.0"
+download_url = "https://github.com/Ayndpa/DOL-GuideToMe/releases/download/1.1.0/Guide.To.Me.mod.zip"
+
+[[modloader_mods]]
+key = "bunny_transformation"
+name = "变身兔兔"
+enabled = true
+feature_id = "bunny_transformation"
+github_repo = "sylphiet/Bunny-TransformationCN"
+asset_pattern = "*.mod.zip"
+release_tag = "v0.3.1β"
+download_url = "https://github.com/sylphiet/Bunny-TransformationCN/releases/download/v0.3.1%CE%B2/Bunny.Transformation.mod.zip"
+
+[[modloader_mods]]
+key = "neoui_patch"
+name = "NeoUI Patch"
+enabled = true
+feature_id = "neoui_patch"
+github_repo = "RyaraSUKI/dol-neoui-patch"
+asset_pattern = "*.mod.zip"
+release_tag = "V1.1.0"
+download_url = "https://github.com/RyaraSUKI/dol-neoui-patch/releases/download/V1.1.0/NeoUI.Patch.mod.zip"
+
+[[modloader_mods]]
+key = "npc_social_icon"
+name = "NPC社交栏头像"
+enabled = true
+feature_id = "npc_social_icon"
+github_repo = "Eudemonism00/DOL-npcicon-mods"
+asset_pattern = "*.mod.zip"
+release_tag = "v1.4.1"
+download_url = "https://github.com/Eudemonism00/DOL-npcicon-mods/releases/download/v1.4.1/DOL-npcicon-mods.mod.zip"
+
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）

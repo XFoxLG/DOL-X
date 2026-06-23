@@ -166,3 +166,39 @@ required = true
 skip = false
 depends_on = ["cheat_extended_maplebirch"]  # 依赖 maplebirch 框架
 conflicts_with = []
+
+[[features]]
+id = "guide_to_me"
+name = "控制NPC嘴部"
+bit = 524288
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "bunny_transformation"
+name = "变身兔兔"
+bit = 1048576
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "neoui_patch"
+name = "NeoUI Patch"
+bit = 2097152
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "npc_social_icon"
+name = "NPC社交栏头像"
+bit = 4194304
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
