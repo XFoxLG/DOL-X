@@ -211,7 +211,7 @@ asset_pattern = "maplebirchEx-v*.zip"
 release_tag = "release-v1.2.4"
 # maplebirch 官方扩展包，内置更长遭遇战功能
 # 额外功能：作弊集、音乐播放器、定制纹身、核心属性扩展等
-# DOL-X temporary: v1.2.4 uses local compat patch (.local/patches/expansion_v4_compat.js)
+# DOL-X temporary: v1.2.4 uses local compat patch (patches/expansion_v4_compat.js)
 # for maplebirch.use() which was removed in v4.x
 # Remove patch when expansion v1.2.5+ releases with native v4.x support
 download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/download/release-v1.2.4/maplebirchEx-v1.2.4.zip"
