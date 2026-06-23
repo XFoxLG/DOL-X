@@ -1,23 +1,24 @@
 # MOD 组合配置
 
-# DOL-X 自用构建列表（v3.1.14 稳定版）：UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion
+# DOL-X 自用构建列表（v3.1.14 稳定版）：UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + 4个新mod
 # 策略说明：
 #   - maplebirch v3.1.14（稳定版，与 expansion v1.2.4 完全兼容）
 #   - Cheat Extended v1.17（完整言灵系统：自定义言灵集 + 快速言灵）
 #   - AU Face 已禁用（v3.x 的 basehead.png 路径问题，需等 v4.x 升级）
 #   - 移除 Custom-Spellbook：Cheat Extended 的言灵集功能已完全覆盖（2026-06-17实测）
 #   - v4.x 升级计划：等待 expansion v1.2.5+ 发布原生 v4.x 支持后统一升级
+#   - 新增4个mod（2026-06-23）：控制NPC嘴部 + 变身兔兔 + NeoUI Patch + NPC社交栏头像
 #
 # 计算（包含所有必选mod）：
-# 基础: 499968 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
-# AU 变体：+ 1024 (au-f) = 500992, + 2048 (au-m) = 502016, + 4096 (au-a) = 504064
-build_codes = ["499968", "500992", "502016", "504064"]
+# 基础: 8364288 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 1048576 (bunny_transformation) + 2097152 (neoui_patch) + 4194304 (npc_social_icon)
+# AU 变体：+ 1024 (au-f) = 8365312, + 2048 (au-m) = 8366336, + 4096 (au-a) = 8368384
+build_codes = ["8364288", "8365312", "8366336", "8368384"]
 
 # 基础版显示名称对应的组合（无AU）
-base_code = 499968
+base_code = 8364288
 
 # 推荐的组合（优先显示）
-recommended = [500992, 502016, 504064]
+recommended = [8365312, 8366336, 8368384]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。

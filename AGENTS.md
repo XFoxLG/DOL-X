@@ -149,6 +149,25 @@ gh api repos/MaplebirchLeaf/SCML-DOL-maplebirchframework/releases/latest --jq '.
   - One-click enable/disable, no coding required
   - Presets: status recovery, pepper spray, transformation traits, etc.
 
+### Mod 集成进度（2026-06-24）
+
+**待集成**（4个）:
+1. 控制NPC嘴部 (Ayndpa v1.1.0)
+2. 变身兔兔 (WinterPeach v0.3.1β)
+3. NeoUI Patch (依雅莱 V1.1.0)
+4. NPC社交栏头像 (Eudemonism00 v1.4.1)
+
+**调研中**:
+- D.O.L.I (LLM) - 技术可行性评估
+
+**低优先级**:
+- inuno 犬野美化 - 等主线稳定后评估
+
+**已拒绝**:
+- 爱、糖果和机器人 - 依赖 Simple Framework，稳定性不足
+
+详见: [docs/COMMUNITY_MOD_RESEARCH_2026.md](docs/COMMUNITY_MOD_RESEARCH_2026.md)
+
 **Custom Spellbook**: Not part of the current build matrix; Cheat Extended Yanling Set replaces its practical use case for this project.
 
 **Test checklist**: See `docs/MANUAL_TESTING_CHECKLIST.md`
