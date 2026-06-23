@@ -52,12 +52,12 @@ NAME = "baseline-candidate-gate"
 PARTIAL_GATE_LEVEL = "partial_candidate_gate"
 FULL_GATE_LEVEL = "full_candidate_gate"
 PROMOTION_REQUIRED_GREEN_RUNS = 2
-PROFILE = "ucb-more-love-cheat-extended-maplebirch"
+PROFILE = "ucb-more-love-cheat-extended-maplebirch-custom-hair-mae-picvary-expansion"
 DEFAULT_STABLE_CODES: dict[str, int] = {
-    "base": 467202,  # CHEAT + UCB + MORE_LOVE + custom_hair + mae_picvary + expansion
-    "au-f": 468226,  # base + AU_FEMALE
-    "au-m": 469250,  # base + AU_MALE
-    "au-a": 471298,  # base + AU_ANDROGYNOUS
+    "base": 499968,  # UCB + MORE_LOVE + CHEAT_EXTENDED_MAPLEBIRCH + CUSTOM_HAIR + MAE_PICVARY + MAPLEBIRCH_EXPANSION
+    "au-f": 500992,  # base + AU_FEMALE
+    "au-m": 502016,  # base + AU_MALE
+    "au-a": 504064,  # base + AU_ANDROGYNOUS
 }
 DEFAULT_STABLE_CODE_ORDER: tuple[str, ...] = ("base", "au-f", "au-m", "au-a")
 APK_CDP_BLOCKING_SLUGS: tuple[str, ...] = ("base",)
@@ -79,19 +79,20 @@ AU_BITS_BY_SLUG: dict[str, ModCode] = {
     "au-a": ModCode.AU_ANDROGYNOUS,
 }
 BASE_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
-    ("cheat_csd compatibility identity", ModCode.CHEAT),
     ("ucb", ModCode.UCB),
     ("more_love", ModCode.MORE_LOVE),
-    # DOL-X: custom_spellbook removed (bit 16384), replaced by cheat_extended yanling
-    # ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
     ("cheat_extended_maplebirch", ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
+    ("custom_hair", ModCode.CUSTOM_HAIR),
+    ("mae_picvary", ModCode.MAE_PICVARY),
+    ("maplebirch_expansion", ModCode.MAPLEBIRCH_EXPANSION),
 )
 REPLACEMENT_REQUIRED_BITS: tuple[tuple[str, ModCode], ...] = (
     ("ucb", ModCode.UCB),
     ("more_love", ModCode.MORE_LOVE),
     ("cheat_extended_maplebirch", ModCode.CHEAT_EXTENDED_MAPLEBIRCH),
-    # DOL-X: custom_spellbook removed, replaced by cheat_extended yanling system
-    # ("custom_spellbook", ModCode.CUSTOM_SPELLBOOK),
+    ("custom_hair", ModCode.CUSTOM_HAIR),
+    ("mae_picvary", ModCode.MAE_PICVARY),
+    ("maplebirch_expansion", ModCode.MAPLEBIRCH_EXPANSION),
 )
 BASE_REQUIRED_APPLIED_MOD_TERMS: tuple[str, ...] = (
     "UCB",
@@ -104,7 +105,9 @@ BASE_REQUIRED_PAYLOAD_TERMS: dict[str, tuple[str, ...]] = {
     "maplebirch": ("maplebirch",),
     "cheatExtended": ("cheatextended", "cheat extended"),
     "More Love Interests Mod": ("more love interests mod",),
-    "Custom-Spellbook": ("custom-spellbook", "custom spellbook"),
+    "CustomHair": ("customhair", "custom hair"),
+    "Mae's Picvary NPC all mod": ("mea", "picvary", "npc"),
+    "maplebirch扩展包": ("maplebirchex", "expansion"),
     "Lyra": ("lyra",),
 }
 ZIP_BUILD_REPORT = "baseline-candidate-zip-build.json"
@@ -305,7 +308,7 @@ def _target_output_dir(pack_type: str) -> Path:
 
 
 def _expected_slug_tokens(slug: str) -> list[str]:
-    tokens = ["ucb", "more-love", "custom-spellbook", "cheat-extended", "maplebirch"]
+    tokens = ["ucb", "more-love", "cheat-extended", "maplebirch", "custom-hair", "mae-picvary", "expansion"]
     if slug != "base":
         tokens.insert(0, slug)
     return tokens
