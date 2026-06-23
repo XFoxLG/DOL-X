@@ -148,7 +148,7 @@ gh api repos/MaplebirchLeaf/SCML-DOL-maplebirchframework/releases/latest --jq '.
 
 **Removal steps** (when conditions met):
 1. Verify expansion natively supports v4.x
-2. Delete `.local/patches/expansion_v4_compat.js`
+2. Delete `patches/expansion_v4_compat.js`
 3. Remove patch references from `config/build.toml` comments
 4. Remove patch references from `config/mods.lock.json`
 5. Remove this section from AGENTS.md
@@ -363,4 +363,4 @@ python -m pytest tests/ -v
 
 ---
 
-**Last Updated**: 2026-06-18 (maplebirch v3.1.14 + cheat v1.17 + expansion v1.2.4)
+**Last Updated**: 2026-06-23 (maplebirch v4.1.8 + cheat v1.19 + expansion v1.2.4 + compat patch)

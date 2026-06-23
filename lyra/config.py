@@ -26,6 +26,9 @@ class ModCode(IntFlag):
     MORE_LOVE = 8192  # 更多恋人
     CUSTOM_SPELLBOOK = 16384  # 自定义魔法书
     CHEAT_EXTENDED_MAPLEBIRCH = 32768  # cheatExtended + maplebirch
+    CUSTOM_HAIR = 65536  # 自定义染发
+    MAE_PICVARY = 131072  # NPC侧边栏头像
+    MAPLEBIRCH_EXPANSION = 262144  # maplebirch扩展包
 
     @classmethod
     def from_string(cls, code_str: str) -> tuple["ModCode", bool]:
@@ -75,6 +78,12 @@ class ModCode(IntFlag):
             suffix_parts.append("custom-spellbook")
         if self & ModCode.CHEAT_EXTENDED_MAPLEBIRCH:
             suffix_parts.append("cheat-extended-maplebirch")
+        if self & ModCode.CUSTOM_HAIR:
+            suffix_parts.append("custom-hair")
+        if self & ModCode.MAE_PICVARY:
+            suffix_parts.append("mae-picvary")
+        if self & ModCode.MAPLEBIRCH_EXPANSION:
+            suffix_parts.append("expansion")
 
         return "-".join(suffix_parts) if suffix_parts else ""
 
