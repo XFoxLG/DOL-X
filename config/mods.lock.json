@@ -143,6 +143,67 @@
         "只注入 AU 三版本",
         "依赖 AU 主模组"
       ]
+    },
+    "guide_to_me": {
+      "name": "控制NPC嘴部",
+      "github_repo": "Ayndpa/DOL-GuideToMe",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "1.1.0",
+      "last_tested_version": "v1.1.0",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "Added in DOL-X integration (2026-06-23)",
+        "Provides NPC mouth control functionality",
+        "Compatible with all current mod combinations"
+      ]
+    },
+    "bunny_transformation": {
+      "name": "变身兔兔",
+      "github_repo": "sylphiet/Bunny-TransformationCN",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "v0.3.1β",
+      "last_tested_version": "v0.3.1β",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "Added in DOL-X integration (2026-06-23)",
+        "Bunny transformation feature",
+        "Beta version - monitor for updates"
+      ]
+    },
+    "neoui_patch": {
+      "name": "NeoUI Patch",
+      "github_repo": "RyaraSUKI/dol-neoui-patch",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "V1.1.0",
+      "last_tested_version": "V1.1.0",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "Added in DOL-X integration (2026-06-23)",
+        "UI enhancement patch",
+        "Compatible with current UI mod stack"
+      ]
+    },
+    "npc_social_icon": {
+      "name": "NPC社交栏头像",
+      "github_repo": "Eudemonism00/DOL-npcicon-mods",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "v1.4.1",
+      "last_tested_version": "v1.4.1",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "Added in DOL-X integration (2026-06-23)",
+        "NPC social bar avatar display",
+        "Test coexistence with Mae's Picvary (bit 131072)",
+        "Both mods target NPC sidebar - validate no conflict"
+      ]
     }
   }
 }
