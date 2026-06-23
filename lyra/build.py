@@ -5,6 +5,7 @@
 专为CI流程设计，不包含资源下载逻辑。
 """
 
+import json
 import logging
 import re
 import shutil
