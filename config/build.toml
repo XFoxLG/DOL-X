@@ -177,8 +177,8 @@ enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
-release_tag = "V1.17"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.17/cheat_extended.mod.zip"
+release_tag = "V1.17(dev)"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.17%28dev%29/cheat_extended.mod.zip"
 # DOL-X: Rolled back from v1.19 to v1.17 (2026-06-23)
 # Reason: v1.19 requires maplebirch v4.x
 # v1.17 provides full Yanling system
