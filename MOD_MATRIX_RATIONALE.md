@@ -22,18 +22,18 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 516352 | UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 基础版，完整 Mod 集合 |
-| 517376 | AU-F + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 女性体型 + 完整 Mod |
-| 518400 | AU-M + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 男性体型 + 完整 Mod |
-| 520448 | AU-A + UCB + more_love + custom_spellbook + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 中性体型 + 完整 Mod |
+| 499968 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 基础版，完整 Mod 集合 |
+| 500992 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 女性体型 + 完整 Mod |
+| 502016 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 男性体型 + 完整 Mod |
+| 504064 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion | 中性体型 + 完整 Mod |
 
 ### Feature Bits 分解
 
 ```
-516352 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
-517376 = 516352 + 1024 (AU-F)
-518400 = 516352 + 2048 (AU-M)
-520448 = 516352 + 4096 (AU-A)
+499968 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion)
+500992 = 499968 + 1024 (AU-F)
+502016 = 499968 + 2048 (AU-M)
+504064 = 499968 + 4096 (AU-A)
 ```
 
 ---
@@ -170,6 +170,55 @@
 - **类型**: ModLoader mod，作为必选包含在所有构建中
 - **注意**: 只有 main 分支，模组列表中提到的 "DOL 分支" 可能已合并
 - **决策**: 增强 UI 体验，不影响游戏机制
+
+### 为什么移除 Custom-Spellbook？
+
+**移除时间**: 2026-06-17  
+**移除原因**: 实际游戏测试发现功能重复
+
+**测试发现**：
+- Cheat Extended v1.17 的"自定义言灵集"功能与 Custom-Spellbook 高度重叠
+- Cheat Extended 提供的言灵集管理（新增、编辑、删除）已满足需求
+- Custom-Spellbook 的"跨存档保存"功能使用频率低
+- 密码输入（`DOL-Custom-Spellbook-Mod`）增加启动摩擦
+
+**功能对比**：
+
+| 功能 | Custom-Spellbook | Cheat Extended 言灵集 |
+|------|------------------|-----------------------|
+| 新增言灵 | ✅ | ✅ |
+| 编辑言灵 | ✅ | ✅ |
+| 删除言灵 | ✅ | ✅ |
+| 手动执行 | ✅ | ✅ |
+| 快速预设 | ❌ | ✅ (Quick Yanling) |
+| 跨存档保存 | ✅ (IndexedDB) | ❌ |
+| 导出/导入 | ✅ (JSON) | ❌ |
+| 批量操作 | ✅ | ❌ |
+| 侧边栏集成 | ❌ | ✅ |
+| 密码保护 | ✅ (启动时输入) | ❌ (无摩擦) |
+
+**保留 Cheat Extended 的优势**：
+- 原生集成，无需额外密码
+- 自动执行机制更符合作弊场景
+- Quick Yanling 提供预设快捷功能
+- 与侧边栏深度集成
+- 无启动摩擦（Custom-Spellbook 每次启动需输入密码）
+
+**Custom-Spellbook 的独特功能使用频率评估**：
+- **跨存档保存**：实际使用中频率极低（大部分用户每个存档使用不同的言灵）
+- **导出/导入**：备份场景少见（言灵代码简单，重新输入成本低）
+- **批量操作**：使用场景有限
+
+**决策**：移除 Custom-Spellbook，简化 mod 栈。
+
+**Build Code 变化**：
+- 旧版：516352（包含 bit 16384）
+- 新版：499968（移除 bit 16384）
+- 差值：-16384
+
+**来源**：
+- Custom-Spellbook: https://github.com/ZeroRing233/DOL-Custom-Spellbook-Mod
+- Cheat Extended: https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended
 
 ### 为什么使用 maplebirchExpansion 而非独立 LongerCombat？
 

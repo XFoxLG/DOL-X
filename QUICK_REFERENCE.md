@@ -31,10 +31,10 @@ python --version  # 应显示 3.11+ 但非 3.14
 python main.py matrix
 
 # 构建特定代码
-python main.py build --codes 57600
+python main.py build --codes 499968
 
 # 构建 AU 变体
-python main.py build --codes 58624,59648,61696
+python main.py build --codes 500992,502016,504064
 
 # 使用 profile 构建
 python main.py build --profile standard
@@ -134,20 +134,21 @@ git push origin v0.5.8.10-3.1.13-20260613
 
 | Code | 组合 | 说明 |
 |------|------|------|
-| **57600** | UCB + more_love + custom_spellbook + cheatExtended+maplebirch | **基础版（推荐）** |
-| **58624** | 上述 + AU-F | **AU 面部扩展** |
-| **59648** | 上述 + AU-M | **AU 武术** |
-| **61696** | 上述 + AU-A | **AU 小巷** |
+| **499968** | UCB + more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + expansion | **基础版（推荐）** |
+| **500992** | 上述 + AU-F | **AU Female 变体** |
+| **502016** | 上述 + AU-M | **AU Male 变体** |
+| **504064** | 上述 + AU-A | **AU Androgynous 变体** |
 
 ### Build Code 计算
 
 ```
-57600 = 256 (UCB) + 8192 (more_love) + 16384 (custom_spellbook) + 32768 (cheatExtended+maplebirch)
+基础码 499968 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) 
+                + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (expansion)
 
 AU 变体：
-58624 = 57600 + 1024 (AU-F)
-59648 = 57600 + 2048 (AU-M)
-61696 = 57600 + 4096 (AU-A)
+500992 = 499968 + 1024 (AU-F)
+502016 = 499968 + 2048 (AU-M)
+504064 = 499968 + 4096 (AU-A)
 ```
 
 ---
@@ -170,8 +171,11 @@ AU 变体：
 | **AU-M** | **2048** | **0x800** | **AU 武术** | **✅ 启用** |
 | **AU-A** | **4096** | **0x1000** | **AU 小巷** | **✅ 启用** |
 | **more_love** | **8192** | **0x2000** | **更多恋人** | **✅ 启用** |
-| **custom_spellbook** | **16384** | **0x4000** | **自定义魔法书** | **✅ 启用** |
+| ~~custom_spellbook~~ | ~~16384~~ | ~~0x4000~~ | ~~自定义魔法书（已移除）~~ | **❌ 已移除** |
 | **cheat_extended_maplebirch** | **32768** | **0x8000** | **作弊扩展+秋枫白桦框架** | **✅ 启用** |
+| **custom_hair** | **65536** | **0x10000** | **自定义染发** | **✅ 启用** |
+| **mae_picvary** | **131072** | **0x20000** | **NPC侧边栏头像** | **✅ 启用** |
+| **maplebirch_expansion** | **262144** | **0x40000** | **秋枫白桦扩展包** | **✅ 启用** |
 
 ---
 
@@ -209,7 +213,7 @@ python tools/browser_smoke_test.py output/*.zip
 
 # 5. 检查输出
 ls output/
-# 预期：DoL-0.5.8.10-XFox-57601-*.zip 等 4 个文件
+# 预期：DoL-0.5.8.10-XFox-499968-*.zip 等 4 个文件
 ```
 
 ### 场景 2: 添加新 Mod
@@ -340,7 +344,7 @@ rm -rf workspace/temp/*
 python main.py warmup
 
 # 5. 重试构建
-python main.py build --codes 57601 --jobs 1
+python main.py build --codes 499968 --jobs 1
 
 # 6. 检查日志
 # 查看错误信息，通常在输出末尾
