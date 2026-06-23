@@ -6,18 +6,17 @@
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "asset_pattern": "maplebirch-0.5.10.12-v4.1.8.mod.zip",
-      "release_tag": "maplebirch-release-v4.1.8",
-      "last_tested_version": "v4.1.8",
+      "asset_pattern": "maplebirch-0.5.8.10-v3.1.14.mod.zip",
+      "release_tag": "maplebirch-release-v3.1.14",
+      "last_tested_version": "v3.1.14",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-23",
       "notes": [
-        "DOL-X: Upgraded from v3.1.14 to v4.1.8 (2026-06-23)",
-        "Fixes AU Face basehead.png path issue (fixed in v4.1.7)",
-        "expansion v1.2.4 uses DOL-X local compat patch (patches/expansion_v4_compat.js)",
-        "Patch required: maplebirch.use() was removed in v4.x",
-        "Remove patch when expansion v1.2.5+ releases with native v4.x support"
+        "DOL-X: Rolled back from v4.1.8 to v3.1.14 (2026-06-23)",
+        "Reason: expansion v1.2.4 incompatible with v4.x (multiple runtime errors)",
+        "AU Face disabled temporarily (basehead.png path issue exists on v3.x)",
+        "Will upgrade to v4.x when expansion v1.2.5+ releases with native v4.x support"
       ]
     },
     "maplebirch_expansion": {
@@ -27,15 +26,13 @@
       "release_tag": "release-v1.2.4",
       "last_tested_version": "v1.2.4",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-23",
       "notes": [
-        "DOL-X temporary: Uses local compat patch for maplebirch v4.x (2026-06-23)",
-        "Patch location: patches/expansion_v4_compat.js",
-        "Patch purpose: Polyfill maplebirch.use() which was removed in v4.x",
-        "Remove patch when: expansion v1.2.5+ releases OR author fixes v4.x compat",
+        "DOL-X: Confirmed compatible with maplebirch v3.1.14 (2026-06-23)",
         "提供：音乐播放器、理智/灵性属性、更长遭遇战、定制纹身",
-        "已知 Bug：LongerCombat 倍率计算错误（见 GitHub Issue #1）"
+        "已知 Bug：LongerCombat 倍率计算错误（见 GitHub Issue #1）",
+        "v4.x compat: Blocked until expansion v1.2.5+ releases with native support"
       ]
     },
     "custom_hair": {
@@ -58,16 +55,16 @@
       "name": "Cheat Extended",
       "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
       "asset_pattern": "cheat_extended.mod.zip",
-      "release_tag": "V1.19",
-      "last_tested_version": "v1.19",
+      "release_tag": "V1.17",
+      "last_tested_version": "v1.17",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-23",
       "notes": [
-        "DOL-X: Upgraded from v1.17 to v1.19 (2026-06-23)",
-        "Now compatible with maplebirch v4.x",
-        "Expected fix for Custom Yanling Set widget error (to be verified)",
-        "New features in v1.19: Farm Helper, Achievement Unlocker, Combat Skills"
+        "DOL-X: Rolled back from v1.19 to v1.17 (2026-06-23)",
+        "Reason: v1.19 requires maplebirch v4.x (min v3.2.5, actual v4.x)",
+        "v1.17 provides full Yanling system (Custom Set + Quick Yanling)",
+        "Will upgrade to v1.19 when maplebirch upgrades to v4.x"
       ]
     },
     "mae_picvary": {
@@ -135,13 +132,14 @@
       "release_tag": "facemod",
       "last_tested_version": "v1.2.8",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-23",
-      "status": "enabled",
+      "status": "disabled",
       "notes": [
-        "DOL-X: Re-enabled after maplebirch v4.1.8 upgrade (2026-06-23)",
-        "basehead.png path issue fixed in maplebirch v4.1.7",
-        "Previous issue: 头发/面部在侧边栏错位 (sidebar sprite positioning)",
+        "DOL-X: Disabled after rollback to maplebirch v3.1.14 (2026-06-23)",
+        "Reason: basehead.png path issue exists on v3.x (fixed in v4.1.7)",
+        "Issue: 头发/面部在侧边栏错位 (sidebar sprite positioning)",
+        "Will re-enable when maplebirch upgrades to v4.x",
         "只注入 AU 三版本",
         "依赖 AU 主模组"
       ]
