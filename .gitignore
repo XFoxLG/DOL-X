@@ -71,6 +71,11 @@ base/
 AGENTS.md
 PROJECT_REVIEW.md
 
+# Temporary files and local scripts
+temp-*/
+test*.json
+*.ps1
+
 # Copyright-protected encrypted mod content (AU Face, etc.)
 *.crypt
 *.salt
