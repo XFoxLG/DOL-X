@@ -25,15 +25,21 @@ jobs:
       
       - name: Check mod updates
         id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python tools/check_mod_updates.py --output output/mod-updates.json
           
-          # 检查是否有更新
+          # 从 JSON 读取状态（使用 jq）
           if [ -f output/mod-updates.json ]; then
-            HAS_UPDATES=$(python -c "import json; data=json.load(open('output/mod-updates.json')); print(data.get('has_updates', False))")
+            HAS_UPDATES=$(jq -r '.has_updates' output/mod-updates.json)
+            UPDATE_COUNT=$(jq -r '.updates_available' output/mod-updates.json)
+            
             echo "has_updates=$HAS_UPDATES" >> $GITHUB_OUTPUT
+            echo "update_count=$UPDATE_COUNT" >> $GITHUB_OUTPUT
           else
             echo "has_updates=false" >> $GITHUB_OUTPUT
+            echo "update_count=0" >> $GITHUB_OUTPUT
           fi
       
       - name: Upload update report
@@ -45,16 +51,16 @@ jobs:
           retention-days: 30
       
       - name: Create issue if updates found
-        if: steps.check.outputs.has_updates == 'True'
+        if: steps.check.outputs.has_updates == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             
             // 读取更新报告
-            let updates;
+            let report;
             try {
-              updates = JSON.parse(fs.readFileSync('output/mod-updates.json', 'utf8'));
+              report = JSON.parse(fs.readFileSync('output/mod-updates.json', 'utf8'));
             } catch (error) {
               console.log('无法读取更新报告');
               return;
@@ -62,20 +68,39 @@ jobs:
             
             // 构建 Issue 内容
             let body = '## 🔄 检测到 Mod 更新\n\n';
-            body += `**检测时间**: ${updates.timestamp || new Date().toISOString()}\n\n`;
+            body += `**检测时间**: ${report.timestamp || new Date().toISOString()}\n`;
+            body += `**更新数量**: ${report.updates_available} / ${report.total_checked}\n\n`;
             
-            if (updates.updates && updates.updates.length > 0) {
+            if (report.updates && report.updates.length > 0) {
               body += '### 可用更新\n\n';
               
-              for (const mod of updates.updates) {
-                body += `#### ${mod.name}\n`;
-                body += `- **当前版本**: ${mod.current_version}\n`;
-                body += `- **最新版本**: ${mod.latest_version}\n`;
-                body += `- **仓库**: ${mod.repo_url}\n`;
-                body += `- **发布日期**: ${mod.release_date || 'N/A'}\n`;
+              for (const mod of report.updates) {
+                const riskEmoji = {
+                  'low': '🟢',
+                  'medium': '🟡',
+                  'high': '🔴',
+                  'unknown': '⚪'
+                }[mod.risk_level] || '⚪';
                 
-                if (mod.changelog) {
-                  body += `- **更新日志**: ${mod.changelog}\n`;
+                body += `#### ${riskEmoji} ${mod.mod_name}\n\n`;
+                body += `- **当前版本**: \`${mod.current}\`\n`;
+                body += `- **最新版本**: \`${mod.latest}\`${mod.is_prerelease ? ' (Pre-release)' : ''}\n`;
+                body += `- **仓库**: ${mod.repo}\n`;
+                body += `- **发布时间**: ${mod.published_at}\n`;
+                body += `- **风险等级**: ${mod.risk_level.toUpperCase()}\n`;
+                
+                if (mod.risk_notes && mod.risk_notes.length > 0) {
+                  body += `- **风险提示**:\n`;
+                  for (const note of mod.risk_notes) {
+                    body += `  - ⚠️ ${note}\n`;
+                  }
+                }
+                
+                if (mod.changelog_summary) {
+                  body += `\n<details>\n<summary>📝 更新日志摘要</summary>\n\n`;
+                  body += mod.changelog_summary;
+                  body += `\n\n[查看完整日志](${mod.changelog_url})\n`;
+                  body += `</details>\n`;
                 }
                 
                 body += '\n';
@@ -83,11 +108,13 @@ jobs:
             }
             
             body += '### 📋 处理步骤\n\n';
-            body += '1. 查看上游 Release Notes\n';
-            body += '2. 评估兼容性影响\n';
+            body += '1. 查看上游 Release Notes 和风险提示\n';
+            body += '2. 评估依赖兼容性（参考 `config/mods.lock.json` notes）\n';
             body += '3. 更新 `config/build.toml` 中的版本号\n';
-            body += '4. 运行测试验证\n';
-            body += '5. 提交更新\n\n';
+            body += '4. 运行 `python tools/mod_audit.py` 验证\n';
+            body += '5. 本地测试构建\n';
+            body += '6. 提交更新并更新 `mods.lock.json`\n\n';
+            body += '若更新失败，参考 [回滚指南](docs/MOD_UPDATE_ROLLBACK.md)\n\n';
             body += '---\n';
             body += '*此 Issue 由 GitHub Actions 自动创建*';
             
@@ -122,14 +149,35 @@ jobs:
               console.log(`已创建 Issue #${issue.data.number}`);
             }
       
+      - name: Send email notification
+        if: steps.check.outputs.has_updates == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[DoL-X] 发现 ${{ steps.check.outputs.update_count }} 个 Mod 更新"
+          to: ${{ secrets.MAIL_TO }}
+          from: GitHub Actions <noreply@github.com>
+          body: |
+            检测到 ${{ steps.check.outputs.update_count }} 个 Mod 更新
+            
+            详情查看：https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            或查看创建的 Issue（标签：mod-update）
+        continue-on-error: true
+      
       - name: Summary
         if: always()
         run: |
           echo "## Mod 更新检查完成" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ steps.check.outputs.has_updates }}" = "True" ]; then
-            echo "✅ 发现可用更新，已创建 Issue" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check.outputs.has_updates }}" = "true" ]; then
+            echo "✅ 发现 ${{ steps.check.outputs.update_count }} 个可用更新" >> $GITHUB_STEP_SUMMARY
+            echo "已创建/更新 Issue" >> $GITHUB_STEP_SUMMARY
           else
             echo "ℹ️ 所有 Mod 均为最新版本" >> $GITHUB_STEP_SUMMARY
           fi
