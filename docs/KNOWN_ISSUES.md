@@ -1,5 +1,53 @@
 # 已知问题
 
+## Cheat Extended v1.17 自定义言灵集
+
+**Widget 报错问题**
+
+在 maplebirch v3.1.14 + Cheat Extended v1.17 组合下，自定义言灵集功能会触发 widget error。
+
+**影响**
+- 自定义言灵集界面无法正常使用
+- 不影响快速言灵功能（预设作弊功能正常）
+
+**Workaround**
+使用快速言灵功能替代：
+1. Options → Mod Settings → Cheat Extended Settings → Quick Yanling 标签
+2. 选择预设的作弊功能（无限氧气、每日自动恢复等）
+3. 一键启用/禁用，无需编写代码
+
+**预期修复**
+- Cheat Extended v1.19 可能修复此问题
+- 需要 maplebirch v4.x 支持
+- 等待 expansion v1.2.5+ 发布后统一升级
+
+**状态**: 已有 workaround，非阻塞问题
+
+
+## Custom Hair 十六进制颜色输入
+
+**功能部分可用**
+
+Custom Hair mod 的预设颜色功能正常，但自定义十六进制颜色输入缺失。
+
+**影响**
+- 可以使用预设的染发颜色
+- 无法输入自定义十六进制颜色代码（如 #FF5733）
+
+**Workaround**
+使用预设颜色：
+1. Salon → Custom Hair
+2. 从预设颜色列表中选择
+3. 预设颜色已涵盖常用色系
+
+**可能原因**
+- Mod 版本与当前 DoL 版本存在 API 差异
+- UI 组件初始化问题
+
+**状态**: 功能可用但受限，低优先级问题
+
+---
+
 ## custom_hair (自定义染发)
 
 **版本兼容性问题**
