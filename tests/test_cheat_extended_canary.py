@@ -48,10 +48,10 @@ def test_stable_replacement_canary_codes_match_manual_gate_matrix():
 @pytest.mark.config
 def test_combined_canary_codes_match_manual_gate_matrix():
     assert CANARY_CODES["combined"] == {
-        "base": 57600,
-        "au-f": 58624,
-        "au-m": 59648,
-        "au-a": 61696,
+        "base": 499968,
+        "au-f": 500992,
+        "au-m": 502016,
+        "au-a": 504064,
     }
 
 
@@ -91,7 +91,7 @@ def test_stable_replacement_plan_uses_separate_profile_and_manual_gate():
 def test_combined_plan_uses_experiment_profile_after_stable_issues_are_understood():
     plan = make_canary_plan("combined", "au-a")
 
-    assert plan.code == 61696
+    assert plan.code == 504064
     assert plan.smoke_profile == COMBINED_PROFILE
     assert plan.expected_slug_tokens == [
         "ucb",
