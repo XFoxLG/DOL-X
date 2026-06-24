@@ -33,7 +33,7 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"8364288", "8365312", "8366336", "8368384"}
+        expected_codes = {"7315712", "7316736", "7317760", "7319808"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,12 +52,12 @@ class TestBuildMatrix:
         )
 
     def test_base_code_is_499968(self):
-        """验证稳定基础版代码为 8364288（UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + 4个新mod，无 BESC，无 custom_spellbook）"""
+        """验证稳定基础版代码为 7315712（UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + 3个新mod，无 BESC，无 bunny_transformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 8364288, (
-            f"基础版代码应为 8364288，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 7315712, (
+            f"基础版代码应为 7315712，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
