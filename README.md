@@ -48,6 +48,52 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 ### 相关文档
 
 - 📖 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md) - 为什么这样选择 Mod 组合？
+
+---
+
+## 快速开始
+
+### 开发者
+
+#### 本地验证（< 2 分钟）
+
+修改配置后快速检查：
+
+```bash
+python tools/quick_check.py
+```
+
+#### 测试流程
+
+GitHub Actions 构建完成后：
+
+```bash
+# 1. 生成测试清单
+python tools/download_latest_build.py --build-code 8366336
+
+# 2. 手动下载 APK 到 downloads/test_builds/{date}-{commit}/
+
+# 3. 安装测试（按照自动生成的 TEST_CHECKLIST.md）
+```
+
+详见 [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)
+
+---
+
+## 版本追踪
+
+### APK 文件名格式（2026-06-24 更新）
+
+```
+DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
+```
+
+示例：`DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-...-0615-e0b1a4b.apk`
+
+- `e0b1a4b`：commit hash 短码（7位）- 清晰标识版本
+- 每次构建文件名唯一，避免测试混淆
+
+详见 [CHANGELOG.md](CHANGELOG.md)
 - 📊 [完整差异总结](UPSTREAM_DIFF_SUMMARY.md) - 与上游 Lyra 的详细对比
 - 🔄 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 同步策略和边界
 

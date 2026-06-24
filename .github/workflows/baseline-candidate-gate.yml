@@ -95,6 +95,14 @@ jobs:
             "${{ github.workspace }}/${GATE_DIR}/apk-artifacts" \
             --output "${GATE_DIR}/baseline-candidate-apk-audit.json"
 
+      - name: Upload BUILD_MANIFEST artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-manifests
+          path: output/BUILD_MANIFEST_*.json
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Derive smoke-debug APK artifacts
         run: |
           python tools/baseline_candidate_gate.py derive-debug-apk \
