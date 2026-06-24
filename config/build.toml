@@ -244,17 +244,17 @@ download_url = "https://github.com/sylphiet/Bunny-TransformationCN/releases/down
 [[modloader_mods]]
 key = "neoui_patch"
 name = "NeoUI Patch"
-enabled = false
+enabled = true
 feature_id = "neoui_patch"
 github_repo = "RyaraSUKI/dol-neoui-patch"
 asset_pattern = "*.zip"
 release_tag = "release"
 download_url = "https://github.com/RyaraSUKI/dol-neoui-patch/releases/download/release/neoui_patch_1.1.0.zip"
-# DOL-X: Disabled (2026-06-24)
-# Design conflict: overlay layout (covers content) vs push layout (DOL-X preference)
+# DOL-X: Enabled (2026-06-24) - User preference for overlay sidebar layout
+# Provides click-outside-to-close sidebar behavior
+# Observation phase: monitoring compatibility with Mae's Picvary
 # Author intentionally fixes #story { margin-left: 3.5em } to create drawer-style sidebar
-# that overlays content, conflicting with sidebar beautification mods
-# User experience: sidebar covers game content when expanded (bad for widescreen users)
+# that overlays content (user's preferred UX pattern)
 # Alternative: implement click-to-close feature separately if needed
 
 [[modloader_mods]]

@@ -192,11 +192,11 @@ id = "neoui_patch"
 name = "NeoUI Patch"
 bit = 2097152
 required = false
-skip = true
+skip = false
 depends_on = []
 conflicts_with = []
-# DOL-X: Disabled (2026-06-24)
-# Overlay layout design conflicts with push layout preference
+# DOL-X: Enabled (2026-06-24) - User preference for overlay sidebar
+# Observation phase: monitoring compatibility with Mae's Picvary
 
 [[features]]
 id = "npc_social_icon"
