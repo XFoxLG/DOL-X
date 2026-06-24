@@ -29,11 +29,11 @@ class TestBuildMatrix:
         )
 
     def test_build_codes_values(self):
-        """验证构建组合代码正确（移除 BunnyTransformation 和 NeoUI）"""
+        """验证构建组合代码正确（启用 NeoUI Patch，禁用 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"5218560", "5219584", "5220608", "5222656"}
+        expected_codes = {"7315712", "7316736", "7317760", "7319808"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,12 +52,12 @@ class TestBuildMatrix:
         )
 
     def test_base_code_is_499968(self):
-        """验证稳定基础版代码为 5218560（UCB + more_love + cheatExtended + custom_hair + mae_picvary + expansion + guide_to_me + npc_icon，移除 BunnyTransformation 和 NeoUI）"""
+        """验证稳定基础版代码为 7315712（UCB + more_love + cheatExtended + custom_hair + mae_picvary + expansion + guide_to_me + neoui_patch + npc_icon，禁用 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 5218560, (
-            f"基础版代码应为 5218560，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 7315712, (
+            f"基础版代码应为 7315712，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
