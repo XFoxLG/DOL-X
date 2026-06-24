@@ -167,11 +167,14 @@
       "last_tested_version": "v0.3.1β",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-23",
+      "last_tested_date": "2026-06-24",
+      "status": "disabled",
       "notes": [
-        "Added in DOL-X integration (2026-06-23)",
-        "Bunny transformation feature",
-        "Beta version - monitor for updates"
+        "DOL-X: Disabled (2026-06-24)",
+        "Reason: v0.3.1β incompatible - 16 TweeReplacer errors, combat crash",
+        "Missing dependency: fox transformation system (not in DoL v0.5.8.10)",
+        "Breaks angel/fallenAngel/harpy wing rendering",
+        "Will re-evaluate when v0.3.2+ releases or fox system is added"
       ]
     },
     "neoui_patch": {
@@ -182,11 +185,13 @@
       "last_tested_version": "V1.1.0",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-23",
+      "last_tested_date": "2026-06-24",
+      "status": "enabled",
       "notes": [
-        "Added in DOL-X integration (2026-06-23)",
-        "UI enhancement patch",
-        "Compatible with current UI mod stack"
+        "DOL-X: Enabled (2026-06-24) - User preference for overlay sidebar",
+        "Provides click-outside-to-close sidebar behavior",
+        "Observation phase: monitoring compatibility with Mae's Picvary",
+        "May cause content overlap on wide screens (by design)"
       ]
     },
     "npc_social_icon": {
