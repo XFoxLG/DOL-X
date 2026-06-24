@@ -13,39 +13,53 @@
 
 ## 调研结果总结
 
-### 立即可集成（4个）
+## 集成状态（4个新mod）
 
-#### 1. 控制NPC嘴部 (Ayndpa)
+### ✅ 已集成（2个）
 
-- **版本**: v1.1.0
-- **功能**: 提供更多与 NPC 嘴部互动的选项
+#### 1. 控制NPC嘴部 (Ayndpa v1.1.0)
+
 - **GitHub**: https://github.com/Ayndpa/DOL-GuideToMe
-- **兼容性**: ✅ 独立功能，无依赖
-- **决策**: 立即集成
+- **功能**: 在战斗中控制 NPC 嘴部行为
+- **测试结果**: 无冲突，正常工作
+- **集成时间**: 2026-06-23
+- **Feature ID**: `guide_to_me`
+- **Bit**: 524288
 
-#### 2. 变身兔兔 (WinterPeach&Kotomi)
+#### 2. NPC社交栏头像 (Eudemonism00 v1.4.1)
 
-- **版本**: v0.3.1β
-- **功能**: 添加新动物转化
-- **GitHub**: https://github.com/sylphiet/Bunny-TransformationCN
-- **兼容性**: ✅ 独立功能
-- **决策**: 立即集成
-
-#### 3. NeoUI Patch (依雅莱)
-
-- **版本**: V1.1.0
-- **功能**: 侧边栏动画优化，UI 美化
-- **GitHub**: https://github.com/RyaraSUKI/dol-neoui-patch
-- **兼容性**: ✅ CSS/UI 层面，风险低
-- **决策**: 立即集成
-
-#### 4. NPC社交栏头像 (Eudemonism00)
-
-- **版本**: v1.4.1
-- **功能**: 社交界面 NPC 头像
 - **GitHub**: https://github.com/Eudemonism00/DOL-npcicon-mods
-- **兼容性**: ✅ 与 Mae's Picvary 互补（不同显示位置）
-- **决策**: 测试与 Mae's 共存
+- **功能**: NPC 社交关系栏显示头像
+- **测试结果**: 无冲突，与 Mae's Picvary 互补
+- **集成时间**: 2026-06-23
+- **Feature ID**: `npc_social_icon`
+- **Bit**: 4194304
+
+### ❌ 已拒绝（2个）
+
+#### 1. 变身兔兔 (WinterPeach v0.3.1β) - 已禁用
+
+**拒绝原因**: 战斗系统崩溃
+
+- **GitHub**: https://github.com/sylphiet/Bunny-TransformationCN
+- **不兼容原因**:
+  - 16 个 TweeReplacer 错误
+  - mod 期望游戏内置狐狸变身系统（当前版本不存在）
+  - 导致战斗系统崩溃：`Cannot use 'in' operator to search for 'wings' in undefined`
+- **决策**: 禁用，等待 v0.3.2+ 稳定版
+- **详细分析**: 见 `MOD_INTEGRATION_LOG_2026-06-24.md`
+
+#### 2. NeoUI Patch (依雅莱 V1.1.0) - 已禁用
+
+**拒绝原因**: 覆盖式布局设计冲突
+
+- **GitHub**: https://github.com/RyaraSUKI/dol-neoui-patch
+- **设计冲突**:
+  - NeoUI 采用移动端抽屉菜单设计（覆盖式布局）
+  - DOL-X 采用推开式布局
+  - CSS 固定 `#story { margin-left: 3.5em }`，侧边栏展开时遮挡内容
+- **决策**: 禁用，设计理念不兼容
+- **详细分析**: 见 `MOD_INTEGRATION_LOG_2026-06-24.md` 和 `workspace/temp/neoui_analysis/`
 
 ---
 
@@ -152,8 +166,8 @@
 | Mod | 状态 | 优先级 | 原因 |
 |-----|------|--------|------|
 | 控制NPC嘴部 | ✅ 立即集成 | 高 | 稳定，独立功能 |
-| 变身兔兔 | ✅ 立即集成 | 高 | 稳定，独立功能 |
-| NeoUI Patch | ✅ 立即集成 | 高 | UI 优化，风险低 |
+| 变身兔兔 | ❌ 已拒绝 | N/A | v0.3.1β 战斗崩溃 |
+| NeoUI Patch | ❌ 已拒绝 | N/A | 覆盖式布局冲突 |
 | NPC社交栏头像 | ✅ 测试共存 | 高 | 与 Mae's 互补 |
 | inuno 美化 | ⏸️ 低优先级 | 低 | 社区集成度低 |
 | 爱糖机器人 | ❌ 暂不集成 | - | 依赖复杂，不稳定 |
