@@ -230,12 +230,16 @@ download_url = "https://github.com/Ayndpa/DOL-GuideToMe/releases/download/1.1.0/
 [[modloader_mods]]
 key = "bunny_transformation"
 name = "变身兔兔"
-enabled = true
+enabled = false
 feature_id = "bunny_transformation"
 github_repo = "sylphiet/Bunny-TransformationCN"
 asset_pattern = "*.mod.zip"
 release_tag = "0.3.1β"
 download_url = "https://github.com/sylphiet/Bunny-TransformationCN/releases/download/0.3.1%CE%B2/BunnyTransformation.mod.zip"
+# DOL-X: Disabled (2026-06-24)
+# Reason: v0.3.1β incompatible with current game version
+# 16 TweeReplacer errors (trying to patch non-existent fox transformation system)
+# Causes combat system crash: "Cannot use 'in' operator to search for 'wings' in undefined"
 
 [[modloader_mods]]
 key = "neoui_patch"
