@@ -312,7 +312,34 @@ class PackageBuilder(ABC):
         if mod_suffix:
             prefix += f"-{mod_suffix}"
 
-        return f"{prefix}-{date_str}.{self.pack_type}"
+        # 添加 commit hash
+        commit_hash = self._get_commit_hash()
+        
+        return f"{prefix}-{date_str}-{commit_hash}.{self.pack_type}"
+    
+    def _get_commit_hash(self) -> str:
+        """获取当前 commit hash 短码（7位）"""
+        import os
+        import subprocess
+        
+        # 优先使用 GitHub Actions 环境变量
+        github_sha = os.environ.get("GITHUB_SHA", "")
+        if github_sha:
+            return github_sha[:7]
+        
+        # 尝试从 git 获取
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--short=7", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            )
+            return result.stdout.strip()
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            # Git 不可用或超时，使用 local 标记
+            return "local"
 
     def _apply_beautify(self) -> list[str]:
         """
