@@ -140,23 +140,37 @@ class QuickChecker:
             return False
 
     def check_new_mods(self) -> bool:
-        """检测 4 个新 mod 是否在配置中"""
-        new_mods = ["guide_to_me", "bunny_transformation", "neoui_patch", "npc_social_icon"]
+        """检测新 mod 是否在配置中（仅检查启用的 mod）"""
+        # 检查已启用的新 mod
+        expected_enabled = ["guide_to_me", "neoui_patch", "npc_social_icon"]
+        # bunny_transformation 已知不兼容，预期禁用
+        expected_disabled = ["bunny_transformation"]
         
         build_toml = self._load_toml("build.toml")
-        found_mods = []
+        found_enabled = []
+        found_disabled = []
         
         for mod in build_toml.get("modloader_mods", []):
-            if mod["key"] in new_mods and mod.get("enabled", True):
-                found_mods.append(mod["key"])
+            if mod["key"] in expected_enabled and mod.get("enabled", True):
+                found_enabled.append(mod["key"])
+            elif mod["key"] in expected_disabled and not mod.get("enabled", True):
+                found_disabled.append(mod["key"])
         
-        if len(found_mods) == 4:
-            print(f"[OK] 检测到 4 个新 mod: {', '.join(found_mods)}")
-            return True
+        all_ok = True
+        if len(found_enabled) == len(expected_enabled):
+            print(f"[OK] 检测到 {len(found_enabled)} 个已启用新 mod: {', '.join(found_enabled)}")
         else:
-            missing = set(new_mods) - set(found_mods)
-            print(f"[FAIL] 新 mod 缺失: {', '.join(missing)}")
-            return False
+            missing = set(expected_enabled) - set(found_enabled)
+            print(f"[FAIL] 已启用新 mod 缺失: {', '.join(missing)}")
+            all_ok = False
+        
+        if len(found_disabled) == len(expected_disabled):
+            print(f"[OK] 检测到 {len(found_disabled)} 个已禁用新 mod: {', '.join(found_disabled)}")
+        else:
+            missing = set(expected_disabled) - set(found_disabled)
+            print(f"[WARN] 已禁用新 mod 状态异常: {', '.join(missing)}")
+        
+        return all_ok
 
     def check_lockfile_sync(self) -> bool:
         """检查 mods.lock.json 与 build.toml 同步"""
