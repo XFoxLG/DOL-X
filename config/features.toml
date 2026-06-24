@@ -191,10 +191,12 @@ conflicts_with = []
 id = "neoui_patch"
 name = "NeoUI Patch"
 bit = 2097152
-required = true
-skip = false
+required = false
+skip = true
 depends_on = []
 conflicts_with = []
+# DOL-X: Disabled (2026-06-24)
+# Overlay layout design conflicts with push layout preference
 
 [[features]]
 id = "npc_social_icon"
