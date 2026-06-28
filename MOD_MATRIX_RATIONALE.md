@@ -1,7 +1,7 @@
 # DOL-X Mod 矩阵决策说明
 
-**最后更新**: 2026-06-23  
-**版本**: v1.1
+**最后更新**: 2026-06-28  
+**版本**: v1.2
 
 ---
 
@@ -22,19 +22,21 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 8364288 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 基础版，完整 Mod 集合 |
-| 8365312 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 女性体型 + 完整 Mod |
-| 8366336 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 男性体型 + 完整 Mod |
-| 8368384 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon | 中性体型 + 完整 Mod |
+| 7315712 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 基础版，完整 Mod 集合（BunnyTransformation 禁用） |
+| 7316736 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 女性体型 + 完整 Mod，AU-F 侧边栏贴图诊断中 |
+| 7317760 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 男性体型 + 完整 Mod，需最新包复测 |
+| 7319808 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 中性体型 + 完整 Mod，需最新包复测 |
 
 ### Feature Bits 分解
 
 ```
-8364288 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 1048576 (bunny_transformation) + 2097152 (neoui_patch) + 4194304 (npc_social_icon)
-8365312 = 8364288 + 1024 (AU-F)
-8366336 = 8364288 + 2048 (AU-M)
-8368384 = 8364288 + 4096 (AU-A)
+7315712 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 2097152 (neoui_patch) + 4194304 (npc_social_icon)
+7316736 = 7315712 + 1024 (AU-F)
+7317760 = 7315712 + 2048 (AU-M)
+7319808 = 7315712 + 4096 (AU-A)
 ```
+
+`1048576` (BunnyTransformation) is intentionally excluded. v0.3.1β caused 16 TweeReplacer errors and combat crashes in the current DoL 0.5.8.10 stack.
 
 ---
 
@@ -68,7 +70,7 @@
 | 推荐基础美化 | BESC | UCB |
 | AU 组合 | AU（单独） | AU+UCB |
 | BESC 使用 | 推荐使用 | **不使用（skip=true）** |
-| 额外 Mod | cheat + CSD | more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + bunny_transformation + neoui_patch + npc_social_icon |
+| 额外 Mod | cheat + CSD | more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon |
 
 ---
 
@@ -377,10 +379,10 @@ DOL-X 的选择：
 - **功能**: 添加兔子变身系统
 - **来源**: https://github.com/sylphiet/Bunny-TransformationCN
 - **版本**: v0.3.1β
-- **兼容性**: ✅ 独立功能，无依赖，与所有现有 mod 兼容
+- **兼容性**: ❌ 已禁用；v0.3.1β 在当前 DoL 0.5.8.10 + maplebirch v3.1.14 栈中触发 16 个 TweeReplacer 错误并导致战斗崩溃
 - **类型**: ModLoader mod，bit 1048576
-- **注意**: Beta 版本，需关注后续更新
-- **决策**: 丰富转化系统，Beta 版但功能完整，社区反馈良好
+- **注意**: 保留配置和 bit 记录用于追踪，但不进入当前稳定 build_codes
+- **决策**: 试集成后回退；除非上游修复依赖/替换问题并重新验证，否则不恢复到稳定矩阵
 
 #### NeoUI Patch
 
@@ -445,8 +447,8 @@ DOL-X 的选择：
 
 - **bit**: 1048576
 - **功能**: 添加新的动物转化
-- **兼容性**: ✅ 独立功能
-- **添加理由**: 丰富转化系统，Beta 版但功能完整
+- **兼容性**: ❌ 已拒绝进入当前稳定矩阵；v0.3.1β 战斗崩溃
+- **添加理由**: 仅保留为历史候选和回归测试案例，不再作为默认新增 mod
 
 #### NeoUI Patch (依雅莱)
 
