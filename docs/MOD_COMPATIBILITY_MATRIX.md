@@ -2,7 +2,7 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-06-23  
+**最后更新**: 2026-06-28  
 **当前框架**: maplebirch v3.1.14 + expansion v1.2.4  
 **当前游戏版本**: DoL v0.5.8.10  
 **当前作弊**: Cheat Extended v1.17
@@ -13,7 +13,8 @@
 
 ### 测试环境
 
-- **本地构建**: `python main.py build --codes 499968`
+- **本地配置验证**: `python -m pytest tests/ -v`
+- **构建产物**: GitHub Actions `Build` workflow（本地不执行完整构建）
 - **浏览器测试**: `python tools/browser_smoke_test.py output/*.zip`
 - **模拟器测试**: APK 在 MuMu 模拟器上运行
 - **ModLoader 日志**: 检查加载错误和冲突
@@ -50,15 +51,21 @@
 | CustomHair | v1.0.0 | 无要求 | 0.5.2.7-0.5.2.10 | ⚠️ | 十六进制颜色输入缺失 | 预设颜色正常可用 |
 | More Love Interests | v0.1.6.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 独立功能 |
 | Mae's Picvary NPC | v1.3.2 | 无要求 | 0.5.8.10 | ✅ | 无 | 侧边栏头像 |
+| Guide To Me | v1.1.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 控制 NPC 嘴部动作，当前稳定矩阵启用 |
+| NeoUI Patch | V1.1.0 | 无要求 | 0.5.8.10 | ✅ | 需继续观察 AU 侧边栏交互 | 当前稳定矩阵启用 |
+| NPC Social Icon | v1.4.1 | 无要求 | 0.5.8.10 | ✅ | 无 | 当前稳定矩阵启用；与 Mae's Picvary 作用域不同 |
+| BunnyTransformation | v0.3.1β | 无要求 | 0.5.8.10 | ❌ | 16 个 TweeReplacer 错误和战斗崩溃 | 已禁用，不进入当前稳定 build_codes |
 
 ### AU 美化（已集成，可选）
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| AU Female | v0.8.7 | 无要求 | 0.5.8.10 | ✅ | 无 | 中性模型 |
-| AU Male | v0.3.7 | 无要求 | 0.5.8.10 | ✅ | 无 | 男性模型 |
-| AU Androgynous | v0.0.7 | 无要求 | 0.5.8.10 | ✅ | 无 | 中性模型 |
-| AU Face Expansion | v1.2.8 | v4.1.7+ | 0.5.8.10 | ❌ | 侧边栏贴图错位 | **已禁用**，等待 v4.x 升级 |
+| AU Female model | v0.9.3 | 无要求 | 0.5.8.10 | ⚠️ | 侧边栏人物预览贴图错位 | 使用 `mod` release 的 model 直装模组，诊断中 |
+| AU Male model | v0.4.2 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
+| AU Androgynous model | v0.1.1 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
+| AU Face Expansion | v1.2.8 | v4.1.7+ | 0.5.8.10 | ❌ | 已禁用；不要与 AU model 本体混淆 | `facemod` release，等待 v4.x 升级或重新验证 |
+
+AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认不使用 AU `imgpack`，因为覆盖 imagepack 层会增加与 UCB 的路径冲突风险。
 
 ### UCB Imagepack（已集成）
 
@@ -138,12 +145,12 @@
 - maplebirch: v3.1.14
 - expansion: v1.2.4
 - DoL: 0.5.8.10
-- 构建码: 499968
+- 构建码: 7315712
 
 ### 测试步骤
 1. 下载 mod: `gh release download ...`
 2. 添加到 build.toml
-3. 构建: `python main.py build --codes 499968`
+3. 构建: GitHub Actions `Build` workflow
 4. 浏览器测试: `python tools/browser_smoke_test.py ...`
 5. 模拟器测试: 安装 APK 到 MuMu 模拟器
 
