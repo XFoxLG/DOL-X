@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - AU-M: 7317760
   - AU-A: 7319808
 - **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
+- **AU-F temporary rollback**: pinned AU-F to `AUfemale.model_v0.8.7.zip` to test whether v0.9.3 introduced the sidebar sprite regression
 - **APK naming**: Now includes commit hash for version tracking
 
 ### Documentation

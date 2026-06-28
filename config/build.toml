@@ -118,7 +118,7 @@ files_to_remove = [
 key = "au_f"
 feature_id = "au-f"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-asset_pattern = "AUfemale.model_v0.9.3.zip"
+asset_pattern = "AUfemale.model_v0.8.7.zip"
 release_tag = "mod"
 
 [[modloader_mods]]
@@ -262,10 +262,10 @@ key = "npc_social_icon"
 name = "NPC社交栏头像"
 enabled = true
 feature_id = "npc_social_icon"
-github_repo = "Eudemonism00/DOL-npcicon-mods"
+github_repo = "Eudemonism00/DOL-NPC-Avatars-Mod"
 asset_pattern = "*.mod.zip"
 release_tag = "1.4"
-download_url = "https://github.com/Eudemonism00/DOL-npcicon-mods/releases/download/1.4/NPC.Avatars.Mod.mod.zip"
+download_url = "https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod/releases/download/1.4/NPC.Avatars.Mod.mod.zip"
 
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键

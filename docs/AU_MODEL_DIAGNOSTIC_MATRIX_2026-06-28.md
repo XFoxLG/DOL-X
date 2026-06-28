@@ -41,7 +41,7 @@ DOL-X now pins exact AU model release assets instead of broad substring patterns
 
 | Feature | Asset | Version | Status |
 |---------|-------|---------|--------|
-| `au-f` | `AUfemale.model_v0.9.3.zip` | v0.9.3 | Diagnostic, sidebar sprite issue reproduced by user |
+| `au-f` | `AUfemale.model_v0.8.7.zip` | v0.8.7 | Diagnostic rollback; testing whether v0.9.3 introduced the sidebar sprite regression |
 | `au-m` | `AUmale.model_v0.4.2.zip` | v0.4.2 | Needs retest with latest build |
 | `au-a` | `AUandrogynous.model_v0.1.1.zip` | v0.1.1 | Needs retest with latest build |
 | `au_face` | `AUsDoL.facial.expansion.mod.zip` | v1.2.8 | Disabled |
@@ -51,12 +51,12 @@ DOL-X now pins exact AU model release assets instead of broad substring patterns
 | Case | Build code | Purpose | Current evidence | Next action |
 |------|------------|---------|------------------|-------------|
 | Base no-AU | `7315712` | Control group for sidebar rendering | User reports base package has no sidebar sprite issue | Retest after exact AU pins land, only as sanity check |
-| AU-F current | `7316736` | Reproduce female AU sidebar issue | User screenshot shows hair/face layers misplaced in sidebar; ModLoader reports `【AUfemale】model {v:0.9.3}` | Retest latest build after pins |
+| AU-F rollback | `7316736` | Test whether AU-F v0.9.3 introduced the sidebar issue | v0.9.3 showed hair/face layers misplaced in sidebar; current config pins `AUfemale.model_v0.8.7.zip` | Retest latest build and compare with v0.9.3 evidence |
 | AU-M current | `7317760` | Check whether issue is AU-F-specific | Old AU-M logs cannot be reused because they came from older builds | Retest latest build |
 | AU-A current | `7319808` | Check third AU model package | No current evidence | Retest latest build |
 | AU-F without NeoUI | TBD diagnostic build | Isolate NeoUI sidebar CSS interaction | Not tested | Build only if AU-F current still fails |
 | AU-F without NPC avatar mods | TBD diagnostic build | Isolate Mae's Picvary / NPC Avatars sidebar interaction | Not tested | Build only if AU-F current still fails |
-| AU-F v0.8.7 | TBD diagnostic build | Check whether AU-F v0.9.3 introduced regression | Not tested | Build only if needed after CSS/mod isolation |
+| AU-F v0.9.3 | previous build evidence | Known-problem comparison point | User reproduced sidebar sprite issue with `【AUfemale】model {v:0.9.3}` | Restore only if v0.8.7 shows same issue and CSS/mod isolation becomes next priority |
 
 ## Working Hypotheses
 
