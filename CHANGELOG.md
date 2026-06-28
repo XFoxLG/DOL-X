@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **4 new mods integrated** (2026-06-24):
+- **Current enabled mod set documented** (2026-06-28):
   - `guide_to_me` v1.1.0 - 控制NPC嘴部
-  - `bunny_transformation` v0.3.1β - 变身兔兔
   - `neoui_patch` V1.1.0 - NeoUI Patch (侧边栏动画优化)
   - `npc_social_icon` v1.4.1 - NPC社交栏头像
+- **AU model diagnosis**: pinned AU model assets to exact release files and added `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`
 - **Build version tracking**: commit hash in APK filename (e.g., `-e0b1a4b`)
 - **BUILD_MANIFEST.json**: Complete build traceability for each build_code
 - **tools/quick_check.py**: Local validation tool (< 2 min)
@@ -23,11 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Build codes updated**: 499968 → 8364288 series (4 new required mods)
-  - Base: 8364288
-  - AU-F: 8365312
-  - AU-M: 8366336
-  - AU-A: 8368384
+- **Build codes updated**: current stable matrix excludes BunnyTransformation after combat crash
+  - Base: 7315712
+  - AU-F: 7316736
+  - AU-M: 7317760
+  - AU-A: 7319808
+- **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
 - **APK naming**: Now includes commit hash for version tracking
 
 ### Documentation
@@ -95,8 +96,8 @@ base_code = sum(required_features.bit)
 AU variants = base_code + AU_bit
 
 Example (current):
-- base: 8364288 (UCB + more_love + cheat + custom_hair + mae_picvary + expansion + 4_new_mods)
-- AU-M: 8366336 (base + 2048)
+- base: 7315712 (UCB + more_love + cheat + custom_hair + mae_picvary + expansion + guide_to_me + neoui_patch + npc_social_icon)
+- AU-M: 7317760 (base + 2048)
 ```
 
 ### Upstream Sync Policy

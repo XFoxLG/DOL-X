@@ -118,21 +118,21 @@ files_to_remove = [
 key = "au_f"
 feature_id = "au-f"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-asset_pattern = "AUfemale.model"
+asset_pattern = "AUfemale.model_v0.9.3.zip"
 release_tag = "mod"
 
 [[modloader_mods]]
 key = "au_m"
 feature_id = "au-m"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-asset_pattern = "AUmale.model"
+asset_pattern = "AUmale.model_v0.4.2.zip"
 release_tag = "mod"
 
 [[modloader_mods]]
 key = "au_a"
 feature_id = "au-a"
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-asset_pattern = "AUandrogynous.model"
+asset_pattern = "AUandrogynous.model_v0.1.1.zip"
 release_tag = "mod"
 
 # DOL-X: Disabled after rollback to maplebirch v3.1.14 (2026-06-23)
