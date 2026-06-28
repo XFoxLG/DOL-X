@@ -6,6 +6,29 @@
 
 **以实测为准**：AU 系列 mod 的依赖关系通过实际游戏运行测试确认，不依赖静态分析或逆向工程。
 
+**区分 release tag 和 asset**：`AOKIUTAGE/UTAGEsDOL3.0` 不是单一 mod 源码仓库，而是多个 AU 包的 GitHub Releases 存放地。DOL-X 必须按 release tag 与 asset 名称区分包身份。
+
+| Release tag | 内容 | DOL-X 当前策略 |
+|-------------|------|----------------|
+| `mod` | AU model 与 AU imgpack | 默认只使用 `*.model_*.zip` 直装模组 |
+| `facemod` | AU 面部扩展 | 当前禁用 |
+| `hairmod` | AU hairplus | 不集成，发布标题标注不适配新版 |
+| `psd` | 美术源文件 | 不集成 |
+
+## 当前 AU Model 集成方式
+
+DOL-X 与上游 `DoL-Lyra/Lyra` 一样，当前使用 AU release 里的 **model 直装模组方式**，不是 `imgpack` 覆盖图片包方式。
+
+当前精确锁定的 model assets：
+
+| Feature | Asset | 版本 | 状态 |
+|---------|-------|------|------|
+| `au-f` | `AUfemale.model_v0.9.3.zip` | v0.9.3 | 诊断中，用户复现侧边栏贴图错位 |
+| `au-m` | `AUmale.model_v0.4.2.zip` | v0.4.2 | 需用最新构建重新测试 |
+| `au-a` | `AUandrogynous.model_v0.1.1.zip` | v0.1.1 | 需用最新构建重新测试 |
+
+`imgpack` 会覆盖 imagepack 层，和 UCB 等图片包路径更容易产生冲突。因此在上游友好策略下，默认保持 `model` 方式；只有确认 model 方式无法稳定时，才在独立诊断分支测试 `imgpack`。
+
 ## 框架依赖
 
 ### 简易框架 vs 秋枫白桦框架
@@ -24,6 +47,8 @@
 
 ### AU Face（AU 面部扩展）
 
+**当前状态**：禁用。AU Face 是 `facemod` release 下的独立 mod，不等同于 AU-F / AU-M / AU-A model 本体。
+
 **依赖**：
 - 必需：秋枫白桦框架（或简易框架）
 - 可选：SweetAlert2Mod（用于密码输入弹窗，如果 mod 加密）
@@ -35,6 +60,21 @@
 **说明**：
 - AU Face 的部分功能依赖框架提供的 API 钩子和注册机制
 - 如果单独打包 AU Face（不含框架），运行时会因缺少依赖而出现功能异常
+- AU Face 禁用后，AU model 本体仍可能影响侧边栏人物预览；这类问题应记录为 AU model / UI 交互问题，而不是自动归因到 AU Face
+
+### AU Model 侧边栏诊断（2026-06-28）
+
+用户最新 AU-F 测试显示：无 AU 基础包侧边栏正常，AU-F 包侧边栏人物预览出现头发/面部层错位。该包的 ModLoader 列表显示 `【AUfemale】model {v:0.9.3}`，未显示 AU Face `facemod`。
+
+当前诊断矩阵见：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
+
+下一步按以下顺序隔离：
+
+1. Base 无 AU 作为对照组。
+2. AU-F / AU-M / AU-A 三个 model 分别用最新构建测试。
+3. 如 AU-F 仍出错，构建 AU-F without NeoUI 诊断包。
+4. 如仍出错，构建 AU-F without Mae's Picvary / NPC Avatars 诊断包。
+5. 必要时再回测 AU-F v0.8.7 判断 v0.9.3 是否回归。
 
 ### 其他 AU Mods（AU 武术、AU 小巷等）
 
@@ -107,5 +147,5 @@ enabled = true
 
 ---
 
-**最后更新**：2026-06-12
+**最后更新**：2026-06-28
 **维护者**：DOL-X 项目组

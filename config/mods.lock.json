@@ -98,32 +98,51 @@
     "au_f": {
       "name": "AU Female",
       "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
-      "asset_pattern": "AUfemale.model",
+      "asset_pattern": "AUfemale.model_v0.9.3.zip",
       "release_tag": "mod",
-      "last_tested_version": null,
+      "last_tested_version": "v0.9.3",
       "last_tested_sha256": null,
-      "last_tested_dol_version": null,
-      "notes": []
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-28",
+      "status": "diagnostic",
+      "notes": [
+        "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
+        "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
+        "Known issue: latest AU-F test shows sidebar sprite layering/position error; base no-AU package is normal",
+        "Next diagnostic: compare AU-F with NeoUI disabled and NPC avatar mods disabled"
+      ]
     },
     "au_m": {
       "name": "AU Male",
       "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
-      "asset_pattern": "AUmale.model",
+      "asset_pattern": "AUmale.model_v0.4.2.zip",
       "release_tag": "mod",
-      "last_tested_version": null,
+      "last_tested_version": "v0.4.2",
       "last_tested_sha256": null,
-      "last_tested_dol_version": null,
-      "notes": []
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-28",
+      "status": "needs-retest",
+      "notes": [
+        "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
+        "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
+        "Must be retested with latest build; do not reuse old AU-M APK logs for current diagnosis"
+      ]
     },
     "au_a": {
       "name": "AU Androgynous",
       "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
-      "asset_pattern": "AUandrogynous.model",
+      "asset_pattern": "AUandrogynous.model_v0.1.1.zip",
       "release_tag": "mod",
-      "last_tested_version": null,
+      "last_tested_version": "v0.1.1",
       "last_tested_sha256": null,
-      "last_tested_dol_version": null,
-      "notes": []
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-28",
+      "status": "needs-retest",
+      "notes": [
+        "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
+        "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
+        "Must be retested with latest build before judging AU-A stability"
+      ]
     },
     "au_face": {
       "name": "AU面部扩展",

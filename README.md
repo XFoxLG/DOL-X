@@ -69,7 +69,7 @@ GitHub Actions 构建完成后：
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 8366336
+python tools/download_latest_build.py --build-code 7317760
 
 # 2. 手动下载 APK 到 downloads/test_builds/{date}-{commit}/
 
@@ -129,9 +129,11 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 - cheatExtended - 作弊扩展（含言灵集）
 
 **可选 AU 系列**：
-- AU-F：AU Female + AU Face 扩展
-- AU-M：AU Male + AU Face 扩展
-- AU-A：AU Androgynous + AU Face 扩展
+- AU-F：AU Female model v0.9.3
+- AU-M：AU Male model v0.4.2
+- AU-A：AU Androgynous model v0.1.1
+
+> AU model 使用 AOKIUTAGE `mod` release 的 ModLoader 直装模组方式；AU Face 扩展是 `facemod` release 下的独立 mod，当前禁用。
 
 ## 下载
 
@@ -141,16 +143,16 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
 | 版本 | Build Code | 说明 | 推荐 |
 |------|------------|------|------|
-| 基础版 | 499968 | UCB 美化 + 完整 Mod 集合（无 AU 模型） | ⚪ |
-| AU-F 版 | 500992 | 基础版 + AU Female + AU Face 扩展 | ⭐ |
-| AU-M 版 | 502016 | 基础版 + AU Male + AU Face 扩展 | ⭐ |
-| AU-A 版 | 504064 | 基础版 + AU Androgynous + AU Face 扩展 | ⭐ |
+| 基础版 | 7315712 | UCB 美化 + 完整 Mod 集合（无 AU 模型） | ⚪ |
+| AU-F 版 | 7316736 | 基础版 + AU Female model | ⚠️ |
+| AU-M 版 | 7317760 | 基础版 + AU Male model | ⭐ |
+| AU-A 版 | 7319808 | 基础版 + AU Androgynous model | ⭐ |
 
 > **💡 推荐说明**：
 > - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型
 > - ⚪ **基础版**：不含 AU 模型，适合偏好原版体型或自行加载 AU 模型的用户
 > 
-> **⚠️ AU Face 状态**：AU Face 扩展当前临时禁用（maplebirch v3.1.14 兼容性问题），仅影响侧边栏渲染，游戏内正常。等待框架升级到 v4.x 后将重新启用。
+> **⚠️ AU 状态**：AU Face 扩展当前禁用，不会进入构建。AU-F model v0.9.3 仍在诊断侧边栏人物预览贴图错位问题；详见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
 
 > **⚠️ 重要更新（2026-06-15）**：
 > - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、maplebirch_expansion）
@@ -164,13 +166,13 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 ### 当前稳定版本（2026-06-17+）
 
 当前构建配置：
-- **基础 Mod**：UCB + more_love + maplebirch + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion
-- **Build Codes**：499968 / 500992 / 502016 / 504064
+- **基础 Mod**：UCB + more_love + maplebirch + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon
+- **Build Codes**：7315712 / 7316736 / 7317760 / 7319808
 - **游戏版本**：跟随汉化仓库更新
 - **构建方式**：GitHub Actions 云端自动化
-- **测试状态**：所有测试通过 ✅
+- **测试状态**：配置测试通过；AU model 侧边栏问题诊断中
 
-> **🔄 2026-06-17 更新**：移除 Custom-Spellbook（功能与 Cheat Extended 言灵集重复）。Build Codes 更新至 499968 系列。
+> **🔄 历史更新**：2026-06-17 移除 Custom-Spellbook（功能与 Cheat Extended 言灵集重复）；当前稳定 Build Codes 已更新至 7315712 系列。
 
 ### ⚠️ 历史版本兼容性警告
 

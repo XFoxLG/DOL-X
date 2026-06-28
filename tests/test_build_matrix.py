@@ -4,9 +4,10 @@ Phase 1: 构建矩阵配置测试
 验证：
 - build_codes 只包含 4 个稳定自用组合
 - polyfill 已关闭
-- 基础版 (499968) 不注入 AU 扩展
-- AU 三版本 (500992/502016/504064) 注入 AU 扩展
-- 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion
+- 基础版 (7315712) 不注入 AU 扩展
+- AU 三版本 (7316736/7317760/7319808) 注入 AU 扩展
+- 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、neoui_patch、npc_social_icon
+- BunnyTransformation 不进入当前稳定矩阵
 - 没有在线版相关配置
 """
 import pytest
@@ -51,7 +52,7 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_499968(self):
+    def test_base_code_is_7315712(self):
         """验证稳定基础版代码为 7315712（UCB + more_love + cheatExtended + custom_hair + mae_picvary + expansion + guide_to_me + neoui_patch + npc_icon，禁用 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
@@ -82,10 +83,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (8364288) 不包含 AU"""
+        """验证基础版 (7315712) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 8364288
+        base_code = 7315712
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -115,9 +116,9 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         
         au_variants = [
-            (8365312, "au-f"),
-            (8366336, "au-m"),
-            (8368384, "au-a"),
+            (7316736, "au-f"),
+            (7317760, "au-m"),
+            (7319808, "au-a"),
         ]
         
         for code, feature_id in au_variants:
