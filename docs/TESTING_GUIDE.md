@@ -25,7 +25,7 @@ python tools/quick_check.py
 
 1. **下载测试清单**：
    ```bash
-   python tools/download_latest_build.py --build-code 8366336
+   python tools/download_latest_build.py --build-code 7317760
    ```
 
 2. **手动下载 APK**：
@@ -43,14 +43,14 @@ python tools/quick_check.py
 
 ### 代表性测试
 
-**每次必测**：AU-M (build_code 8366336)
+**每次必测**：AU-M (build_code 7317760)
 - 原因：最常用，功能最全
 - 时间：15-20 分钟手动测试
 
 **CI 自动化**：其他 3 个构建
-- 基础版 (8364288)
-- AU-F (8365312)
-- AU-A (8368384)
+- 基础版 (7315712)
+- AU-F (7316736)
+- AU-A (7319808)
 - 验证：启动成功 + mod 加载完整
 
 ### 测试触发条件
@@ -104,7 +104,7 @@ python tools/quick_check.py --checks urls
 python tools/download_latest_build.py
 
 # 下载指定 build_code
-python tools/download_latest_build.py --build-code 8364288
+python tools/download_latest_build.py --build-code 7315712
 
 # 下载指定 Run ID
 python tools/download_latest_build.py --run-id 27995040396
@@ -116,6 +116,19 @@ downloads/test_builds/20260624-e0b1a4b/
 ├── TEST_CHECKLIST.md         # 自动生成的测试清单
 └── (手动下载的 APK 放这里)
 ```
+
+### AU 诊断测试证据
+
+AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前配置结论。每次 AU 手测至少记录：
+
+- GitHub Actions run ID
+- artifact 名称与 APK 文件名
+- build code：Base `7315712`、AU-F `7316736`、AU-M `7317760`、AU-A `7319808`
+- ModLoader 已加载列表中的 AU、NeoUI、Mae's Picvary、NPC Avatars、BunnyTransformation、Lyra 条目
+- 侧边栏展开/收起截图
+- 战斗是否能正常开始
+
+当前 AU model 诊断矩阵见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
 
 ---
 
@@ -137,7 +150,8 @@ downloads/test_builds/20260624-e0b1a4b/
    - CustomHair v1.0.0
    - Mae's Picvary v1.3.2
    - More Love Interests Mod v0.1.6.0
-   - **4 个新 mod**（guide_to_me, bunny_transformation, neoui_patch, npc_social_icon）
+   - 当前启用的新 mod（guide_to_me, neoui_patch, npc_social_icon）
+   - BunnyTransformation 不应出现（已禁用，若出现说明测试包不是当前配置）
    - AU model（根据构建）
 3. 加载日志无 error
 
@@ -152,7 +166,6 @@ downloads/test_builds/20260624-e0b1a4b/
 
 3. **新增功能**（选测 1-2 项）：
    - 控制NPC嘴部
-   - 变身兔兔
    - NeoUI Patch
    - NPC社交栏头像
 
@@ -235,7 +248,7 @@ git status | grep -E "\\.env|credentials"
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 8366336
+python tools/download_latest_build.py --build-code 7317760
 
 # 2. 手动下载 APK
 
