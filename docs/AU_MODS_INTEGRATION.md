@@ -23,7 +23,7 @@ DOL-X 与上游 `DoL-Lyra/Lyra` 一样，当前使用 AU release 里的 **model 
 
 | Feature | Asset | 版本 | 状态 |
 |---------|-------|------|------|
-| `au-f` | `AUfemale.model_v0.9.3.zip` | v0.9.3 | 诊断中，用户复现侧边栏贴图错位 |
+| `au-f` | `AUfemale.model_v0.8.7.zip` | v0.8.7 | 临时回退诊断，验证 v0.9.3 是否引入侧边栏贴图错位 |
 | `au-m` | `AUmale.model_v0.4.2.zip` | v0.4.2 | 需用最新构建重新测试 |
 | `au-a` | `AUandrogynous.model_v0.1.1.zip` | v0.1.1 | 需用最新构建重新测试 |
 
@@ -74,7 +74,7 @@ DOL-X 与上游 `DoL-Lyra/Lyra` 一样，当前使用 AU release 里的 **model 
 2. AU-F / AU-M / AU-A 三个 model 分别用最新构建测试。
 3. 如 AU-F 仍出错，构建 AU-F without NeoUI 诊断包。
 4. 如仍出错，构建 AU-F without Mae's Picvary / NPC Avatars 诊断包。
-5. 必要时再回测 AU-F v0.8.7 判断 v0.9.3 是否回归。
+5. 先测试 AU-F v0.8.7 回退包；如果 v0.8.7 正常，再把问题归为 v0.9.3 回归候选。
 
 ### 其他 AU Mods（AU 武术、AU 小巷等）
 

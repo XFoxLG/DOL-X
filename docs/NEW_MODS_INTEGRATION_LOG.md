@@ -17,7 +17,7 @@
 | 控制NPC嘴部 | v1.1.0 | 524288 | ✅ 已集成 | [Ayndpa/DOL-GuideToMe](https://github.com/Ayndpa/DOL-GuideToMe) |
 | 变身兔兔 | v0.3.1β | 1048576 | ❌ 已禁用 | [sylphiet/Bunny-TransformationCN](https://github.com/sylphiet/Bunny-TransformationCN) |
 | NeoUI Patch | V1.1.0 | 2097152 | ✅ 已集成 | [RyaraSUKI/dol-neoui-patch](https://github.com/RyaraSUKI/dol-neoui-patch) |
-| NPC社交栏头像 | v1.4.1 | 4194304 | ✅ 已集成 | [Eudemonism00/DOL-npcicon-mods](https://github.com/Eudemonism00/DOL-npcicon-mods) |
+| NPC社交栏头像 | v1.4.1 | 4194304 | ✅ 已集成 | [Eudemonism00/DOL-NPC-Avatars-Mod](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod) |
 
 ### 构建代码更新
 
@@ -114,10 +114,10 @@
 **功能描述**: 在 NPC 社交栏显示头像
 
 **技术细节**:
-- **GitHub**: https://github.com/Eudemonism00/DOL-npcicon-mods
+- **GitHub**: https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod
 - **Release Tag**: v1.4.1
 - **Asset**: `DOL-npcicon-mods.mod.zip`
-- **Download URL**: https://github.com/Eudemonism00/DOL-npcicon-mods/releases/download/v1.4.1/DOL-npcicon-mods.mod.zip
+- **Download URL**: https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod/releases/download/1.4/NPC.Avatars.Mod.mod.zip
 
 **配置更新**:
 - `config/build.toml`: 新增 `[[modloader_mods]]` 条目
