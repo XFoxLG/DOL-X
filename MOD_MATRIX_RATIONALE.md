@@ -396,7 +396,7 @@ DOL-X 的选择：
 #### NPC社交栏头像 (NPC Social Icon)
 
 - **功能**: 在 NPC 社交栏显示头像
-- **来源**: https://github.com/Eudemonism00/DOL-npcicon-mods
+- **来源**: https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod
 - **版本**: v1.4.1
 - **兼容性**: ✅ 与 Mae's Picvary 共存测试通过
 - **共存说明**: 

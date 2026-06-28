@@ -98,18 +98,19 @@
     "au_f": {
       "name": "AU Female",
       "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
-      "asset_pattern": "AUfemale.model_v0.9.3.zip",
+      "asset_pattern": "AUfemale.model_v0.8.7.zip",
       "release_tag": "mod",
-      "last_tested_version": "v0.9.3",
+      "last_tested_version": "v0.8.7",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
       "last_tested_date": "2026-06-28",
-      "status": "diagnostic",
+      "status": "diagnostic-rollback",
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
-        "Known issue: latest AU-F test shows sidebar sprite layering/position error; base no-AU package is normal",
-        "Next diagnostic: compare AU-F with NeoUI disabled and NPC avatar mods disabled"
+        "DOL-X: temporarily rolled AU-F back from v0.9.3 to v0.8.7 to test whether v0.9.3 introduced the sidebar sprite regression",
+        "Known issue: AU-F v0.9.3 test showed sidebar sprite layering/position error; base no-AU package is normal",
+        "Next diagnostic: test AU-F v0.8.7 build before changing NeoUI or NPC avatar mods"
       ]
     },
     "au_m": {
@@ -215,9 +216,9 @@
     },
     "npc_social_icon": {
       "name": "NPC社交栏头像",
-      "github_repo": "Eudemonism00/DOL-npcicon-mods",
+      "github_repo": "Eudemonism00/DOL-NPC-Avatars-Mod",
       "asset_pattern": "*.mod.zip",
-      "release_tag": "v1.4.1",
+      "release_tag": "1.4",
       "last_tested_version": "v1.4.1",
       "last_tested_sha256": null,
       "last_tested_dol_version": "0.5.8.10",
