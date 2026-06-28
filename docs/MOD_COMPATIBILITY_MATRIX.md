@@ -60,7 +60,7 @@
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| AU Female model | v0.9.3 | 无要求 | 0.5.8.10 | ⚠️ | 侧边栏人物预览贴图错位 | 使用 `mod` release 的 model 直装模组，诊断中 |
+| AU Female model | v0.8.7 | 无要求 | 0.5.8.10 | 🔄 | 回退诊断中 | 从 v0.9.3 临时回退，验证侧边栏人物预览贴图错位是否为新版回归 |
 | AU Male model | v0.4.2 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
 | AU Androgynous model | v0.1.1 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
 | AU Face Expansion | v1.2.8 | v4.1.7+ | 0.5.8.10 | ❌ | 已禁用；不要与 AU model 本体混淆 | `facemod` release，等待 v4.x 升级或重新验证 |
@@ -81,7 +81,7 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 
 | Mod 名称 | 版本 | GitHub | maplebirch 要求 | DoL 版本 | 测试状态 | 测试日期 | 测试结果 | 已知问题 | 决策 |
 |----------|------|--------|-----------------|----------|----------|----------|----------|----------|------|
-| NPC社交栏头像 | v1.4.1 | [Eudemonism00/DOL-npcicon-mods](https://github.com/Eudemonism00/DOL-npcicon-mods) | 无要求 | 0.5.8.10 | 🔄 | - | - | - | **Sprint 2 测试** |
+| NPC社交栏头像 | v1.4.1 | [Eudemonism00/DOL-NPC-Avatars-Mod](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod) | 无要求 | 0.5.8.10 | 🔄 | - | - | - | **Sprint 2 测试** |
 | 降低天气图层 | 3.0 | [miyakoAki4828/Dol-Miyako-Mods](https://github.com/miyakoAki4828/Dol-Miyako-Mods) | 无要求 | 0.5.8.10 | 🔄 | - | - | - | Sprint 2/3 测试 |
 
 ### 体验优化类
@@ -198,7 +198,7 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 **目标**: 测试 2 个高优先级 mod
 
 1. **NPC社交栏头像**
-   - 下载: `gh release download v1.4.1 -R Eudemonism00/DOL-npcicon-mods`
+   - 下载: `gh release download 1.4 -R Eudemonism00/DOL-NPC-Avatars-Mod`
    - 测试: 本地构建 + 浏览器 + 模拟器
    - 决策: 通过则集成
 
