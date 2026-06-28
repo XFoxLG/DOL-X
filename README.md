@@ -129,7 +129,7 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 - cheatExtended - 作弊扩展（含言灵集）
 
 **可选 AU 系列**：
-- AU-F：AU Female model v0.9.3
+- AU-F：AU Female model v0.8.7（临时回退诊断）
 - AU-M：AU Male model v0.4.2
 - AU-A：AU Androgynous model v0.1.1
 
@@ -152,7 +152,7 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 > - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型
 > - ⚪ **基础版**：不含 AU 模型，适合偏好原版体型或自行加载 AU 模型的用户
 > 
-> **⚠️ AU 状态**：AU Face 扩展当前禁用，不会进入构建。AU-F model v0.9.3 仍在诊断侧边栏人物预览贴图错位问题；详见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
+> **⚠️ AU 状态**：AU Face 扩展当前禁用，不会进入构建。AU-F 已临时从 v0.9.3 回退到 v0.8.7，用于验证侧边栏人物预览贴图错位是否由 v0.9.3 引入；详见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
 
 > **⚠️ 重要更新（2026-06-15）**：
 > - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、maplebirch_expansion）
