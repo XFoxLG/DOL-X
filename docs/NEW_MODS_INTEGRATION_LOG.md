@@ -4,6 +4,8 @@
 **集成版本**: v3.1.14 (基于 maplebirch v3.1.14 + expansion v1.2.4)  
 **集成批次**: 4 个新 mod
 
+> **状态说明（2026-06-28）**：本文是 2026-06-23 的历史集成记录，不代表当前稳定矩阵。BunnyTransformation v0.3.1β 已因 16 个 TweeReplacer 错误和战斗崩溃禁用；当前稳定 build codes 为 `7315712` / `7316736` / `7317760` / `7319808`。当前状态以 `config/combinations.toml`、`config/build.toml`、`config/mods.lock.json` 和 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md` 为准。
+
 ---
 
 ## 集成概览
@@ -13,7 +15,7 @@
 | Mod 名称 | 版本 | bit 值 | 状态 | GitHub 仓库 |
 |---------|------|--------|------|-------------|
 | 控制NPC嘴部 | v1.1.0 | 524288 | ✅ 已集成 | [Ayndpa/DOL-GuideToMe](https://github.com/Ayndpa/DOL-GuideToMe) |
-| 变身兔兔 | v0.3.1β | 1048576 | ✅ 已集成 | [sylphiet/Bunny-TransformationCN](https://github.com/sylphiet/Bunny-TransformationCN) |
+| 变身兔兔 | v0.3.1β | 1048576 | ❌ 已禁用 | [sylphiet/Bunny-TransformationCN](https://github.com/sylphiet/Bunny-TransformationCN) |
 | NeoUI Patch | V1.1.0 | 2097152 | ✅ 已集成 | [RyaraSUKI/dol-neoui-patch](https://github.com/RyaraSUKI/dol-neoui-patch) |
 | NPC社交栏头像 | v1.4.1 | 4194304 | ✅ 已集成 | [Eudemonism00/DOL-npcicon-mods](https://github.com/Eudemonism00/DOL-npcicon-mods) |
 
@@ -35,6 +37,8 @@
 - **AU-F 版**: 8365312 (8364288 + 1024)
 - **AU-M 版**: 8366336 (8364288 + 2048)
 - **AU-A 版**: 8368384 (8364288 + 4096)
+
+> 以上 836 系列是包含 BunnyTransformation 的历史试集成矩阵，已被 731 系列稳定矩阵取代：基础版 `7315712`，AU-F `7316736`，AU-M `7317760`，AU-A `7319808`。
 
 ---
 
@@ -78,9 +82,8 @@
 - `config/mods.lock.json`: 记录版本 v0.3.1β
 
 **兼容性**:
-- ✅ 与所有现有 mod 兼容
-- ✅ 不依赖其他 mod
-- ⚠️ Beta 版本，需要关注后续更新
+- ❌ 已禁用：v0.3.1β 在当前 DoL 0.5.8.10 + maplebirch v3.1.14 栈中触发 16 个 TweeReplacer 错误并导致战斗崩溃
+- 📝 保留配置和 bit 记录用于审计与回归测试，不进入当前稳定 build_codes
 
 ---
 
