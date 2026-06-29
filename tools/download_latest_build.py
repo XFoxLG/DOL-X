@@ -55,7 +55,7 @@ class BuildDownloader:
         print("   Current version is a framework, please manually download APK from GitHub Actions")
         
         # 生成测试清单
-        self._generate_test_checklist(build_dir, build_code or 7317760)
+        self._generate_test_checklist(build_dir, build_code or 5220608)
         
         return build_dir
     
@@ -79,10 +79,10 @@ class BuildDownloader:
     def _build_checklist_content(self, build_code: int, mods_lock: dict) -> str:
         """构建测试清单内容"""
         build_names = {
-            7315712: "基础版 (无 AU)",
-            7316736: "AU-F",
-            7317760: "AU-M",
-            7319808: "AU-A",
+            5218560: "基础版 (无 AU)",
+            5219584: "AU-F",
+            5220608: "AU-M",
+            5222656: "AU-A",
         }
         
         return f"""# DOL-X 测试清单
@@ -99,8 +99,8 @@ class BuildDownloader:
 - [x] 构建成功（GitHub Actions）
 - [x] 配置一致性验证通过
 - [x] Mod URL 可达性验证通过
-- [x] 包含当前启用的新 mod：guide_to_me, neoui_patch, npc_social_icon
-- [x] 已知不兼容 mod 预期禁用：bunny_transformation
+- [x] 包含当前启用的新 mod：guide_to_me, npc_social_icon
+- [x] 已知不兼容/诊断禁用 mod 预期禁用：bunny_transformation, neoui_patch
 
 ---
 
@@ -123,7 +123,7 @@ class BuildDownloader:
   - [ ] Mae's Picvary v1.3.2
   - [ ] More Love Interests Mod v0.1.6.0
   - [ ] **guide_to_me v1.1.0**
-  - [ ] **neoui_patch V1.1.0**
+  - [ ] **不应出现 NeoUI-Patch**（当前为 AU 侧边栏诊断禁用）
   - [ ] **npc_social_icon v1.4.1**
   - [ ] **不应出现 BunnyTransformation**（已禁用，若出现说明测试包不是当前配置）
   - [ ] AU Male v0.4.2 (仅 AU-M 构建)
@@ -142,7 +142,7 @@ class BuildDownloader:
 
 - [ ] **新增功能（选测1-2项）**：
   - [ ] **控制NPC嘴部**：进入游戏后检查相关选项是否出现
-  - [ ] **NeoUI Patch**：观察 UI 动画效果
+  - [ ] **确认 NeoUI Patch 未加载**：若出现说明测试包不是当前配置
   - [ ] **NPC社交栏头像**：检查社交界面是否显示头像
 
 ### 4. 开发内容检查（5分钟）
@@ -160,9 +160,9 @@ class BuildDownloader:
 
 ### 5. 已知问题验证（5分钟）
 
-- [ ] **CustomHair 十六进制输入缺失**（已知问题，低优先级）
-  - 理发店 → 染发 → 检查是否有输入框
-  - 预设颜色是否可用
+- [ ] **CustomHair 自定义染发**（此前误报）
+  - 理发店 → 染发 → 先选择自定义染发
+  - 检查十六进制输入框是否出现
   
 - [ ] **AU Face 禁用**（预期行为）
   - 确认侧边栏人物贴图无错位/重复
@@ -206,8 +206,8 @@ def main():
     parser.add_argument(
         "--build-code",
         type=int,
-        help="指定 build_code（默认 7317760 = AU-M）",
-        default=7317760
+        help="指定 build_code（默认 5220608 = AU-M）",
+        default=5220608
     )
     parser.add_argument(
         "--run-id",
