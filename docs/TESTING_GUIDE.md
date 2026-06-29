@@ -25,7 +25,7 @@ python tools/quick_check.py
 
 1. **下载测试清单**：
    ```bash
-   python tools/download_latest_build.py --build-code 7317760
+   python tools/download_latest_build.py --build-code 5220608
    ```
 
 2. **手动下载 APK**：
@@ -43,14 +43,14 @@ python tools/quick_check.py
 
 ### 代表性测试
 
-**每次必测**：AU-M (build_code 7317760)
+**每次必测**：AU-M (build_code 5220608)
 - 原因：最常用，功能最全
 - 时间：15-20 分钟手动测试
 
 **CI 自动化**：其他 3 个构建
-- 基础版 (7315712)
-- AU-F (7316736)
-- AU-A (7319808)
+- 基础版 (5218560)
+- AU-F (5219584)
+- AU-A (5222656)
 - 验证：启动成功 + mod 加载完整
 
 ### 测试触发条件
@@ -104,7 +104,7 @@ python tools/quick_check.py --checks urls
 python tools/download_latest_build.py
 
 # 下载指定 build_code
-python tools/download_latest_build.py --build-code 7315712
+python tools/download_latest_build.py --build-code 5218560
 
 # 下载指定 Run ID
 python tools/download_latest_build.py --run-id 27995040396
@@ -123,7 +123,7 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 
 - GitHub Actions run ID
 - artifact 名称与 APK 文件名
-- build code：Base `7315712`、AU-F `7316736`、AU-M `7317760`、AU-A `7319808`
+- build code：Base `5218560`、AU-F `5219584`、AU-M `5220608`、AU-A `5222656`
 - ModLoader 已加载列表中的 AU、NeoUI、Mae's Picvary、NPC Avatars、BunnyTransformation、Lyra 条目
 - 侧边栏展开/收起截图
 - 战斗是否能正常开始
@@ -150,7 +150,8 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
    - CustomHair v1.0.0
    - Mae's Picvary v1.3.2
    - More Love Interests Mod v0.1.6.0
-   - 当前启用的新 mod（guide_to_me, neoui_patch, npc_social_icon）
+   - 当前启用的新 mod（guide_to_me, npc_social_icon）
+   - NeoUI Patch 不应出现（当前为 AU 侧边栏诊断而禁用）
    - BunnyTransformation 不应出现（已禁用，若出现说明测试包不是当前配置）
    - AU model（根据构建）
 3. 加载日志无 error
@@ -166,7 +167,6 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 
 3. **新增功能**（选测 1-2 项）：
    - 控制NPC嘴部
-   - NeoUI Patch
    - NPC社交栏头像
 
 ### 开发内容检查（5分钟）
@@ -210,11 +210,11 @@ DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-...-0615-e0b1a4b.apk
 
 ## 已知问题
 
-### CustomHair 十六进制输入缺失
+### CustomHair 十六进制输入框
 
-- **状态**：已接受
-- **影响**：低（预设颜色可用）
-- **计划**：等待 mod 更新
+- **状态**：误报已纠正
+- **说明**：需先点击“自定义染发”选项，十六进制输入框才会出现。
+- **计划**：不再作为 bug 跟踪。
 
 ### AU Face 已禁用
 
@@ -248,7 +248,7 @@ git status | grep -E "\\.env|credentials"
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 7317760
+python tools/download_latest_build.py --build-code 5220608
 
 # 2. 手动下载 APK
 
