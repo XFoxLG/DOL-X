@@ -69,6 +69,8 @@ base/
 .cursor/
 .trellis/
 AGENTS.md
+AGENTS.md.bak
+.cursorignore.bak
 PROJECT_REVIEW.md
 
 # Temporary files and local scripts
