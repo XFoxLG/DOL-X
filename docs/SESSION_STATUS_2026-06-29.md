@@ -62,6 +62,20 @@
 - `python tools/quick_check.py`: 通过。8/8 enabled mod URLs 可访问;检测到 `guide_to_me` / `npc_social_icon` 启用,`bunny_transformation` / `neoui_patch` 禁用。
 - `ReadLints`: 本次触及的 Python 文件无 IDE 诊断。
 
+## 记录分层与更改日志规范
+
+本会话确认:Git 提交不能替代 changelog。DOL-X 后续按四层记录体系维护:
+
+- `CHANGELOG.md`:只写用户、测试者或发布接收者真正会看到的 notable changes。格式基于 Keep a Changelog 1.1.0,版本语义参考 Semantic Versioning。Git commit hash、build code、artifact 名称可以作为追踪证据,但不能替代人类可读发布摘要。
+- `docs/SESSION_STATUS_YYYY-MM-DD.md`:实时工作台。记录当前会话的证据、推理、已推翻假设、下一步、验证结果和提交卫生提醒。被 Cursor 自动压缩或换窗口打断时,优先读这里恢复。
+- MCP memory:只写会改变未来行为的稳定判断、用户偏好、项目策略或反复出现的错误模式。不把临时猜测、未验证观察或一次性日志写入长期记忆。
+- `AGENTS.md` / `.cursor/rules`:只保留短、稳定、WAF-safe 的仓库护栏。大段排障、命令、代码块、HTML/macro 片段、救援备份和敏感分析细节放到 docs 或本地 `.bak`,不要放入自动注入层。
+
+当前 CHANGELOG 维护口径已同步为:
+- 顶部说明链接到 Keep a Changelog 1.1.0。
+- SemVer 链接到官方主页。
+- 后续发布前把 `Unreleased` 中的项目整理为正式版本条目,必要时使用 yanked/superseded 口径,不要用 git log 直接生成发布说明。
+
 ## 提交卫生提醒
 
 正常配置/测试/项目文档可以进入主线提交,但不要盲目 `git add .`。`.cursorignore.bak`、`AGENTS.md.bak` 属于本地 WAF 救援备份,不能进入正常提交。`AGENTS.md`、`docs/AGENTS_FULL.md`、`docs/WAF_TROUBLESHOOTING.md` 和本会话状态文档需要单独审查后再决定是否提交。
