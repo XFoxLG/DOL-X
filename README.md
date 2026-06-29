@@ -69,7 +69,7 @@ GitHub Actions 构建完成后：
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 7317760
+python tools/download_latest_build.py --build-code 5220608
 
 # 2. 手动下载 APK 到 downloads/test_builds/{date}-{commit}/
 
@@ -129,7 +129,7 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 - cheatExtended - 作弊扩展（含言灵集）
 
 **可选 AU 系列**：
-- AU-F：AU Female model v0.8.7（临时回退诊断）
+- AU-F：AU Female model v0.9.3（与上游 Lyra 当前 AU model 对齐）
 - AU-M：AU Male model v0.4.2
 - AU-A：AU Androgynous model v0.1.1
 
@@ -143,16 +143,16 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
 | 版本 | Build Code | 说明 | 推荐 |
 |------|------------|------|------|
-| 基础版 | 7315712 | UCB 美化 + 完整 Mod 集合（无 AU 模型） | ⚪ |
-| AU-F 版 | 7316736 | 基础版 + AU Female model | ⚠️ |
-| AU-M 版 | 7317760 | 基础版 + AU Male model | ⭐ |
-| AU-A 版 | 7319808 | 基础版 + AU Androgynous model | ⭐ |
+| 基础版 | 5218560 | UCB 美化 + 当前启用 Mod 集合（无 AU 模型） | ⚪ |
+| AU-F 版 | 5219584 | 基础版 + AU Female model | ⚠️ |
+| AU-M 版 | 5220608 | 基础版 + AU Male model | ⭐ |
+| AU-A 版 | 5222656 | 基础版 + AU Androgynous model | ⭐ |
 
 > **💡 推荐说明**：
 > - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型
 > - ⚪ **基础版**：不含 AU 模型，适合偏好原版体型或自行加载 AU 模型的用户
 > 
-> **⚠️ AU 状态**：AU Face 扩展当前禁用，不会进入构建。AU-F 已临时从 v0.9.3 回退到 v0.8.7，用于验证侧边栏人物预览贴图错位是否由 v0.9.3 引入；详见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
+> **⚠️ AU 状态**：AU Face 扩展当前禁用，不会进入构建。AU-F 使用 v0.9.3；当前诊断重点是 NeoUI Patch 与侧边栏人物预览的交互，因此 NeoUI Patch 暂时禁用。详见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
 
 > **⚠️ 重要更新（2026-06-15）**：
 > - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、maplebirch_expansion）
@@ -166,13 +166,13 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 ### 当前稳定版本（2026-06-17+）
 
 当前构建配置：
-- **基础 Mod**：UCB + more_love + maplebirch + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon
-- **Build Codes**：7315712 / 7316736 / 7317760 / 7319808
+- **基础 Mod**：UCB + more_love + maplebirch + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon
+- **Build Codes**：5218560 / 5219584 / 5220608 / 5222656
 - **游戏版本**：跟随汉化仓库更新
 - **构建方式**：GitHub Actions 云端自动化
 - **测试状态**：配置测试通过；AU model 侧边栏问题诊断中
 
-> **🔄 历史更新**：2026-06-17 移除 Custom-Spellbook（功能与 Cheat Extended 言灵集重复）；当前稳定 Build Codes 已更新至 7315712 系列。
+> **🔄 历史更新**：2026-06-17 移除 Custom-Spellbook（功能与 Cheat Extended 言灵集重复）；当前诊断 Build Codes 已更新至 5218560 系列。
 
 ### ⚠️ 历史版本兼容性警告
 

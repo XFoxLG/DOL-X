@@ -1,7 +1,7 @@
 # DOL-X Mod 矩阵决策说明
 
-**最后更新**: 2026-06-28  
-**版本**: v1.2
+**最后更新**: 2026-06-29  
+**版本**: v1.3
 
 ---
 
@@ -22,21 +22,21 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 7315712 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 基础版，完整 Mod 集合（BunnyTransformation 禁用） |
-| 7316736 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 女性体型 + 完整 Mod，AU-F 侧边栏贴图诊断中 |
-| 7317760 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 男性体型 + 完整 Mod，需最新包复测 |
-| 7319808 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon | 中性体型 + 完整 Mod，需最新包复测 |
+| 5218560 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 基础版，当前诊断稳定矩阵（BunnyTransformation 与 NeoUI Patch 禁用） |
+| 5219584 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 女性体型 + 当前诊断矩阵，AU-F v0.9.3 + NeoUI 禁用 |
+| 5220608 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 男性体型 + 当前诊断矩阵，需最新包复测 |
+| 5222656 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 中性体型 + 当前诊断矩阵，需最新包复测 |
 
 ### Feature Bits 分解
 
 ```
-7315712 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 2097152 (neoui_patch) + 4194304 (npc_social_icon)
-7316736 = 7315712 + 1024 (AU-F)
-7317760 = 7315712 + 2048 (AU-M)
-7319808 = 7315712 + 4096 (AU-A)
+5218560 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 4194304 (npc_social_icon)
+5219584 = 5218560 + 1024 (AU-F)
+5220608 = 5218560 + 2048 (AU-M)
+5222656 = 5218560 + 4096 (AU-A)
 ```
 
-`1048576` (BunnyTransformation) is intentionally excluded. v0.3.1β caused 16 TweeReplacer errors and combat crashes in the current DoL 0.5.8.10 stack.
+`1048576` (BunnyTransformation) is intentionally excluded. v0.3.1β caused 16 TweeReplacer errors and combat crashes in the current DoL 0.5.8.10 stack. `2097152` (NeoUI Patch) is also excluded during the AU sidebar diagnostic because its overlay sidebar layout is the current leading suspect.
 
 ---
 
@@ -70,7 +70,7 @@
 | 推荐基础美化 | BESC | UCB |
 | AU 组合 | AU（单独） | AU+UCB |
 | BESC 使用 | 推荐使用 | **不使用（skip=true）** |
-| 额外 Mod | cheat + CSD | more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon |
+| 额外 Mod | cheat + CSD | more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon |
 
 ---
 
@@ -124,14 +124,13 @@
    - AU 用户仍能享受战斗美化
    - 避免"选择 AU 就没有战斗美化"的遗憾
 
-### 为什么包含 more_love + custom_spellbook？
+### 为什么包含 more_love？
 
 1. **功能增强**
    - More Love Interests Mod：扩展恋人数量
-   - Custom Spellbook：自定义魔法书
 
 2. **稳定性**
-   - 两者都是成熟稳定的 Mod
+   - More Love Interests 是成熟稳定的 Mod
    - 更新活跃，维护良好
 
 3. **默认启用**
@@ -389,9 +388,9 @@ DOL-X 的选择：
 - **功能**: UI 增强补丁，侧边栏动画优化，UI 美化
 - **来源**: https://github.com/RyaraSUKI/dol-neoui-patch
 - **版本**: V1.1.0
-- **兼容性**: ✅ CSS/UI 层面，不影响游戏逻辑，与现有 UI mod 栈兼容
+- **兼容性**: ⚠️ 当前为 AU 侧边栏诊断而禁用；覆盖式侧边栏布局是 AU-F 侧边栏贴图错位的头号嫌疑
 - **类型**: ModLoader mod，bit 2097152
-- **决策**: 提升用户体验，无功能性冲突，风险低
+- **决策**: 保留配置与版本锁，但不进入当前 build_codes；待 AU 诊断结束后再决定是否恢复
 
 #### NPC社交栏头像 (NPC Social Icon)
 
@@ -506,7 +505,7 @@ DOL-X 的 Mod 矩阵设计遵循以下原则：
 ---
 
 **维护者**: DOL-X 团队  
-**最后更新**: 2026-06-23
+**最后更新**: 2026-06-29
 
 ## 参考资料
 
