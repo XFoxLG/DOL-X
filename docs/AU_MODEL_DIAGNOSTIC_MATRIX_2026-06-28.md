@@ -41,7 +41,7 @@ DOL-X now pins exact AU model release assets instead of broad substring patterns
 
 | Feature | Asset | Version | Status |
 |---------|-------|---------|--------|
-| `au-f` | `AUfemale.model_v0.8.7.zip` | v0.8.7 | Diagnostic rollback; testing whether v0.9.3 introduced the sidebar sprite regression |
+| `au-f` | `AUfemale.model_v0.9.3.zip` | v0.9.3 | Active diagnostic pin; aligned with upstream Lyra and AOKIUTAGE latest model asset |
 | `au-m` | `AUmale.model_v0.4.2.zip` | v0.4.2 | Needs retest with latest build |
 | `au-a` | `AUandrogynous.model_v0.1.1.zip` | v0.1.1 | Needs retest with latest build |
 | `au_face` | `AUsDoL.facial.expansion.mod.zip` | v1.2.8 | Disabled |
@@ -50,19 +50,18 @@ DOL-X now pins exact AU model release assets instead of broad substring patterns
 
 | Case | Build code | Purpose | Current evidence | Next action |
 |------|------------|---------|------------------|-------------|
-| Base no-AU | `7315712` | Control group for sidebar rendering | User reports base package has no sidebar sprite issue | Retest after exact AU pins land, only as sanity check |
-| AU-F rollback | `7316736` | Test whether AU-F v0.9.3 introduced the sidebar issue | v0.9.3 showed hair/face layers misplaced in sidebar; current config pins `AUfemale.model_v0.8.7.zip` | Retest latest build and compare with v0.9.3 evidence |
-| AU-M current | `7317760` | Check whether issue is AU-F-specific | Old AU-M logs cannot be reused because they came from older builds | Retest latest build |
-| AU-A current | `7319808` | Check third AU model package | No current evidence | Retest latest build |
-| AU-F without NeoUI | TBD diagnostic build | Isolate NeoUI sidebar CSS interaction | Not tested | Build only if AU-F current still fails |
+| Base no-AU | `5218560` | Control group for sidebar rendering with NeoUI and BunnyTransformation disabled | User reports base package has no sidebar sprite issue | Retest current diagnostic build as sanity check |
+| AU-F current | `5219584` | Test AU-F v0.9.3 after disabling NeoUI | Upstream Lyra renders AU-F v0.9.3 normally; DOL-X showed sidebar sprite issue before NeoUI was disabled | Retest latest build and compare with previous v0.9.3 evidence |
+| AU-M current | `5220608` | Check whether issue is AU-F-specific | Old AU-M logs cannot be reused because they came from older builds | Retest latest build |
+| AU-A current | `5222656` | Check third AU model package | No current evidence | Retest latest build |
 | AU-F without NPC avatar mods | TBD diagnostic build | Isolate Mae's Picvary / NPC Avatars sidebar interaction | Not tested | Build only if AU-F current still fails |
-| AU-F v0.9.3 | previous build evidence | Known-problem comparison point | User reproduced sidebar sprite issue with `【AUfemale】model {v:0.9.3}` | Restore only if v0.8.7 shows same issue and CSS/mod isolation becomes next priority |
+| AU-F with NeoUI | previous build evidence | Known-problem comparison point | User reproduced sidebar sprite issue with `【AUfemale】model {v:0.9.3}` while NeoUI was enabled | Use only as comparison evidence; do not treat it as current config |
 
 ## Working Hypotheses
 
 1. AU Face is not the current cause if `facemod` is absent from the ModLoader list and `au_face.enabled = false` remains true.
-2. The issue may be in AU model rendering itself, because the base no-AU package is normal and AU-F model v0.9.3 reproduces the sidebar sprite issue.
-3. The issue may also be a model plus UI interaction, especially with `NeoUI-Patch`, `BeautySelectorAddon`, `Mae's Picvary NPC`, or `NPC Avatars Mod`.
+2. The AU-F v0.8.7 rollback hypothesis is no longer primary: upstream Lyra uses the same AU-F v0.9.3 model asset and renders normally, so DOL-X-specific mod/CSS interactions are more likely.
+3. The first active isolation is NeoUI removal. If AU-F still fails with NeoUI disabled, next isolate `BeautySelectorAddon`, `Mae's Picvary NPC`, or `NPC Avatars Mod`.
 4. Do not switch to `imgpack` by default before isolation. `imgpack` changes the imagepack layer and has higher conflict risk with UCB and other imagepack rules.
 
 ## Manual Test Evidence Requirements
