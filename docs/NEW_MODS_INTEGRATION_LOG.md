@@ -4,7 +4,7 @@
 **集成版本**: v3.1.14 (基于 maplebirch v3.1.14 + expansion v1.2.4)  
 **集成批次**: 4 个新 mod
 
-> **状态说明（2026-06-28）**：本文是 2026-06-23 的历史集成记录，不代表当前稳定矩阵。BunnyTransformation v0.3.1β 已因 16 个 TweeReplacer 错误和战斗崩溃禁用；当前稳定 build codes 为 `7315712` / `7316736` / `7317760` / `7319808`。当前状态以 `config/combinations.toml`、`config/build.toml`、`config/mods.lock.json` 和 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md` 为准。
+> **状态说明（2026-06-29）**：本文是 2026-06-23 的历史集成记录，不代表当前稳定矩阵。BunnyTransformation v0.3.1β 已因 16 个 TweeReplacer 错误和战斗崩溃禁用；NeoUI Patch 当前也为 AU 侧边栏诊断而禁用。当前 build codes 为 `5218560` / `5219584` / `5220608` / `5222656`。当前状态以 `config/combinations.toml`、`config/build.toml`、`config/mods.lock.json` 和 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md` 为准。
 
 ---
 
@@ -16,7 +16,7 @@
 |---------|------|--------|------|-------------|
 | 控制NPC嘴部 | v1.1.0 | 524288 | ✅ 已集成 | [Ayndpa/DOL-GuideToMe](https://github.com/Ayndpa/DOL-GuideToMe) |
 | 变身兔兔 | v0.3.1β | 1048576 | ❌ 已禁用 | [sylphiet/Bunny-TransformationCN](https://github.com/sylphiet/Bunny-TransformationCN) |
-| NeoUI Patch | V1.1.0 | 2097152 | ✅ 已集成 | [RyaraSUKI/dol-neoui-patch](https://github.com/RyaraSUKI/dol-neoui-patch) |
+| NeoUI Patch | V1.1.0 | 2097152 | ⚠️ 已集成但当前禁用诊断 | [RyaraSUKI/dol-neoui-patch](https://github.com/RyaraSUKI/dol-neoui-patch) |
 | NPC社交栏头像 | v1.4.1 | 4194304 | ✅ 已集成 | [Eudemonism00/DOL-NPC-Avatars-Mod](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod) |
 
 ### 构建代码更新
@@ -38,7 +38,7 @@
 - **AU-M 版**: 8366336 (8364288 + 2048)
 - **AU-A 版**: 8368384 (8364288 + 4096)
 
-> 以上 836 系列是包含 BunnyTransformation 的历史试集成矩阵，已被 731 系列稳定矩阵取代：基础版 `7315712`，AU-F `7316736`，AU-M `7317760`，AU-A `7319808`。
+> 以上 836 系列是包含 BunnyTransformation 的历史试集成矩阵，之后曾被 731 系列取代。当前诊断矩阵进一步禁用了 NeoUI Patch：基础版 `5218560`，AU-F `5219584`，AU-M `5220608`，AU-A `5222656`。
 
 ---
 
@@ -103,9 +103,9 @@
 - `config/mods.lock.json`: 记录版本 V1.1.0
 
 **兼容性**:
-- ✅ 与现有 UI mod 栈兼容
-- ✅ 不依赖其他 mod
-- ✅ 无已知冲突
+- ⚠️ 当前为 AU 侧边栏诊断而禁用
+- ⚠️ 覆盖式侧边栏布局是 AU-F 侧边栏贴图错位的头号嫌疑
+- 📝 保留配置和 bit 记录，待 AU 诊断完成后再决定是否恢复
 
 ---
 
@@ -187,12 +187,14 @@ required = true
 [[features]]
 id = "bunny_transformation"
 bit = 1048576
-required = true
+required = false
+skip = true
 
 [[features]]
 id = "neoui_patch"
 bit = 2097152
-required = true
+required = false
+skip = true
 
 [[features]]
 id = "npc_social_icon"
