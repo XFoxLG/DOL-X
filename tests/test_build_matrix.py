@@ -21,20 +21,20 @@ class TestBuildMatrix:
     """构建矩阵配置测试"""
 
     def test_build_codes_count(self):
-        """验证只构建 4 个自用组合"""
+        """验证当前诊断矩阵为 5 个组合（含 AU-F + NeoUI 对比包）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert len(combinations_config.build_codes) == 4, (
-            f"期望 4 个构建组合，实际 {len(combinations_config.build_codes)}"
+        assert len(combinations_config.build_codes) == 5, (
+            f"期望 5 个构建组合，实际 {len(combinations_config.build_codes)}"
         )
 
     def test_build_codes_values(self):
-        """验证构建组合代码正确（禁用 NeoUI Patch 与 BunnyTransformation）"""
+        """验证构建组合代码正确（含 NeoUI 对比包 7316736，禁用 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"5218560", "5219584", "5220608", "5222656"}
+        expected_codes = {"5218560", "5219584", "7316736", "5220608", "5222656"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -276,9 +276,9 @@ class TestBuildMatrix:
         calculator = CombinationCalculator()
         combinations = calculator.calculate(include_polyfill=False)
         
-        # 应该只生成 4 个组合
-        assert len(combinations) == 4, (
-            f"CombinationCalculator 应生成 4 个组合，实际 {len(combinations)}"
+        # 当前诊断矩阵为 5 个组合（含 AU-F + NeoUI 对比包）
+        assert len(combinations) == 5, (
+            f"CombinationCalculator 应生成 5 个组合，实际 {len(combinations)}"
         )
         
         # 验证生成的代码与配置一致
