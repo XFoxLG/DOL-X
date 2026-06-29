@@ -4,10 +4,10 @@ Phase 1: 构建矩阵配置测试
 验证：
 - build_codes 只包含 4 个稳定自用组合
 - polyfill 已关闭
-- 基础版 (7315712) 不注入 AU 扩展
-- AU 三版本 (7316736/7317760/7319808) 注入 AU 扩展
-- 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、neoui_patch、npc_social_icon
-- BunnyTransformation 不进入当前稳定矩阵
+- 基础版 (5218560) 不注入 AU 扩展
+- AU 三版本 (5219584/5220608/5222656) 注入 AU 扩展
+- 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、npc_social_icon
+- BunnyTransformation 和 NeoUI Patch 不进入当前诊断矩阵
 - 没有在线版相关配置
 """
 import pytest
@@ -30,11 +30,11 @@ class TestBuildMatrix:
         )
 
     def test_build_codes_values(self):
-        """验证构建组合代码正确（启用 NeoUI Patch，禁用 BunnyTransformation）"""
+        """验证构建组合代码正确（禁用 NeoUI Patch 与 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"7315712", "7316736", "7317760", "7319808"}
+        expected_codes = {"5218560", "5219584", "5220608", "5222656"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -52,13 +52,13 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_7315712(self):
-        """验证稳定基础版代码为 7315712（UCB + more_love + cheatExtended + custom_hair + mae_picvary + expansion + guide_to_me + neoui_patch + npc_icon，禁用 BunnyTransformation）"""
+    def test_base_code_is_5218560(self):
+        """验证诊断基础版代码为 5218560（禁用 NeoUI Patch 与 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 7315712, (
-            f"基础版代码应为 7315712，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 5218560, (
+            f"基础版代码应为 5218560，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -83,10 +83,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (7315712) 不包含 AU"""
+        """验证基础版 (5218560) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 7315712
+        base_code = 5218560
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -116,9 +116,9 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         
         au_variants = [
-            (7316736, "au-f"),
-            (7317760, "au-m"),
-            (7319808, "au-a"),
+            (5219584, "au-f"),
+            (5220608, "au-m"),
+            (5222656, "au-a"),
         ]
         
         for code, feature_id in au_variants:
@@ -258,6 +258,8 @@ class TestBuildMatrix:
             "custom_hair",
             "mae_picvary",
             "maplebirch_expansion",
+            "guide_to_me",
+            "npc_social_icon",
         ]
         for feature_id in required_features:
             feature = config_loader.get_feature_by_id(feature_id)

@@ -189,10 +189,10 @@ neoui_patch_1.1.0.zip
 
 ## 构建矩阵变化
 
-### 旧配置（7个mod，4个构建）
+### 历史中间配置（7个mod，4个构建，已被当前诊断矩阵取代）
 
 ```
-Build Codes: 7315712, 7316736, 7317760, 7319808
+Build Codes: 731 系列历史中间矩阵（NeoUI 启用，现已停用诊断）
 包含：UCB + more_love + cheat + custom_hair + mae_picvary + expansion 
      + guide_to_me + neoui_patch + npc_icon + (bunny_transformation - 禁用)
 ```

@@ -9,9 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Current enabled mod set documented** (2026-06-28):
+- **Current enabled mod set documented** (2026-06-29):
   - `guide_to_me` v1.1.0 - 控制NPC嘴部
-  - `neoui_patch` V1.1.0 - NeoUI Patch (侧边栏动画优化)
   - `npc_social_icon` v1.4.1 - NPC社交栏头像
 - **AU model diagnosis**: pinned AU model assets to exact release files and added `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`
 - **Build version tracking**: commit hash in APK filename (e.g., `-e0b1a4b`)
@@ -23,13 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Build codes updated**: current stable matrix excludes BunnyTransformation after combat crash
-  - Base: 7315712
-  - AU-F: 7316736
-  - AU-M: 7317760
-  - AU-A: 7319808
+- **Build codes updated**: current diagnostic matrix excludes BunnyTransformation and NeoUI Patch
+  - Base: 5218560
+  - AU-F: 5219584
+  - AU-M: 5220608
+  - AU-A: 5222656
 - **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
-- **AU-F temporary rollback**: pinned AU-F to `AUfemale.model_v0.8.7.zip` to test whether v0.9.3 introduced the sidebar sprite regression
+- **NeoUI Patch disabled for diagnosis**: overlay sidebar layout is the leading suspect for AU sidebar sprite misplacement
+- **AU-F restored to upstream-aligned asset**: pinned AU-F to `AUfemale.model_v0.9.3.zip`
 - **APK naming**: Now includes commit hash for version tracking
 
 ### Documentation
@@ -97,8 +97,8 @@ base_code = sum(required_features.bit)
 AU variants = base_code + AU_bit
 
 Example (current):
-- base: 7315712 (UCB + more_love + cheat + custom_hair + mae_picvary + expansion + guide_to_me + neoui_patch + npc_social_icon)
-- AU-M: 7317760 (base + 2048)
+- base: 5218560 (UCB + more_love + cheat + custom_hair + mae_picvary + expansion + guide_to_me + npc_social_icon)
+- AU-M: 5220608 (base + 2048)
 ```
 
 ### Upstream Sync Policy

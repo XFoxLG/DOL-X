@@ -2,7 +2,7 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-06-28  
+**最后更新**: 2026-06-29  
 **当前框架**: maplebirch v3.1.14 + expansion v1.2.4  
 **当前游戏版本**: DoL v0.5.8.10  
 **当前作弊**: Cheat Extended v1.17
@@ -48,11 +48,11 @@
 | maplebirch Framework | v3.1.14 | - | 0.5.8.10 | ✅ | 无 | 核心框架，稳定版 |
 | Cheat Extended | v1.17 | v3.x | 0.5.8.10 | ⚠️ | 自定义言灵集 widget 报错 | Workaround: 使用快速言灵 |
 | maplebirch Expansion | v1.2.4 | v3.1.14 | 0.5.8.10 | ✅ | 无 | 完全兼容 |
-| CustomHair | v1.0.0 | 无要求 | 0.5.2.7-0.5.2.10 | ⚠️ | 十六进制颜色输入缺失 | 预设颜色正常可用 |
+| CustomHair | v1.0.0 | 无要求 | 0.5.2.7-0.5.2.10 | ✅ | 无 | 十六进制输入框需先点击“自定义染发”选项才出现 |
 | More Love Interests | v0.1.6.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 独立功能 |
 | Mae's Picvary NPC | v1.3.2 | 无要求 | 0.5.8.10 | ✅ | 无 | 侧边栏头像 |
 | Guide To Me | v1.1.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 控制 NPC 嘴部动作，当前稳定矩阵启用 |
-| NeoUI Patch | V1.1.0 | 无要求 | 0.5.8.10 | ✅ | 需继续观察 AU 侧边栏交互 | 当前稳定矩阵启用 |
+| NeoUI Patch | V1.1.0 | 无要求 | 0.5.8.10 | ⚠️ | 覆盖式侧边栏布局疑似触发 AU 侧边栏错位 | 当前诊断禁用，不进入 build_codes |
 | NPC Social Icon | v1.4.1 | 无要求 | 0.5.8.10 | ✅ | 无 | 当前稳定矩阵启用；与 Mae's Picvary 作用域不同 |
 | BunnyTransformation | v0.3.1β | 无要求 | 0.5.8.10 | ❌ | 16 个 TweeReplacer 错误和战斗崩溃 | 已禁用，不进入当前稳定 build_codes |
 
@@ -60,7 +60,7 @@
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| AU Female model | v0.8.7 | 无要求 | 0.5.8.10 | 🔄 | 回退诊断中 | 从 v0.9.3 临时回退，验证侧边栏人物预览贴图错位是否为新版回归 |
+| AU Female model | v0.9.3 | 无要求 | 0.5.8.10 | 🔄 | AU-F 侧边栏错位诊断中 | 与上游 Lyra 对齐；NeoUI 禁用后待复测 |
 | AU Male model | v0.4.2 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
 | AU Androgynous model | v0.1.1 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
 | AU Face Expansion | v1.2.8 | v4.1.7+ | 0.5.8.10 | ❌ | 已禁用；不要与 AU model 本体混淆 | `facemod` release，等待 v4.x 升级或重新验证 |
@@ -145,7 +145,7 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 - maplebirch: v3.1.14
 - expansion: v1.2.4
 - DoL: 0.5.8.10
-- 构建码: 7315712
+- 构建码: 5218560
 
 ### 测试步骤
 1. 下载 mod: `gh release download ...`
