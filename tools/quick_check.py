@@ -141,10 +141,10 @@ class QuickChecker:
 
     def check_new_mods(self) -> bool:
         """检测新 mod 是否在配置中（仅检查启用的 mod）"""
-        # 检查已启用的新 mod。NeoUI 当前用于 AU 侧边栏诊断而禁用。
-        expected_enabled = ["guide_to_me", "npc_social_icon"]
-        # bunny_transformation 已知不兼容；neoui_patch 当前预期禁用。
-        expected_disabled = ["bunny_transformation", "neoui_patch"]
+        # 检查已启用的新 mod。NeoUI 当前作为 AU 侧边栏诊断对比包（7316736）启用。
+        expected_enabled = ["guide_to_me", "npc_social_icon", "neoui_patch"]
+        # bunny_transformation 已知不兼容，保持禁用。
+        expected_disabled = ["bunny_transformation"]
         
         build_toml = self._load_toml("build.toml")
         found_enabled = []
