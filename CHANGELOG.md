@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Build artifact naming collision** (2026-06-30): `ModCode.get_suffix()` did not
+  recognize the newer mod bits (`guide_to_me`, `bunny_transformation`,
+  `neoui_patch`, `npc_social_icon`), so AU-F without NeoUI (`5219584`) and AU-F
+  with NeoUI (`7316736`) produced identical APK filenames and overwrote each
+  other in `output/`. The APK artifact therefore shipped only 4 APKs instead of
+  5, and the surviving AU-F APK could not be identified for sidebar comparison.
+  Registered the 4 missing bits with distinct filename suffixes and added
+  `test_build_codes_have_unique_output_suffixes` to prevent future collisions.
+  Verified on CI run `28461618104`: APK artifact restored to 5 files / 588 MB
+  (was 4 files / 458 MB), with two distinct AU-F builds (with/without
+  `neoui-patch` in the filename). Commit `0197f79`.
+
 ### Added
 
 - **Current enabled mod set documented** (2026-06-29):
@@ -22,13 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- **Build codes updated**: current diagnostic matrix excludes BunnyTransformation and NeoUI Patch
+- **Build codes updated**: current diagnostic matrix is 5 builds — base + 3 AU
+  variants, plus an AU-F + NeoUI compare build for sidebar isolation
   - Base: 5218560
-  - AU-F: 5219584
+  - AU-F (no NeoUI): 5219584
+  - AU-F + NeoUI (compare): 7316736
   - AU-M: 5220608
   - AU-A: 5222656
 - **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
-- **NeoUI Patch disabled for diagnosis**: overlay sidebar layout is the leading suspect for AU sidebar sprite misplacement
+- **NeoUI Patch isolated to compare build**: overlay sidebar layout is the leading suspect for AU sidebar sprite misplacement, so NeoUI now ships only in `7316736` (the sole build carrying bit 2097152); all other builds stay NeoUI-free
 - **AU-F restored to upstream-aligned asset**: pinned AU-F to `AUfemale.model_v0.9.3.zip`
 - **APK naming**: Now includes commit hash for version tracking
 
