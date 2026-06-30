@@ -6,6 +6,8 @@
 
 项目主干健康(中文/图片已验证可玩)。当前唯一活跃问题是 **AU-F 侧边栏立绘错位**,诊断方向已从"AU 版本"转向 **NeoUI-Patch 覆盖式侧边栏**。
 
+> **2026-06-30 更新**:发现并修复了一个挡在诊断前面的构建 bug——产物文件名碰撞。修复前 AU-F 无 NeoUI(`5219584`)与 AU-F + NeoUI(`7316736`)生成同名 APK 互相覆盖,APK 包只剩 4 个,导致无法分辨手上的 AU-F 包带不带 NeoUI,侧边栏对比根本做不了。已修复并经 CI run `28461618104` 验证:APK 包恢复为 **5 个 / 588 MB**(原 4 个 / 458 MB),两个 AU-F 包文件名以 `neoui-patch` 区分。**此前那个身份不明的 AU-F 包作废**,侧边栏对比改用新 run 的两个 AU-F 包。下一步就是用这两个干净对比包做侧边栏实测。
+
 ## 本会话的关键修正(推翻此前归因)
 
 ### 1. AU 版本基本被排除为错位主因
@@ -49,11 +51,11 @@
 **关掉 NeoUI + AU-F 回 v0.9.3** 已进入配置落实阶段。当前目标是出一组对比包验证侧边栏,而不是继续回滚 AU 版本。
 
 当前配置口径:
-- `config/build.toml`: AU-F 使用 `AUfemale.model_v0.9.3.zip`; `neoui_patch` 为 `enabled = false`; `au_face` 仍为 `enabled = false`。
-- `config/features.toml`: `neoui_patch` 为 `skip = true`; `bunny_transformation` 仍为 `skip = true`。
-- `config/combinations.toml`: 当前 build codes 为 `5218560` / `5219584` / `5220608` / `5222656`,已移除 `2097152`(NeoUI Patch) 与 `1048576`(BunnyTransformation)。
+- `config/build.toml`: AU-F 使用 `AUfemale.model_v0.9.3.zip`; `neoui_patch` 为 `enabled = true`(仅作为下载/注入资格,实际由 feature bit 精确控制); `au_face` 仍为 `enabled = false`。
+- `config/features.toml`: `neoui_patch` 为 `skip = false`(只通过 bit 2097152 进入 7316736 一个包); `bunny_transformation` 仍为 `skip = true`。
+- `config/combinations.toml`: 当前 build codes 为 `5218560` / `5219584` / `7316736` / `5220608` / `5222656`(共 5 个)。`7316736` = AU-F + NeoUI 对比包,与 `5219584`(AU-F 无 NeoUI)唯一差异为 NeoUI Patch(bit 2097152)。`1048576`(BunnyTransformation)仍排除。
 
-下一步验证口径(沿用既定规则):侧边栏展开 + 收起两张截图,与现有 v0.9.3 + NeoUI 启用证据对比;确认新包不含 BunnyTransformation / NeoUI Patch / au_face / Expansion v4.x Compat Patch。
+下一步验证口径(沿用既定规则):用新 run `28461618104` 的两个 AU-F 包(文件名以 `neoui-patch` 区分)做侧边栏展开 + 收起两张截图对比;无 NeoUI 的 `5219584` 是对照组,含 NeoUI 的 `7316736` 是实验组。
 
 ## 本地验证结果
 
