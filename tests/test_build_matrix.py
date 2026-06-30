@@ -7,12 +7,14 @@ Phase 1: 构建矩阵配置测试
 - 基础版 (5218560) 不注入 AU 扩展
 - AU 三版本 (5219584/5220608/5222656) 注入 AU 扩展
 - 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、npc_social_icon
-- BunnyTransformation 和 NeoUI Patch 不进入当前诊断矩阵
+- BunnyTransformation 不进入当前诊断矩阵
+- NeoUI Patch 只进入 AU-F 对比包 (7316736)
 - 没有在线版相关配置
 """
 import pytest
 
 from lyra.combo import CombinationCalculator
+from lyra.config import ModCode
 from lyra.config_loader import get_config_loader
 
 
@@ -290,4 +292,25 @@ class TestBuildMatrix:
             f"CombinationCalculator 生成的代码与配置不一致\n"
             f"期望: {expected_codes}\n"
             f"实际: {actual_codes}"
+        )
+
+    def test_build_codes_have_unique_output_suffixes(self):
+        """验证每个 build code 都会生成唯一文件名后缀，避免产物互相覆盖。"""
+        config_loader = get_config_loader()
+        suffixes = {
+            code_str: ModCode(int(code_str)).get_suffix()
+            for code_str in config_loader.combinations.build_codes
+        }
+
+        assert len(set(suffixes.values())) == len(suffixes), (
+            f"构建产物文件名后缀存在重复，可能导致 output 中互相覆盖: {suffixes}"
+        )
+        assert "neoui-patch" in suffixes["7316736"], (
+            f"NeoUI 对比包 7316736 的文件名后缀应包含 neoui-patch，实际为 {suffixes['7316736']}"
+        )
+        assert "guide-to-me" in suffixes["5218560"], (
+            f"当前主线包文件名后缀应包含 guide-to-me，实际为 {suffixes['5218560']}"
+        )
+        assert "npc-social-icon" in suffixes["5218560"], (
+            f"当前主线包文件名后缀应包含 npc-social-icon，实际为 {suffixes['5218560']}"
         )
