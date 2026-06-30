@@ -29,6 +29,10 @@ class ModCode(IntFlag):
     CUSTOM_HAIR = 65536  # 自定义染发
     MAE_PICVARY = 131072  # NPC侧边栏头像
     MAPLEBIRCH_EXPANSION = 262144  # maplebirch扩展包
+    GUIDE_TO_ME = 524288  # 控制NPC嘴部
+    BUNNY_TRANSFORMATION = 1048576  # 变身兔兔
+    NEOUI_PATCH = 2097152  # NeoUI Patch
+    NPC_SOCIAL_ICON = 4194304  # NPC社交栏头像
 
     @classmethod
     def from_string(cls, code_str: str) -> tuple["ModCode", bool]:
@@ -84,6 +88,14 @@ class ModCode(IntFlag):
             suffix_parts.append("mae-picvary")
         if self & ModCode.MAPLEBIRCH_EXPANSION:
             suffix_parts.append("expansion")
+        if self & ModCode.GUIDE_TO_ME:
+            suffix_parts.append("guide-to-me")
+        if self & ModCode.BUNNY_TRANSFORMATION:
+            suffix_parts.append("bunny-transformation")
+        if self & ModCode.NEOUI_PATCH:
+            suffix_parts.append("neoui-patch")
+        if self & ModCode.NPC_SOCIAL_ICON:
+            suffix_parts.append("npc-social-icon")
 
         return "-".join(suffix_parts) if suffix_parts else ""
 
