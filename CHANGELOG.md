@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- **CI build artifacts pruned** (2026-07-01): GitHub Actions artifact storage had
+  grown to 573 artifacts / ~89 GB and exceeded quota. Deleted all but the newest
+  3 build runs (9 artifacts total: apk + zip + apk-sample each), freeing ~86.5 GB.
+  Remaining: 2.55 GB across runs `28461618104` (2026-06-30), `28390261132` and
+  `28354033076` (2026-06-29). Deletion is irreversible but these are historical CI
+  outputs reproducible from source; the newest run kept is the one used for the
+  sidebar comparison.
+
 ### Fixed
 
 - **Build artifact naming collision** (2026-06-30): `ModCode.get_suffix()` did not
@@ -23,6 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **D.O.L.I integrated** (2026-07-01): `ArsNativa/Degrees-of-Lewdity-Intelligence`
+  pinned to `v0.2.3` (asset `DOLI.mod.zip`). LLM-driven AI dialogue / combat-text
+  enhancement running in ReAct mode against an OpenAI-compatible backend. It is a
+  maplebirch plugin (`boot.json` requires ModLoader `^2.0.0` + maplebirch `^3.1.0`,
+  both satisfied by the current 2.101.1 + 3.1.14 stack, so no version-lock change).
+  Added as a required mod (feature bit `8388608`, `depends_on = cheat_extended_maplebirch`),
+  so it ships in all 5 builds. Build codes shifted accordingly:
+  base `5218560`→`13607168`, AU-F `5219584`→`13608192`, AU-F+NeoUI `7316736`→`15705344`,
+  AU-M `5220608`→`13609216`, AU-A `5222656`→`13611264`. The build system never embeds
+  an API key; players supply their own in-game, and the mod loads inert when unset.
+  License CC BY-NC-SA 4.0. First CI build must be watched once to confirm it coexists
+  with the NeoUI overlay / maplebirch stack.
 - **Current enabled mod set documented** (2026-06-29):
   - `guide_to_me` v1.1.0 - 控制NPC嘴部
   - `npc_social_icon` v1.4.1 - NPC社交栏头像
@@ -44,7 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - AU-M: 5220608
   - AU-A: 5222656
 - **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
-- **NeoUI Patch isolated to compare build**: overlay sidebar layout is the leading suspect for AU sidebar sprite misplacement, so NeoUI now ships only in `7316736` (the sole build carrying bit 2097152); all other builds stay NeoUI-free
+- **NeoUI Patch cleared and kept as permanent opt-in** (updated 2026-06-30): NeoUI was
+  originally the leading suspect for AU sidebar sprite misplacement and isolated to a
+  single compare build. Side-by-side testing on CI run `28461618104` (builds `5219584`
+  without NeoUI vs `7316736` with NeoUI, identical game/mod versions) reversed that:
+  sprites render correctly in both, so NeoUI is not the cause. Its overlay sidebar that
+  covers story text is by design, not a bug; the user judged it usable. Both AU-F builds
+  (with/without NeoUI) are kept permanently for user choice. Root cause of the original
+  misplacement is attributed (strongest inference, not proven) to the earlier maplebirch
+  v4.x stack + `expansion_v4_compat.js` shim removed in commit `d3bcd47`, not NeoUI.
 - **AU-F restored to upstream-aligned asset**: pinned AU-F to `AUfemale.model_v0.9.3.zip`
 - **APK naming**: Now includes commit hash for version tracking
 

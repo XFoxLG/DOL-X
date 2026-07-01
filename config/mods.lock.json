@@ -229,6 +229,24 @@
         "Test coexistence with Mae's Picvary (bit 131072)",
         "Both mods target NPC sidebar - validate no conflict"
       ]
+    },
+    "doli": {
+      "name": "D.O.L.I",
+      "github_repo": "ArsNativa/Degrees-of-Lewdity-Intelligence",
+      "asset_pattern": "DOLI.mod.zip",
+      "release_tag": "v0.2.3",
+      "last_tested_version": "v0.2.3",
+      "last_tested_sha256": null,
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-07-01",
+      "notes": [
+        "Added in DOL-X integration (2026-07-01)",
+        "LLM AI 对话/战斗文本增强，ReAct 模式，需玩家在游戏内自填 OpenAI 兼容 API key",
+        "maplebirch 插件：boot.json 要求 ModLoader ^2.0.0 + maplebirch ^3.1.0（当前 2.101.1 + 3.1.14 满足）",
+        "构建系统绝不嵌 API key；未配后端时 mod 仍能加载，只是 AI 功能不工作",
+        "许可证 CC BY-NC-SA 4.0；0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂",
+        "首次加入需盯一次加载日志确认与 NeoUI overlay/maplebirch 不打架"
+      ]
     }
   }
 }

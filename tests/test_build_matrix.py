@@ -36,7 +36,7 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"5218560", "5219584", "7316736", "5220608", "5222656"}
+        expected_codes = {"13607168", "13608192", "15705344", "13609216", "13611264"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -54,13 +54,13 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_5218560(self):
-        """验证诊断基础版代码为 5218560（禁用 NeoUI Patch 与 BunnyTransformation）"""
+    def test_base_code_is_13607168(self):
+        """验证诊断基础版代码为 13607168（含 D.O.L.I，禁用 NeoUI Patch 与 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 5218560, (
-            f"基础版代码应为 5218560，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 13607168, (
+            f"基础版代码应为 13607168，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -85,10 +85,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (5218560) 不包含 AU"""
+        """验证基础版 (13607168) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 5218560
+        base_code = 13607168
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -305,12 +305,15 @@ class TestBuildMatrix:
         assert len(set(suffixes.values())) == len(suffixes), (
             f"构建产物文件名后缀存在重复，可能导致 output 中互相覆盖: {suffixes}"
         )
-        assert "neoui-patch" in suffixes["7316736"], (
-            f"NeoUI 对比包 7316736 的文件名后缀应包含 neoui-patch，实际为 {suffixes['7316736']}"
+        assert "neoui-patch" in suffixes["15705344"], (
+            f"NeoUI 对比包 15705344 的文件名后缀应包含 neoui-patch，实际为 {suffixes['15705344']}"
         )
-        assert "guide-to-me" in suffixes["5218560"], (
-            f"当前主线包文件名后缀应包含 guide-to-me，实际为 {suffixes['5218560']}"
+        assert "guide-to-me" in suffixes["13607168"], (
+            f"当前主线包文件名后缀应包含 guide-to-me，实际为 {suffixes['13607168']}"
         )
-        assert "npc-social-icon" in suffixes["5218560"], (
-            f"当前主线包文件名后缀应包含 npc-social-icon，实际为 {suffixes['5218560']}"
+        assert "npc-social-icon" in suffixes["13607168"], (
+            f"当前主线包文件名后缀应包含 npc-social-icon，实际为 {suffixes['13607168']}"
+        )
+        assert "doli" in suffixes["13607168"], (
+            f"当前主线包文件名后缀应包含 doli，实际为 {suffixes['13607168']}"
         )
