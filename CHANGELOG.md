@@ -58,13 +58,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- **Build codes updated**: current diagnostic matrix is 5 builds — base + 3 AU
-  variants, plus an AU-F + NeoUI compare build for sidebar isolation
-  - Base: 5218560
-  - AU-F (no NeoUI): 5219584
-  - AU-F + NeoUI (compare): 7316736
-  - AU-M: 5220608
-  - AU-A: 5222656
+- **Build codes updated**: current matrix is 5 builds — base + 3 AU variants,
+  plus an AU-F + NeoUI compare build for sidebar isolation. Values below reflect
+  the D.O.L.I integration (all shifted by `+8388608`; see the Added entry above)
+  - Base: 13607168
+  - AU-F (no NeoUI): 13608192
+  - AU-F + NeoUI (compare): 15705344
+  - AU-M: 13609216
+  - AU-A: 13611264
 - **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
 - **NeoUI Patch cleared and kept as permanent opt-in** (updated 2026-06-30): NeoUI was
   originally the leading suspect for AU sidebar sprite misplacement and isolated to a
