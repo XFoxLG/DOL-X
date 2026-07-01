@@ -195,10 +195,14 @@ required = false
 skip = false
 depends_on = []
 conflicts_with = []
-# DOL-X: Re-enabled as opt-in for AU sidebar diagnostic (2026-06-29).
+# DOL-X: Kept enabled as opt-in (2026-06-30, diagnostic closed).
 # Build matrix ships one AU-F variant without NeoUI (5219584) and one with
-# NeoUI (7316736) so the sidebar overlay can be isolated as the sole variable.
-# After the comparison, set skip back to true if NeoUI is confirmed as the cause.
+# NeoUI (7316736). The comparison cleared NeoUI: it does NOT cause the AU-F
+# sidebar sprite misplacement (sprites render correctly in both variants).
+# NeoUI's overlay/drawer sidebar that covers story text is its intended design,
+# not a bug, so both variants are kept permanently for user choice.
+# Root cause of the original sprite issue was traced to the removed v4.x compat
+# shim + maplebirch v4.x stack (see commit d3bcd47), not NeoUI or AU version.
 
 [[features]]
 id = "npc_social_icon"
@@ -208,3 +212,16 @@ required = true
 skip = false
 depends_on = []
 conflicts_with = []
+
+[[features]]
+id = "doli"
+name = "D.O.L.I"
+bit = 8388608
+required = true
+skip = false
+depends_on = ["cheat_extended_maplebirch"]  # maplebirch 插件，boot.json 要求 maplebirch ^3.1.0
+conflicts_with = []
+# DOL-X: 集成于 2026-07-01。ArsNativa/Degrees-of-Lewdity-Intelligence，锁定 v0.2.3。
+# LLM AI 对话/战斗文本增强，ReAct 模式，需玩家在游戏内自填 OpenAI 兼容 API key。
+# 构建系统绝不嵌 key；未配后端时 mod 仍能加载，只是 AI 功能不工作。
+# 许可证 CC BY-NC-SA 4.0。0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂。
