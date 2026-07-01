@@ -11,18 +11,19 @@
 #   - NeoUI Patch (2026-06-29禁用)：用于排查 AU 侧边栏立绘错位
 #
 # 计算（包含所有必选mod）：
-# 基础: 5218560 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 4194304 (npc_social_icon)
+# 基础: 13607168 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 4194304 (npc_social_icon) + 8388608 (doli)
 # 已禁用: 1048576 (bunny_transformation) — v0.3.1β 不兼容，导致战斗系统崩溃（16个 TweeReplacer 错误）
-# AU 变体：+ 1024 (au-f) = 5219584, + 2048 (au-m) = 5220608, + 4096 (au-a) = 5222656
-# 诊断对比包（2026-06-29）：AU-F + NeoUI = 5219584 + 2097152 = 7316736
-#   与 5219584（AU-F 无 NeoUI）唯一差异为 NeoUI Patch，用于隔离 AU 侧边栏立绘错位是否由 NeoUI 引起。
-build_codes = ["5218560", "5219584", "7316736", "5220608", "5222656"]
+# AU 变体：+ 1024 (au-f) = 13608192, + 2048 (au-m) = 13609216, + 4096 (au-a) = 13611264
+# 诊断对比包：AU-F + NeoUI = 13608192 + 2097152 = 15705344
+#   与 13608192（AU-F 无 NeoUI）唯一差异为 NeoUI Patch，用于隔离 AU 侧边栏立绘错位是否由 NeoUI 引起。
+# D.O.L.I（bit 8388608）于 2026-07-01 加入，作为必选 mod 进入全部 5 个组合。
+build_codes = ["13607168", "13608192", "15705344", "13609216", "13611264"]
 
 # 基础版显示名称对应的组合（无AU）
-base_code = 5218560
+base_code = 13607168
 
 # 推荐的组合（优先显示）
-recommended = [5219584, 5220608, 5222656]
+recommended = [13608192, 13609216, 13611264]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。
