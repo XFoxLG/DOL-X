@@ -267,6 +267,20 @@ asset_pattern = "*.mod.zip"
 release_tag = "1.4"
 download_url = "https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod/releases/download/1.4/NPC.Avatars.Mod.mod.zip"
 
+[[modloader_mods]]
+key = "doli"
+name = "D.O.L.I"
+enabled = true
+feature_id = "doli"
+github_repo = "ArsNativa/Degrees-of-Lewdity-Intelligence"
+asset_pattern = "DOLI.mod.zip"
+release_tag = "v0.2.3"
+download_url = "https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence/releases/download/v0.2.3/DOLI.mod.zip"
+# DOL-X: 集成于 2026-07-01，锁定 v0.2.3（最新 release，asset DOLI.mod.zip）。
+# maplebirch 插件（boot.json 要求 ModLoader ^2.0.0 + maplebirch ^3.1.0，当前 2.101.1 + 3.1.14 满足）。
+# LLM AI 对话/战斗文本增强，需玩家在游戏内自填 OpenAI 兼容 API key；构建绝不嵌 key。
+# 0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂。许可证 CC BY-NC-SA 4.0。
+
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）
