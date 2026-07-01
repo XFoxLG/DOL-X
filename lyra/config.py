@@ -33,6 +33,7 @@ class ModCode(IntFlag):
     BUNNY_TRANSFORMATION = 1048576  # 变身兔兔
     NEOUI_PATCH = 2097152  # NeoUI Patch
     NPC_SOCIAL_ICON = 4194304  # NPC社交栏头像
+    DOLI = 8388608  # D.O.L.I（AI 对话/战斗文本增强，需玩家自填 API key）
 
     @classmethod
     def from_string(cls, code_str: str) -> tuple["ModCode", bool]:
@@ -96,6 +97,8 @@ class ModCode(IntFlag):
             suffix_parts.append("neoui-patch")
         if self & ModCode.NPC_SOCIAL_ICON:
             suffix_parts.append("npc-social-icon")
+        if self & ModCode.DOLI:
+            suffix_parts.append("doli")
 
         return "-".join(suffix_parts) if suffix_parts else ""
 
