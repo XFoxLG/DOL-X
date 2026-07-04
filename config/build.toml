@@ -175,13 +175,15 @@ key = "cheat_extended"
 name = "cheatExtended"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
-github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
-asset_pattern = "cheat_extended.mod.zip"
-release_tag = "V1.17(dev)"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.17%28dev%29/cheat_extended.mod.zip"
-# DOL-X: Rolled back from v1.19 to v1.17 (2026-06-23)
-# Reason: v1.19 requires maplebirch v4.x
-# v1.17 provides full Yanling system
+github_repo = "XFoxLG/DOL-X"
+asset_pattern = "cheat_extended_v118.mod.zip"
+release_tag = "cheat-extended-mirror-v1.18"
+download_url = "https://github.com/XFoxLG/DOL-X/releases/download/cheat-extended-mirror-v1.18/cheat_extended_v118.mod.zip"
+# DOL-X: Upgraded from v1.17 to v1.18 via project mirror (2026-07-03)
+# Reason: v1.18 is a feature increment over v1.17 (brothel basement, customer eye/skin color)
+# v1.18 boot.json has NO maplebirch dependency, loads fine on maplebirch v3.1.14
+# Source: chris81605 tag V1.18(Dev20260325), upstream Release deleted after v1.19
+# Mirror pinned in this repo to survive upstream deletion; verify Yanling in-game before final lock
 
 [[modloader_mods]]
 key = "custom_hair"
