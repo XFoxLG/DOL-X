@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+- **Fork experiment scaffolding removed** (2026-07-06): retired the abandoned
+  cheatExtended/maplebirch canary and gate experiments now that cheat extended is
+  stable on the mirror path. Deleted 16 fork-only files: 4 workflows
+  (`baseline-candidate-gate.yml`, `maplebirch-version-gate.yml`, `compatibility.yaml`,
+  `expansion-update-check.yml`), 5 tools (`baseline_candidate_gate.py`,
+  `cheat_extended_canary.py`, `maplebirch_version_matrix.py`, `au_matrix_gate.py`,
+  `canary_payload_introspect.py`), and 7 tests covering them. Pruned 4 references:
+  `lyra/compatibility.py` (dropped the canary-only maplebirch IDB and diagnostic-only
+  AU-maplebirch surfaces; kept More Love drag, AU face aliases, APK CDP reconnect),
+  its registry test, `build.yaml` (removed the canary build/smoke/upload steps and the
+  dead `compatibility.yaml` path-ignore), and `lyra/build.py` (removed the unreachable
+  `expansion_v4_compat.js` v4.x shim, whose patch file never existed — the same shim
+  attributed as the AU sprite misplacement root cause in commit `d3bcd47`). Only
+  fork-added scaffolding was touched; upstream Lyra files (`build.py` core,
+  `gen_page.py`, `config.py`, `trigger.yaml`, `build.yaml`) stay upstream-friendly.
+  Verified: full-repo scan shows zero dangling imports to removed modules, and the
+  test suite is green (174 passed). Historical decision records under `docs/` are
+  intentionally preserved.
 - **CI build artifacts pruned** (2026-07-01): GitHub Actions artifact storage had
   grown to 573 artifacts / ~89 GB and exceeded quota. Deleted all but the newest
   3 build runs (9 artifacts total: apk + zip + apk-sample each), freeing ~86.5 GB.
