@@ -8,22 +8,21 @@
 #   - 移除 Custom-Spellbook：Cheat Extended 的言灵集功能已完全覆盖（2026-06-17实测）
 #   - v4.x 升级计划：等待 expansion v1.2.5+ 发布原生 v4.x 支持后统一升级
 #   - 已集成mod（2026-06-24）：控制NPC嘴部 + NPC社交栏头像
-#   - NeoUI Patch (2026-06-29禁用)：用于排查 AU 侧边栏立绘错位
+#   - NeoUI Patch (2026-07-05 升为必选)：独立美化 UI mod，全部包内置
 #
 # 计算（包含所有必选mod）：
-# 基础: 13607168 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 4194304 (npc_social_icon) + 8388608 (doli)
+# 必选基线: 15704320 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 2097152 (neoui_patch) + 4194304 (npc_social_icon) + 8388608 (doli)
 # 已禁用: 1048576 (bunny_transformation) — v0.3.1β 不兼容，导致战斗系统崩溃（16个 TweeReplacer 错误）
-# AU 变体：+ 1024 (au-f) = 13608192, + 2048 (au-m) = 13609216, + 4096 (au-a) = 13611264
-# 诊断对比包：AU-F + NeoUI = 13608192 + 2097152 = 15705344
-#   与 13608192（AU-F 无 NeoUI）唯一差异为 NeoUI Patch，用于隔离 AU 侧边栏立绘错位是否由 NeoUI 引起。
-# D.O.L.I（bit 8388608）于 2026-07-01 加入，作为必选 mod 进入全部 5 个组合。
-build_codes = ["13607168", "13608192", "15705344", "13609216", "13611264"]
+# AU 变体：+ 1024 (au-f) = 15705344, + 2048 (au-m) = 15706368, + 4096 (au-a) = 15708416
+# NeoUI 于 2026-07-05 从可选升为必选，进入全部组合，不再构建无 NeoUI 的包。
+# D.O.L.I（bit 8388608）于 2026-07-01 加入，作为必选 mod 进入全部组合。
+build_codes = ["15704320", "15705344", "15706368", "15708416"]
 
 # 基础版显示名称对应的组合（无AU）
-base_code = 13607168
+base_code = 15704320
 
 # 推荐的组合（优先显示）
-recommended = [13608192, 13609216, 13611264]
+recommended = [15705344, 15706368, 15708416]
 
 # 白名单（额外添加的组合，即使不满足规则也会生成）。
 # 已改为 build_codes 精确控制，当前不再依赖白名单。
