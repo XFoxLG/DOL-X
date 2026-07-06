@@ -12,8 +12,6 @@ from typing import Any
 
 MORE_LOVE_DRAG_PATCH_KEY = "more_love_drag_event_handlers"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
-MAPLEBIRCH_IDB_PATCH_KEY = "maplebirch_idb_schema_recovery"
-AU_MAPLEBIRCH_DIAGNOSTIC_KEY = "au_maplebirch_framework_support"
 APK_CDP_REMOTE_END_RECONNECT_KEY = "apk_cdp_remote_end_reconnect"
 
 PATCH_SUCCESS_STATUSES = frozenset({"patched", "already_patched"})
@@ -93,36 +91,6 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         notes="Lower-risk resource aliasing; no third-party JavaScript is modified.",
     ),
     CompatibilitySurface(
-        key=MAPLEBIRCH_IDB_PATCH_KEY,
-        target="maplebirch IndexedDB schema recovery",
-        scope="canary-only",
-        kind="payload-patch",
-        cache_name="maplebirch",
-        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
-        release_tag="maplebirch-release-v3.1.13",
-        asset_pattern="maplebirch-0.5.8.10-v3.1.13.mod.zip",
-        member="dist/inject_early.js",
-        marker="IDB database handle missing before transaction",
-        fail_policy="fail-closed-when-required",
-        tests=("tests/test_cheat_extended_canary.py", "tests/test_compatibility_registry.py"),
-        removal_condition="Remove after a selected upstream maplebirch release contains equivalent IDB recovery.",
-        notes="Canary payload mutation only; it must not enter the stable matrix implicitly.",
-    ),
-    CompatibilitySurface(
-        key=AU_MAPLEBIRCH_DIAGNOSTIC_KEY,
-        target="AU + maplebirch framework-support diagnostics",
-        scope="diagnostic-only",
-        kind="forced-injection",
-        cache_name="maplebirch",
-        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
-        release_tag="maplebirch-release-v3.1.13",
-        asset_pattern="maplebirch-0.5.8.10-v3.1.13.mod.zip",
-        fail_policy="diagnostic-report-only",
-        tests=("tests/test_au_matrix_gate.py", "tests/test_compatibility_registry.py"),
-        removal_condition="Remove after AU framework support is covered by promoted stable/candidate profiles.",
-        notes="Retargets maplebirch to AU diagnostics while excluding cheatExtended and preserving default_matrix_mutated=false.",
-    ),
-    CompatibilitySurface(
         key=APK_CDP_REMOTE_END_RECONNECT_KEY,
         target="APK WebView/CDP remote-end reconnect",
         scope="generic-harness",
@@ -150,13 +118,6 @@ GENERIC_REFACTOR_PLAN: tuple[GenericRefactorPlan, ...] = (
         first_safe_step="Read imagepack application metadata from build.toml with current hardcoded order as fallback.",
         stable_output_policy="Current UCB/AU stable artifact contents and aliases must remain unchanged.",
         tests=("tests/test_au_face_compat.py", "tests/test_build_matrix.py"),
-    ),
-    GenericRefactorPlan(
-        key="manifest_driven_gate_profiles",
-        target="candidate/gate code and profile constants",
-        first_safe_step="Introduce a gate manifest beside existing constants and assert both describe the same targets.",
-        stable_output_policy="No stable matrix mutation; candidate gates remain manual.",
-        tests=("tests/test_baseline_candidate_gate.py", "tests/test_workflow_config.py"),
     ),
 )
 
