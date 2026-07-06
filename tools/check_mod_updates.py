@@ -207,9 +207,17 @@ def check_all_mods(include_prerelease: bool = False) -> dict:
     lock_data = load_mods_lock(lock_path)
     
     results = []
+    skipped_pinned = []
     
     for mod in config.modloader_mods:
         if not mod.enabled or not mod.github_repo:
+            continue
+        
+        # 钉死版本（等 v4.x 兼容 / 自建镜像 / 固定 tag）的 mod 不纳入上游追踪，
+        # 避免把"故意不跟的新版"报成待办更新、每周刷无意义 Issue。
+        if not mod.track_upstream:
+            print(f"Skipping {mod.name or mod.key} (pinned, track_upstream=false)")
+            skipped_pinned.append(mod.name or mod.key)
             continue
         
         print(f"Checking {mod.name or mod.key}...")
