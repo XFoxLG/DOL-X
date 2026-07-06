@@ -5,10 +5,8 @@ import pytest
 from lyra.compatibility import (
     APK_CDP_REMOTE_END_RECONNECT_KEY,
     AU_FACE_ALIAS_KEY,
-    AU_MAPLEBIRCH_DIAGNOSTIC_KEY,
     COMPATIBILITY_SURFACES,
     GENERIC_REFACTOR_PLAN,
-    MAPLEBIRCH_IDB_PATCH_KEY,
     MORE_LOVE_DRAG_PATCH_KEY,
     TEST_POLICY_REQUIREMENTS,
     compatibility_surface_by_key,
@@ -17,7 +15,6 @@ from lyra.compatibility import (
     is_patch_success_status,
 )
 from lyra.config_loader import get_config_loader, load_build_config
-from tools.au_matrix_gate import _maplebirch_framework_evidence_metadata
 
 
 @pytest.mark.config
@@ -27,15 +24,12 @@ def test_compatibility_surfaces_are_registered_and_classified():
     assert set(surfaces_by_key) == {
         MORE_LOVE_DRAG_PATCH_KEY,
         AU_FACE_ALIAS_KEY,
-        MAPLEBIRCH_IDB_PATCH_KEY,
-        AU_MAPLEBIRCH_DIAGNOSTIC_KEY,
         APK_CDP_REMOTE_END_RECONNECT_KEY,
     }
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].scope == "default-path"
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].kind == "payload-patch"
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].fail_policy == "fail-closed"
-    assert surfaces_by_key[MAPLEBIRCH_IDB_PATCH_KEY].scope == "canary-only"
-    assert surfaces_by_key[AU_MAPLEBIRCH_DIAGNOSTIC_KEY].scope == "diagnostic-only"
+    assert surfaces_by_key[AU_FACE_ALIAS_KEY].scope == "default-path"
     assert surfaces_by_key[APK_CDP_REMOTE_END_RECONNECT_KEY].scope == "generic-harness"
 
 
@@ -86,22 +80,10 @@ def test_fail_closed_patch_statuses_are_narrow():
 
 
 @pytest.mark.config
-def test_canary_and_diagnostic_surfaces_cannot_mutate_stable_matrix():
-    risky_scopes = {"canary-only", "diagnostic-only"}
-    for surface in COMPATIBILITY_SURFACES:
-        if surface.scope in risky_scopes:
-            assert surface.stable_matrix_mutation is False
-
-    assert _maplebirch_framework_evidence_metadata()["default_matrix_mutated"] is False
-    assert _maplebirch_framework_evidence_metadata()["cheat_extended_included"] is False
-
-
-@pytest.mark.config
 def test_generic_refactor_plan_preserves_stable_outputs_first():
     assert {item.key for item in GENERIC_REFACTOR_PLAN} == {
         "config_driven_feature_suffixes",
         "config_driven_image_warmup",
-        "manifest_driven_gate_profiles",
     }
     for item in GENERIC_REFACTOR_PLAN:
         assert item.first_safe_step

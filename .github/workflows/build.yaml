@@ -18,7 +18,6 @@ on:
       - "BUILD_VERIFICATION_REPORT.md"
       - ".github/workflows/trigger.yaml"
       - ".github/workflows/deploy-hub.yaml"
-      - ".github/workflows/compatibility.yaml"         # 兼容性测试单独管理
   workflow_dispatch:
 
 jobs:
@@ -77,43 +76,13 @@ jobs:
       - name: List outputs
         run: ls -lah "${{ github.workspace }}/output/" || echo "No output files generated"
 
-      - name: Build cheatExtended/maplebirch canary ZIP
-        if: github.ref_name == 'experiment/cheat-extended-maplebirch'
-        id: cheat_canary
-        run: |
-          python tools/cheat_extended_canary.py \
-            --flavor stable-replacement \
-            --variant base \
-            --workspace "${{ github.workspace }}" \
-            --ensure-payloads \
-            --build \
-            --maplebirch-release-tag maplebirch-release-v3.1.13 \
-            --maplebirch-asset-pattern maplebirch-0.5.8.10-v3.1.13.mod.zip \
-            --maplebirch-cache-label maplebirch-release-v3.1.13 \
-            --output "${{ github.workspace }}/output/cheat-extended-canary-stable-replacement-base-build.json"
-
-          CANARY_ZIP=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*ucb-cheat-extended-maplebirch*.zip" | sort | head -n 1)
-          if [[ -z "$CANARY_ZIP" ]]; then
-            echo "::error::cheatExtended/maplebirch canary ZIP was not produced"
-            exit 1
-          fi
-
-          echo "zip=$CANARY_ZIP" >> "$GITHUB_OUTPUT"
-
-      - name: Run cheatExtended/maplebirch canary HTML smoke
-        if: github.ref_name == 'experiment/cheat-extended-maplebirch' && steps.cheat_canary.outputs.zip != ''
-        run: |
-          python tools/html_smoke_test.py \
-            "${{ steps.cheat_canary.outputs.zip }}" \
-            --output "${{ github.workspace }}/output/html-smoke-cheat-canary-stable-replacement-base.json"
-
       - name: Pick sample outputs (non-tag)
         if: github.ref_type != 'tag'
         id: sample
         run: |
-          ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" ! -name "*-au-*" ! -name "*cheat-extended-maplebirch*" | sort | head -n 1)
+          ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" ! -name "*-au-*" | sort | head -n 1)
           if [[ -z "$ZIP_FILE" ]]; then
-            ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" ! -name "*cheat-extended-maplebirch*" | sort | head -n 1)
+            ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)
           fi
           APK_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)
 
@@ -134,25 +103,6 @@ jobs:
         with:
           name: dol-builds-apk-sample
           path: ${{ steps.sample.outputs.apk }}
-          retention-days: 30
-
-      - name: Upload cheatExtended/maplebirch canary ZIP artifact
-        if: github.ref_name == 'experiment/cheat-extended-maplebirch' && steps.cheat_canary.outputs.zip != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: dol-builds-cheat-canary-zip
-          path: ${{ steps.cheat_canary.outputs.zip }}
-          retention-days: 30
-
-      - name: Upload cheatExtended/maplebirch canary reports
-        if: github.ref_name == 'experiment/cheat-extended-maplebirch'
-        uses: actions/upload-artifact@v6
-        with:
-          name: cheat-canary-build-reports
-          path: |
-            ${{ github.workspace }}/output/cheat-extended-canary-stable-replacement-base-build.json
-            ${{ github.workspace }}/output/html-smoke-cheat-canary-stable-replacement-base.json
-          if-no-files-found: error
           retention-days: 30
 
       - name: Upload ZIP artifacts
