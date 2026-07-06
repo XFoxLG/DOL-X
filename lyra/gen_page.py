@@ -126,8 +126,8 @@ class DownloadPageConfig:
         if is_polyfill:
             prefix += "-polyfill"
 
-        # 使用 ModCode.get_suffix() 生成 MOD 后缀，确保与构建时一致
-        mod_suffix = ModCode(mod_code).get_suffix()
+        # 使用 ModCode.get_short_suffix() 生成精简 MOD 后缀，确保与构建时一致
+        mod_suffix = ModCode(mod_code).get_short_suffix()
         if mod_suffix:
             prefix += f"-{mod_suffix}"
 

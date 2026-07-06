@@ -179,11 +179,26 @@ github_repo = "XFoxLG/DOL-X"
 asset_pattern = "cheat_extended_v118.mod.zip"
 release_tag = "cheat-extended-mirror-v1.18"
 download_url = "https://github.com/XFoxLG/DOL-X/releases/download/cheat-extended-mirror-v1.18/cheat_extended_v118.mod.zip"
-# DOL-X: Upgraded from v1.17 to v1.18 via project mirror (2026-07-03)
-# Reason: v1.18 is a feature increment over v1.17 (brothel basement, customer eye/skin color)
-# v1.18 boot.json has NO maplebirch dependency, loads fine on maplebirch v3.1.14
-# Source: chris81605 tag V1.18(Dev20260325), upstream Release deleted after v1.19
-# Mirror pinned in this repo to survive upstream deletion; verify Yanling in-game before final lock
+# DOL-X: Repacked + re-uploaded the v1.18 mirror (2026-07-05).
+# Original defect: the self-hosted v1.18 mirror zip was packed on Windows with
+# BACKSLASH path separators (e.g. "css\CE_CSS.css"), violating the ZIP spec
+# (entries must use forward slash "/"). ModLoader resolves files by the
+# forward-slash paths declared in boot.json, so EVERY file failed to resolve
+# ("cannot get ... from mod zip"): the mod loaded as an empty shell, never
+# registered to maplebirch, and threw 8 "cannot find replaceFile" errors.
+# Fix (Python zipfile, forward-slash guaranteed):
+#   - rewrote all 60+ entries with "/" separators
+#   - dropped garbage: CE_inventory_helper.twee.bak, PIC/* screenshots, mojibake .jpg
+#   - backfilled scriptEarly/Utils/spectrum.{js,css} from the clean v1.19 zip
+#     (version-stable color-picker lib needed by v1.18 skin/eye-color features)
+#   - pruned 2 dangling boot.json refs (addon-replace/Widgets State Man_{1,2}.txt)
+#     that are absent in upstream v1.17/v1.18/v1.19 alike (harmless legacy refs)
+# Result: 63 entries, 0 backslash, all boot.json refs (incl addonPlugin) resolve;
+# CERegist.js + framework_detector.js present so it registers to maplebirch.
+# v1.18 boot.json has NO maplebirch dependency, loads on maplebirch v3.1.14.
+# Source: chris81605 tag V1.18(Dev260325), upstream Release deleted after v1.19
+# (still recoverable via commit history). Mirror pinned here to survive deletion.
+# Do NOT use v1.19: it requires maplebirch > 3.2.5 (we run v3.1.14).
 
 [[modloader_mods]]
 key = "custom_hair"

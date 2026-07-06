@@ -191,18 +191,18 @@ conflicts_with = []
 id = "neoui_patch"
 name = "NeoUI Patch"
 bit = 2097152
-required = false
+required = true
 skip = false
 depends_on = []
 conflicts_with = []
-# DOL-X: Kept enabled as opt-in (2026-06-30, diagnostic closed).
-# Build matrix ships one AU-F variant without NeoUI (5219584) and one with
-# NeoUI (7316736). The comparison cleared NeoUI: it does NOT cause the AU-F
-# sidebar sprite misplacement (sprites render correctly in both variants).
-# NeoUI's overlay/drawer sidebar that covers story text is its intended design,
-# not a bug, so both variants are kept permanently for user choice.
-# Root cause of the original sprite issue was traced to the removed v4.x compat
-# shim + maplebirch v4.x stack (see commit d3bcd47), not NeoUI or AU version.
+# DOL-X: Promoted to required (2026-07-05). NeoUI is an independent UI beautify
+# mod and is now the project's standard UI, shipping in every build.
+# The 2026-06-30 diagnostic is closed: NeoUI does NOT cause the AU-F sidebar
+# sprite misplacement (sprites render correctly with or without it). The
+# overlay/drawer sidebar that covers story text is its intended design, not a
+# bug. Root cause of the original sprite issue was the removed v4.x compat shim
+# plus the maplebirch v4.x stack (see commit d3bcd47), not NeoUI or AU version.
+# No-NeoUI variants are no longer built.
 
 [[features]]
 id = "npc_social_icon"

@@ -53,18 +53,21 @@
     },
     "cheat_extended": {
       "name": "Cheat Extended",
-      "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
-      "asset_pattern": "cheat_extended.mod.zip",
-      "release_tag": "V1.17",
-      "last_tested_version": "v1.17",
+      "github_repo": "XFoxLG/DOL-X",
+      "asset_pattern": "cheat_extended_v118.mod.zip",
+      "release_tag": "cheat-extended-mirror-v1.18",
+      "last_tested_version": "v1.18(Dev260325)",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-23",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-05",
       "notes": [
-        "DOL-X: Rolled back from v1.19 to v1.17 (2026-06-23)",
-        "Reason: v1.19 requires maplebirch v4.x (min v3.2.5, actual v4.x)",
-        "v1.17 provides full Yanling system (Custom Set + Quick Yanling)",
-        "Will upgrade to v1.19 when maplebirch upgrades to v4.x"
+        "DOL-X: Repacked + re-uploaded the v1.18 mirror (2026-07-05)",
+        "Original defect: self-hosted v1.18 mirror zip used Windows BACKSLASH path separators (css\\CE_CSS.css), violating the ZIP spec; ModLoader resolves boot.json forward-slash paths so every file failed ('cannot get ... from mod zip'), loading an empty shell that never registered to maplebirch and threw 8 'cannot find replaceFile' errors",
+        "Fix (Python zipfile): rewrote all entries with forward slashes; dropped garbage (CE_inventory_helper.twee.bak, PIC/* screenshots, mojibake .jpg); backfilled scriptEarly/Utils/spectrum.{js,css} from clean v1.19; pruned 2 dangling boot.json refs (Widgets State Man_{1,2}.txt, absent upstream in v1.17/v1.18/v1.19 alike)",
+        "Result: 63 entries, 0 backslash, all boot.json refs (incl addonPlugin) resolve; CERegist.js + framework_detector.js present so it registers to maplebirch",
+        "v1.18 boot.json has NO maplebirch dependency and loads on v3.1.14; provides full Yanling system + brothel basement + customer eye/skin color",
+        "Source tag chris81605 V1.18(Dev260325), upstream Release deleted after v1.19 (recoverable via commit history); mirror pinned here to survive deletion",
+        "Do NOT use v1.19: it requires maplebirch > 3.2.5 (we run v3.1.14)"
       ]
     },
     "mae_picvary": {
