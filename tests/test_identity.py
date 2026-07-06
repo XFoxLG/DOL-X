@@ -58,7 +58,7 @@ class TestIdentity:
         )
         output_name = ZipBuilder(task).get_output_name()
 
-        assert output_name == "DoL-0.5.8.10-XFox-3.1.3a-au-f-ucb-0401.zip"
+        assert output_name == "DoL-0.5.8.10-XFox-3.1.3a-au-f-0401.zip"
         assert "-Lyra-" not in output_name
 
     def test_download_page_filename_uses_xfox_identity(self):
@@ -71,5 +71,5 @@ class TestIdentity:
 
         filename = config.get_filename(1282, "zip")
 
-        assert filename == "DoL-0.5.8.10-XFox-3.1.3a-au-f-ucb-0401.zip"
+        assert filename == "DoL-0.5.8.10-XFox-3.1.3a-au-f-0401.zip"
         assert "-Lyra-" not in filename
