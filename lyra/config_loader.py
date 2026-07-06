@@ -123,6 +123,9 @@ class ModloaderModConfig:
     feature_ids: list[str] = field(default_factory=list)
     key: str = ""
     name: str = ""
+    # 是否纳入每周上游更新检查。钉死版本（等 v4.x 兼容 / 自建镜像）的 mod
+    # 设为 False，避免检查脚本把"故意不跟的新版"报成待办更新、刷无意义 Issue。
+    track_upstream: bool = True
 
     @property
     def required_feature_ids(self) -> list[str]:
@@ -153,6 +156,7 @@ class ModloaderModConfig:
             feature_ids=data.get("feature_ids", []),
             key=data.get("key", ""),
             name=data.get("name", ""),
+            track_upstream=data.get("track_upstream", True),
         )
 
 
