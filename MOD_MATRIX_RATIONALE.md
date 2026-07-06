@@ -1,7 +1,7 @@
 # DOL-X Mod 矩阵决策说明
 
-**最后更新**: 2026-06-29  
-**版本**: v1.3
+**最后更新**: 2026-07-05  
+**版本**: v1.4
 
 ---
 
@@ -22,21 +22,21 @@
 
 | Build Code | 组合 | 说明 |
 |------------|------|------|
-| 5218560 | UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 基础版，当前诊断稳定矩阵（BunnyTransformation 与 NeoUI Patch 禁用） |
-| 5219584 | AU-F + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 女性体型 + 当前诊断矩阵，AU-F v0.9.3 + NeoUI 禁用 |
-| 5220608 | AU-M + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 男性体型 + 当前诊断矩阵，需最新包复测 |
-| 5222656 | AU-A + UCB + more_love + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon | 中性体型 + 当前诊断矩阵，需最新包复测 |
+| 15704320 | UCB + more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch + npc_social_icon + doli | 基础版（无 AU），全部内置 NeoUI |
+| 15705344 | AU-F + 上述全部 | 女性体型，AU-F v0.9.3 |
+| 15706368 | AU-M + 上述全部 | 男性体型 |
+| 15708416 | AU-A + 上述全部 | 中性体型 |
 
 ### Feature Bits 分解
 
 ```
-5218560 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 4194304 (npc_social_icon)
-5219584 = 5218560 + 1024 (AU-F)
-5220608 = 5218560 + 2048 (AU-M)
-5222656 = 5218560 + 4096 (AU-A)
+15704320 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 2097152 (neoui_patch) + 4194304 (npc_social_icon) + 8388608 (doli)
+15705344 = 15704320 + 1024 (AU-F)
+15706368 = 15704320 + 2048 (AU-M)
+15708416 = 15704320 + 4096 (AU-A)
 ```
 
-`1048576` (BunnyTransformation) is intentionally excluded. v0.3.1β caused 16 TweeReplacer errors and combat crashes in the current DoL 0.5.8.10 stack. `2097152` (NeoUI Patch) is also excluded during the AU sidebar diagnostic because its overlay sidebar layout is the current leading suspect.
+`1048576` (BunnyTransformation) is intentionally excluded. v0.3.1β caused 16 TweeReplacer errors and combat crashes in the current DoL 0.5.8.10 stack. `2097152` (NeoUI Patch) is now **required** and ships in every build (promoted 2026-07-05): it is an independent UI beautify mod and the project's standard UI. The 2026-06-30 AU sidebar diagnostic is closed — NeoUI does not cause the sprite misplacement, so no-NeoUI variants are no longer built.
 
 ---
 
