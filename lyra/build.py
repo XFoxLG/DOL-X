@@ -307,39 +307,15 @@ class PackageBuilder(ABC):
         if self.task.is_polyfill:
             prefix += "-polyfill"
 
-        # 添加MOD后缀
-        mod_suffix = self.mod_code.get_suffix()
+        # 添加MOD后缀（精简为体型标识，避免文件名冗长；完整 mod 组成见下载说明页）
+        mod_suffix = self.mod_code.get_short_suffix()
         if mod_suffix:
             prefix += f"-{mod_suffix}"
 
-        # 添加 commit hash
-        commit_hash = self._get_commit_hash()
-        
-        return f"{prefix}-{date_str}-{commit_hash}.{self.pack_type}"
-    
-    def _get_commit_hash(self) -> str:
-        """获取当前 commit hash 短码（7位）"""
-        import os
-        import subprocess
-        
-        # 优先使用 GitHub Actions 环境变量
-        github_sha = os.environ.get("GITHUB_SHA", "")
-        if github_sha:
-            return github_sha[:7]
-        
-        # 尝试从 git 获取
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--short=7", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=5
-            )
-            return result.stdout.strip()
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-            # Git 不可用或超时，使用 local 标记
-            return "local"
+        # 不再追加 commit hash：稳定版以 tag 为身份标识，4 个体型标已足以区分同一
+        # tag 内的产物；而 hash 会让文件名变长，且与下载说明页 (gen_page.get_filename)
+        # 不一致导致链接 404。两处文件名生成保持一致：prefix + 体型标 + 日期。
+        return f"{prefix}-{date_str}.{self.pack_type}"
 
     def _apply_beautify(self) -> list[str]:
         """
