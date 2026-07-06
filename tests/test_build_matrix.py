@@ -2,13 +2,13 @@
 Phase 1: 构建矩阵配置测试
 
 验证：
-- build_codes 只包含 4 个稳定自用组合
+- build_codes 只包含 4 个稳定自用组合（基础 + AU-F/AU-M/AU-A）
 - polyfill 已关闭
-- 基础版 (5218560) 不注入 AU 扩展
-- AU 三版本 (5219584/5220608/5222656) 注入 AU 扩展
-- 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、npc_social_icon
-- BunnyTransformation 不进入当前诊断矩阵
-- NeoUI Patch 只进入 AU-F 对比包 (7316736)
+- 基础版 (15704320) 不注入 AU 扩展
+- AU 三版本 (15705344/15706368/15708416) 注入 AU 扩展
+- 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、npc_social_icon、neoui_patch、doli
+- BunnyTransformation 不进入当前矩阵
+- NeoUI Patch 已升为必选，进入全部组合
 - 没有在线版相关配置
 """
 import pytest
@@ -23,20 +23,20 @@ class TestBuildMatrix:
     """构建矩阵配置测试"""
 
     def test_build_codes_count(self):
-        """验证当前诊断矩阵为 5 个组合（含 AU-F + NeoUI 对比包）"""
+        """验证当前矩阵为 4 个组合（基础 + AU-F/AU-M/AU-A，全部含 NeoUI）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert len(combinations_config.build_codes) == 5, (
-            f"期望 5 个构建组合，实际 {len(combinations_config.build_codes)}"
+        assert len(combinations_config.build_codes) == 4, (
+            f"期望 4 个构建组合，实际 {len(combinations_config.build_codes)}"
         )
 
     def test_build_codes_values(self):
-        """验证构建组合代码正确（含 NeoUI 对比包 7316736，禁用 BunnyTransformation）"""
+        """验证构建组合代码正确（NeoUI 必选进入全部包，禁用 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        expected_codes = {"13607168", "13608192", "15705344", "13609216", "13611264"}
+        expected_codes = {"15704320", "15705344", "15706368", "15708416"}
         actual_codes = set(combinations_config.build_codes)
 
         assert actual_codes == expected_codes, (
@@ -54,13 +54,13 @@ class TestBuildMatrix:
             "polyfill 应该关闭，当前为启用状态"
         )
 
-    def test_base_code_is_13607168(self):
-        """验证诊断基础版代码为 13607168（含 D.O.L.I，禁用 NeoUI Patch 与 BunnyTransformation）"""
+    def test_base_code_is_15704320(self):
+        """验证基础版代码为 15704320（含 NeoUI 与 D.O.L.I，禁用 BunnyTransformation）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
-        assert combinations_config.base_code == 13607168, (
-            f"基础版代码应为 13607168，实际为 {combinations_config.base_code}"
+        assert combinations_config.base_code == 15704320, (
+            f"基础版代码应为 15704320，实际为 {combinations_config.base_code}"
         )
 
     def test_no_online_version(self):
@@ -85,10 +85,10 @@ class TestBuildMatrix:
             assert not feature.skip, f"AU feature {feature_id} 不应被跳过"
 
     def test_base_version_no_au(self):
-        """验证基础版 (13607168) 不包含 AU"""
+        """验证基础版 (15704320) 不包含 AU"""
         config_loader = get_config_loader()
 
-        base_code = 13607168
+        base_code = 15704320
         au_features = ["au-f", "au-m", "au-a"]
         
         for feature_id in au_features:
@@ -278,9 +278,9 @@ class TestBuildMatrix:
         calculator = CombinationCalculator()
         combinations = calculator.calculate(include_polyfill=False)
         
-        # 当前诊断矩阵为 5 个组合（含 AU-F + NeoUI 对比包）
-        assert len(combinations) == 5, (
-            f"CombinationCalculator 应生成 5 个组合，实际 {len(combinations)}"
+        # 当前矩阵为 4 个组合（基础 + AU-F/AU-M/AU-A，全部含 NeoUI）
+        assert len(combinations) == 4, (
+            f"CombinationCalculator 应生成 4 个组合，实际 {len(combinations)}"
         )
         
         # 验证生成的代码与配置一致
@@ -295,25 +295,29 @@ class TestBuildMatrix:
         )
 
     def test_build_codes_have_unique_output_suffixes(self):
-        """验证每个 build code 都会生成唯一文件名后缀，避免产物互相覆盖。"""
+        """验证每个 build code 生成的精简文件名后缀互不重复，避免产物互相覆盖。
+
+        文件名实际使用 get_short_suffix()（仅体型标识），因此唯一性必须以短后缀
+        为准；完整 mod 组成由下载说明页承载。
+        """
         config_loader = get_config_loader()
         suffixes = {
-            code_str: ModCode(int(code_str)).get_suffix()
+            code_str: ModCode(int(code_str)).get_short_suffix()
             for code_str in config_loader.combinations.build_codes
         }
 
         assert len(set(suffixes.values())) == len(suffixes), (
-            f"构建产物文件名后缀存在重复，可能导致 output 中互相覆盖: {suffixes}"
+            f"构建产物精简文件名后缀存在重复，可能导致 output 中互相覆盖: {suffixes}"
         )
-        assert "neoui-patch" in suffixes["15705344"], (
-            f"NeoUI 对比包 15705344 的文件名后缀应包含 neoui-patch，实际为 {suffixes['15705344']}"
+        assert suffixes["15704320"] == "base", (
+            f"基础包 15704320 的精简后缀应为 base，实际为 {suffixes['15704320']}"
         )
-        assert "guide-to-me" in suffixes["13607168"], (
-            f"当前主线包文件名后缀应包含 guide-to-me，实际为 {suffixes['13607168']}"
+        assert suffixes["15705344"] == "au-f", (
+            f"AU-F 包 15705344 的精简后缀应为 au-f，实际为 {suffixes['15705344']}"
         )
-        assert "npc-social-icon" in suffixes["13607168"], (
-            f"当前主线包文件名后缀应包含 npc-social-icon，实际为 {suffixes['13607168']}"
+        assert suffixes["15706368"] == "au-m", (
+            f"AU-M 包 15706368 的精简后缀应为 au-m，实际为 {suffixes['15706368']}"
         )
-        assert "doli" in suffixes["13607168"], (
-            f"当前主线包文件名后缀应包含 doli，实际为 {suffixes['13607168']}"
+        assert suffixes["15708416"] == "au-a", (
+            f"AU-A 包 15708416 的精简后缀应为 au-a，实际为 {suffixes['15708416']}"
         )

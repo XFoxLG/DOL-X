@@ -102,6 +102,26 @@ class ModCode(IntFlag):
 
         return "-".join(suffix_parts) if suffix_parts else ""
 
+    def get_short_suffix(self) -> str:
+        """获取精简文件名后缀。
+
+        当前稳定矩阵的 4 个包仅在体型资源上有差异（其余必选 mod 完全相同），
+        因此文件名只需保留区分体型的短标识，避免把公共 mod 全部铺开导致名称
+        冗长。具体含义由下载说明页承载。
+
+        - 含 AU 女性 -> au-f
+        - 含 AU 男性 -> au-m
+        - 含 AU 双性 -> au-a
+        - 不含任何 AU -> base
+        """
+        if self & ModCode.AU_FEMALE:
+            return "au-f"
+        if self & ModCode.AU_MALE:
+            return "au-m"
+        if self & ModCode.AU_ANDROGYNOUS:
+            return "au-a"
+        return "base"
+
 
 def get_build_matrix() -> list[str]:
     """
