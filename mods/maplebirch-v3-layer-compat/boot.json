@@ -1,0 +1,24 @@
+{
+  "name": "maplebirch-v3-layer-compat",
+  "version": "1.0.0",
+  "nickName": {
+    "cn": "秋枫白桦 v3 图层命名兼容补丁",
+    "en": "Maplebirch v3 Layer Naming Compat"
+  },
+  "scriptFileList": [
+    "framework.js"
+  ],
+  "additionFile": [
+    "README.md"
+  ],
+  "dependenceInfo": [
+    {
+      "modName": "ModLoader",
+      "version": "^2.0.0"
+    },
+    {
+      "modName": "maplebirch",
+      "version": ">=3.1.0 <4.0.0"
+    }
+  ]
+}
