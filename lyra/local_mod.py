@@ -45,6 +45,36 @@ def _collect_declared_files(boot: dict) -> list[str]:
     return files
 
 
+def _validate_boot_json(mod_name: str, boot: dict) -> None:
+    """
+    在构建期模拟 ModLoader 的 validateBootJson 必需字段门。
+
+    ModLoader (ModZipReader.validateBootJson) 硬性要求：name/version 为非空
+    字符串，styleFileList/scriptFileList/tweeFileList/imgFileList 四个字段必须
+    显式存在且是字符串数组（缺任一 → isArray(undefined)===false → 整个 mod 被
+    静默拒绝，进包却不加载）。这里在打包前就拦住，避免出一个真机上查无此 mod 的坏包。
+    """
+    errors: list[str] = []
+
+    for key in ("name", "version"):
+        value = boot.get(key)
+        if not isinstance(value, str) or not value:
+            errors.append(f"字段 '{key}' 必须是非空字符串")
+
+    for key in ("styleFileList", "scriptFileList", "tweeFileList", "imgFileList"):
+        value = boot.get(key)
+        if not isinstance(value, list):
+            errors.append(f"字段 '{key}' 必须显式存在且为数组（空也要写成 []）")
+        elif not all(isinstance(entry, str) for entry in value):
+            errors.append(f"字段 '{key}' 的每一项都必须是字符串")
+
+    if errors:
+        raise ValueError(
+            f"本地 mod '{mod_name}' 的 boot.json 无法通过 ModLoader validateBootJson："
+            + "；".join(errors)
+        )
+
+
 def build_local_mod(mod_name: str, output_path: Path) -> Path:
     """
     把 `mods/<mod_name>/` 源码打包成 `.mod.zip`。
@@ -69,6 +99,9 @@ def build_local_mod(mod_name: str, output_path: Path) -> Path:
         raise FileNotFoundError(f"boot.json 不存在: {boot_path}")
 
     boot = json.loads(boot_path.read_text(encoding="utf-8"))
+
+    # 先过 ModLoader validateBootJson 必需字段门（缺空数组会被真机静默拒绝）。
+    _validate_boot_json(mod_name, boot)
 
     # 校验 boot.json 声明的每个文件都真实存在，避免打出加载即报错的坏包。
     declared = _collect_declared_files(boot)
