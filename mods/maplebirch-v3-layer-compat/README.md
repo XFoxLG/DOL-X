@@ -73,6 +73,23 @@ maplebirch v3.1.14 的图层 `srcfn` 生成的是**旧版无连字符**图片名
 4. **复用框架内部函数走公开出口**。`nnpc_head` 的回退要用 `loadImage`，
    它通过 `maplebirch.tool.utils.loadImage` 暴露；blush 的 5 级回退用 `maplebirch.char.faceStyleSrcFn`。
    能复用就别重写，行为才对得齐。
+5. **boot.json 的空数组字段是保命字段，一个都不能省（血泪教训）**。
+   本 mod 第一版 boot.json 图简洁，只写了实际用到的 `scriptFileList`，省掉了
+   `styleFileList` / `tweeFileList` / `imgFileList`。结果整个 mod 被 ModLoader
+   **静默拒绝**——进了包、却不加载、mod 管理器里查无此 mod、只在日志里留一行
+   `validateBootJson(bootJ) failed`。表现就是"补丁像没装一样，报错原样保留"，
+   极难排查（因为它不报错、只是不出现）。
+   根因：ModLoader 的 `ModZipReader.validateBootJson` 硬性要求
+   `styleFileList` / `scriptFileList` / `tweeFileList` / `imgFileList` **四个字段
+   必须显式存在且是字符串数组**（`isArray(undefined) === false` → 整个校验挂）。
+   即使为空也必须写成 `[]`。对照旁证：同样极简的 `GuideToMe` 能正常加载，
+   正因为它老实写全了这几个空数组。
+6. **本地就能模拟 ModLoader 的合法性校验，别只靠"构建日志说注入成功"**。
+   构建期"mod 打进包了"和运行期"ModLoader 接受它"是两回事。本地虽然跑不了浏览器，
+   但可以从构建产物 HTML 里挖出 `validateBootJson` 的布尔门表达式（`let c = ...`），
+   用脚本对着待发布的 boot.json 逐字段核对那 6 项检查（name/version 非空 +
+   四个 FileList 是数组）。这是本地能做的、最接近真机的 mod 合法性验证，
+   交付手写 mod 前应当作为标准步骤。
 
 ## 许可
 
