@@ -5,9 +5,13 @@
     "cn": "秋枫白桦 v3 图层命名兼容补丁",
     "en": "Maplebirch v3 Layer Naming Compat"
   },
+  "styleFileList": [],
   "scriptFileList": [
     "framework.js"
   ],
+  "tweeFileList": [],
+  "imgFileList": [],
+  "imgFileReplaceList": [],
   "additionFile": [
     "README.md"
   ],
