@@ -202,3 +202,57 @@ DoL 中文 Wiki 收录的模组工具（对做兼容 mod 有用的）：
 - `lyra/build.py`（接线 local mod，之前）
 - `lyra/local_mod.py`（新增 validateBootJson 守卫）
 - 等用户确认发布形式后统一提交合入 vega。
+
+---
+
+# 【2026-07-12】兼容 mod 从"身体层"扩到"全侧边栏衣服层" + 已推 vega + CI 出包待实测
+
+## 一句话现状
+
+上一版兼容 mod 只修了 NPC 侧边栏的**身体层**（头/身/胸/手臂）和脸红，用户实测仍报"NPC 模型异常、像没穿衣服"。本轮查明：**衣服层**从没被修，而衣服层才是侧边栏占比最大的部分。已把 v4.1.12 的全部衣服层 `srcfn` 路径逻辑 back-port 进兼容 mod，提交推送到 vega，CI 构建成功（run `29195346344`，3m25s），4 个包已下载，等用户真机验证 au-f 包的 NPC 衣服层是否恢复正常。
+
+## 本轮做了什么（先查证再动手）
+
+对比 maplebirch v3.1.14 与 v4.1.12 的侧边栏图层源码（探针目录 `mb_src_probe/`，本地临时不进仓库），逐键坐实：
+
+1. **v3 和 v4 的衣服图层键名完全一致**（v4 只多兽耳/尾巴/精液等变身层，非衣服）→ 覆盖键名安全，不会错配。
+2. **命名 bug 只在 `srcfn`（请求哪个路径）里**；showfn/zfn 在 v3 本来就对。→ 只覆盖 `srcfn` 一个字段，其余保留框架 v3 逻辑，避开 v3/v4 的 ZIndices 键差异。
+3. **三处故意不改，均有依据**：
+   - **脸部叶子层**（eyes/iris/sclera/lashes/eyelids/brows/mouth/ears/freckles）：v3 与 v4 构造的路径**逐字节相同**，无命名 bug。→ 反证 `eyes.png` 改脸报错是 AU 改脸 mod 自身素材问题，不在本修复范围。
+   - **nnpc_penis**：v3 源码开头 `if (!!nnpc.name) return ''`，对有名字的侧边栏 NPC 根本不渲染；且 v4 读的数据模型（`nnpc.balls` + 完整 penis 描述符）v3 的 NPCSidebar 从不生成，无法用 char.use() 忠实重建。→ 硬移植只会把一个错路径换成另一个错路径，留空。
+   - **sidepart 包装层**（upper/lower/legs/feet/hands）：返回预存的自定义立绘 `.img`，不构造身体路径，无 bug。
+
+## 实现细节
+
+`mods/maplebirch-v3-layer-compat/framework.js` 从"身体层+blush"扩写到全覆盖（+440 行，26789 字节）：
+
+- 移植 v4 的 `normaliseFileName()`（clothes 文件夹 `over_upper`→`over-upper`）与全部连字符后缀（`_alt/_down/_acc/_rolled`→`-alt/-down/-acc/-rolled`）。
+- 覆盖约 90 个 `nnpc_*` 衣服图层的 `srcfn`（upper/over_upper/under_upper/lower/over_lower/under_lower/legs/feet/neck/head/over_head/handheld 全家族 + arm/breasts/back/hand 等各类构造器）。
+- 仍走公开 API `maplebirch.char.use()` 深合并、`:storyready` 时机应用，不改框架源码。
+- 头部注释新增「DELIBERATELY NOT PORTED」段，把上述三处不改的依据写死在代码里。
+
+## 验证
+
+- JS 语法检查（`node --check`）通过；所有引用的构造函数确认已定义。
+- 16 个相关 Python 构建测试（test_au_face_compat + test_compatibility_registry）全绿。
+- **从下载的 au-f 成品包里解出兼容 mod 二次确认是本轮新版**：index 35/共 37 mod，含 `buildClothingLayers`、`normaliseFileName`、`DELIBERATELY NOT PORTED` 三个标志串。
+
+## Git / CI
+
+- 提交 `09a4542`：`feat(mod): backport v4 clothing-layer srcfn naming into v3-layer-compat`，已 push 到 **vega**（不是 feat 分支——前几轮已合入 vega，本轮直接在 vega 上推进）。
+- push 自动触发 `build.yaml`（vega 分支 push 即构建，`mods/**` 不在 paths-ignore）→ run `29195346344` 成功。
+- 探针目录 `au_probe/`、`mb_src_probe/` 是本地调查产物（解压的游戏资源与框架源码），**未提交**，也未加进 .gitignore（下次留意别误提交）。
+
+## 待用户真机验证（本轮测试包）
+
+`output/v3compat-clothing-test/DoL-0.5.10.12-XFox-1.0.8a-au-f-0712.zip`（同目录另有 au-a/au-m/base 三个备用）。
+
+重点看：**NPC 侧边栏衣服层贴图是否恢复正常**（之前是"没穿衣服"异常）。
+预期仍有：`eyes.png` 改脸报错——AU 改脸 mod 自身素材问题，不在本轮范围，已多次查证。
+
+## 下一步
+
+1. 用户真机测 au-f-0712，回报 NPC 衣服层是否正常。
+2. 若通过 → 本轮修复闭环，衣服层 bug 彻底解决；可考虑是否给兼容 mod 发独立 Release（此前待决的"发布形式"二选一仍悬置）。
+3. 若仍异常 → 对照 base 包报错定位是覆盖未生效还是别的图层。
+4. 改脸 eyes.png（AU 资源问题）仍是独立待办。
