@@ -168,3 +168,7 @@ CLEANUP_REVERSE_ENGINEERING.md
 
 # Local documentation and scripts (not for upload)
 .local/
+
+# 本地调查探针（解压的游戏资源与框架源码，仅本地对比用，勿提交）
+au_probe/
+mb_src_probe/
