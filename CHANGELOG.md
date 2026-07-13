@@ -1,9 +1,19 @@
-# Changelog
+# 更新日志
 
-All notable changes to DOL-X will be documented in this file.
+本文件记录 DOL-X 的所有重要变更。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/).
+格式遵循 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-CN/1.1.0/)。
+
+> **版本号说明**：DOL-X 是整合包，版本号采用 `v{游戏版本}-{整合版本}a-{日期}` 的复合格式
+> （例如 `v0.5.10.12-1.0.8a-0713`），用于对应所跟随的 DoL 游戏版本与汉化版本，**不是严格的
+> [语义化版本 SemVer](https://semver.org/lang/zh-CN/)**。其中「整合版本」部分（如 `1.0.8`）
+> 参照 SemVer 的主.次.修订思路递增：不兼容的构建体系改动进主版本、向下兼容的 mod 集合新增进
+> 次版本、修复类改动进修订号。变更分类使用 Keep a Changelog 的六类：
+> `Added`（新增）/`Changed`（变更）/`Deprecated`（弃用）/`Removed`（移除）/`Fixed`（修复）/`Security`（安全）。
+
+## [Unreleased]
+
+暂无未发布变更。
 
 ## [v0.5.10.12-1.0.8a-0713] - 2026-07-13
 
@@ -30,131 +40,61 @@ AU-A）× 双格式（ZIP + APK）共 8 个产物。MuMu 模拟器 + 浏览器�
   无副作用。注：具名原版 NPC（如萨姆）默认无衣服是框架设计边界（NPC 无衣柜数据，`worn()` 回落
   naked），与本命名兼容修复是两回事，不在本修复范围。
 
-### Note on release mechanics
+### Changed
 
-- 强制移动一个已存在的 tag（`git tag -f` + `git push -f`）**不会触发** GitHub Actions
-  构建；只有推送一个全新的 tag 才会触发。因此本次采用"先建新 tag `-0713` 出包 → 实测通过 →
-  再移除旧 `-0707`"的先建后删流程，全程无破坏性中间态。
-
-## [Unreleased]
+- **NeoUI Patch 升为全部内置**（2026-07-05）：此前 NeoUI 只在单独的对比包里用于隔离
+  AU 侧边栏诊断，经对比测试确认 sprite 在带/不带 NeoUI 时都正常渲染、NeoUI 非错位原因
+  后，将其从可选升为必选，进入全部构建。矩阵由"基础 + 3 AU + 1 个 AU-F+NeoUI 对比包"
+  收敛为 4 个包（base / AU-F / AU-M / AU-A），全部内置 NeoUI，不再构建无 NeoUI 变体。
+  当前 build code：base `15704320` / AU-F `15705344` / AU-M `15706368` / AU-A `15708416`。
 
 ### Removed
 
-- **Fork experiment scaffolding removed** (2026-07-06): retired the abandoned
-  cheatExtended/maplebirch canary and gate experiments now that cheat extended is
-  stable on the mirror path. Deleted 16 fork-only files: 4 workflows
-  (`baseline-candidate-gate.yml`, `maplebirch-version-gate.yml`, `compatibility.yaml`,
-  `expansion-update-check.yml`), 5 tools (`baseline_candidate_gate.py`,
-  `cheat_extended_canary.py`, `maplebirch_version_matrix.py`, `au_matrix_gate.py`,
-  `canary_payload_introspect.py`), and 7 tests covering them. Pruned 4 references:
-  `lyra/compatibility.py` (dropped the canary-only maplebirch IDB and diagnostic-only
-  AU-maplebirch surfaces; kept More Love drag, AU face aliases, APK CDP reconnect),
-  its registry test, `build.yaml` (removed the canary build/smoke/upload steps and the
-  dead `compatibility.yaml` path-ignore), and `lyra/build.py` (removed the unreachable
-  `expansion_v4_compat.js` v4.x shim, whose patch file never existed — the same shim
-  attributed as the AU sprite misplacement root cause in commit `d3bcd47`). Only
-  fork-added scaffolding was touched; upstream Lyra files (`build.py` core,
-  `gen_page.py`, `config.py`, `trigger.yaml`, `build.yaml`) stay upstream-friendly.
-  Verified: full-repo scan shows zero dangling imports to removed modules, and the
-  test suite is green (174 passed). Historical decision records under `docs/` are
-  intentionally preserved.
-- **CI build artifacts pruned** (2026-07-01): GitHub Actions artifact storage had
-  grown to 573 artifacts / ~89 GB and exceeded quota. Deleted all but the newest
-  3 build runs (9 artifacts total: apk + zip + apk-sample each), freeing ~86.5 GB.
-  Remaining: 2.55 GB across runs `28461618104` (2026-06-30), `28390261132` and
-  `28354033076` (2026-06-29). Deletion is irreversible but these are historical CI
-  outputs reproducible from source; the newest run kept is the one used for the
-  sidebar comparison.
+- **移除 fork 实验脚手架**（2026-07-06）：cheatExtended 走自建镜像稳定后，退役废弃的
+  canary/gate 实验。删除 16 个 fork 专属文件（4 个 workflow、5 个 tool、7 个对应测试），
+  并清理 `lyra/compatibility.py`、`build.yaml`、`lyra/build.py` 里的 4 处引用（含从未存在
+  patch 文件的 `expansion_v4_compat.js` v4.x shim）。只动 fork 新增的脚手架，上游 Lyra
+  核心文件保持上游友好。验证：全仓扫描无悬空导入，测试全绿。`docs/` 下历史决策记录保留。
+- **清理 CI 构建产物**（2026-07-01）：GitHub Actions artifact 存储涨到 573 个 / ~89 GB
+  超配额，删至只留最新 3 次构建（9 个产物），释放约 86.5 GB。这些是可从源码复现的历史 CI
+  产物，删除不可逆但无损。
 
-### Fixed
+## [v0.5.10.12-1.0.8a-0628] - 2026-06-28
 
-- **DOLI floating-button icon 404 (图裂)** (2026-07-13): DOLI v0.2.3 hardcodes its
-  float-button icon in `dist/DOLI.js` as `img/ui/sym_awareness.png` (underscore),
-  the pre-0.5.9.8 DoL asset name. DoL renamed all `sym_*.png` → `sym-*.png`
-  (hyphen) around 0.5.9.8+, so on the current 0.5.10.12 stack that path no longer
-  exists and the floating window icon breaks (broken-image). Only that one icon is
-  affected; DOLI's other UI icon (`img/ui/options.png`, line ~26070) keeps working
-  because `options.png` was never renamed. Fix is a build-time payload repack
-  (DOLI is downloaded fresh from GitHub, so it can't be edited in-tree): new
-  `patch_doli_float_icon_path()` in `lyra/build.py` rewrites the single string
-  `sym_awareness.png` → `sym-awareness.png` inside `dist/DOLI.js`, leaving all
-  other zip entries byte-identical. Dispatched via `_modloader_mod_path_for_injection`
-  (refactored into `_patch_more_love_payload` + `_patch_doli_payload`), **fail-closed**:
-  aborts the build on source metadata drift (repo/tag/asset) or a missing patch
-  needle rather than silently shipping the broken icon. Registered as compatibility
-  surface `doli_float_icon_path` in `lyra/compatibility.py` (scope `default-path`,
-  kind `payload-patch`, removal condition = DOLI ships an icon path matching current
-  `sym-*.png` naming). Verified end-to-end against the real `workspace/temp/doli.mod.zip`
-  (`status: patched`, old path gone, new path present) and by 6 new tests in
-  `tests/test_doli_float_icon_patch.py` + updated `tests/test_compatibility_registry.py`
-  (21 patch/registry tests green). NOT related to the AU 改脸 `eyes.png` errors,
-  which are benign (image still loads) and belong to the AU face-mod assets, not DOL-X.
-
-- **Build artifact naming collision** (2026-06-30): `ModCode.get_suffix()` did not
-  recognize the newer mod bits (`guide_to_me`, `bunny_transformation`,
-  `neoui_patch`, `npc_social_icon`), so AU-F without NeoUI (`5219584`) and AU-F
-  with NeoUI (`7316736`) produced identical APK filenames and overwrote each
-  other in `output/`. The APK artifact therefore shipped only 4 APKs instead of
-  5, and the surviving AU-F APK could not be identified for sidebar comparison.
-  Registered the 4 missing bits with distinct filename suffixes and added
-  `test_build_codes_have_unique_output_suffixes` to prevent future collisions.
-  Verified on CI run `28461618104`: APK artifact restored to 5 files / 588 MB
-  (was 4 files / 458 MB), with two distinct AU-F builds (with/without
-  `neoui-patch` in the filename). Commit `0197f79`.
+在此版本前后完成 D.O.L.I 集成与构建体系修复。（此区间的 `-0707` 中间版本已于 0713 发布后移除，
+其内容并入 `-0713` 稳定版。）
 
 ### Added
 
-- **D.O.L.I integrated** (2026-07-01): `ArsNativa/Degrees-of-Lewdity-Intelligence`
-  pinned to `v0.2.3` (asset `DOLI.mod.zip`). LLM-driven AI dialogue / combat-text
-  enhancement running in ReAct mode against an OpenAI-compatible backend. It is a
-  maplebirch plugin (`boot.json` requires ModLoader `^2.0.0` + maplebirch `^3.1.0`,
-  both satisfied by the current 2.101.1 + 3.1.14 stack, so no version-lock change).
-  Added as a required mod (feature bit `8388608`, `depends_on = cheat_extended_maplebirch`),
-  so it ships in all 5 builds. Build codes shifted accordingly:
-  base `5218560`→`13607168`, AU-F `5219584`→`13608192`, AU-F+NeoUI `7316736`→`15705344`,
-  AU-M `5220608`→`13609216`, AU-A `5222656`→`13611264`. The build system never embeds
-  an API key; players supply their own in-game, and the mod loads inert when unset.
-  License CC BY-NC-SA 4.0. First CI build must be watched once to confirm it coexists
-  with the NeoUI overlay / maplebirch stack.
-- **Current enabled mod set documented** (2026-06-29):
-  - `guide_to_me` v1.1.0 - 控制NPC嘴部
-  - `npc_social_icon` v1.4.1 - NPC社交栏头像
-- **AU model diagnosis**: pinned AU model assets to exact release files and added `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`
-- **Build version tracking**: commit hash in APK filename (e.g., `-e0b1a4b`)
-- **BUILD_MANIFEST.json**: Complete build traceability for each build_code
-- **tools/quick_check.py**: Local validation tool (< 2 min)
-- **tools/download_latest_build.py**: Test management automation
-- **Test checklist system**: Auto-generated TEST_CHECKLIST.md
-- **MCP memory integration**: Test strategy and known issues storage
+- **集成 D.O.L.I**（2026-07-01）：`ArsNativa/Degrees-of-Lewdity-Intelligence` 钉死
+  `v0.2.3`（asset `DOLI.mod.zip`）。LLM 驱动的 AI 对话 / 战斗文本增强，ReAct 模式，接
+  OpenAI 兼容后端。它是 maplebirch 插件（`boot.json` 要求 ModLoader `^2.0.0` + maplebirch
+  `^3.1.0`，当前 2.101.1 + 3.1.14 满足）。作为必选 mod（feature bit `8388608`）进入全部
+  构建。**构建系统绝不嵌入 API key**，玩家在游戏内自填，未配置时 mod 仍能加载、只是 AI
+  功能不工作。许可证 CC BY-NC-SA 4.0。
+- **记录当前启用 mod 集**（2026-06-29）：`guide_to_me` v1.1.0（控制NPC嘴部）、
+  `npc_social_icon` v1.4.1（NPC社交栏头像）。
+- AU 模型 asset 钉死到精确 release 文件，新增 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
+- APK 文件名加入 commit hash（如 `-e0b1a4b`）用于版本追踪；新增 `BUILD_MANIFEST.json`
+  构建溯源；新增 `tools/quick_check.py`（本地快速校验）、`tools/download_latest_build.py`
+  （测试管理）、自动生成的 TEST_CHECKLIST。
+
+### Fixed
+
+- **构建产物文件名冲突**（2026-06-30）：`ModCode.get_suffix()` 未识别较新的 mod bit
+  （`guide_to_me`/`bunny_transformation`/`neoui_patch`/`npc_social_icon`），导致带/不带
+  NeoUI 的 AU-F 生成相同 APK 文件名、在 `output/` 里互相覆盖。为这 4 个 bit 注册了不同的
+  文件名后缀，并加 `test_build_codes_have_unique_output_suffixes` 防止再次冲突。提交 `0197f79`。
 
 ### Changed
 
-- **Build codes updated**: current matrix is 5 builds — base + 3 AU variants,
-  plus an AU-F + NeoUI compare build for sidebar isolation. Values below reflect
-  the D.O.L.I integration (all shifted by `+8388608`; see the Added entry above)
-  - Base: 13607168
-  - AU-F (no NeoUI): 13608192
-  - AU-F + NeoUI (compare): 15705344
-  - AU-M: 13609216
-  - AU-A: 13611264
-- **BunnyTransformation disabled**: v0.3.1β caused 16 TweeReplacer errors and combat crashes in current DoL 0.5.8.10 stack
-- **NeoUI Patch cleared and kept as permanent opt-in** (updated 2026-06-30): NeoUI was
-  originally the leading suspect for AU sidebar sprite misplacement and isolated to a
-  single compare build. Side-by-side testing on CI run `28461618104` (builds `5219584`
-  without NeoUI vs `7316736` with NeoUI, identical game/mod versions) reversed that:
-  sprites render correctly in both, so NeoUI is not the cause. Its overlay sidebar that
-  covers story text is by design, not a bug; the user judged it usable. Both AU-F builds
-  (with/without NeoUI) are kept permanently for user choice. Root cause of the original
-  misplacement is attributed (strongest inference, not proven) to the earlier maplebirch
-  v4.x stack + `expansion_v4_compat.js` shim removed in commit `d3bcd47`, not NeoUI.
-- **AU-F restored to upstream-aligned asset**: pinned AU-F to `AUfemale.model_v0.9.3.zip`
-- **APK naming**: Now includes commit hash for version tracking
-
-### Documentation
-
-- Added CHANGELOG.md
-- Added docs/TESTING_GUIDE.md
-- Updated docs/AGENTS.md with test management section
+- **NeoUI Patch 诊断结论**（2026-06-30）：NeoUI 一度被列为 AU 侧边栏 sprite 错位的头号
+  嫌疑并隔离到单独对比包。CI run `28461618104` 上带/不带 NeoUI 的对比构建（游戏/mod 版本
+  完全一致）实测：两者 sprite 都正常渲染，**NeoUI 不是错位原因**。其覆盖式侧边栏遮挡正文
+  是设计本意、非 bug。错位根因（最强推断、非铁证）指向早期 maplebirch v4.x 栈 +
+  `expansion_v4_compat.js` shim（已在 commit `d3bcd47` 移除）。
+- **BunnyTransformation 禁用**：v0.3.1β 触发 16 个 TweeReplacer 错误并导致战斗系统崩溃。
+- AU-F 回退到与上游对齐的 asset `AUfemale.model_v0.9.3.zip`。
 
 ## [v3.1.14-stable] - 2026-06-23
 
@@ -214,9 +154,13 @@ Build codes are calculated from feature bits in `config/features.toml`:
 base_code = sum(required_features.bit)
 AU variants = base_code + AU_bit
 
-Example (current):
-- base: 5218560 (UCB + more_love + cheat + custom_hair + mae_picvary + expansion + guide_to_me + npc_social_icon)
-- AU-M: 5220608 (base + 2048)
+当前矩阵（4 个包，全部内置 NeoUI + DOLI，见 config/combinations.toml）：
+- base : 15704320（UCB + more_love + cheat_extended_maplebirch + custom_hair
+         + mae_picvary + maplebirch_expansion + guide_to_me + neoui_patch
+         + npc_social_icon + doli）
+- AU-F : 15705344（base + 1024）
+- AU-M : 15706368（base + 2048）
+- AU-A : 15708416（base + 4096）
 ```
 
 ### Upstream Sync Policy
