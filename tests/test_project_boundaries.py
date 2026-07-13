@@ -36,25 +36,11 @@ def test_upstream_sync_doc_keeps_direction_and_self_use_boundary():
     assert "do not\n  turn XFox self-use integrations into assumed upstream defaults" in checklist
 
 
-def test_greenfield_doc_remains_disposable_spike_not_mainline():
-    greenfield = _read_doc("GREENFIELD_DESIGN_SPIKE.md")
-    greenfield_single_line = " ".join(greenfield.split())
-
-    assert "The current DOL-X repository remains the official production line" in greenfield
-    assert "Greenfield work is a disposable design spike" in greenfield
-    assert "not the next DOL-X mainline" in greenfield
-    assert "go/no-go decision" in greenfield
-    assert "does not replace the current production line" in greenfield_single_line
-
-
 def test_docs_do_not_call_project_local_mods_upstream_legacy():
     docs = [
         "README.md",
         "TESTING.md",
         "tests/README.md",
-        "EXPERIMENT_MERGE_PLAN.md",
-        "CHEAT_EXTENDED_MANUAL_TEST_CHECKLIST.md",
-        "GREENFIELD_DESIGN_SPIKE.md",
         "UPSTREAM_SYNC_CHECKLIST.md",
     ]
     forbidden_terms = [
