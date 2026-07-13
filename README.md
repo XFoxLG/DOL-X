@@ -32,7 +32,7 @@ DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://
 DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"**上游友好**"策略：
 
 - ✅ **核心同步**：保持构建系统 (`lyra/`) 与上游同步，跟随上游 bug 修复和性能优化
-- 🎨 **Mod 独立**：维护独立的 Mod 矩阵和组合策略，针对自用场景优化
+- 🎨 **Mod 独立**：维护独立的 Mod 组合策略，针对自用场景优化
 - 📚 **文档完整**：详细记录与上游的差异和决策理由
 
 ### 主要差异
@@ -43,7 +43,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 | **基础美化** | BESC 推荐 | UCB 唯一 |
 | **AU 组合** | AU（单独） | AU+UCB |
 | **作弊 Mod** | cheat + CSD | cheatExtended + maplebirch |
-| **矩阵规模** | ~10 个版本 | 4 个版本（精简） |
+| **版本数量** | 约 10 个 | 4 个（精简） |
 
 ### 相关文档
 
@@ -94,8 +94,6 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 - 每次构建文件名唯一，避免测试混淆
 
 详见 [CHANGELOG.md](CHANGELOG.md)
-- 📊 [完整差异总结](UPSTREAM_DIFF_SUMMARY.md) - 与上游 Lyra 的详细对比
-- 🔄 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 同步策略和边界
 
 ### Mod 开发
 
@@ -118,22 +116,27 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
 ### 包含的 Mod
 
-**基础 Mod**（所有版本）：
+**基础 Mod**（所有版本，名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
 - ModLoader GUI - 模组管理器
 - ModI18N - 汉化支持
-- More Love Interests - 更多恋人
-- Custom Hair - 自定义染发
-- Mae's Picvary - NPC侧边栏头像
-- maplebirch - 秋枫白桦框架
-- maplebirch Expansion - 秋枫白桦扩展包（含更长遭遇战）
-- cheatExtended - 作弊扩展（含言灵集）
+- 秋枫白桦框架（maplebirch）+ 秋枫白桦扩展包
+- [通用战斗美化](https://github.com/site098/mysterious)（UCB）
+- [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod)
+- [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair)
+- [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary）
+- [NPC社交栏头像](https://github.com/Eudemonism00/DOL-npcicon-mods/)
+- [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe)
+- [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended，含言灵集）
+- [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence)（AI 对话/战斗文本，需玩家自填 API key）
+- NeoUI Patch - UI 美化
+- `maplebirch-v3-layer-compat` - 自研兼容 mod（NPC 侧边栏图层命名兼容）
 
 **可选 AU 系列**：
-- AU-F：AU Female model v0.9.3（与上游 Lyra 当前 AU model 对齐）
-- AU-M：AU Male model v0.4.2
-- AU-A：AU Androgynous model v0.1.1
+- AU-F：AU 女性模型 v0.9.3（与上游 Lyra 当前 AU model 对齐）
+- AU-M：AU 男性模型 v0.4.2
+- AU-A：AU 双性模型 v0.1.1
 
-> AU model 使用 AOKIUTAGE `mod` release 的 ModLoader 直装模组方式；AU Face 扩展是 `facemod` release 下的独立 mod，当前禁用。
+> AU 模型使用 AOKIUTAGE `mod` release 的 ModLoader 直装方式；AU Face 改脸扩展是 `facemod` release 下的独立 mod，当前禁用。
 
 ## 下载
 
@@ -141,18 +144,20 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
 ### 版本选择
 
-| 版本 | Build Code | 说明 | 推荐 |
-|------|------------|------|------|
-| 基础版 | 5218560 | UCB 美化 + 当前启用 Mod 集合（无 AU 模型） | ⚪ |
-| AU-F 版 | 5219584 | 基础版 + AU Female model | ⚠️ |
-| AU-M 版 | 5220608 | 基础版 + AU Male model | ⭐ |
-| AU-A 版 | 5222656 | 基础版 + AU Androgynous model | ⭐ |
+从 [Releases](https://github.com/XFoxLG/DOL-X/releases) 按文件名后缀选择，每个版本都有 ZIP（浏览器版）和 APK（安卓版）：
+
+| 版本 | 文件名后缀 | 说明 | 推荐 |
+|------|-----------|------|------|
+| 基础版 | `-base-` | 当前启用 Mod 集合，不含 AU 体型模型 | ⚪ |
+| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | ⭐ |
+| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | ⭐ |
+| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | ⭐ |
 
 > **💡 推荐说明**：
-> - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型
+> - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型（AU-F 为已实测版本）
 > - ⚪ **基础版**：不含 AU 模型，适合偏好原版体型或自行加载 AU 模型的用户
 > 
-> **⚠️ AU 状态**：AU Face 扩展当前禁用，不会进入构建。AU-F 使用 v0.9.3；当前诊断重点是 NeoUI Patch 与侧边栏人物预览的交互，因此 NeoUI Patch 暂时禁用。详见 `docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。
+> **AU 状态**：AU 体型模型（AU-F v0.9.3 / AU-M / AU-A）已随对应版本内置；AU Face 改脸扩展当前禁用，不进入构建。
 
 > **⚠️ 重要更新（2026-06-15）**：
 > - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、maplebirch_expansion）
@@ -163,16 +168,22 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
 ## 版本说明
 
-### 当前稳定版本（2026-06-17+）
+### 当前稳定版本（tag `v0.5.10.12-1.0.8a-0713`）
 
 当前构建配置：
-- **基础 Mod**：UCB + more_love + maplebirch + cheatExtended + custom_hair + mae_picvary + maplebirch_expansion + guide_to_me + npc_social_icon
-- **Build Codes**：5218560 / 5219584 / 5220608 / 5222656
-- **游戏版本**：跟随汉化仓库更新
-- **构建方式**：GitHub Actions 云端自动化
-- **测试状态**：配置测试通过；AU model 侧边栏问题诊断中
+- **游戏版本**：DoL 0.5.10.12（跟随汉化仓库更新）
+- **框架**：maplebirch v3.1.14（B 线稳定分支）+ cheatExtended v1.18
+- **基础 Mod**：UCB + more_love + maplebirch + maplebirch_expansion + cheatExtended + custom_hair + mae_picvary + guide_to_me + npc_social_icon + DOLI
+- **自研兼容 mod**：`maplebirch-v3-layer-compat`（把 maplebirch v4 的 NPC 侧边栏图层连字符命名逻辑 back-port 到 v3.1.14，修复侧边栏立绘与衣服层）
+- **产物**：4 体型（base / AU-F / AU-M / AU-A）× 双格式（ZIP + APK），共 8 个
+- **构建方式**：GitHub Actions 云端自动化，推 tag 触发出包并发布 Release
+- **测试状态**：AU-F 包已在 MuMu 模拟器（APK）+ 浏览器上实测通过（DOLI 悬浮窗图标正常、NPC 侧边栏立绘正常）；其余 base / AU-M / AU-A 三个包同批构建、共用同一套 mod（仅体型资源不同），预期一致但未逐个上机验证。
 
-> **🔄 历史更新**：2026-06-17 移除 Custom-Spellbook（功能与 Cheat Extended 言灵集重复）；当前诊断 Build Codes 已更新至 5218560 系列。
+> **已知情况说明（非缺陷）**：
+> - **同时开启「NPC 侧边栏图像显示」+「PC 模型模式」两个开关后，侧边栏里有名字的剧情角色（如萨姆）不显示衣服**：这些角色在模型系统里没有配套衣服数据可显示，是秋枫白桦框架的设计边界（框架未给原版 NPC 配衣柜数据），并非本整合的 bug，也无法通过重新打包修复。**规避**：只开「NPC 侧边栏图像显示」即可正常显示 NPC 立绘，不要再叠加「PC 模型模式」（两开关都在「模组设置 → 秋枫白桦框架」里）。
+> - **AU 改脸切换时出现 `Failed to load image .../eyes.png` 提示**：是 AU 改脸包自身缺合并图层的无害提示，图像仍正常加载、不影响游戏；弹出红框可直接点 **Clear** 或 **Close** 消掉。
+>
+> 详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### ⚠️ 历史版本兼容性警告
 
