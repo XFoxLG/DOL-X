@@ -4,13 +4,21 @@
 
 ## 目录
 
+**玩家看这里**
+
 - [简介](#简介)
 - [特色](#特色)
-- [下载](#下载)
-- [版本说明](#版本说明)
+- [下载与版本选择](#下载与版本选择)
+- [包含哪些 Mod](#包含哪些-mod)
+- [当前版本说明](#当前版本说明)
 - [疑难解答](#疑难解答)
-- [更新日志](#更新日志)
-- [使用须知](#使用须知)
+- [使用须知](#整合包使用须知)
+
+**开发者看这里**
+
+- [与上游 DoL-Lyra 的关系](#与上游-dol-lyra-的关系)
+- [开发者指南](#开发者指南)
+- [历史更新日志](#历史更新日志)
 - [Credits](#credits)
 
 ---
@@ -51,61 +59,6 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ---
 
-## 快速开始
-
-### 开发者
-
-#### 本地验证（< 2 分钟）
-
-修改配置后快速检查：
-
-```bash
-python tools/quick_check.py
-```
-
-#### 测试流程
-
-GitHub Actions 构建完成后：
-
-```bash
-# 1. 生成测试清单
-python tools/download_latest_build.py --build-code 15706368
-
-# 2. 手动下载 APK 到 downloads/test_builds/{date}-{commit}/
-
-# 3. 安装测试（按照自动生成的 TEST_CHECKLIST.md）
-```
-
-详见 [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)
-
----
-
-## 版本追踪
-
-### APK 文件名格式（2026-06-24 更新）
-
-```
-DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
-```
-
-示例：`DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-...-0615-e0b1a4b.apk`
-
-- `e0b1a4b`：commit hash 短码（7位）- 清晰标识版本
-- 每次构建文件名唯一，避免测试混淆
-
-详见 [CHANGELOG.md](CHANGELOG.md)
-
-### Mod 开发
-
-想开发自己的 Mod？DOL-X 提供完整的开发工具链：
-
-- 🚀 [TypeScript Mod 模板](https://github.com/XFoxLG/DOL-X-TS-Mod-Template) - 现代化 TS 开发环境
-- 📚 [高级 Mod 开发指南](docs/ADVANCED_MOD_DEV.md) - 完整开发文档
-- 🔧 [ModLoader 文档](docs/MODLOADER_OVERVIEW.md) - ModLoader 使用说明
-- ✅ [同步检查清单](UPSTREAM_SYNC_CHECKLIST.md) - 如何保持与上游同步
-
----
-
 ## 特色
 
 - ✅ **自动化构建**：GitHub Actions 云端构建，每周自动检测更新
@@ -138,68 +91,70 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
 > AU 模型使用 AOKIUTAGE `mod` release 的 ModLoader 直装方式；AU Face 改脸扩展是 `facemod` release 下的独立 mod，当前禁用。
 
-## 下载
+## 下载与版本选择
 
-访问 [Releases](https://github.com/XFoxLG/DOL-X/releases) 下载最新版本。
+到 [Releases 页面](https://github.com/XFoxLG/DOL-X/releases) 下载最新版本。每个版本都有两种格式，按你的设备选：
 
-### 版本选择
+- **ZIP**：电脑浏览器直接打开玩
+- **APK**：安卓手机安装玩（推荐用 MuMu 等模拟器或较新手机）
 
-从 [Releases](https://github.com/XFoxLG/DOL-X/releases) 按文件名后缀选择，每个版本都有 ZIP（浏览器版）和 APK（安卓版）：
+一共 4 个版本，区别只有**体型模型**，其余 Mod 完全一样。按文件名里的后缀认版本：
 
-| 版本 | 文件名后缀 | 说明 | 推荐 |
+| 版本 | 文件名后缀 | 和基础版的区别 | 推荐 |
 |------|-----------|------|------|
-| 基础版 | `-base-` | 当前启用 Mod 集合，不含 AU 体型模型 | ⚪ |
-| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | ⭐ |
+| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） | ⚪ |
+| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | ⭐ 已实测 |
 | AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | ⭐ |
 | AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | ⭐ |
 
-> **💡 推荐说明**：
-> - ⭐ **AU 变体**：推荐版本，包含完整的视觉美化和体型模型（AU-F 为已实测版本）
-> - ⚪ **基础版**：不含 AU 模型，适合偏好原版体型或自行加载 AU 模型的用户
-> 
-> **AU 状态**：AU 体型模型（AU-F v0.9.3 / AU-M / AU-A）已随对应版本内置；AU Face 改脸扩展当前禁用，不进入构建。
+**怎么选：**
+- 大多数人选一个 **AU 版**（⭐），画面更完整，其中 AU-F 是已经实机测试过的。
+- 如果你更喜欢游戏原版体型、或者想自己另外装体型模型，就选**基础版**。
 
-> **⚠️ 重要更新（2026-06-15）**：
-> - Build Code 已更新，新增 3 个 ModLoader Mod（custom_hair、mae_picvary、maplebirch_expansion）
-> - **重要**：移除 Custom-Spellbook（功能已被 Cheat Extended 言灵集完全覆盖）
-> - **版本兼容性警告**：Custom Hair Mod 仅支持 DoL v0.5.2.7 - v0.5.2.10，升级游戏版本前请查阅 [已知问题文档](docs/KNOWN_ISSUES.md)
-> - Longer Combat 使用非官方修复版，已验证与 maplebirch 框架兼容
-> - 详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md) 和 [已知问题文档](docs/KNOWN_ISSUES.md)
+> 4 个版本都内置了同一套完整 Mod，具体清单见下方 [包含哪些 Mod](#包含哪些-mod)。AU Face（改脸扩展）是另一个独立 mod，当前未内置。
 
-## 版本说明
+## 包含哪些 Mod
 
-### 当前稳定版本（tag `v0.5.10.12-1.0.8a-0713`）
+**所有版本都内置以下 Mod**（名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
 
-当前构建配置：
+| Mod | 作用 |
+|-----|------|
+| ModLoader GUI | 游戏内的模组管理器 |
+| 汉化（ModI18N） | 简体中文，已自带对应游戏版本的最新汉化 |
+| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchframework)（maplebirch）+ 扩展包 | 其他 Mod 依赖的核心框架，扩展包提供更长遭遇战、音乐播放器、理智/灵性属性等 |
+| [通用战斗美化](https://github.com/site098/mysterious)（UCB） | 战斗画面美化 |
+| [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod) | 增加可攻略 NPC |
+| [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair) | 自定义发色 |
+| [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary） | 侧边栏显示 NPC 立绘头像 |
+| [NPC社交栏头像](https://github.com/Eudemonism00/DOL-npcicon-mods/) | 社交界面显示 NPC 头像 |
+| [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe) | 控制 NPC 嘴部动作 |
+| [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能，含言灵（自定义作弊）系统 |
+| [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence) | AI 对话/战斗文本增强，**需要你自己在游戏里填 AI 接口密钥才生效**，不填则不工作、不影响其他功能 |
+| NeoUI Patch | 界面美化（侧边栏点击外部关闭等） |
+
+> 此外还内置一个本项目自研的兼容补丁（`maplebirch-v3-layer-compat`），用来修复 NPC 侧边栏立绘和衣服的显示问题，玩家无需关心。
+
+**AU 版额外内置的体型模型**（取决于你下载的是哪个版本，每个 AU 版只含其中一个）：
+
+- **AU-F 版**：AU 女性模型
+- **AU-M 版**：AU 男性模型
+- **AU-A 版**：AU 双性模型
+
+## 当前版本说明
+
+**当前稳定版本**：`v0.5.10.12-1.0.8a-0713`
+
 - **游戏版本**：DoL 0.5.10.12（跟随汉化仓库更新）
-- **框架**：maplebirch v3.1.14（B 线稳定分支）+ cheatExtended v1.18
-- **基础 Mod**：UCB + more_love + maplebirch + maplebirch_expansion + cheatExtended + custom_hair + mae_picvary + guide_to_me + npc_social_icon + DOLI
-- **自研兼容 mod**：`maplebirch-v3-layer-compat`（把 maplebirch v4 的 NPC 侧边栏图层连字符命名逻辑 back-port 到 v3.1.14，修复侧边栏立绘与衣服层）
-- **产物**：4 体型（base / AU-F / AU-M / AU-A）× 双格式（ZIP + APK），共 8 个
-- **构建方式**：GitHub Actions 云端自动化，推 tag 触发出包并发布 Release
-- **测试状态**：AU-F 包已在 MuMu 模拟器（APK）+ 浏览器上实测通过（DOLI 悬浮窗图标正常、NPC 侧边栏立绘正常）；其余 base / AU-M / AU-A 三个包同批构建、共用同一套 mod（仅体型资源不同），预期一致但未逐个上机验证。
+- **产物**：4 个版本（基础版 + AU-F / AU-M / AU-A）× 两种格式（ZIP + APK），共 8 个文件
+- **测试情况**：AU-F 版已在 MuMu 模拟器和浏览器上实机测试通过；其余 3 个版本用的是同一套 Mod（只有体型资源不同），预期表现一致，但没有逐个上机验证。
 
-> **已知情况说明（非缺陷）**：
-> - **同时开启「NPC 侧边栏图像显示」+「PC 模型模式」两个开关后，侧边栏里有名字的剧情角色（如萨姆）不显示衣服**：这些角色在模型系统里没有配套衣服数据可显示，是秋枫白桦框架的设计边界（框架未给原版 NPC 配衣柜数据），并非本整合的 bug，也无法通过重新打包修复。**规避**：只开「NPC 侧边栏图像显示」即可正常显示 NPC 立绘，不要再叠加「PC 模型模式」（两开关都在「模组设置 → 秋枫白桦框架」里）。
-> - **AU 改脸切换时出现 `Failed to load image .../eyes.png` 提示**：是 AU 改脸包自身缺合并图层的无害提示，图像仍正常加载、不影响游戏；弹出红框可直接点 **Clear** 或 **Close** 消掉。
+> **两个已知情况（不是 bug，不影响正常游玩）**：
+> - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，有名字的剧情角色（如萨姆）在侧边栏不显示衣服**：这些角色在模型系统里本就没有配套衣服数据，是框架的设计边界，不是本整合的问题，也没法通过重新打包修复。**解决办法**：只开「NPC 侧边栏图像显示」就能正常显示 NPC 立绘，不要再叠加「PC 模型模式」（两个开关都在游戏里「模组设置 → 秋枫白桦框架」）。
+> - **切换 AU 改脸时弹出 `Failed to load image .../eyes.png` 红框**：这是 AU 改脸包自身缺图层的无害提示，图片其实正常加载、不影响游戏，直接点 **Clear** 或 **Close** 关掉即可。
 >
-> 详见 [CHANGELOG.md](CHANGELOG.md)。
+> 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-### ⚠️ 历史版本兼容性警告
-
-**已废弃版本（2026-06-13 及之前）**：
-- Build Codes：~~57346 / 58370 / 59394 / 61442~~
-- **问题**：配置错误（缺少 UCB 美化，cheat_csd 残留）
-- **状态**：技术上可运行，但不推荐使用
-- **建议**：请下载最新的 GitHub Actions 构建产物
-
-**如何获取最新版本**：
-1. 访问 [Actions 页面](https://github.com/XFoxLG/DOL-X/actions?query=branch%3Avega+is%3Asuccess)
-2. 点击最新的成功构建（绿色✓）
-3. 下载 Artifacts 中的 `dol-builds-zip` 或 `dol-builds-apk`
-4. 产物保留期：90 天
-
-> **2026-06-13 更新**：移除 BESC，改用 UCB 作为唯一战斗美化。详见 [MOD_MATRIX_RATIONALE.md](MOD_MATRIX_RATIONALE.md)。
+> **⚠️ 提醒**：2026-06-13 及更早的旧版本（文件名里带 `57346 / 58370 / 59394 / 61442` 这类旧编号）配置有误、缺少美化，请不要再用，直接下载上面的最新版本即可。
 
 ## 疑难解答
 
@@ -237,7 +192,53 @@ DoL-{dol_ver}-XFox-{chs_ver}-{mod_suffix}-{date}-{commit}.apk
 
   所使用的美化未跟进最新的游戏内容
 
-## 更新日志
+---
+
+## 开发者指南
+
+> 以下内容面向想参与构建、测试或二次开发的开发者，普通玩家无需阅读。
+
+### 本地验证（< 2 分钟）
+
+修改配置后快速检查：
+
+```bash
+python tools/quick_check.py
+```
+
+### 测试流程
+
+GitHub Actions 构建完成后：
+
+```bash
+# 1. 生成测试清单（15706368 = AU-M 版）
+python tools/download_latest_build.py --build-code 15706368
+
+# 2. 手动下载 APK 到 downloads/test_builds/{date}-{commit}/
+
+# 3. 安装测试（按照自动生成的 TEST_CHECKLIST.md）
+```
+
+详见 [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)。
+
+### 产物文件名格式
+
+```
+DoL-{原版版本}-XFox-{汉化版本}-{mod后缀}-{日期}-{commit}.apk
+```
+
+示例：`DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-...-0615-e0b1a4b.apk`。文件名末尾的 7 位 commit 短码用于唯一标识每次构建、避免测试时混淆。完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+### Mod 开发工具链
+
+- 🚀 [TypeScript Mod 模板](https://github.com/XFoxLG/DOL-X-TS-Mod-Template) - 现代化 TS 开发环境
+- 📚 [高级 Mod 开发指南](docs/ADVANCED_MOD_DEV.md) - 完整开发文档
+- 🔧 [ModLoader 文档](docs/MODLOADER_OVERVIEW.md) - ModLoader 使用说明
+- ✅ [同步检查清单](UPSTREAM_SYNC_CHECKLIST.md) - 如何保持与上游同步
+
+---
+
+## 历史更新日志
 
 <details>
 <summary>点击展开</summary>
