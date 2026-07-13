@@ -37,6 +37,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **DOLI floating-button icon 404 (图裂)** (2026-07-13): DOLI v0.2.3 hardcodes its
+  float-button icon in `dist/DOLI.js` as `img/ui/sym_awareness.png` (underscore),
+  the pre-0.5.9.8 DoL asset name. DoL renamed all `sym_*.png` → `sym-*.png`
+  (hyphen) around 0.5.9.8+, so on the current 0.5.10.12 stack that path no longer
+  exists and the floating window icon breaks (broken-image). Only that one icon is
+  affected; DOLI's other UI icon (`img/ui/options.png`, line ~26070) keeps working
+  because `options.png` was never renamed. Fix is a build-time payload repack
+  (DOLI is downloaded fresh from GitHub, so it can't be edited in-tree): new
+  `patch_doli_float_icon_path()` in `lyra/build.py` rewrites the single string
+  `sym_awareness.png` → `sym-awareness.png` inside `dist/DOLI.js`, leaving all
+  other zip entries byte-identical. Dispatched via `_modloader_mod_path_for_injection`
+  (refactored into `_patch_more_love_payload` + `_patch_doli_payload`), **fail-closed**:
+  aborts the build on source metadata drift (repo/tag/asset) or a missing patch
+  needle rather than silently shipping the broken icon. Registered as compatibility
+  surface `doli_float_icon_path` in `lyra/compatibility.py` (scope `default-path`,
+  kind `payload-patch`, removal condition = DOLI ships an icon path matching current
+  `sym-*.png` naming). Verified end-to-end against the real `workspace/temp/doli.mod.zip`
+  (`status: patched`, old path gone, new path present) and by 6 new tests in
+  `tests/test_doli_float_icon_patch.py` + updated `tests/test_compatibility_registry.py`
+  (21 patch/registry tests green). NOT related to the AU 改脸 `eyes.png` errors,
+  which are benign (image still loads) and belong to the AU face-mod assets, not DOL-X.
+
 - **Build artifact naming collision** (2026-06-30): `ModCode.get_suffix()` did not
   recognize the newer mod bits (`guide_to_me`, `bunny_transformation`,
   `neoui_patch`, `npc_social_icon`), so AU-F without NeoUI (`5219584`) and AU-F

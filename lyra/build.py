@@ -21,6 +21,7 @@ from .version import LyraVersion, VersionRegistry
 from .config import ModCode
 from .compatibility import (
     MORE_LOVE_DRAG_PATCH_KEY,
+    DOLI_FLOAT_ICON_PATCH_KEY,
     compatibility_source_errors,
     compatibility_surface_by_key,
     is_patch_success_status,
@@ -134,6 +135,67 @@ def patch_more_love_drag_event_handlers(
                 for member in source_zip.infolist():
                     data = source_zip.read(member)
                     if member.filename == MORE_LOVE_DRAG_MEMBER:
+                        data = patched_script.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
+
+
+DOLI_CACHE_NAME = "doli"
+DOLI_FLOAT_ICON_MEMBER = "dist/DOLI.js"
+# DOLI v0.2.3 硬编码悬浮按钮图标为旧版 DoL 的 img/ui/sym_awareness.png（下划线）。
+# 游戏 0.5.9.8+ 把全部 sym_*.png 重命名为 sym-*.png（连字符），旧路径不再存在，
+# 于是悬浮窗图标 404 图裂。这里在构建期把该引用改成当前命名，恢复图标。
+# 只改这一个字符串，不动其它 UI 图标（options.png 等命名未变，仍有效）。
+DOLI_FLOAT_ICON_OLD = "img/ui/sym_awareness.png"
+DOLI_FLOAT_ICON_NEW = "img/ui/sym-awareness.png"
+
+
+def patch_doli_float_icon_path(
+    source_path: Path,
+    target_path: Path,
+) -> dict[str, object]:
+    """Rewrite DOLI's hardcoded float-button icon to the current DoL asset name."""
+    result: dict[str, object] = {
+        "applied": False,
+        "member": DOLI_FLOAT_ICON_MEMBER,
+        "source": str(source_path),
+        "target": str(target_path),
+    }
+
+    try:
+        with zipfile.ZipFile(source_path, "r") as source_zip:
+            if DOLI_FLOAT_ICON_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_script = source_zip.read(DOLI_FLOAT_ICON_MEMBER).decode(
+                "utf-8",
+                errors="replace",
+            )
+            if DOLI_FLOAT_ICON_OLD not in original_script:
+                result["status"] = (
+                    "already_patched"
+                    if DOLI_FLOAT_ICON_NEW in original_script
+                    else "patch_needle_not_found"
+                )
+                return result
+
+            patched_script = original_script.replace(
+                DOLI_FLOAT_ICON_OLD, DOLI_FLOAT_ICON_NEW
+            )
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member)
+                    if member.filename == DOLI_FLOAT_ICON_MEMBER:
                         data = patched_script.encode("utf-8")
                     target_zip.writestr(member, data)
     except zipfile.BadZipFile as exc:
@@ -412,9 +474,14 @@ class PackageBuilder(ABC):
 
     def _modloader_mod_path_for_injection(self, mod_config, mod_path: Path) -> Path:
         """Return the payload path to inject, applying build-local hotfixes."""
-        if mod_config.cache_name != MORE_LOVE_CACHE_NAME:
-            return mod_path
+        if mod_config.cache_name == MORE_LOVE_CACHE_NAME:
+            return self._patch_more_love_payload(mod_config, mod_path)
+        if mod_config.cache_name == DOLI_CACHE_NAME:
+            return self._patch_doli_payload(mod_config, mod_path)
+        return mod_path
 
+    def _patch_more_love_payload(self, mod_config, mod_path: Path) -> Path:
+        """Apply the More Love drag-event hardening patch (fail-closed)."""
         patch_surface = compatibility_surface_by_key(MORE_LOVE_DRAG_PATCH_KEY)
         source_errors = compatibility_source_errors(patch_surface, mod_config)
         if source_errors:
@@ -435,6 +502,29 @@ class PackageBuilder(ABC):
             logger.info("More Love drag event compatibility patch already present")
             return mod_path
         raise RuntimeError(f"More Love drag event compatibility patch failed: {status}")
+
+    def _patch_doli_payload(self, mod_config, mod_path: Path) -> Path:
+        """Rewrite DOLI's stale float-button icon path (fail-closed)."""
+        patch_surface = compatibility_surface_by_key(DOLI_FLOAT_ICON_PATCH_KEY)
+        source_errors = compatibility_source_errors(patch_surface, mod_config)
+        if source_errors:
+            raise RuntimeError(
+                "DOLI float icon compatibility patch source mismatch: " + "; ".join(source_errors)
+            )
+
+        patched_path = (
+            self.paths.temp_dir
+            / f"{DOLI_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.patched.mod.zip"
+        )
+        patch_result = patch_doli_float_icon_path(mod_path, patched_path)
+        status = str(patch_result.get("status") or "unknown")
+        if status == "patched":
+            logger.info("DOLI float icon compatibility patch applied")
+            return patched_path
+        if is_patch_success_status(status):
+            logger.info("DOLI float icon compatibility patch already present")
+            return mod_path
+        raise RuntimeError(f"DOLI float icon compatibility patch failed: {status}")
 
     def _inject_modloader_mods(self) -> list[str]:
         """
