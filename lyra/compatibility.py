@@ -11,6 +11,7 @@ from typing import Any
 
 
 MORE_LOVE_DRAG_PATCH_KEY = "more_love_drag_event_handlers"
+DOLI_FLOAT_ICON_PATCH_KEY = "doli_float_icon_path"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
 APK_CDP_REMOTE_END_RECONNECT_KEY = "apk_cdp_remote_end_reconnect"
 
@@ -74,6 +75,22 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         tests=("tests/test_more_love_drag_patch.py", "tests/test_compatibility_registry.py"),
         removal_condition="Remove after upstream More Love guards non-DOM drag event arguments.",
         notes="Default stable builds include More Love, so this payload patch must not silently fall back.",
+    ),
+    CompatibilitySurface(
+        key=DOLI_FLOAT_ICON_PATCH_KEY,
+        target="DOLI floating-button icon path",
+        scope="default-path",
+        kind="payload-patch",
+        cache_name="doli",
+        github_repo="ArsNativa/Degrees-of-Lewdity-Intelligence",
+        release_tag="v0.2.3",
+        asset_pattern="DOLI.mod.zip",
+        member="dist/DOLI.js",
+        marker="img/ui/sym_awareness.png",
+        fail_policy="fail-closed",
+        tests=("tests/test_doli_float_icon_patch.py", "tests/test_compatibility_registry.py"),
+        removal_condition="Remove after DOLI ships an icon path matching current DoL (sym-*.png) asset naming.",
+        notes="DOLI v0.2.3 hardcodes the pre-0.5.9.8 sym_awareness.png; DoL renamed sym_*→sym-*, so the float button 404s without this rewrite.",
     ),
     CompatibilitySurface(
         key=AU_FACE_ALIAS_KEY,

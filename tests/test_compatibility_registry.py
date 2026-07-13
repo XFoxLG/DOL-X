@@ -6,6 +6,7 @@ from lyra.compatibility import (
     APK_CDP_REMOTE_END_RECONNECT_KEY,
     AU_FACE_ALIAS_KEY,
     COMPATIBILITY_SURFACES,
+    DOLI_FLOAT_ICON_PATCH_KEY,
     GENERIC_REFACTOR_PLAN,
     MORE_LOVE_DRAG_PATCH_KEY,
     TEST_POLICY_REQUIREMENTS,
@@ -23,12 +24,16 @@ def test_compatibility_surfaces_are_registered_and_classified():
 
     assert set(surfaces_by_key) == {
         MORE_LOVE_DRAG_PATCH_KEY,
+        DOLI_FLOAT_ICON_PATCH_KEY,
         AU_FACE_ALIAS_KEY,
         APK_CDP_REMOTE_END_RECONNECT_KEY,
     }
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].scope == "default-path"
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].kind == "payload-patch"
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].fail_policy == "fail-closed"
+    assert surfaces_by_key[DOLI_FLOAT_ICON_PATCH_KEY].scope == "default-path"
+    assert surfaces_by_key[DOLI_FLOAT_ICON_PATCH_KEY].kind == "payload-patch"
+    assert surfaces_by_key[DOLI_FLOAT_ICON_PATCH_KEY].fail_policy == "fail-closed"
     assert surfaces_by_key[AU_FACE_ALIAS_KEY].scope == "default-path"
     assert surfaces_by_key[APK_CDP_REMOTE_END_RECONNECT_KEY].scope == "generic-harness"
 
@@ -51,7 +56,10 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         if surface.kind == "payload-patch"
     ]
 
-    assert [surface.key for surface in default_payload_patches] == [MORE_LOVE_DRAG_PATCH_KEY]
+    assert [surface.key for surface in default_payload_patches] == [
+        MORE_LOVE_DRAG_PATCH_KEY,
+        DOLI_FLOAT_ICON_PATCH_KEY,
+    ]
     more_love = default_payload_patches[0]
     assert more_love.fail_policy == "fail-closed"
     assert more_love.cache_name == "more_love"
@@ -60,6 +68,23 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
     assert more_love.asset_pattern == "More.Love.Interests.Mod.mod.zip"
     assert more_love.member == "game/More_Love_Interest_Mod_Drag.js"
     assert more_love.marker == "function preventDefaultMLIM(ev)"
+
+    doli = default_payload_patches[1]
+    assert doli.fail_policy == "fail-closed"
+    assert doli.cache_name == "doli"
+    assert doli.github_repo == "ArsNativa/Degrees-of-Lewdity-Intelligence"
+    assert doli.release_tag == "v0.2.3"
+    assert doli.asset_pattern == "DOLI.mod.zip"
+    assert doli.member == "dist/DOLI.js"
+    assert doli.marker == "img/ui/sym_awareness.png"
+
+
+@pytest.mark.config
+def test_doli_registry_matches_current_build_config():
+    surface = compatibility_surface_by_key(DOLI_FLOAT_ICON_PATCH_KEY)
+    doli_config = next(mod for mod in load_build_config().modloader_mods if mod.cache_name == "doli")
+
+    assert compatibility_source_errors(surface, doli_config) == []
 
 
 @pytest.mark.config

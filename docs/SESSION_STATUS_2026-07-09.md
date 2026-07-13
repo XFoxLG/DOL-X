@@ -256,3 +256,53 @@ DoL 中文 Wiki 收录的模组工具（对做兼容 mod 有用的）：
 2. 若通过 → 本轮修复闭环，衣服层 bug 彻底解决；可考虑是否给兼容 mod 发独立 Release（此前待决的"发布形式"二选一仍悬置）。
 3. 若仍异常 → 对照 base 包报错定位是覆盖未生效还是别的图层。
 4. 改脸 eyes.png（AU 资源问题）仍是独立待办。
+
+---
+
+# 【2026-07-13】DOLI 悬浮窗图裂修复 + 萨姆"默认无衣服"定性为框架行为
+
+## 一句话现状
+
+DoL-XFox 真机测试暴露两件事，本会话都查到源码级根因并分别处理：**DOLI 悬浮窗图标裂**（真 bug，已修，构建期补丁 + 测试，未提交）；**侧边栏萨姆没穿衣服**（不是 bug，是 maplebirch v3.14 NamedNPC 系统未给香草 NPC 铺穿着数据的默认行为，不修，记录归档）。改脸 `eyes.png` 报错继续维持"AU 改脸素材自身问题、非本项目范围"的既有结论。
+
+## Q1：DOLI 悬浮窗图裂（真 bug，已修）
+
+**根因**（与 maplebirch 连字符 bug 同类——第三方 mod 用了旧版 DoL 资源命名）：
+- DOLI v0.2.3 在 `dist/DOLI.js` 的 `FloatButton.mount()` 里硬编码 `icon.src = 'img/ui/sym_awareness.png'`（下划线）。
+- DoL 0.5.9.8+ 把全部 `sym_*.png` 重命名为 `sym-*.png`（连字符）；当前 0.5.10.12 包里实际文件是 `img/ui/sym-awareness.png`。
+- 旧下划线路径不存在 → 悬浮按钮图标 404 图裂。同文件另一图标 `img/ui/options.png`（约 26070 行）命名没变，仍有效，所以只有悬浮按钮裂。
+- 坐实：`GameOriginalImagePack-0.5.8.10` 里是老命名 `sym_awareness.png`，而 0.5.10.12 成品包 `img/ui/` 里已是 `sym-awareness.png`（连字符）；DOLI 是构建期从 GitHub 现下 `DOLI.mod.zip`，本地改不到，必须走管线 repack。
+
+**修法**（照搬 more_love 的下载期 payload-patch 范式）：
+- `lyra/build.py` 新增常量 `DOLI_CACHE_NAME/DOLI_FLOAT_ICON_MEMBER/DOLI_FLOAT_ICON_OLD/NEW` 与函数 `patch_doli_float_icon_path()`：只把 `dist/DOLI.js` 里 `sym_awareness.png`→`sym-awareness.png` 一个字符串替换，其余 zip 条目原样保留（含重复条目）。
+- 把 `_modloader_mod_path_for_injection` 从"只认 more_love"拆成 `_patch_more_love_payload` + `_patch_doli_payload` 两分支；DOLI 走 **fail-closed**：源仓库/tag/asset 元数据漂移或找不到 needle 时构建期报错，绝不静默发出坏图标。
+- `lyra/compatibility.py` 注册兼容面 `DOLI_FLOAT_ICON_PATCH_KEY`（scope `default-path`、kind `payload-patch`、fail-closed，移除条件=DOLI 出对齐 `sym-*` 命名的版本）。
+
+**验证**：
+- 新增 `tests/test_doli_float_icon_patch.py`（6 项：改写/重复条目保留/幂等/构建期用补丁包/needle 漂移 fail-closed/元数据漂移 fail-closed）；同步更新 `tests/test_compatibility_registry.py`（surface 集合 + default-path payload-patch 列表加入 DOLI）。21 项补丁/注册表测试全绿，ReadLints 无错。
+- **拿真实 `workspace/temp/doli.mod.zip` 跑了一遍**：`status: patched`，旧下划线路径消失、新连字符路径就位。临时验证产物已删。
+
+## Q2：萨姆侧边栏"没穿衣服"= 框架默认行为（不是 bug，不修）
+
+用户两次纠正推翻了我最初"可能是自定义外观"的猜测：**默认外观也没衣服，且游戏里改不了萨姆的衣服**。翻 maplebirch v3.1.14 源码（探针 `mb_src_probe/v3`）逐层坐实：
+
+1. **具名 NPC 初始只有裸体衣柜**：`NPCWardrobe.init` 里 `this.clothes[name] ??= new WardrobeClothing(name, ['naked'])`——萨姆这类香草 NPC 建出来只有 `naked` 一件。
+2. **匹配不到穿着就回落裸体**：`WardrobeClothing.worn` 结尾 `... ?? 'naked'`，无任何穿着条件命中时直接返回 `naked`。
+3. **框架从没给香草 NPC 注册真实穿着**：全源码搜 `.clothes.register(` / `.clothes.add(` 给萨姆铺衣服的调用——一处都没有。`VanillaClothes.init()` 只定义 `neutralDefault/hermDefault` 两套占位，没"穿"到具体 NPC 身上。
+
+结论：侧边栏渲染萨姆时衣服层 `srcfn` 拿到 `naked`，自然不画衣服图，**且无任何 `Failed to load image` 报错**（用户已确认）——与之前兼容 mod 修的"路径命名掉图 bug"根因完全不同。这属于 **maplebirch v3.14 NamedNPC 系统的未完成度**，不是 DOL-X 构建/兼容 mod/AU 美化的问题。真要给萨姆穿衣服需 mod 主动调 `maplebirch.npc.clothes.register(...)` 铺内容层数据，成本高、非路径兼容能解决，**不纳入修复范围**，与改脸 eyes.png 并列归"框架/资源自身、非本项目"类。
+
+## 本会话未提交改动（累加在前面 07-12 之上）
+
+- `lyra/build.py`：新增 DOLI float-icon payload-patch + 分发拆分（在 07-12 的 local-mod 接线基础上）。
+- `lyra/compatibility.py`：注册 `doli_float_icon_path` 兼容面。
+- `tests/test_doli_float_icon_patch.py`：新增（6 项）。
+- `tests/test_compatibility_registry.py`：更新（纳入 DOLI surface）。
+- `CHANGELOG.md`：Fixed 段新增 DOLI 图标修复条目。
+- 探针 `au_probe/`、`mb_src_probe/` 仍是本地调查产物，未提交（下次留意别误提交）。
+
+## 下一步（DOLI 线）
+
+1. 等用户确认后统一提交（build.py + compatibility.py + 两个测试 + CHANGELOG）合入 vega，触发 CI 出带修复的包。
+2. 用户真机装新包验证悬浮窗图标恢复正常。
+3. 萨姆无衣服、改脸 eyes.png 两项维持"已定性、不修"，除非将来引入内容层 mod 或 AU 补齐素材。
