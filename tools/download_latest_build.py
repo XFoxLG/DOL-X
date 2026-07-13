@@ -55,7 +55,7 @@ class BuildDownloader:
         print("   Current version is a framework, please manually download APK from GitHub Actions")
         
         # 生成测试清单
-        self._generate_test_checklist(build_dir, build_code or 5220608)
+        self._generate_test_checklist(build_dir, build_code or 15706368)
         
         return build_dir
     
@@ -79,10 +79,10 @@ class BuildDownloader:
     def _build_checklist_content(self, build_code: int, mods_lock: dict) -> str:
         """构建测试清单内容"""
         build_names = {
-            5218560: "基础版 (无 AU)",
-            5219584: "AU-F",
-            5220608: "AU-M",
-            5222656: "AU-A",
+            15704320: "基础版 (无 AU)",
+            15705344: "AU-F",
+            15706368: "AU-M",
+            15708416: "AU-A",
         }
         
         return f"""# DOL-X 测试清单
@@ -99,8 +99,8 @@ class BuildDownloader:
 - [x] 构建成功（GitHub Actions）
 - [x] 配置一致性验证通过
 - [x] Mod URL 可达性验证通过
-- [x] 包含当前启用的新 mod：guide_to_me, npc_social_icon
-- [x] 已知不兼容/诊断禁用 mod 预期禁用：bunny_transformation, neoui_patch
+- [x] 包含当前启用的新 mod：guide_to_me, npc_social_icon, neoui_patch
+- [x] 已知不兼容 mod 预期禁用：bunny_transformation
 
 ---
 
@@ -117,13 +117,13 @@ class BuildDownloader:
 - [ ] 打开 ModLoader 管理器（游戏内 Alt+M 或设置菜单）
 - [ ] 确认以下 mod 已加载：
   - [ ] maplebirch v3.1.14
-  - [ ] cheat extended v1.17
+  - [ ] cheat extended v1.18
   - [ ] maplebirchEx v1.2.4
   - [ ] CustomHair v1.0.0
   - [ ] Mae's Picvary v1.3.2
   - [ ] More Love Interests Mod v0.1.6.0
   - [ ] **guide_to_me v1.1.0**
-  - [ ] **不应出现 NeoUI-Patch**（当前为 AU 侧边栏诊断禁用）
+  - [ ] **NeoUI-Patch**（2026-07-05 升为必选，应出现在全部包）
   - [ ] **npc_social_icon v1.4.1**
   - [ ] **不应出现 BunnyTransformation**（已禁用，若出现说明测试包不是当前配置）
   - [ ] AU Male v0.4.2 (仅 AU-M 构建)
@@ -142,7 +142,7 @@ class BuildDownloader:
 
 - [ ] **新增功能（选测1-2项）**：
   - [ ] **控制NPC嘴部**：进入游戏后检查相关选项是否出现
-  - [ ] **确认 NeoUI Patch 未加载**：若出现说明测试包不是当前配置
+  - [ ] **确认 NeoUI Patch 已加载**：全部包内置，未出现说明测试包不是当前配置
   - [ ] **NPC社交栏头像**：检查社交界面是否显示头像
 
 ### 4. 开发内容检查（5分钟）
@@ -206,8 +206,8 @@ def main():
     parser.add_argument(
         "--build-code",
         type=int,
-        help="指定 build_code（默认 5220608 = AU-M）",
-        default=5220608
+        help="指定 build_code（默认 15706368 = AU-M）",
+        default=15706368
     )
     parser.add_argument(
         "--run-id",
