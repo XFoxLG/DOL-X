@@ -25,7 +25,7 @@ python tools/quick_check.py
 
 1. **下载测试清单**：
    ```bash
-   python tools/download_latest_build.py --build-code 5220608
+   python tools/download_latest_build.py --build-code 15706368
    ```
 
 2. **手动下载 APK**：
@@ -43,14 +43,14 @@ python tools/quick_check.py
 
 ### 代表性测试
 
-**每次必测**：AU-M (build_code 5220608)
+**每次必测**：AU-M (build_code 15706368)
 - 原因：最常用，功能最全
 - 时间：15-20 分钟手动测试
 
 **CI 自动化**：其他 3 个构建
-- 基础版 (5218560)
-- AU-F (5219584)
-- AU-A (5222656)
+- 基础版 (15704320)
+- AU-F (15705344)
+- AU-A (15708416)
 - 验证：启动成功 + mod 加载完整
 
 ### 测试触发条件
@@ -104,7 +104,7 @@ python tools/quick_check.py --checks urls
 python tools/download_latest_build.py
 
 # 下载指定 build_code
-python tools/download_latest_build.py --build-code 5218560
+python tools/download_latest_build.py --build-code 15704320
 
 # 下载指定 Run ID
 python tools/download_latest_build.py --run-id 27995040396
@@ -123,8 +123,8 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 
 - GitHub Actions run ID
 - artifact 名称与 APK 文件名
-- build code：Base `5218560`、AU-F `5219584`、AU-M `5220608`、AU-A `5222656`
-- ModLoader 已加载列表中的 AU、NeoUI、Mae's Picvary、NPC Avatars、BunnyTransformation、Lyra 条目
+- build code：Base `15704320`、AU-F `15705344`、AU-M `15706368`、AU-A `15708416`
+- ModLoader 已加载列表中的 AU、NeoUI、Mae's Picvary、NPC Avatars、Lyra 条目（BunnyTransformation 已禁用，不应出现）
 - 侧边栏展开/收起截图
 - 战斗是否能正常开始
 
@@ -145,13 +145,13 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 1. 打开 ModLoader 管理器（Alt+M）
 2. 确认所有 mod 已加载：
    - maplebirch v3.1.14
-   - cheat extended v1.17
+   - cheat extended v1.18
    - maplebirchEx v1.2.4
    - CustomHair v1.0.0
    - Mae's Picvary v1.3.2
    - More Love Interests Mod v0.1.6.0
    - 当前启用的新 mod（guide_to_me, npc_social_icon）
-   - NeoUI Patch 不应出现（当前为 AU 侧边栏诊断而禁用）
+   - NeoUI Patch 应出现（2026-07-05 升为必选，全部包内置）
    - BunnyTransformation 不应出现（已禁用，若出现说明测试包不是当前配置）
    - AU model（根据构建）
 3. 加载日志无 error
@@ -248,7 +248,7 @@ git status | grep -E "\\.env|credentials"
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 5220608
+python tools/download_latest_build.py --build-code 15706368
 
 # 2. 手动下载 APK
 

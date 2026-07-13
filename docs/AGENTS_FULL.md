@@ -25,14 +25,15 @@ Context for AI coding agents working on DOL-X. Treat this file as the project-le
 
 ### What DOL-X Does
 
-Provides 5 build configurations (build_codes). All builds carry the required
+Provides 4 build configurations (build_codes). All builds carry the required
 mod set: UCB + more_love + cheat_extended_maplebirch + custom_hair + mae_picvary
-+ expansion + guide_to_me + npc_social_icon + doli (D.O.L.I).
-- 13607168: base (no AU)
-- 13608192: AU-F (no NeoUI)
-- 15705344: AU-F + NeoUI (sidebar compare build)
-- 13609216: AU-M
-- 13611264: AU-A
++ expansion + guide_to_me + neoui_patch + npc_social_icon + doli (D.O.L.I).
+NeoUI was promoted from opt-in to required on 2026-07-05 and now ships in every
+build; the earlier no-NeoUI variant and the AU-F+NeoUI compare build are retired.
+- 15704320: base (no AU)
+- 15705344: AU-F
+- 15706368: AU-M
+- 15708416: AU-A
 
 ### What DOL-X Does NOT Do
 
@@ -157,7 +158,7 @@ gh api repos/MaplebirchLeaf/SCML-DOL-maplebirchframework/releases/latest --jq '.
 **已集成**（进入构建矩阵）:
 1. 控制NPC嘴部 GuideToMe (Ayndpa v1.1.0)
 2. NPC社交栏头像 NPC Avatars (Eudemonism00 v1.4.1)
-3. NeoUI Patch (依雅莱 v1.1.0) - opt-in，仅 AU-F 对比包 15705344 携带
+3. NeoUI Patch (依雅莱 v1.1.0) - 2026-07-05 升为必选，进入全部 4 个包
 4. D.O.L.I (ArsNativa v0.2.3) - LLM AI 文本增强，maplebirch 插件，玩家自填 API key
 
 **已禁用**:
@@ -294,8 +295,10 @@ Upstream also does not recommend BESC+UCB (code=259).
 
 ## Mod Matrix
 
-Current build codes: 13607168, 13608192, 15705344, 13609216, 13611264  
-Formula: `base (13607168) + AU variant (0/1024/2048/4096)`; 15705344 = AU-F base + NeoUI (2097152), sidebar compare build
+Current build codes: 15704320, 15705344, 15706368, 15708416  
+Formula: `base (15704320) + AU variant (0/1024/2048/4096)`. NeoUI (bit 2097152)
+is a required mod in every build since 2026-07-05, so it is already part of the
+base code; there is no separate no-NeoUI or compare build anymore.
 
 **Critical rules**:
 - ❌ NEVER add BESC (conflicts with UCB)
@@ -360,4 +363,4 @@ python -m pytest tests/ -v
 
 ---
 
-**Last Updated**: 2026-07-01 (D.O.L.I v0.2.3 integrated; build matrix shifted to 13607168 base + AU variants; still on maplebirch v3.1.14 + cheat v1.17 stable config)
+**Last Updated**: 2026-07-13 (NeoUI promoted to required on 2026-07-05; current 4-package matrix is base 15704320 + AU-F 15705344 / AU-M 15706368 / AU-A 15708416; maplebirch v3.1.14 + cheat extended v1.18 self-hosted mirror; D.O.L.I v0.2.3 integrated)

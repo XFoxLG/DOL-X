@@ -118,9 +118,9 @@ class TestBuildMatrix:
         config_loader = get_config_loader()
         
         au_variants = [
-            (5219584, "au-f"),
-            (5220608, "au-m"),
-            (5222656, "au-a"),
+            (15705344, "au-f"),
+            (15706368, "au-m"),
+            (15708416, "au-a"),
         ]
         
         for code, feature_id in au_variants:

@@ -69,7 +69,7 @@ GitHub Actions 构建完成后：
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 5220608
+python tools/download_latest_build.py --build-code 15706368
 
 # 2. 手动下载 APK 到 downloads/test_builds/{date}-{commit}/
 
