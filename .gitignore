@@ -172,3 +172,12 @@ CLEANUP_REVERSE_ENGINEERING.md
 # 本地调查探针（解压的游戏资源与框架源码，仅本地对比用，勿提交）
 au_probe/
 mb_src_probe/
+
+# 一次性计划/报告/健康检查文档（历史决策留档请放 docs/archive/，勿散落在根目录）
+DOL-X_*_PLAN*.md
+DOL-X_SYSTEM_HEALTH_*.md
+DOL-X_INTEGRATION_*.md
+*_MERGE_PLAN.md
+*_DESIGN_SPIKE.md
+CLEANUP_COMPLETED.md
+CHEAT_EXTENDED_MANUAL_TEST_CHECKLIST.md
