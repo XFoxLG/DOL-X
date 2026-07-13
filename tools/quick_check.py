@@ -141,7 +141,7 @@ class QuickChecker:
 
     def check_new_mods(self) -> bool:
         """检测新 mod 是否在配置中（仅检查启用的 mod）"""
-        # 检查已启用的新 mod。NeoUI 当前作为 AU 侧边栏诊断对比包（7316736）启用。
+        # 检查已启用的新 mod。NeoUI 于 2026-07-05 升为必选，进入全部 4 个包。
         expected_enabled = ["guide_to_me", "npc_social_icon", "neoui_patch"]
         # bunny_transformation 已知不兼容，保持禁用。
         expected_disabled = ["bunny_transformation"]

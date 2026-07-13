@@ -276,13 +276,14 @@ github_repo = "RyaraSUKI/dol-neoui-patch"
 asset_pattern = "*.zip"
 release_tag = "release"
 download_url = "https://github.com/RyaraSUKI/dol-neoui-patch/releases/download/release/neoui_patch_1.1.0.zip"
-# DOL-X: Enabled as opt-in for AU sidebar diagnostic (2026-06-29).
-# enabled=true only gates download/injection eligibility; the feature bit
-# (2097152) is the precise switch. In the current matrix only build code
-# 7316736 carries that bit, so NeoUI ships solely in the AU-F + NeoUI compare
-# build, while 5218560/5219584/5220608/5222656 stay NeoUI-free.
-# Set enabled=false again to fully remove NeoUI after the comparison concludes.
-track_upstream = false  # 诊断用途，锁定 tag release，不追上游
+# DOL-X: Promoted from opt-in to required (2026-07-05). The feature bit
+# (2097152) is now part of every build code, so NeoUI ships in all 4 packages
+# (base 15704320 / AU-F 15705344 / AU-M 15706368 / AU-A 15708416); there is no
+# separate no-NeoUI or AU-F+NeoUI compare build anymore. The earlier 2026-06-29
+# opt-in diagnostic (only build code 7316736 carried the bit) is closed: the
+# side-by-side compare confirmed sprites render correctly with or without NeoUI,
+# so it is not the AU sidebar misplacement cause; its overlay sidebar is by design.
+track_upstream = false  # 已升必选，锁定 tag release，不追上游
 
 [[modloader_mods]]
 key = "npc_social_icon"

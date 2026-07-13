@@ -2,10 +2,10 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-06-29  
+**最后更新**: 2026-07-13  
 **当前框架**: maplebirch v3.1.14 + expansion v1.2.4  
 **当前游戏版本**: DoL v0.5.8.10  
-**当前作弊**: Cheat Extended v1.17
+**当前作弊**: Cheat Extended v1.18（项目自建镜像，2026-07-05 重打包）
 
 ---
 
@@ -46,13 +46,13 @@
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
 | maplebirch Framework | v3.1.14 | - | 0.5.8.10 | ✅ | 无 | 核心框架，稳定版 |
-| Cheat Extended | v1.17 | v3.x | 0.5.8.10 | ⚠️ | 自定义言灵集 widget 报错 | Workaround: 使用快速言灵 |
+| Cheat Extended | v1.18 | v3.x | 0.5.8.10 | ⚠️ | 自定义言灵集 widget 报错（v1.17 时记录，v1.18 是否消除未复测） | Workaround: 使用快速言灵 |
 | maplebirch Expansion | v1.2.4 | v3.1.14 | 0.5.8.10 | ✅ | 无 | 完全兼容 |
 | CustomHair | v1.0.0 | 无要求 | 0.5.2.7-0.5.2.10 | ✅ | 无 | 十六进制输入框需先点击“自定义染发”选项才出现 |
 | More Love Interests | v0.1.6.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 独立功能 |
 | Mae's Picvary NPC | v1.3.2 | 无要求 | 0.5.8.10 | ✅ | 无 | 侧边栏头像 |
 | Guide To Me | v1.1.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 控制 NPC 嘴部动作，当前稳定矩阵启用 |
-| NeoUI Patch | V1.1.0 | 无要求 | 0.5.8.10 | ⚠️ | 覆盖式侧边栏布局疑似触发 AU 侧边栏错位 | 当前诊断禁用，不进入 build_codes |
+| NeoUI Patch | V1.1.0 | 无要求 | 0.5.8.10 | ✅ | 覆盖式侧边栏遮挡正文为设计本意、非 bug；经对比确认非 AU 错位原因 | 2026-07-05 升为必选，进入全部 4 个 build_codes |
 | NPC Social Icon | v1.4.1 | 无要求 | 0.5.8.10 | ✅ | 无 | 当前稳定矩阵启用；与 Mae's Picvary 作用域不同 |
 | BunnyTransformation | v0.3.1β | 无要求 | 0.5.8.10 | ❌ | 16 个 TweeReplacer 错误和战斗崩溃 | 已禁用，不进入当前稳定 build_codes |
 
@@ -145,7 +145,7 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 - maplebirch: v3.1.14
 - expansion: v1.2.4
 - DoL: 0.5.8.10
-- 构建码: 5218560
+- 构建码: 15704320
 
 ### 测试步骤
 1. 下载 mod: `gh release download ...`
