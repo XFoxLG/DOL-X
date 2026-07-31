@@ -10,6 +10,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from tools.quick_check import QuickChecker
 
 
+class FakeHeadResponse:
+    """Minimal requests response for URL reachability tests."""
+
+    def __init__(self, ok: bool):
+        self.ok = ok
+
+
 def test_quick_checker_init():
     """测试 QuickChecker 初始化"""
     project_root = Path(__file__).parent.parent
@@ -49,6 +56,46 @@ def test_build_codes_check(tmp_path):
     # 应该能验证 build codes
     result = checker.check_build_codes()
     assert result is True
+
+
+def test_url_head_follows_release_asset_redirects(monkeypatch):
+    """Quick Check must follow GitHub Release redirects using requests."""
+    project_root = Path(__file__).parent.parent
+    checker = QuickChecker(project_root)
+    observed_call = {}
+
+    def fake_head(url, *, headers, timeout, allow_redirects):
+        observed_call.update(
+            {
+                "url": url,
+                "headers": headers,
+                "timeout": timeout,
+                "allow_redirects": allow_redirects,
+            }
+        )
+        return FakeHeadResponse(ok=True)
+
+    monkeypatch.setattr("tools.quick_check.requests.head", fake_head)
+
+    assert checker._check_url_head("https://example.invalid/mod.zip", timeout=12)
+    assert observed_call["allow_redirects"] is True
+    assert observed_call["timeout"] == 12
+    assert observed_call["headers"]["User-Agent"] == "DOL-X-Quick-Check/1.0"
+
+
+def test_url_head_returns_false_on_request_error(monkeypatch):
+    """Network failures should remain a failed reachability result."""
+    project_root = Path(__file__).parent.parent
+    checker = QuickChecker(project_root)
+
+    def fail_head(*args, **kwargs):
+        from requests import ConnectionError
+
+        raise ConnectionError("connection closed")
+
+    monkeypatch.setattr("tools.quick_check.requests.head", fail_head)
+
+    assert checker._check_url_head("https://example.invalid/mod.zip") is False
 
 
 if __name__ == "__main__":

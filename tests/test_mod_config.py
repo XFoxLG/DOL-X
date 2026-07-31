@@ -66,6 +66,10 @@ class TestModConfig:
             f"期望: {expected_features}\n"
             f"实际: {actual_features}"
         )
+        assert au_face_mod.enabled is True, "next-4 AU Face 本地候选应默认进入 AU 构建"
+        assert au_face_mod.download_url.startswith(
+            "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/"
+        ), "AU Face 必须直接使用作者官方 Release"
 
     def test_all_feature_ids_valid(self):
         """验证所有 mod 的 feature_ids 都有效"""
@@ -143,6 +147,37 @@ class TestModConfig:
             assert isinstance(mod.enabled, bool), (
                 f"Mod {mod.key or mod.asset_pattern} 的 enabled 必须是布尔值"
             )
+
+    def test_modloader_prerelease_update_flags_are_boolean(self):
+        """验证 per-mod 预发布更新开关类型。"""
+        build_config = load_build_config()
+
+        for mod in build_config.modloader_mods:
+            assert isinstance(mod.include_prerelease_updates, bool), (
+                f"Mod {mod.key or mod.asset_pattern} 的 "
+                "include_prerelease_updates 必须是布尔值"
+            )
+
+    def test_modern_maplebirch_stack_uses_official_upstreams(self):
+        """验证 4.x 核心栈不把项目镜像伪装成上游。"""
+        build_config = load_build_config()
+        mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
+        expected_repositories = {
+            "maplebirch": "MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+            "cheat_extended": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
+            "longer_combat": "MaplebirchLeaf/LongerCombat",
+            "yanling_cheat": "MaplebirchLeaf/YanlingCheatCollection",
+        }
+
+        for mod_key, expected_repository in expected_repositories.items():
+            mod = mods_by_key[mod_key]
+            assert mod.github_repo == expected_repository
+            assert mod.download_url.startswith(
+                f"https://github.com/{expected_repository}/releases/"
+            )
+            assert mod.track_upstream is True
+
+        assert mods_by_key["cheat_extended"].include_prerelease_updates is True
 
     def test_love_mod_exists(self):
         """验证 more_love mod 使用独立 feature 与直链资源。"""
@@ -297,14 +332,19 @@ class TestModConfig:
         if not cheat_extended_enabled:
             return
 
+        # 按 key 识别前置框架，而不是只认上游 github_repo。
+        # 框架包可能改指向本仓库自建镜像（例如 v3.2.5 上游撤包后从提交重建并
+        # 上传到 XFoxLG/DOL-X），此时 github_repo 会变，但 key 始终稳定。
+        framework_keys = {"maplebirch", "simple_framework", "simpleFramework"}
         framework_repos = {
             "MaplebirchLeaf/SCML-DOL-maplebirchframework",
             "emicoto/SCMLSimpleFramework",
         }
         enabled_frameworks = [
-            mod.github_repo
+            mod.key or mod.github_repo
             for mod in build_config.modloader_mods
-            if mod.github_repo in framework_repos and mod.enabled
+            if (mod.key in framework_keys or mod.github_repo in framework_repos)
+            and mod.enabled
         ]
 
         assert len(enabled_frameworks) == 1, (
