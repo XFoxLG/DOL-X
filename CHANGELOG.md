@@ -13,7 +13,7 @@
 
 ## [Unreleased]
 
-> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。GitHub Actions run [`30610401219`](https://github.com/XFoxLG/DOL-X/actions/runs/30610401219) 已成功生成并上传 base ZIP/APK；该次运行由分支推送触发，未创建新 Release，因此最新已打 tag 的稳定 Release 仍是 0713。
+> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/30611108121) 已成功生成并上传 base ZIP/APK；该次运行由分支推送触发，未创建新 Release，因此最新已打 tag 的稳定 Release 仍是 0713。
 
 > **公开分发边界**：AU 作者 README 明确禁止二传、拆包和未经授权搬运。四个 build code 继续保留本地自构建能力，但公共 Actions 只构建并上传 base `15704320`；获得作者明确授权前不新增公开 AU artifact 或 Release。
 

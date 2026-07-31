@@ -15,7 +15,7 @@
   `DoL-Lyra/Lyra -> DOL-X`。
 - 0713 稳定基线保存在 `vega-archive-0713`，归档分支已在 GitHub 核验存在。
 - `vega` 从该干净基线重建为 4.x 公开主线，只包含公共配置、代码、测试和文档。GitHub Actions
-  run `30610401219` 已完成 base 构建与 artifact 上传；最新已打 tag 的稳定 Release 仍是 0713。
+  run `30611108121` 已完成 base 构建与 artifact 上传；最新已打 tag 的稳定 Release 仍是 0713。
 
 ## 2. 4.x 公开主线栈
 
@@ -47,8 +47,8 @@ AU 作者仓库 README 明确写明 AU 原版部件及衍生内容“严禁二�
 获取资源后在本地自构建，或在获得作者明确授权后再开放公共 artifact/Release。历史 0713 曾公开包含
 AU，不构成继续分发的授权依据。
 
-GitHub Actions run [`30610401219`](https://github.com/XFoxLG/DOL-X/actions/runs/30610401219) 已在提交
-`5356de3` 上成功生成并上传：
+GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/30611108121) 已在提交
+`fedcbf5` 上成功生成并上传：
 
 - `DoL-0.5.10.12-XFox-1.0.8a-base-0731.zip`
 - `DoL-0.5.10.12-XFox-1.0.8a-base-0731.apk`
@@ -91,5 +91,5 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、plus ZIP manifest、配置加载、Quick Check、
-Python 编译、177 项自动测试，以及 GitHub Actions base ZIP/APK 构建和 artifact 上传。AU 三个本地
+Python 编译、195 项自动测试，以及 GitHub Actions base ZIP/APK 构建和 artifact 上传。AU 三个本地
 变体仍未取得公开转载授权，也未由公共 Actions 构建或上传。
