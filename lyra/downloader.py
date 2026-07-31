@@ -5,6 +5,7 @@
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -244,7 +245,15 @@ class Downloader:
                 api_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
 
             logger.debug(f"获取 GitHub Release: {api_url}")
-            response = requests.get(api_url, timeout=30)
+            # 带上 token 避开匿名 API 的 60 次/小时限流（本地跑全量 base_mods
+            # 会连打多次 releases/latest，匿名额度极易耗尽触发 403 rate limit）。
+            headers = {"Accept": "application/vnd.github+json"}
+            github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get(
+                "GH_TOKEN"
+            )
+            if github_token:
+                headers["Authorization"] = f"Bearer {github_token}"
+            response = requests.get(api_url, headers=headers, timeout=30)
             response.raise_for_status()
             return response.json()
 

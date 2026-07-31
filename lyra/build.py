@@ -585,18 +585,15 @@ class PackageBuilder(ABC):
         与 _inject_modloader_mods（远程下载的第三方 mod）不同，这里的 mod
         源码就在仓库 mods/ 目录内，构建期现场打包成 .mod.zip 再注入 HTML。
 
-        当前仅注册 maplebirch-v3-layer-compat：它由 cheat_extended_maplebirch
-        feature（= maplebirch 框架必选位）触发。该 mod 的 boot.json 依赖
-        maplebirch >=3.1.0 <4.0.0，所以在 3.x 线注入生效、4.x 线由 ModLoader
-        自动跳过——无需在此按框架版本分流，交给 ModLoader 依赖检查。
+        当前 4.x 主线没有需要现场打包注入的本地 mod。历史
+        maplebirch-v3-layer-compat 只服务 3.x 回滚线；4.1.13 已原生使用
+        新式图层命名，因此不再把该补丁塞进每个 4.x 产物。
 
         Returns:
             注入的本地 mod 名称列表
         """
         # (feature_id, mod 目录名) —— feature 命中即注入。
-        local_mods = [
-            ("cheat_extended_maplebirch", "maplebirch-v3-layer-compat"),
-        ]
+        local_mods = []
 
         config_loader = get_config_loader()
         mod_paths = []
