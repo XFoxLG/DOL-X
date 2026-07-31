@@ -2,16 +2,16 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-07-28
-**当前未发布候选框架 mod**: maplebirch v4.1.13（作者官方 Release）
+**最后更新**: 2026-07-31
+**当前公开主线框架 mod**: maplebirch v4.1.13（作者官方 Release）
 **当前游戏本体版本**: DoL v0.5.10.12（汉化仓库 tag `v0.5.10.12-chs-1.0.8a`）
-**当前未发布候选作弊**: Cheat Extended v1.20 betaTest（作者官方 Pre-release）
+**当前公开主线作弊**: Cheat Extended v1.20 betaTest（作者官方 Pre-release）
 
 > **两个版本维度不要混淆**：「框架 mod 版本」（v4.1.13）指秋枫白桦框架这个**前置 mod** 自身的版本；
 > 「游戏本体版本」（0.5.10.12）指游戏本身。下方表格的 "DoL 版本" 列一律指**游戏本体版本**，
 > "框架要求" 列一律指**框架 mod 版本**。
 >
-> 已公开的 0713 稳定 Release 仍是历史 3.x 栈；本表顶部“当前”均指 `next-4` 本地候选，尚未发布。
+> 已打 tag 的 0713 稳定 Release 仍是历史 3.x 栈；本表顶部“当前”均指 `vega` 的 4.x 公开主线。
 
 ---
 
@@ -20,7 +20,7 @@
 ### 测试环境
 
 - **本地配置验证**: `python -m pytest tests/ -v`
-- **构建产物**: 本地或 GitHub Actions；本轮已实际完成四个 ZIP，本轮没有构建 APK
+- **构建产物**: 本地已完成四个 ZIP；GitHub Actions run `30610401219` 已完成公开 base ZIP/APK
 - **浏览器测试**: `python tools/browser_smoke_test.py output/*.zip`
 - **模拟器测试**: APK 在 MuMu 模拟器上运行
 - **ModLoader 日志**: 检查加载错误和冲突
@@ -47,7 +47,7 @@
 
 ## 当前集成 Mod 状态
 
-### `next-4` 必选 Mod（本地候选）
+### `vega` 必选 Mod（4.x 公开主线）
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
@@ -64,7 +64,7 @@
 | NPC Social Icon | v1.4.1 | 无要求 | 0.5.10.12 | ✅ | 无 | 当前稳定矩阵启用；与 Mae's Picvary 作用域不同 |
 | BunnyTransformation | v0.3.1β | 无要求 | 0.5.10.12 | ❌ | 16 个 TweeReplacer 错误和战斗崩溃 | 已禁用，不进入当前稳定 build_codes |
 
-**2026-07-28 结论修正（next-4 分支）**
+**2026-07-31 结论修正（4.x 公开主线）**
 
 旧的“v3.2.5 是唯一解”只比较了依赖声明，没有覆盖运行时初始化，现已撤回：
 
@@ -72,11 +72,11 @@
 |---|---|---|---|
 | 3.1.14 + Cheat Extended 1.20 | CE 门控不满足 | 弹窗，7 个 UI 注册跳过 | 不采用 |
 | 3.2.5 + maplebirchEx 1.2.4 + CE 1.20 | 表面满足 | dread/sanity/dreadmax undefined | 不采用 |
-| 4.1.13 + CE 1.20 + LongerCombat + Yanling | 现役包要求满足 | 0 error / 0 warning，CE 抽样正常 | 当前候选 |
+| 4.1.13 + CE 1.20 + LongerCombat + Yanling | 现役包要求满足 | 0 error / 0 warning，CE 抽样正常 | 当前主线 |
 
-当前候选四个 ZIP 本地构建 `4/4` 成功；base 为 36 个有效 payload，三个 AU 版各 38 个。
-完整文件哈希与 payload 身份见 `SESSION_STATUS_2026-07-28.md`。3.2.5 重建包显示的
-2026.07.27 是重打包时间戳，不是作者更新顺序。
+四个 ZIP 本地构建 `4/4` 成功；base 为 36 个有效 payload，三个 AU 版各 38 个。公共 Actions
+run `30610401219` 只构建并上传 base ZIP/APK。3.2.5 重建包显示的 2026.07.27 是重打包时间戳，
+不是作者更新顺序。当前事实与产物名见 [CURRENT_PROJECT_STATE.md](CURRENT_PROJECT_STATE.md)。
 
 ### AU 美化（本地候选，可选）
 
@@ -87,8 +87,8 @@
 | AU Androgynous model | v0.1.1 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 作者资源仍不完整，需最严格复测 | 官方 `mod` Release，model 直装 |
 | AU Face Expansion | Release v1.0.4 / 外层 v1.1.0 / 内层 v1.2.8 | manifest 无 maplebirch 硬依赖 | 待 0.5.10.12 真机验证 | ⚠️ 本地候选 | 运行时仍请求旧式 blushN/tearN；视觉效果未通过 | 只进 AU 三版；base 明确不注入；未上传 |
 
-AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md` 与
-`docs/AU_ECOSYSTEM_RESEARCH_2026-07-23.md`。当前仍使用 model 路线，不使用 AU `imgpack`；
+AU 诊断记录见 [AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md](AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md)。
+当前仍使用 model 路线，不使用 AU `imgpack`；
 AU Face 是独立脚本 mod，不等同于主 model 里的改脸目录。
 
 ### UCB Imagepack（已集成）
@@ -287,13 +287,13 @@ AU Face 是独立脚本 mod，不等同于主 model 里的改脸目录。
 
 ## 参考文档
 
-- [社区 Mod 调研](COMMUNITY_MOD_RESEARCH.md) - 候选 mod 详细信息
+- [社区 Mod 调研](COMMUNITY_MOD_RESEARCH_2026.md) - 候选 mod 详细信息
 - [Mod 添加清单](MOD_ADDITION_CHECKLIST.md) - 集成流程
-- [AGENTS.md](../AGENTS.md) - 版本锁定和升级策略
+- [当前项目状态](CURRENT_PROJECT_STATE.md) - 当前版本锁、验证层级和公开分发边界
 - [KNOWN_ISSUES.md](KNOWN_ISSUES.md) - 已知问题和 workarounds
 
 ---
 
-**文档状态**: `next-4` 候选已同步，AU Face 仍待真机验收
-**下次更新**: AU-F/M/A 真机测试后
+**文档状态**: `vega` 4.x 公开主线与 base Actions 产物已验证，AU Face 仍待三体型真机验收
+**下次更新**: AU-F/M/A 本地真机测试后
 **维护者**: DOL-X 项目组
