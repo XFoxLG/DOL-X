@@ -138,17 +138,22 @@ asset_pattern = "AUandrogynous.model_v0.1.1.zip"
 release_tag = "mod"
 track_upstream = false  # 锁定精确 model asset，release tag 恒为 "mod"，无版本可追
 
-# DOL-X: Disabled after rollback to maplebirch v3.1.14 (2026-06-23)
-# basehead.png path issue exists on v3.x (fixed in v4.1.7)
-# Will re-enable when maplebirch upgrades to v4.x
+# DOL-X next-4 local canary (2026-07-28): maplebirch v4.1.13 基础栈真机日志
+# 已达到 0 error / 0 warning，解除旧的 v3.x 路径阻塞。本 mod 只注入 AU-F/M/A，
+# 不进入 base；当前仅生成本地候选，不公开上传（AU 作者明确禁止未经授权二传）。
+# 同一官方资产有三层身份：Release 正文 v1.0.4、外层 boot.json v1.1.0、
+# 解密后内层 AU面部扩展 v1.2.8。1.2.8 是运行时实测身份，不是额外旁加载包。
+# AU-F 已确认 UI 挂载，但内层仍请求旧式 blushN/tearN 路径；路径兼容与视觉效果待复验。
 [[modloader_mods]]
 key = "au_face"
 name = "AU面部扩展"
-enabled = false
+enabled = true
 feature_ids = ["au-f", "au-m", "au-a"]
 github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUsDoL.facial.expansion.mod.zip"
 release_tag = "facemod"
+download_url = "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/facemod/AUsDoL.facial.expansion.mod.zip"
+track_upstream = false  # 固定 tag/文件名会原位更新；用 mods.lock 的官方 digest 审核，不拿 releases/latest 误判
 
 [[modloader_mods]]
 key = "more_love"
@@ -166,45 +171,61 @@ key = "maplebirch"
 name = "maplebirch"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
-github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchframework"
-asset_pattern = "maplebirch-0.5.8.10-v3.1.14.mod.zip"
-release_tag = "maplebirch-release-v3.1.14"
-download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v3.1.14/maplebirch-0.5.8.10-v3.1.14.mod.zip"
-track_upstream = false  # 钉死 v3.1.14 等 expansion 出 v4.x 兼容版；升级信号由 maplebirch_expansion 追踪，不单独刷
-# DOL-X: Rolled back from v4.1.8 to v3.1.14 (2026-06-23)
-# Reason: expansion v1.2.4 incompatible with v4.x (multiple runtime errors)
-# Will upgrade to v4.x when expansion v1.2.5+ releases
+github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+asset_pattern = "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+release_tag = "maplebirch-release-v4.1.13"
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.13/maplebirch-0.5.10.12-v4.1.13.mod.zip"
+track_upstream = true  # 构建与更新检查以作者官方仓库为准；XFoxLG 镜像只作官方资产消失时的人工灾备
+# DOL-X next-4 experiment (2026-07-28): maplebirch v3.2.5 -> v4.1.13 (upstream 正式 release).
+# WHY 升到 4.x（推翻了上一轮"v3.2.5 是唯一解"的结论）:
+#   - 上一轮把栈锁在 v3.2.5 的唯一理由是"保住扩展包 maplebirchEx v1.2.4"，但真机
+#     实测 v1.2.4 在 v3.2.5 上炸了（理智/灵性属性 dread/sanity/dreadmax 初始化
+#     不兼容，maplebirchStatusBar/maplebirchOptions 报 undefined）。
+#   - 调研发现作者已把 v1.2.4 删库废弃，功能拆成独立包：LongerCombat v1.0.1 +
+#     YanlingCheatCollection v1.0.1，两者 addonPlugin 都声明 maplebirch ^4.1.0，
+#     面向游戏 0.5.10.12。扩展包正式继任者 Deadwood-Reblooms（枯木逢春）types
+#     依赖 ^4.1.8，也面向 4.x。整个当代生态已迁到 4.x，3.x 是死胡同。
+#   - v4.1.6–v4.1.12 已原生修好 NPC/脸部图层的连字符命名问题，因此自研的
+#     maplebirch-v3-layer-compat 补丁在 4.x 下退役（已从 build.py 本地注入列表移除）。
+#   - cheat_extended v1.20 运行时门控要求框架 >= 3.2.5；4.1.13 >= 3.2.5，门照过。
+# SOURCE: MaplebirchLeaf/SCML-DOL-maplebirchFramework release maplebirch-release-v4.1.13
+#   (2026-07-01, 正式版, asset maplebirch-0.5.10.12-v4.1.13.mod.zip, 186010 bytes)。
+# MIRROR: XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.13，仅作人工灾备，
+#   不作为日常下载源，否则更新检查只能看到自己的镜像、无法发现作者新版本。
+# RISK (experiment target): 跨大版本（3->4）升级，整套 mod 需真机复测；扩展包完整
+#   继任者枯木逢春尚未出包，本轮先用拆出的 LongerCombat/Yanling 两个独立功能包。
 
 [[modloader_mods]]
 key = "cheat_extended"
 name = "cheatExtended"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
-github_repo = "XFoxLG/DOL-X"
-asset_pattern = "cheat_extended_v118.mod.zip"
-release_tag = "cheat-extended-mirror-v1.18"
-download_url = "https://github.com/XFoxLG/DOL-X/releases/download/cheat-extended-mirror-v1.18/cheat_extended_v118.mod.zip"
-track_upstream = false  # 指向本仓库自建镜像；追自己的 latest release 是假信号，必须关
-# DOL-X: Repacked + re-uploaded the v1.18 mirror (2026-07-05).
-# Original defect: the self-hosted v1.18 mirror zip was packed on Windows with
-# BACKSLASH path separators (e.g. "css\CE_CSS.css"), violating the ZIP spec
-# (entries must use forward slash "/"). ModLoader resolves files by the
-# forward-slash paths declared in boot.json, so EVERY file failed to resolve
-# ("cannot get ... from mod zip"): the mod loaded as an empty shell, never
-# registered to maplebirch, and threw 8 "cannot find replaceFile" errors.
-# Fix (Python zipfile, forward-slash guaranteed):
-#   - rewrote all 60+ entries with "/" separators
-#   - dropped garbage: CE_inventory_helper.twee.bak, PIC/* screenshots, mojibake .jpg
-#   - backfilled scriptEarly/Utils/spectrum.{js,css} from the clean v1.19 zip
-#     (version-stable color-picker lib needed by v1.18 skin/eye-color features)
-#   - pruned 2 dangling boot.json refs (addon-replace/Widgets State Man_{1,2}.txt)
-#     that are absent in upstream v1.17/v1.18/v1.19 alike (harmless legacy refs)
-# Result: 63 entries, 0 backslash, all boot.json refs (incl addonPlugin) resolve;
-# CERegist.js + framework_detector.js present so it registers to maplebirch.
-# v1.18 boot.json has NO maplebirch dependency, loads on maplebirch v3.1.14.
-# Source: chris81605 tag V1.18(Dev260325), upstream Release deleted after v1.19
-# (still recoverable via commit history). Mirror pinned here to survive deletion.
-# Do NOT use v1.19: it requires maplebirch > 3.2.5 (we run v3.1.14).
+github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+asset_pattern = "cheat_extended.mod.zip"
+release_tag = "Pre-release"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/Pre-release/cheat_extended.mod.zip"
+track_upstream = true
+include_prerelease_updates = true  # 官方 v1.20 位于 Pre-release 渠道，周检必须读取预发布并比对 asset digest
+# DOL-X next-4 experiment (2026-07-27): cheat_extended v1.18 -> v1.20 betaTest.
+# WHY v1.20:
+#   - Targets game 0.5.10.12 (our current game body); changelog fixes 虚空创造/
+#     黑心商店 on 0.5.10.12 and bundles scripts/CE_HeadMaskCompat.js (avoids the
+#     0.5.8.10-headwear "变光头" bug on new-naming games).
+# RUNTIME SOFT-GATE (verified from the mod's own JS, not boot.json):
+#   - boot.json declares NO maplebirch dependency (only ModLoader>=2.17.0,
+#     TweeReplacer, ReplacePatcher, ImageLoaderHook, SweetAlert2Mod, GameVersion
+#     >=0.5.5.9). The maplebirch requirement is a RUNTIME check:
+#     * scriptEarly/framework_detector.js: if maplebirch mod version < 3.2.5 ->
+#       SweetAlert2 弹窗 "maplebirch框架版本過低".
+#     * scriptEarly/CERegist.js: compareVersions(version,"3.2.5")===1 gate; if
+#       it fails, the else branch only logger.error and NONE of the 7 addTo()
+#       run -> CE features are NOT registered into the game UI.
+#   - Therefore v1.20 REQUIRES maplebirch mod >= 3.2.5. Paired here with
+#     maplebirch v4.1.13; 4.1.13 >= 3.2.5 so the runtime gate passes.
+# SOURCE: chris81605 Pre-release "V1.20 betaTest" (Dev20260708), asset
+#   cheat_extended.mod.zip (243765 bytes). 日常下载与更新检查使用作者官方源；
+#   XFoxLG/DOL-X 的 cheat-extended-mirror-v1.20 只作官方资产消失时的人工灾备。
+#   v1.18 mirror 继续作为回滚档案（v1.18 无框架门控）。
 
 [[modloader_mods]]
 key = "custom_hair"
@@ -228,19 +249,35 @@ release_tag = "DOL"
 download_url = "https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/releases/download/DOL/Mea.s.Picvary.NPC.all.mod.1.3.2.zip"
 track_upstream = false  # 锁定固定 tag DOL，download_url 钉死 1.3.2 asset
 
+# DOL-X next-4 experiment (2026-07-28): 旧扩展包 maplebirchEx v1.2.4 已被拆分替代。
+# 作者删库废弃 v1.2.4，把功能拆成独立包。这里用拆出的两个独立功能包替代整包，
+# 都要求框架 ^4.1.0（addonPlugin），面向游戏 0.5.10.12。
+# 扩展包完整继任者 Deadwood-Reblooms（枯木逢春）尚未出包，出包后再评估接入。
 [[modloader_mods]]
-key = "maplebirch_expansion"
-name = "maplebirch扩展包"
+key = "longer_combat"
+name = "更长遭遇战"
 enabled = true
 feature_id = "maplebirch_expansion"
-github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchExpansion"
-asset_pattern = "maplebirchEx-v*.zip"
-release_tag = "release-v1.2.4"
-# maplebirch 官方扩展包，内置更长遭遇战功能
-# 额外功能：作弊集、音乐播放器、定制纹身、核心属性扩展等
-# DOL-X: Confirmed compatible with maplebirch v3.1.14 (2026-06-23)
-# Will need update for v4.x compatibility when framework upgrades
-download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/download/release-v1.2.4/maplebirchEx-v1.2.4.zip"
+github_repo = "MaplebirchLeaf/LongerCombat"
+asset_pattern = "longer-combat-0.5.10.12-v1.0.1.mod.zip"
+release_tag = "v1.0.1"
+download_url = "https://github.com/MaplebirchLeaf/LongerCombat/releases/download/v1.0.1/longer-combat-0.5.10.12-v1.0.1.mod.zip"
+track_upstream = true  # 官方源优先并纳入每周更新检查；XFoxLG 镜像仅作人工灾备
+# MaplebirchLeaf/LongerCombat v1.0.1 (2026-07-25)，旧扩展包 LongerCombat 功能的独立继任者。
+# addonPlugin 声明 maplebirch ^4.1.0；boot.json dependenceInfo 只要 ModLoader>=2.0 + GameVersion>=0.5.10.12。
+
+[[modloader_mods]]
+key = "yanling_cheat"
+name = "言灵作弊集"
+enabled = true
+feature_id = "maplebirch_expansion"
+github_repo = "MaplebirchLeaf/YanlingCheatCollection"
+asset_pattern = "yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
+release_tag = "v1.0.1"
+download_url = "https://github.com/MaplebirchLeaf/YanlingCheatCollection/releases/download/v1.0.1/yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
+track_upstream = true  # 官方源优先并纳入每周更新检查；XFoxLG 镜像仅作人工灾备
+# MaplebirchLeaf/YanlingCheatCollection v1.0.1 (2026-07-25)，旧扩展包言灵功能的独立继任者。
+# addonPlugin 声明 maplebirch ^4.1.0；boot.json dependenceInfo 只要 ModLoader>=2.0 + GameVersion>=0.5.10.12。
 
 [[modloader_mods]]
 key = "guide_to_me"
@@ -309,6 +346,26 @@ download_url = "https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence/rel
 # maplebirch 插件（boot.json 要求 ModLoader ^2.0.0 + maplebirch ^3.1.0，当前 2.101.1 + 3.1.14 满足）。
 # LLM AI 对话/战斗文本增强，需玩家在游戏内自填 OpenAI 兼容 API key；构建绝不嵌 key。
 # 0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂。许可证 CC BY-NC-SA 4.0。
+
+# DOL-X (2026-07-30): Legacy-Art-Mods-Compat plus 常驻集成。
+# 社区二改 1.0.3-plusV1.1（作者：鎖鏈蝴蝶＠百度貼吧），上游 mirrormirroronwall
+# 的 README 明确允许二改二传。相比官方 1.0.3 新增六条 AU Face 图片名映射规则
+#（blush{n}/tear(s){n} 的 fallback/override）、灰阶优先、服装路径兼容、服装店
+# widget 修改。通过 window.modImgLoaderHooker.addSideHooker 注册 checkImageExist
+# + imageGetter，additive hook，不 patch lyra/ 核心。
+# 绑定 cheat_extended_maplebirch feature（maplebirch 框架栈是 plus 的运行时宿主），
+# 该 feature 是必选位（bit 32768），存在于全部四码，因此 plus 常驻全部四包。
+# 不占独立 bit，四码不变。
+[[modloader_mods]]
+key = "legacy_art_compat"
+name = "旧版图片名称适配"
+enabled = true
+feature_ids = ["cheat_extended_maplebirch"]
+github_repo = "XFoxLG/DOL-X"
+asset_pattern = "Legacy-Art-Mods-Compat.zip"
+release_tag = "legacy-art-compat-plus-v1.1"
+download_url = "https://github.com/XFoxLG/DOL-X/releases/download/legacy-art-compat-plus-v1.1/Legacy-Art-Mods-Compat.zip"
+track_upstream = false  # 社区二改，不走官方源更新检查；SHA-256 由 mods.lock.json 审核
 
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键

@@ -191,28 +191,57 @@
 
 ---
 
-### Q: 为什么我的 DOL-X 使用的是 v1.17 而不是最新的 v1.19？
+### Q: DOL-X 现在用的是哪个版本？高版本作弊拓展需要什么？
 
-**A**: 版本选择原因：
+**A**: DOL-X 当前 `next-4` 本地候选使用 **Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13**；已经公开的 0713 稳定 Release 仍是旧栈，不要把分支候选写成已发布版本。
 
-**技术限制**：
-- Cheat Extended v1.19 需要 maplebirch 框架 ≥v3.2.5
-- 但 v3.2.x 版本不存在，实际需要 v4.x
-- maplebirchExpansion v1.2.4 不兼容 maplebirch v4.x（API 破坏性变更）
+先分清两个**互相独立**的版本维度，这是历史文档最容易搞混的地方：
 
-**权衡决策**：
-- **选择 v1.17** - 保留 maplebirchExpansion 功能（更长战斗、音乐播放器、理智/灵性属性）
-- **放弃 v1.19** - 失去新增功能（农场助手、成就解锁器）
+| 维度 | 含义 | 当前值 |
+|------|------|--------|
+| **框架 mod 版本** | 秋枫白桦框架（maplebirch）这个**前置 mod** 自身的版本 | v4.1.13 |
+| **游戏本体版本** | Degrees of Lewdity 游戏本身的版本 | 0.5.10.12 |
 
-**未来计划**：
-- 等待 maplebirchExpansion 发布 v4.x 兼容版本
-- 届时可升级到 v1.19 并解锁所有新功能
+当前文件名是 `maplebirch-0.5.10.12-v4.1.13.mod.zip`：前面的 `0.5.10.12` 是目标游戏版本，后面的 `v4.1.13` 才是框架 mod 自身版本。作弊拓展比较的是后者。
 
-详见：`AGENTS.md` - "Stable Configuration" 章节
+**v1.19/v1.20 的框架要求 = 框架 mod ≥ v3.2.5**（不是游戏版本）。
+
+**历史勘误**：框架 v3.2.5 确实发布过，只是作者后来撤包删除了 tag；DOL-X 也确实从提交 `33129fe7` 重建过。游戏里显示的“最后更新 2026.07.27”只是重建 ZIP 的成员时间戳，不是作者发布时间。
+
+此前曾根据依赖范围写出“v3.2.5 是唯一解”，这个结论已经被真机证据推翻。旧 maplebirchEx v1.2.4 虽然声明 `maplebirch ^3.1.0`，在 3.2.5 上却会因 `dread`、`sanity`、`dreadmax` 未初始化而报错。作者已把现役功能拆成 LongerCombat v1.0.1 和 YanlingCheatCollection v1.0.1，两者要求 maplebirch `^4.1.0`。因此当前方案是官方 4.1.13，而不是继续修补 3.x。
+
+用户真机验证当前基础栈为 `0 error / 0 warning / 340 info`，Cheat Extended 界面可以打开，抽样的一两个功能正常。这个证据证明当前 UI 和抽样功能可用，不代表全部功能已经逐项覆盖。
+
+详见：`config/build.toml` 中 maplebirch / cheat_extended 配置块注释
 
 ---
 
 ## 故障排查
+
+### Q: 进游戏弹窗提示「maplebirch框架版本過低」，而且作弊功能完全没有？
+
+**A**: 这是**框架 mod 版本不满足运行时门控**的典型表现，两个症状总是一起出现：弹窗 + 功能不加载。
+
+**机制说明**（v1.19/v1.20 适用）：
+
+作弊拓展的框架版本要求**不写在 `boot.json` 的依赖表里**。它的 `boot.json` 只声明 ModLoader、TweeReplacer、ReplacePatcher、ImageLoaderHook、SweetAlert2Mod 和游戏版本下限，**完全没有 maplebirch 这一项**。真正的检查在两个 `scriptEarly` 脚本里，在游戏运行时执行：
+
+| 文件 | 作用 |
+|------|------|
+| `scriptEarly/framework_detector.js` | 若框架 mod 版本 < 3.2.5，弹出 SweetAlert2 警告窗 |
+| `scriptEarly/CERegist.js` | `ModLoaderLoadEnd` 时比对版本，**不达标就只写一条 error 日志，7 个 `addTo()` 注册全部跳过** |
+
+那 7 个注册调用（`Cheats`、`MenuBig`、`CaptionAfterDescription`、`Options`、`HintMobile`、`Footer` 等挂载点）是作弊拓展把自己接进游戏 UI 的唯一途径。跳过 = mod 虽然「加载」了，但没有任何功能入口。
+
+所以「点掉弹窗就能正常玩」是**误解**：弹窗只是通知，真正的后果是功能一个都没注册上。
+
+**解决办法**：把框架 mod 升到 **v3.2.5 或更高**（注意是框架 mod 版本，不是游戏版本）。DOL-X 当前 `next-4` 候选直接使用作者官方 v4.1.13。
+
+**验证方法**：按 `F12` 打开控制台，搜索 `[Cheat Extended]`：
+- 当前放行时应看到 maplebirch 框架 v4.1.13；任何大于等于 v3.2.5 的版本都会通过这个门控
+- 拦截时会看到 `maplebirch 版本過低，至少需要 v3.2.5，當前 vX.X.X`
+
+---
 
 ### Q: 侧边栏的作弊扩展按钮完全不显示？
 
@@ -224,8 +253,8 @@
    - 检查状态为 `[Local]` 且无错误标记
 
 2. **版本兼容性**：
-   - 确认游戏版本为 v0.5.8.10
-   - 确认 maplebirch 框架已加载
+   - 确认游戏版本为 v0.5.10.12（DOL-X 当前版本）
+   - 确认 maplebirch 框架已加载，且框架 mod 版本 ≥ v3.2.5（见上一条问答）
 
 3. **控制台检查**：
    - 按 `F12` 打开浏览器控制台
@@ -234,6 +263,14 @@
 4. **重新加载**：
    - 刷新页面（F5）
    - 清除浏览器缓存后重试
+
+---
+
+### Q: “头部遮罩相容模式”是谁提供的？需要再装 Legacy-Art-Mods-Compat 吗？
+
+**A**: 当前界面里的头部遮罩相容模式由 **Cheat Extended v1.20** 提供。官方包内存在 `scripts/CE_HeadMaskCompat.js`，相关选项也由 Cheat Extended 的侧栏脚本注册。
+
+`Legacy-Art-Mods-Compat.zip` 是另一套通用旧/新图片命名转换器，不是该选项的来源，也不是框架 4.x 的前置。DOL-X 当前没有集成它；只有某个具体旧美化 mod 确实命中其转换表时才需要安装，不能为了“保险”重复叠加。
 
 ---
 
@@ -349,4 +386,13 @@
 
 ---
 
-**最后更新**: 2026-06-17 (基于 Cheat Extended v1.17 调研)
+**最后更新**: 2026-07-28（基于 Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13 真机与构建证据）
+
+**本次修订要点**：
+- 勘误「框架 v3.2.x 不存在」的错误结论：v3.2.5 确实存在，已从被删 tag 的提交 `33129fe7` 重建
+- 明确区分**框架 mod 版本**与**游戏本体版本**两个独立维度，避免继续混淆
+- 补充运行时软门控机制（`framework_detector.js` + `CERegist.js`），说明"弹窗 + 功能不加载"是同一个原因的两个症状
+- 撤回“v3.2.5 是唯一解”：旧扩展包在真机上初始化失败，当前 owner 改为 4.1.13 + 两个官方独立继任者
+- 当前候选更新为作弊拓展 v1.20 / 框架 v4.1.13 / 游戏 0.5.10.12
+- 记录基础栈 `0 error / 0 warning` 与作弊界面、抽样功能通过
+- 明确头部遮罩相容模式属于 Cheat Extended v1.20

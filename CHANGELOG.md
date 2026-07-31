@@ -13,7 +13,87 @@
 
 ## [Unreleased]
 
-暂无未发布变更。
+> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。在 GitHub Actions base 构建与产物检查成功前，0713 仍是当前稳定 Release，本节只代表待发布主线。
+
+> **公开分发边界**：AU 作者 README 明确禁止二传、拆包和未经授权搬运。四个 build code 继续保留本地自构建能力，但公共 Actions 只构建并上传 base `15704320`；获得作者明确授权前不新增公开 AU artifact 或 Release。
+
+> **2026-07-29 后续**：AU-F 0728 本地候选的用户真机测试已经把"AU Face 尚未验收"拆成两层：设置 UI 和配置交互已通过，但运行时仍请求旧式 `blushN` / `tearN` 路径，当前包内 canonical 资源是新式 `blush-N` / `tears-N`。官方 `Legacy-Art-Mods-Compat` 1.0.3 不含这些 AU Face 通配符规则；社区二改 `1.0.3-plusV1.1` 精确包含。用户旁加载 plus 后 `blushN`/`tearN` 报错消失、独立嘴部仪态有效，面纹和流泪视觉效果不碍事、不阻塞主线——属上游 AU Face 加密内层运行时边界，DOL-X 无白盒修复手段。同时确认 maplebirch `PC模型模式` 需要独立 NPC wardrobe 数据，当前 38 个 payload 均未注册衣柜，因此具名剧情 NPC 动态模型回落 `naked` 是设计内行为，不是图片路径 bug。云存档服务端源码位于官方 `cloud-services/`，提供 Go+SQLite 与 Cloudflare Worker+R2+D1 两种自建方案，无公共实例；Go 后端当前缺少客户端会调用的 `/save-code` 路由。详见 `docs/MAPLEBIRCH_CLOUD_NPC_AUFACE_RESEARCH_2026-07-29.md`。
+
+### Added
+
+- **接入官方拆分继任者**：新增 LongerCombat `1.0.1` 与 YanlingCheatCollection `1.0.1`，
+  分别承接旧 maplebirchEx 的更长遭遇战和言灵功能。两个包均来自作者官方仓库，声明
+  maplebirch `^4.1.0`。
+- **AU Face 本地候选**：官方 `AUsDoL.facial.expansion.mod.zip` 仅绑定 AU-F/M/A，不进入基础版。
+  Release 正文版本为 `1.0.4`，包内 manifest 为 `1.1.0`，内层解密后实际注册为 `AU面部扩展 1.2.8`；
+  本地锁定官方 SHA-256 `8f2c1b66f0104e51e4f1c91f8f3a4873db517997a390c1037f4de811d387ecf6`。
+  AU-F 已确认设置 UI 可打开、配置可交互，但运行时仍请求旧式 `blushN` / `tearN` 路径，视觉效果
+  尚未通过；尚未上传。
+- **预发布资产更新追踪**：Mod 配置新增默认关闭的 `include_prerelease_updates`。Cheat Extended
+  v1.20 使用官方 `Pre-release` 通道，更新检查除 tag 外还比较 GitHub asset digest 与
+  `mods.lock.json`，可发现同一 tag 下的原位换包。
+- **GitHub API 认证支持**：本地 downloader 在存在 `GITHUB_TOKEN` 或 `GH_TOKEN` 时附加认证头，
+  避免全量准备过程中耗尽匿名 API 配额；无 token 时保持原行为。
+- **当前事实与治理文档**：新增 `docs/CURRENT_PROJECT_STATE.md`、`UPSTREAM_FRIENDLY_STRATEGY.md`
+  和 `UPSTREAM_DIFF_SUMMARY.md`，统一记录当前栈、发布边界、上游差异和验证层级。
+- **Legacy-Art-Mods-Compat plus 常驻集成**：社区二改 `1.0.3-plusV1.1`（作者：鎖鏈蝴蝶＠百度貼吧，
+  上游 mirrormirroronwall README 允许二改二传）从旁载 A/B 候选升为常驻内置。绑定
+  `cheat_extended_maplebirch` feature（必选位 32768，存在于全部四码），不占独立 bit，四码不变。
+  plus 通过 additive hook（`window.modImgLoaderHooker.addSideHooker`）注入，不 patch `lyra/` 核心。
+  已上传 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`，SHA-256
+  `df1debd4425467c60553a15e090a870b6924c2102614ccab4ff716776d17a727`。
+- **上游友好策略文档**：新建 `UPSTREAM_FRIENDLY_STRATEGY.md` 和 `UPSTREAM_DIFF_SUMMARY.md`，
+  修复 `docs/INDEX.md` 和 `MOD_MATRIX_RATIONALE.md` 中的悬空引用。
+
+### Changed
+
+- **迁移到 maplebirch 4.x 当代生态**：框架从重建的 `3.2.5` 实验方案改为作者官方 `4.1.13`；
+  Cheat Extended 使用作者官方 `1.20(dev260719)` Pre-release。游戏本体版本仍是 `0.5.10.12`，
+  不能把框架版本与游戏版本混淆。
+- **官方源优先**：maplebirch、Cheat Extended、LongerCombat、YanlingCheatCollection 的日常下载
+  与更新检查都改回作者官方仓库。已经存在的 `XFoxLG/DOL-X` 镜像只保留为人工灾备，不做静默
+  自动 fallback，防止上游删包、换包或缓存漂移被掩盖。
+- **运行时验证升级**：用户真机日志确认 4.x 基础栈为 `0 error / 0 warning / 340 info`；
+  Cheat Extended 界面可打开，抽样的一两个功能正常。LongerCombat 与 YanlingCheatCollection
+  均已挂载，但其全部功能仍未逐项遍历。
+- **四变体本地 ZIP 候选**：base/AU-F/AU-M/AU-A 构建 `4/4` 成功。静态 smoke 为 base
+  `36/36`、三个 AU 版各 `38/38` 个有效内嵌 ZIP；base 无 AU payload，AU 三版各只含正确体型
+  model 与 AU Face `1.1.0`。该记录证明本地构建能力，不构成公共转载授权。
+- **明确 NPC 动态模型裸装边界**：maplebirch `PC模型模式` 需要独立 NPC wardrobe 数据；当前
+  38 个 payload 没有任何 mod 注册 `npc.Sidebar.clothes`，框架默认衣柜只有 `naked`，因此
+  具名剧情 NPC 在动态模式下不穿衣服是数据回落，不是图片路径错误。当前建议关闭动态模式，改用
+  Mae's Picvary 静态侧边栏图；完整修复需制作独立 wardrobe mod，尚未实现。
+
+### Removed
+
+- **退役 maplebirchEx v1.2.4**：静态依赖虽允许 maplebirch 3.2.5，真机却出现
+  `dread`、`sanity`、`dreadmax` 未初始化错误；不再注入，只保留旧镜像作回滚档案。
+- **退役 `maplebirch-v3-layer-compat` 注入**：4.x 已原生包含相关图片命名处理，构建不再注入
+  本项目的 v3 backport；源码保留用于 0713 稳定栈历史和回滚。
+
+### Fixed
+
+- **纠正“v3.2.5 是唯一解”**：该说法只成立于静态版本范围，已被旧扩展包的真机初始化失败推翻。
+- **纠正 3.2.5 更新时间解释**：游戏中显示的 2026.07.27 来自 ZIP 重建时间戳，不是作者发布时间，
+  不能据此判断 3.2.5 比 4.x 更新。
+- **明确头部遮罩功能归属**：当前“头部遮罩相容模式”由 Cheat Extended v1.20 的
+  `scripts/CE_HeadMaskCompat.js` 提供，与 `Legacy-Art-Mods-Compat.zip` 无关。
+- **纠正 AU Face 版本身份记录**：官方同一个资产有三层版本号，Release 正文 `1.0.4`、外层
+  `boot.json` `1.1.0`、解密后内层 `AU面部扩展 1.2.8`。外层包在 earlyload 解密 `.crypt` 并
+  lazy-register 内层，因此 ModLoader 会同时列出 `1.1.0` 与 `[SideLoadLazy] 1.2.8`。这是加密 mod
+  的正常内外差异，3.x 时期测试已记录；此前把 `v1.2.8` 写成“无官方证据”属于误判，已改回。
+- **纠正改脸报错归属**：`img/face/kiss改脸/...` 的缺图报错来自 AU 美化本体自带的改脸目录，
+  与 AU 面部扩展无关。0713 稳定版 `au_face` 为 `enabled = false` 时同样存在该红框，可直接排除
+  AU Face 作为起因。AU 面部扩展是另一个独立 mod，本轮才首次进入本地候选，其自身功能尚未验收。
+- **修复 Quick Check 的 GitHub URL 误报**：原有 Python `urllib` 在连续处理 GitHub Release
+  重定向时会随机 `RemoteDisconnected`，导致有效官方链接被判为不可达。改用项目已有的
+  `requests` 客户端并显式跟随重定向，不添加重试或镜像 fallback；复验 12/12 个启用直链通过。
+- **定位 AU Face 图片命名漂移**：运行时请求的是旧式 `img/face/default/blushN.png`、
+  `img/face/default/default/blushN.png`、`img/face/default/tearN.png`，当前包内 canonical
+  资源是新式 `blush-N.png` 与 `tears-N.png`。这不是 AU model `kiss改脸` 的已知缺图，也不是
+  ModLoader error；它是 AU Face 旧路径合同与 DoL 0.5.10.12 新资源命名之间的不匹配。
+  官方 `Legacy-Art-Mods-Compat` 1.0.3 不包含这些 AU Face 通配符规则；社区二改
+  `1.0.3-plusV1.1` 精确包含，并已作为 4.x 候选的常驻命名兼容层接入。
 
 ## [v0.5.10.12-1.0.8a-0713] - 2026-07-13
 

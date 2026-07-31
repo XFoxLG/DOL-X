@@ -1,5 +1,22 @@
 # DOL-X Mod 矩阵决策说明
 
+> **⚠️ 历史文档，不代表当前矩阵**
+>
+> 本文档记录 3.x 时代的 Mod 选择理由。4.x 候选栈已发生重大变更，当前真实矩阵以
+> [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md) 和
+> [`config/combinations.toml`](config/combinations.toml) 为准。下方任何与
+> `CURRENT_PROJECT_STATE.md` 冲突的断言均以该文件为最终权威。
+>
+> 主要已失效条目（仅供历史回溯）：
+> - 「使用 maplebirchExpansion 而非独立 LongerCombat」：4.x 已退役 maplebirchEx `1.2.4`，
+>   改用作者官方独立继任包 LongerCombat `1.0.1` + YanlingCheatCollection `1.0.1`。
+> - 「NeoUI Patch 当前为 AU 侧边栏诊断而禁用」：NeoUI Patch 自 2026-07-05 已升为必选，
+>   进入全部 4 个 build_codes；AU 侧边栏诊断已关闭，确认非 NeoUI 原因。
+> - 「D.O.L.I 不推荐集成」：结论仍成立，但理由部分基于当时无法定位仓库，当前仍无新进展。
+> - 所有 3.x 框架版本号、`v0.5.8.10` 游戏版本引用均过时；当前为 maplebirch `4.1.13` /
+>   DoL `0.5.10.12`。
+> - Legacy-Art-Mods-Compat `1.0.3-plusV1.1` 作为 4.x 候选常驻命名兼容层接入，本文未涉及。
+
 **最后更新**: 2026-07-05  
 **版本**: v1.4
 
