@@ -6,8 +6,10 @@
 
 import logging
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import parse_qs, unquote, urlparse
 
+from .code_validation import parse_build_code
 from .combo import CombinationCalculator
 from .paths import BuildPaths
 from .version import VersionInfo, VersionRegistry
@@ -47,23 +49,42 @@ class ResourceWarmer:
         "ucb": "ucb",
     }
 
-    def __init__(self, paths: BuildPaths):
+    def __init__(
+        self,
+        paths: BuildPaths,
+        codes: list[str] | None = None,
+    ):
         """
         初始化预热器
 
         Args:
             paths: 路径管理器
+            codes: 已通过 CLI 校验的显式构建代码；为空时使用配置默认矩阵
         """
         self.paths = paths
         self.config = load_build_config()
         self.registry = VersionRegistry()
+        self.codes = list(codes) if codes is not None else None
         self.required_feature_ids = self._get_required_feature_ids()
 
     def _get_required_feature_ids(self) -> set[str]:
         """根据当前构建列表推导需要预热的 feature。"""
-        calculator = CombinationCalculator()
         feature_ids: set[str] = set()
 
+        if self.codes is not None:
+            config_loader = get_config_loader()
+            for raw_code in self.codes:
+                parsed_code = parse_build_code(raw_code)
+                if parsed_code.error or parsed_code.code is None:
+                    raise ValueError(
+                        f"显式预热构建代码无效 ({raw_code}): {parsed_code.error}"
+                    )
+                for feature in config_loader.features:
+                    if parsed_code.code & feature.bit:
+                        feature_ids.add(feature.id)
+            return feature_ids
+
+        calculator = CombinationCalculator()
         for combination in calculator.calculate(include_polyfill=False):
             for feature in calculator.features:
                 if combination.code & feature.bit:
@@ -166,20 +187,14 @@ class ResourceWarmer:
 
         logger.info(f"  下载: {pack_name}")
         
-        # 获取图片包配置（支持多 URL）
-        imagepack_config = None
-        if config_name:
-            imagepack_config = self.config.imagepacks.get(config_name)
-        
-        # 如果有配置且有 URLs，使用配置的 URLs
-        if imagepack_config and imagepack_config.urls:
-            urls = imagepack_config.urls
-            logger.info(f"  找到 {len(urls)} 个 URL（配置: {config_name}）")
-        else:
-            # 否则使用默认 URL
-            urls = [f"{self.config.dolp_base_url}/{pack_name}"]
-            logger.info(f"  使用默认 URL")
-        
+        urls = self._get_dolp_pack_urls(pack_name, config_name)
+        logger.info(
+            "  找到 %s 个与组件 %s 匹配的 URL（配置: %s）",
+            len(urls),
+            pack_name,
+            config_name or "default",
+        )
+
         # 尝试每个 URL，直到成功
         last_error = None
         for idx, url in enumerate(urls, 1):
@@ -201,6 +216,39 @@ class ResourceWarmer:
         img_dir = extract_dir / "img"
         img_dir.mkdir(parents=True, exist_ok=True)
         extract_tar_gz(tar_path, img_dir, strip_components=3)
+
+    def _get_dolp_pack_urls(
+        self,
+        pack_name: str,
+        config_name: str | None,
+    ) -> list[str]:
+        """Return source and mirror URLs that belong to one DoL+ pack."""
+        imagepack_config = (
+            self.config.imagepacks.get(config_name) if config_name else None
+        )
+        configured_urls = imagepack_config.urls if imagepack_config else []
+        matching_urls = [
+            source_url
+            for source_url in configured_urls
+            if self._url_targets_dolp_pack(source_url, pack_name)
+        ]
+        if matching_urls:
+            return matching_urls
+
+        return [f"{self.config.dolp_base_url}/{pack_name}"]
+
+    @staticmethod
+    def _url_targets_dolp_pack(source_url: str, pack_name: str) -> bool:
+        """Match query-path and mirror filename forms without substring collisions."""
+        parsed_url = urlparse(source_url)
+        query_values = parse_qs(parsed_url.query).get("path", [])
+        for query_path in query_values:
+            if PurePosixPath(unquote(query_path)).name == pack_name:
+                return True
+
+        source_filename = PurePosixPath(unquote(parsed_url.path)).name.casefold()
+        expected_mirror_suffix = f"imagepacks-{pack_name}.tar.gz".casefold()
+        return source_filename.endswith(expected_mirror_suffix)
 
     def _process_besc(self):
         """处理 BESC 美化包"""
