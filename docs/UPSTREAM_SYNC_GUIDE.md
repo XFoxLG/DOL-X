@@ -44,9 +44,11 @@
 
 ## 设置 Upstream Remote
 
+上游构建仓库是 `DoL-Lyra/Lyra`，不是 `sakarie9/DoL-Lyra`（后者是早期分发，已不作为构建上游）。
+
 ```bash
 # 添加上游仓库
-git remote add upstream https://github.com/sakarie9/DoL-Lyra.git
+git remote add upstream https://github.com/DoL-Lyra/Lyra.git
 
 # 验证
 git remote -v
@@ -151,7 +153,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
       - name: Add Upstream
-        run: git remote add upstream https://github.com/sakarie9/DoL-Lyra.git
+        run: git remote add upstream https://github.com/DoL-Lyra/Lyra.git
       
       - name: Fetch Upstream
         run: git fetch upstream
@@ -251,5 +253,9 @@ git revert -m 1 HEAD
 
 ## 参考
 
-- 上游仓库: https://github.com/sakarie9/DoL-Lyra
-- 上游文档: 查看 upstream README
+- 上游构建仓库: https://github.com/DoL-Lyra/Lyra
+- 游戏本体: https://github.com/Vrelnir/Degrees-of-Lewdity
+- 汉化仓库: https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization
+- 当前差异摘要: [UPSTREAM_DIFF_SUMMARY.md](../UPSTREAM_DIFF_SUMMARY.md)
+- 上游友好策略: [UPSTREAM_FRIENDLY_STRATEGY.md](../UPSTREAM_FRIENDLY_STRATEGY.md)
+- 当前事实入口: [CURRENT_PROJECT_STATE.md](CURRENT_PROJECT_STATE.md)

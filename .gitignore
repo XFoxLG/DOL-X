@@ -63,6 +63,7 @@ DoL-ModLoader*
 tests/
 !lyra/tests/
 !tests/
+!tests/test_public_distribution_boundary.py
 base/
 
 # Local AI/Trellis tooling (do not publish project-local runtime/config drafts)
@@ -141,6 +142,9 @@ MIGRATION_NOTICE.md
 PROFILE_USAGE.md
 UNATTENDED_EXECUTION_GUIDE.md
 UPSTREAM_FRIENDLY_STRATEGY.md
+# 上游策略与差异摘要已经成为正式项目文档，覆盖上方历史忽略规则。
+!UPSTREAM_FRIENDLY_STRATEGY.md
+!UPSTREAM_DIFF_SUMMARY.md
 
 # 临时测试工具
 tools/adb_resolution.py
