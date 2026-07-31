@@ -2,10 +2,16 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-07-13  
-**当前框架**: maplebirch v3.1.14 + expansion v1.2.4  
-**当前游戏版本**: DoL v0.5.8.10  
-**当前作弊**: Cheat Extended v1.18（项目自建镜像，2026-07-05 重打包）
+**最后更新**: 2026-07-28
+**当前未发布候选框架 mod**: maplebirch v4.1.13（作者官方 Release）
+**当前游戏本体版本**: DoL v0.5.10.12（汉化仓库 tag `v0.5.10.12-chs-1.0.8a`）
+**当前未发布候选作弊**: Cheat Extended v1.20 betaTest（作者官方 Pre-release）
+
+> **两个版本维度不要混淆**：「框架 mod 版本」（v4.1.13）指秋枫白桦框架这个**前置 mod** 自身的版本；
+> 「游戏本体版本」（0.5.10.12）指游戏本身。下方表格的 "DoL 版本" 列一律指**游戏本体版本**，
+> "框架要求" 列一律指**框架 mod 版本**。
+>
+> 已公开的 0713 稳定 Release 仍是历史 3.x 栈；本表顶部“当前”均指 `next-4` 本地候选，尚未发布。
 
 ---
 
@@ -14,7 +20,7 @@
 ### 测试环境
 
 - **本地配置验证**: `python -m pytest tests/ -v`
-- **构建产物**: GitHub Actions `Build` workflow（本地不执行完整构建）
+- **构建产物**: 本地或 GitHub Actions；本轮已实际完成四个 ZIP，本轮没有构建 APK
 - **浏览器测试**: `python tools/browser_smoke_test.py output/*.zip`
 - **模拟器测试**: APK 在 MuMu 模拟器上运行
 - **ModLoader 日志**: 检查加载错误和冲突
@@ -31,7 +37,7 @@
 
 | 状态 | 说明 | 图标 |
 |------|------|------|
-| ✅ 通过 | 所有测试通过，可以集成 | ✅ |
+| ✅ 通过 | 已完成该行声明范围内的测试；不自动外推到未列功能 | ✅ |
 | ⚠️ 部分通过 | 功能可用但有小问题 | ⚠️ |
 | ❌ 失败 | 测试失败，不可集成 | ❌ |
 | 🔄 待测试 | 尚未测试 | 🔄 |
@@ -41,31 +47,49 @@
 
 ## 当前集成 Mod 状态
 
-### 必选 Mod（已集成）
+### `next-4` 必选 Mod（本地候选）
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| maplebirch Framework | v3.1.14 | - | 0.5.8.10 | ✅ | 无 | 核心框架，稳定版 |
-| Cheat Extended | v1.18 | v3.x | 0.5.8.10 | ⚠️ | 自定义言灵集 widget 报错（v1.17 时记录，v1.18 是否消除未复测） | Workaround: 使用快速言灵 |
-| maplebirch Expansion | v1.2.4 | v3.1.14 | 0.5.8.10 | ✅ | 无 | 完全兼容 |
+| maplebirch Framework | **v4.1.13** | - | 0.5.10.12 | ✅ 基础栈 smoke | 全功能未遍历；云存档需自建后端 | 官方资产 digest 一致；用户真机总日志 0 error / 0 warning |
+| Cheat Extended | **v1.20 betaTest** | **≥v3.2.5**（运行时软门控） | 0.5.10.12 | ✅ 抽样通过 | Pre-release 可在同 tag 下换包，按 digest 跟踪 | UI 可打开、抽样功能正常；头部遮罩相容模式来自该 mod |
+| LongerCombat | **v1.0.1** | `^4.1.0`（addonPlugin） | ≥0.5.10.12 | ⚠️ 已挂载 | 具体倍率与长战斗行为未逐项测试 | 作者官方独立继任者，`dist/script.js` 已挂载 |
+| YanlingCheatCollection | **v1.0.1** | `^4.1.0`（addonPlugin） | ≥0.5.10.12 | ⚠️ 已挂载 | 言灵命令未逐项遍历 | 作者官方独立继任者，`yanlingCheat` 已暴露 |
+| maplebirchEx（旧整包） | v1.2.4 | `^3.1.0` | 0.5.10.12 | ❌ 退役 | 3.2.5 真机出现 dread/sanity/dreadmax undefined | 不再注入；镜像只作历史回滚档案 |
 | CustomHair | v1.0.0 | 无要求 | 0.5.2.7-0.5.2.10 | ✅ | 无 | 十六进制输入框需先点击“自定义染发”选项才出现 |
-| More Love Interests | v0.1.6.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 独立功能 |
-| Mae's Picvary NPC | v1.3.2 | 无要求 | 0.5.8.10 | ✅ | 无 | 侧边栏头像 |
-| Guide To Me | v1.1.0 | 无要求 | 0.5.8.10 | ✅ | 无 | 控制 NPC 嘴部动作，当前稳定矩阵启用 |
-| NeoUI Patch | V1.1.0 | 无要求 | 0.5.8.10 | ✅ | 覆盖式侧边栏遮挡正文为设计本意、非 bug；经对比确认非 AU 错位原因 | 2026-07-05 升为必选，进入全部 4 个 build_codes |
-| NPC Social Icon | v1.4.1 | 无要求 | 0.5.8.10 | ✅ | 无 | 当前稳定矩阵启用；与 Mae's Picvary 作用域不同 |
-| BunnyTransformation | v0.3.1β | 无要求 | 0.5.8.10 | ❌ | 16 个 TweeReplacer 错误和战斗崩溃 | 已禁用，不进入当前稳定 build_codes |
+| More Love Interests | v0.1.6.0 | 无要求 | 0.5.10.12 | ✅ | 无 | 独立功能 |
+| Mae's Picvary NPC | v1.3.2 | 无要求 | 0.5.10.12 | ✅ | 无 | 侧边栏头像 |
+| Guide To Me | v1.1.0 | 无要求 | 0.5.10.12 | ✅ | 无 | 控制 NPC 嘴部动作，当前稳定矩阵启用 |
+| NeoUI Patch | V1.1.0 | 无要求 | 0.5.10.12 | ✅ | 覆盖式侧边栏遮挡正文为设计本意、非 bug；经对比确认非 AU 错位原因 | 2026-07-05 升为必选，进入全部 4 个 build_codes |
+| NPC Social Icon | v1.4.1 | 无要求 | 0.5.10.12 | ✅ | 无 | 当前稳定矩阵启用；与 Mae's Picvary 作用域不同 |
+| BunnyTransformation | v0.3.1β | 无要求 | 0.5.10.12 | ❌ | 16 个 TweeReplacer 错误和战斗崩溃 | 已禁用，不进入当前稳定 build_codes |
 
-### AU 美化（已集成，可选）
+**2026-07-28 结论修正（next-4 分支）**
+
+旧的“v3.2.5 是唯一解”只比较了依赖声明，没有覆盖运行时初始化，现已撤回：
+
+| 组合 | 静态依赖 | 真机结果 | 决策 |
+|---|---|---|---|
+| 3.1.14 + Cheat Extended 1.20 | CE 门控不满足 | 弹窗，7 个 UI 注册跳过 | 不采用 |
+| 3.2.5 + maplebirchEx 1.2.4 + CE 1.20 | 表面满足 | dread/sanity/dreadmax undefined | 不采用 |
+| 4.1.13 + CE 1.20 + LongerCombat + Yanling | 现役包要求满足 | 0 error / 0 warning，CE 抽样正常 | 当前候选 |
+
+当前候选四个 ZIP 本地构建 `4/4` 成功；base 为 36 个有效 payload，三个 AU 版各 38 个。
+完整文件哈希与 payload 身份见 `SESSION_STATUS_2026-07-28.md`。3.2.5 重建包显示的
+2026.07.27 是重打包时间戳，不是作者更新顺序。
+
+### AU 美化（本地候选，可选）
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| AU Female model | v0.9.3 | 无要求 | 0.5.8.10 | 🔄 | AU-F 侧边栏错位诊断中 | 与上游 Lyra 对齐；NeoUI 禁用后待复测 |
-| AU Male model | v0.4.2 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
-| AU Androgynous model | v0.1.1 | 无要求 | 0.5.8.10 | 🔄 | 待最新构建复测 | 使用 `mod` release 的 model 直装模组 |
-| AU Face Expansion | v1.2.8 | v4.1.7+ | 0.5.8.10 | ❌ | 已禁用；不要与 AU model 本体混淆 | `facemod` release，等待 v4.x 升级或重新验证 |
+| AU Female model | v0.9.3 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 与 AU Face 组合待真机视觉验收 | 官方 `mod` Release，model 直装 |
+| AU Male model | v0.4.2 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 与 AU Face 组合待真机视觉验收 | 官方 `mod` Release，model 直装 |
+| AU Androgynous model | v0.1.1 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 作者资源仍不完整，需最严格复测 | 官方 `mod` Release，model 直装 |
+| AU Face Expansion | Release v1.0.4 / 外层 v1.1.0 / 内层 v1.2.8 | manifest 无 maplebirch 硬依赖 | 待 0.5.10.12 真机验证 | ⚠️ 本地候选 | 运行时仍请求旧式 blushN/tearN；视觉效果未通过 | 只进 AU 三版；base 明确不注入；未上传 |
 
-AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认不使用 AU `imgpack`，因为覆盖 imagepack 层会增加与 UCB 的路径冲突风险。
+AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md` 与
+`docs/AU_ECOSYSTEM_RESEARCH_2026-07-23.md`。当前仍使用 model 路线，不使用 AU `imgpack`；
+AU Face 是独立脚本 mod，不等同于主 model 里的改脸目录。
 
 ### UCB Imagepack（已集成）
 
@@ -75,7 +99,11 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 
 ---
 
-## 高优先级候选（maplebirch v3.1.14 兼容）
+## 历史候选清单（需按当前 4.x 栈重新评估）
+
+以下表格形成于 3.x 阶段，只保留候选来源，不再代表当前兼容结论、优先级或排期。
+任何候选都必须重新读取当前 Release、`boot.json` 和运行时依赖后再决定，不能沿用旧的
+“兼容 v3.1.14 即可”标准。
 
 ### 视觉美化类
 
@@ -111,7 +139,10 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 
 ---
 
-## 等待 v4.x 升级后测试
+## 其他框架与高改动候选
+
+框架已升级到 4.1.13，因此“等待 v4.x”不再是有效阻塞原因。Simple Framework 仍是另一个
+互斥 provider，不能与 maplebirch 同包启用；其依赖 mod 若要测试，应另开隔离候选。
 
 ### Simple Framework 依赖
 
@@ -142,9 +173,10 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 **DOL-X 版本**: [当前 commit]
 
 ### 测试环境
-- maplebirch: v3.1.14
-- expansion: v1.2.4
-- DoL: 0.5.8.10
+- maplebirch: v4.1.13
+- LongerCombat: v1.0.1
+- YanlingCheatCollection: v1.0.1
+- DoL: 0.5.10.12
 - 构建码: 15704320
 
 ### 测试步骤
@@ -235,9 +267,9 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 
 ### 添加新 Mod 前必查
 
-- [ ] 检查 maplebirch 版本要求（v3.1.14 或更低）
-- [ ] 检查 DoL 版本要求（0.5.8.10）
-- [ ] 检查是否依赖 Simple Framework（当前不支持）
+- [ ] 区分框架 mod 版本要求与 DoL 游戏本体版本要求
+- [ ] 检查是否支持 maplebirch v4.1.13 与 DoL 0.5.10.12
+- [ ] 检查是否依赖 Simple Framework；它与 maplebirch 是互斥 provider，必须隔离测试
 - [ ] 检查 GitHub 最后更新时间（6 个月内）
 - [ ] 检查是否开源且无密码保护
 - [ ] 阅读 mod README 和 boot.json
@@ -262,6 +294,6 @@ AU 诊断记录：`docs/AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md`。当前默认
 
 ---
 
-**文档状态**: ✅ 初始版本完成  
-**下次更新**: Sprint 2 测试完成后  
+**文档状态**: `next-4` 候选已同步，AU Face 仍待真机验收
+**下次更新**: AU-F/M/A 真机测试后
 **维护者**: DOL-X 项目组

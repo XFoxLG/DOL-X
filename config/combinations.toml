@@ -1,19 +1,25 @@
 # MOD 组合配置
 
-# DOL-X 自用构建列表（v3.1.14 稳定版）：UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary + maplebirch_expansion + 新mod集
-# 策略说明：
-#   - maplebirch v3.1.14（稳定版，与 expansion v1.2.4 完全兼容）
-#   - Cheat Extended v1.17（完整言灵系统：自定义言灵集 + 快速言灵）
-#   - AU Face 已禁用（v3.x 的 basehead.png 路径问题，需等 v4.x 升级）
+# DOL-X 自用构建列表（next-4 实验分支状态，2026-07-28）：
+# UCB + more-love + cheatExtended+maplebirch + custom_hair + mae_picvary
+#   + 拆分后的框架扩展功能包 + 控制NPC嘴部 + NeoUI + NPC社交栏头像 + D.O.L.I
+# 策略说明（两个版本维度不要混淆：框架 mod 版本 vs 游戏本体版本）：
+#   - maplebirch 框架 mod 升到官方 v4.1.13；游戏本体仍是 0.5.10.12
+#   - Cheat Extended v1.20（运行时软门控要求框架 mod >= 3.2.5，v4.1.13 放行）
+#   - 旧整包 maplebirchEx v1.2.4 已退役：真机在框架 3.2.5 上报 dread/sanity/dreadmax
+#     undefined。现由官方拆分包 LongerCombat v1.0.1 + YanlingCheatCollection v1.0.1
+#     承担，两者 addonPlugin 都要求框架 ^4.1.0，共用 maplebirch_expansion 这个 feature
+#     bit（262144），因此构建码数值不变。
+#   - 自研 maplebirch-v3-layer-compat 在 4.x 下退役，已从 build.py 本地注入列表移除
+#   - AU Face 本轮启用，但只绑定 au-f/au-m/au-a，基础码 15704320 不注入；仍待逐体型真机验收
 #   - 移除 Custom-Spellbook：Cheat Extended 的言灵集功能已完全覆盖（2026-06-17实测）
-#   - v4.x 升级计划：等待 expansion v1.2.5+ 发布原生 v4.x 支持后统一升级
-#   - 已集成mod（2026-06-24）：控制NPC嘴部 + NPC社交栏头像
 #   - NeoUI Patch (2026-07-05 升为必选)：独立美化 UI mod，全部包内置
 #
 # 计算（包含所有必选mod）：
 # 必选基线: 15704320 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 2097152 (neoui_patch) + 4194304 (npc_social_icon) + 8388608 (doli)
 # 已禁用: 1048576 (bunny_transformation) — v0.3.1β 不兼容，导致战斗系统崩溃（16个 TweeReplacer 错误）
 # AU 变体：+ 1024 (au-f) = 15705344, + 2048 (au-m) = 15706368, + 4096 (au-a) = 15708416
+# AU Face 不占独立 bit：由 au-f/au-m/au-a 任一命中时注入，因此只出现在上面三个 AU 码，不进基础码。
 # NeoUI 于 2026-07-05 从可选升为必选，进入全部组合，不再构建无 NeoUI 的包。
 # D.O.L.I（bit 8388608）于 2026-07-01 加入，作为必选 mod 进入全部组合。
 build_codes = ["15704320", "15705344", "15706368", "15708416"]
