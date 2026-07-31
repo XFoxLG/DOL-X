@@ -163,7 +163,7 @@ AU 三码只表示本地构建能力，不表示可以从 DOL-X 公开下载：
 
 - maplebirch 4.1.13 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1。
 - 基础栈用户真机日志为 `0 error / 0 warning / 340 info`，作弊界面可打开，抽样功能正常。
-- GitHub Actions run [`30610401219`](https://github.com/XFoxLG/DOL-X/actions/runs/30610401219) 已成功构建并上传
+- GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/30611108121) 已成功构建并上传
   `DoL-0.5.10.12-XFox-1.0.8a-base-0731.zip` 与 `.apk`；公开输出仅有 base。
 - 四个 ZIP 已在本地成功构建并通过静态 payload 检查；基础版不含 AU/AU Face，三个 AU 版各含正确体型和 AU Face 1.1.0。
 - AU Face 尚未完成三种体型真机验收，因此三个 AU 本地变体不是新稳定 Release，也没有公开上传。

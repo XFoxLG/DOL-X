@@ -20,7 +20,7 @@
 ### 测试环境
 
 - **本地配置验证**: `python -m pytest tests/ -v`
-- **构建产物**: 本地已完成四个 ZIP；GitHub Actions run `30610401219` 已完成公开 base ZIP/APK
+- **构建产物**: 本地已完成四个 ZIP；GitHub Actions run `30611108121` 已完成公开 base ZIP/APK
 - **浏览器测试**: `python tools/browser_smoke_test.py output/*.zip`
 - **模拟器测试**: APK 在 MuMu 模拟器上运行
 - **ModLoader 日志**: 检查加载错误和冲突
@@ -75,7 +75,7 @@
 | 4.1.13 + CE 1.20 + LongerCombat + Yanling | 现役包要求满足 | 0 error / 0 warning，CE 抽样正常 | 当前主线 |
 
 四个 ZIP 本地构建 `4/4` 成功；base 为 36 个有效 payload，三个 AU 版各 38 个。公共 Actions
-run `30610401219` 只构建并上传 base ZIP/APK。3.2.5 重建包显示的 2026.07.27 是重打包时间戳，
+run `30611108121` 只构建并上传 base ZIP/APK。3.2.5 重建包显示的 2026.07.27 是重打包时间戳，
 不是作者更新顺序。当前事实与产物名见 [CURRENT_PROJECT_STATE.md](CURRENT_PROJECT_STATE.md)。
 
 ### AU 美化（本地候选，可选）
