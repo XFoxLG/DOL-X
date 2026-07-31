@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-07-30T04:30:00Z",
+  "last_updated": "2026-07-31T06:44:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
@@ -14,7 +14,7 @@
       "last_tested_date": "2026-07-28",
       "status": "runtime-validated-base",
       "notes": [
-        "DOL-X next-4 (2026-07-28): v3.2.5 experiment was superseded by the official v4.1.13 release after real runtime evidence showed maplebirchEx v1.2.4 fails on v3.2.5",
+        "DOL-X vega 4.x (2026-07-28): v3.2.5 experiment was superseded by the official v4.1.13 release after real runtime evidence showed maplebirchEx v1.2.4 fails on v3.2.5",
         "User runtime log for the base stack reports 0 error / 0 warning / 340 info with maplebirch 4.1.13, Cheat Extended 1.20, LongerCombat 1.0.1 and YanlingCheatCollection 1.0.1 loaded",
         "Cheat Extended UI opens and the user smoke-tested one or two functions successfully",
         "Official upstream is the primary download and update source; XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.13 is archive-only manual disaster recovery",
@@ -100,7 +100,7 @@
       "last_tested_date": "2026-07-28",
       "status": "runtime-smoke-passed",
       "notes": [
-        "DOL-X next-4: v1.20 betaTest is paired with the official maplebirch v4.1.13 release; the >=3.2.5 runtime gate passes",
+        "DOL-X vega 4.x: v1.20 betaTest is paired with the official maplebirch v4.1.13 release; the >=3.2.5 runtime gate passes",
         "RUNTIME SOFT-GATE (read from the mod's own JS, NOT boot.json): boot.json declares only ModLoader>=2.17.0 / ImageLoaderHook / TweeReplacer / ReplacePatcher / SweetAlert2Mod / GameVersion>=0.5.5.9 -- there is NO maplebirch entry. The framework requirement lives in scriptEarly/framework_detector.js (SweetAlert2 popup if maplebirch mod version < 3.2.5) and scriptEarly/CERegist.js (compareVersions gate; on failure only logger.error runs and all 7 addTo() registrations are skipped, so CE loads as a shell with no UI entry points)",
         "USER VERIFIED 2026-07-28: the Cheat Extended interface opens and one or two sampled functions work; the same run reports 0 error / 0 warning / 340 info",
         "v1.20 targets game 0.5.10.12 and bundles scripts/CE_HeadMaskCompat.js; the visible head-mask compatibility mode belongs to Cheat Extended, not Legacy-Art-Mods-Compat or maplebirch",
@@ -159,8 +159,8 @@
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
         "DOL-X: restored AU-F to v0.9.3 to align with upstream Lyra and AOKIUTAGE latest model asset",
-        "The 2026-07-28 next-4 local candidate adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
-        "AU assets are downloaded from the author repository and are not mirrored or uploaded by this canary"
+        "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
+        "AU assets are downloaded from the author repository and are not mirrored or uploaded by public Actions"
       ]
     },
     "au_m": {
@@ -176,7 +176,7 @@
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
-        "The 2026-07-28 next-4 local candidate adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation"
+        "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation"
       ]
     },
     "au_a": {
@@ -192,7 +192,7 @@
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
-        "The 2026-07-28 next-4 local candidate adds AU Face v1.1.0 manifest payload; AU-A has stronger upstream incompleteness reports and needs the strictest runtime review"
+        "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; AU-A has stronger upstream incompleteness reports and needs the strictest runtime review"
       ]
     },
     "au_face": {
@@ -206,7 +206,7 @@
       "last_tested_date": "2026-07-28",
       "status": "enabled-local-canary-pending-runtime",
       "notes": [
-        "Enabled only on next-4 local AU-F/AU-M/AU-A candidates after the maplebirch v4.1.13 base stack reached 0 errors and 0 warnings",
+        "Enabled only for local AU-F/AU-M/AU-A builds after the maplebirch v4.1.13 base stack reached 0 errors and 0 warnings",
         "Never injected into base code 15704320; it is bound to au-f/au-m/au-a feature IDs",
         "Three identities belong to the same official asset: release text v1.0.4, outer wrapper boot.json v1.1.0, and inner decrypted mod v1.2.8; the outer wrapper decrypts its .crypt payload at earlyload and calls lazyRegisterNewModZipData, so ModLoader lists the inner mod as [SideLoadLazy] AU面部扩展 1.2.8",
         "The earlier 3.x-era tests already recorded this outer/inner split; a v1.2.8 lock entry is therefore valid evidence, not an unsourced value",
@@ -255,14 +255,14 @@
       "release_tag": "V1.1.0",
       "last_tested_version": "V1.1.0",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-24",
-      "status": "disabled-diagnostic",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "required-runtime-validated",
       "notes": [
-        "DOL-X: Disabled for AU sidebar diagnostic (2026-06-29)",
+        "DOL-X: promoted to a required feature in all four build codes after the AU sidebar comparison closed (2026-07-05)",
         "Provides click-outside-to-close sidebar behavior when enabled",
-        "Overlay sidebar layout can cover content by design and is suspected to interact with AU/sidebar avatar rendering",
-        "Keep version lock for easy re-enable after comparison testing"
+        "Overlay sidebar layout can cover content by design; comparison testing confirmed it was not the AU sprite-misalignment cause",
+        "Included in the 4.x base runtime stack that reported 0 errors and 0 warnings"
       ]
     },
     "npc_social_icon": {
@@ -307,15 +307,16 @@
       "last_tested_version": "1.0.3-plusV1.1",
       "last_tested_sha256": "df1debd4425467c60553a15e090a870b6924c2102614ccab4ff716776d17a727",
       "last_tested_dol_version": "0.5.10.12",
-      "last_tested_date": "2026-07-30",
-      "status": "enabled-pending-rebuild",
+      "last_tested_date": "2026-07-31",
+      "status": "enabled-actions-base-validated",
       "notes": [
         "Community plus of mirrormirroronwall/Legacy-Art-Mods-Compat; upstream README explicitly allows modification and redistribution",
         "Plus author: 鎖鏈蝴蝶 @ 百度貼吧 (acknowledged in bundled readme.md)",
         "Difference vs upstream 1.0.3: six AU Face image-name fallback/override rules (blush{n} / tear(s){n}), grayscale-first ordering, clothing path compatibility, clothing-shop widget adjustment",
         "Hook mechanism: window.modImgLoaderHooker.addSideHooker registers checkImageExist + imageGetter; additive, no patch to lyra/ core",
         "Bound to cheat_extended_maplebirch feature (required bit 32768, in all four build codes); does not occupy an independent bit; four codes unchanged",
-        "User runtime evidence 2026-07-29: AU Face blushN/tearN errors disappeared with plus sideloaded; independent mouth posture confirmed working; face pattern and tear visual effects still unverified but not blocking"
+        "User runtime evidence 2026-07-29: AU Face blushN/tearN errors disappeared with plus sideloaded; independent mouth posture confirmed working; face pattern and tear visual effects still unverified but not blocking",
+        "GitHub Actions run 30610401219 built and uploaded the public base ZIP/APK with this compatibility layer enabled"
       ]
     }
   }

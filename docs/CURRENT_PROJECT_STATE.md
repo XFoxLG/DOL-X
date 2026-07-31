@@ -4,7 +4,7 @@
 
 **事实基线**：`vega` 的 4.x 公开主线 + `vega-archive-0713` 历史稳定归档
 
-本文是 DOL-X 当前状态的唯一总入口。带日期的会话记录、贴吧/Discord 抓取、Aegis 工作记录和
+本文是 DOL-X 当前状态的唯一总入口。带日期的会话记录、贴吧/Discord 抓取和
 `MOD_MATRIX_RATIONALE.md` 中的旧决策只保留历史价值；与本文冲突时，以配置、锁文件、GitHub 实况和
 本文列出的验证结果为准。
 
@@ -14,12 +14,12 @@
 - 直接构建上游是 `DoL-Lyra/Lyra`，上游默认分支为 `vega`；同步方向是
   `DoL-Lyra/Lyra -> DOL-X`。
 - 0713 稳定基线保存在 `vega-archive-0713`，归档分支已在 GitHub 核验存在。
-- `vega` 从该干净基线重建为 4.x 公开主线，只包含公共配置、代码、测试和文档。远端 Actions base
-  构建成功前，最新已发布稳定 Release 仍是 0713。
+- `vega` 从该干净基线重建为 4.x 公开主线，只包含公共配置、代码、测试和文档。GitHub Actions
+  run `30610401219` 已完成 base 构建与 artifact 上传；最新已打 tag 的稳定 Release 仍是 0713。
 
-## 2. 4.x 候选栈
+## 2. 4.x 公开主线栈
 
-当前候选仍使用 DoL `0.5.10.12` / 汉化 `1.0.8a`，框架与功能 mod 为：
+当前 `vega` 使用 DoL `0.5.10.12` / 汉化 `1.0.8a`，框架与功能 mod 为：
 
 - maplebirch Framework `4.1.13`（作者官方 Release）。
 - Cheat Extended `1.20(dev260719)`（作者官方 Pre-release）。
@@ -46,6 +46,15 @@ AU 作者仓库 README 明确写明 AU 原版部件及衍生内容“严禁二�
 公开 `.github/workflows/build.yaml` 只构建并上传 base `15704320`。AU 三码必须由用户从作者官方 Release
 获取资源后在本地自构建，或在获得作者明确授权后再开放公共 artifact/Release。历史 0713 曾公开包含
 AU，不构成继续分发的授权依据。
+
+GitHub Actions run [`30610401219`](https://github.com/XFoxLG/DOL-X/actions/runs/30610401219) 已在提交
+`5356de3` 上成功生成并上传：
+
+- `DoL-0.5.10.12-XFox-1.0.8a-base-0731.zip`
+- `DoL-0.5.10.12-XFox-1.0.8a-base-0731.apk`
+
+日志中的 `PUBLIC_BUILD_CODES` 为 `15704320`，输出目录只有上述两件 base 产物。该次运行由分支推送
+触发，所以 release job 按设计跳过；产物保存在 Actions artifact，不等同于新建 GitHub Release。
 
 ## 4. AU Face 与 plus
 
@@ -82,5 +91,5 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、plus ZIP manifest、配置加载、Quick Check、
-Python 编译与自动测试。真实 GitHub Actions 构建状态必须以推送候选分支后的远端 run 为准；在 run
-成功前不得把候选写成已发布稳定版。
+Python 编译、177 项自动测试，以及 GitHub Actions base ZIP/APK 构建和 artifact 上传。AU 三个本地
+变体仍未取得公开转载授权，也未由公共 Actions 构建或上传。

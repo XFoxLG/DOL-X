@@ -72,7 +72,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ### 包含的 Mod
 
-**4.x 候选的基础 Mod**（四个本地构建码共有；名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
+**4.x 公开主线的基础 Mod**（四个本地构建码共有；名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
 - ModLoader GUI - 模组管理器
 - ModI18N - 汉化支持
 - 秋枫白桦框架（maplebirch）+ 官方拆分功能包（更长遭遇战、言灵作弊集）
@@ -118,7 +118,7 @@ AU 三码只表示本地构建能力，不表示可以从 DOL-X 公开下载：
 **怎么选：**公开下载请选择基础版。需要 AU 时，请遵守作者 README，从作者官方 Release 获取资源并
 在本地自构建，不要转载 DOL-X 生成的整合包。
 
-> 已公开的 0713 稳定版仍不内置 AU Face。4.x 候选把 AU Face 仅加入三个本地 AU 变体；base 不含
+> 已公开的 0713 稳定版仍不内置 AU Face。4.x 主线把 AU Face 仅加入三个本地 AU 变体；base 不含
 > AU model 或 AU Face。Legacy-Art-Mods-Compat plus 进入所有 4.x 构建码，不占独立 bit。
 
 ## 包含哪些 Mod
@@ -129,16 +129,16 @@ AU 三码只表示本地构建能力，不表示可以从 DOL-X 公开下载：
 |-----|------|
 | ModLoader GUI | 游戏内的模组管理器 |
 | 汉化（ModI18N） | 简体中文，已自带对应游戏版本的最新汉化 |
-| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)（maplebirch） | 其他 Mod 依赖的核心框架；4.x 候选使用作者官方 v4.1.13 |
-| [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat) | 旧扩展包对应功能的官方独立继任者；4.x 候选使用 v1.0.1 |
-| [言灵作弊集](https://github.com/MaplebirchLeaf/YanlingCheatCollection) | 旧扩展包言灵功能的官方独立继任者；4.x 候选使用 v1.0.1 |
+| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)（maplebirch） | 其他 Mod 依赖的核心框架；4.x 主线使用作者官方 v4.1.13 |
+| [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat) | 旧扩展包对应功能的官方独立继任者；4.x 主线使用 v1.0.1 |
+| [言灵作弊集](https://github.com/MaplebirchLeaf/YanlingCheatCollection) | 旧扩展包言灵功能的官方独立继任者；4.x 主线使用 v1.0.1 |
 | [通用战斗美化](https://github.com/site098/mysterious)（UCB） | 战斗画面美化 |
 | [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod) | 增加可攻略 NPC |
 | [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair) | 自定义发色 |
 | [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary） | 侧边栏显示 NPC 立绘头像 |
 | [NPC社交栏头像](https://github.com/Eudemonism00/DOL-npcicon-mods/) | 社交界面显示 NPC 头像 |
 | [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe) | 控制 NPC 嘴部动作 |
-| [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能；4.x 候选使用官方 v1.20 Pre-release，头部遮罩相容模式也由它提供 |
+| [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能；4.x 主线使用官方 v1.20 Pre-release，头部遮罩相容模式也由它提供 |
 | [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat) | 社区 plus 提供旧/新图片命名兼容；原作者允许二改二传 |
 | [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence) | AI 对话/战斗文本增强，**需要你自己在游戏里填 AI 接口密钥才生效**，不填则不工作、不影响其他功能 |
 | NeoUI Patch | 界面美化（侧边栏点击外部关闭等） |
@@ -159,16 +159,18 @@ AU 三码只表示本地构建能力，不表示可以从 DOL-X 公开下载：
 - **产物**：4 个版本（基础版 + AU-F / AU-M / AU-A）× 两种格式（ZIP + APK），共 8 个文件
 - **测试情况**：AU-F 版已在 MuMu 模拟器和浏览器上实机测试通过；其余 3 个版本用的是同一套 Mod（只有体型资源不同），预期表现一致，但没有逐个上机验证。
 
-**当前未发布候选**：4.x 公共候选（从干净 `vega` 基线隔离重建）
+**当前 `vega` 公开主线**：4.x 栈（尚未创建新 tag/Release）
 
 - maplebirch 4.1.13 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1。
 - 基础栈用户真机日志为 `0 error / 0 warning / 340 info`，作弊界面可打开，抽样功能正常。
+- GitHub Actions run [`30610401219`](https://github.com/XFoxLG/DOL-X/actions/runs/30610401219) 已成功构建并上传
+  `DoL-0.5.10.12-XFox-1.0.8a-base-0731.zip` 与 `.apk`；公开输出仅有 base。
 - 四个 ZIP 已在本地成功构建并通过静态 payload 检查；基础版不含 AU/AU Face，三个 AU 版各含正确体型和 AU Face 1.1.0。
-- AU Face 尚未完成三种体型真机验收，因此这些本地包不是新稳定 Release，也没有上传。
+- AU Face 尚未完成三种体型真机验收，因此三个 AU 本地变体不是新稳定 Release，也没有公开上传。
 - 当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
-> **已知边界（当前 4.x 候选）**：
-> - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，具名剧情 NPC 在动态模型里不显示衣服**：两个开关不是同一张图。「NPC 侧边栏图像显示」使用预绘制静态图；「PC 模型模式」用玩家纸娃娃系统动态生成，需要独立 NPC 衣柜数据。当前本地候选没有任何 mod 注册衣柜，框架会按设计回落到 `naked`，不是图片路径 bug。**解决办法**：关闭「PC 模型模式」，只保留「NPC 侧边栏图像显示」，即可使用 Mae's Picvary 静态立绘。完整方案是制作独立 wardrobe 数据 mod，为每个 NPC 按地点注册服装；尚未实现。
+> **已知边界（当前 4.x 主线）**：
+> - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，具名剧情 NPC 在动态模型里不显示衣服**：两个开关不是同一张图。「NPC 侧边栏图像显示」使用预绘制静态图；「PC 模型模式」用玩家纸娃娃系统动态生成，需要独立 NPC 衣柜数据。当前 4.x 主线没有任何 mod 注册衣柜，框架会按设计回落到 `naked`，不是图片路径 bug。**解决办法**：关闭「PC 模型模式」，只保留「NPC 侧边栏图像显示」，即可使用 Mae's Picvary 静态立绘。完整方案是制作独立 wardrobe 数据 mod，为每个 NPC 按地点注册服装；尚未实现。
 > - **AU Face 面部扩展测试中出现 `Failed to load image img/face/default/blushN.png` / `tearN.png` 红框**：这是 AU Face 内层请求旧式文件名，而当前资源使用新式 `blush-N.png` / `tears-N.png`，不是 AU model 的 `kiss改脸` 问题。AU Face 设置 UI 已确认可打开，但脸红/高潮流泪等视觉效果还没通过；不要用“ModLoader 0 error”替代视觉验收。
 > - **切换 AU 改脸时弹出 `Failed to load image .../kiss改脸/.../eyes.png` 红框**：这是 AU 美化本体自带改脸目录的缺图层提示，与 AU Face 是另一个独立 mod；直接点 **Clear** 或 **Close** 关掉即可。
 > - **云存档面板没有可预填的服务地址**：maplebirch 4.1.13 自带云存档客户端和两套官方自建后端（Go+SQLite、Cloudflare Worker+R2+D1），但作者没有提供公共实例。DOL-X 不代为部署远程资源；需要使用时按源码文档自建，且不要填写未知第三方地址。
