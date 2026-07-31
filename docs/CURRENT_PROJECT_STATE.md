@@ -2,9 +2,9 @@
 
 **核验日期**：2026-07-31
 
-## 2. 4.x 候选栈
+## 2. 4.x 公开主线栈
 
-当前候选仍使用 DoL `0.5.10.12` / 汉化 `1.0.8a`，框架与功能 mod 为：
+当前 `vega` 使用 DoL `0.5.10.12` / 汉化 `1.0.8a`，框架与功能 mod 为：
 
 - maplebirch Framework `4.1.13`（作者官方 Release）。
 - Cheat Extended `1.20(dev260719)`（作者官方 Pre-release）。
@@ -50,5 +50,5 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、plus ZIP manifest、配置加载、Quick Check、
-Python 编译与自动测试。真实 GitHub Actions 构建状态必须以推送候选分支后的远端 run 为准；在 run
-成功前不得把候选写成已发布稳定版。
+Python 编译、177 项自动测试，以及 GitHub Actions base ZIP/APK 构建和 artifact 上传。AU 三个本地
+变体仍未取得公开转载授权，也未由公共 Actions 构建或上传。

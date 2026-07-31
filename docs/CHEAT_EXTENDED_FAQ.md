@@ -193,7 +193,7 @@
 
 ### Q: DOL-X 现在用的是哪个版本？高版本作弊拓展需要什么？
 
-**A**: DOL-X 当前 `next-4` 本地候选使用 **Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13**；已经公开的 0713 稳定 Release 仍是旧栈，不要把分支候选写成已发布版本。
+**A**: DOL-X 当前 `vega` 公开主线使用 **Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13**；最新已打 tag 的 0713 稳定 Release 仍是旧栈，4.x base 已通过 GitHub Actions 构建但尚未创建新 Release。
 
 先分清两个**互相独立**的版本维度，这是历史文档最容易搞混的地方：
 
@@ -235,7 +235,7 @@
 
 所以「点掉弹窗就能正常玩」是**误解**：弹窗只是通知，真正的后果是功能一个都没注册上。
 
-**解决办法**：把框架 mod 升到 **v3.2.5 或更高**（注意是框架 mod 版本，不是游戏版本）。DOL-X 当前 `next-4` 候选直接使用作者官方 v4.1.13。
+**解决办法**：把框架 mod 升到 **v3.2.5 或更高**（注意是框架 mod 版本，不是游戏版本）。DOL-X 当前 `vega` 公开主线直接使用作者官方 v4.1.13。
 
 **验证方法**：按 `F12` 打开控制台，搜索 `[Cheat Extended]`：
 - 当前放行时应看到 maplebirch 框架 v4.1.13；任何大于等于 v3.2.5 的版本都会通过这个门控
@@ -270,7 +270,7 @@
 
 **A**: 当前界面里的头部遮罩相容模式由 **Cheat Extended v1.20** 提供。官方包内存在 `scripts/CE_HeadMaskCompat.js`，相关选项也由 Cheat Extended 的侧栏脚本注册。
 
-`Legacy-Art-Mods-Compat.zip` 是另一套通用旧/新图片命名转换器，不是该选项的来源，也不是框架 4.x 的前置。DOL-X 当前没有集成它；只有某个具体旧美化 mod 确实命中其转换表时才需要安装，不能为了“保险”重复叠加。
+`Legacy-Art-Mods-Compat.zip` 是另一套通用旧/新图片命名转换器，不是该选项的来源，也不是框架 4.x 的前置。DOL-X 4.x 主线已集成社区 plus 作为图片路径兼容层，但它与 Cheat Extended 的头部遮罩选项职责不同，不应重复安装或混为一谈。
 
 ---
 
@@ -349,7 +349,7 @@
    - 内容：所有功能及其说明
 
 2. **DOL-X 文档**：
-   - `AGENTS.md` - Cheat Extended 章节
+   - `docs/CURRENT_PROJECT_STATE.md` - 当前框架栈与验证层级
    - `docs/MANUAL_TESTING_CHECKLIST.md` - 测试清单（包含功能检查项）
 
 3. **游戏内探索**：
@@ -380,19 +380,19 @@
 ## 参考资料
 
 - **官方仓库**: https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended
-- **DOL-X AGENTS.md**: 项目配置和版本决策
+- **DOL-X 当前项目状态**: `docs/CURRENT_PROJECT_STATE.md`
 - **测试清单**: `docs/MANUAL_TESTING_CHECKLIST.md`
 - **已知问题**: `docs/KNOWN_ISSUES.md`
 
 ---
 
-**最后更新**: 2026-07-28（基于 Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13 真机与构建证据）
+**最后更新**: 2026-07-31（基于 Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13 真机与 GitHub Actions 构建证据）
 
 **本次修订要点**：
 - 勘误「框架 v3.2.x 不存在」的错误结论：v3.2.5 确实存在，已从被删 tag 的提交 `33129fe7` 重建
 - 明确区分**框架 mod 版本**与**游戏本体版本**两个独立维度，避免继续混淆
 - 补充运行时软门控机制（`framework_detector.js` + `CERegist.js`），说明"弹窗 + 功能不加载"是同一个原因的两个症状
 - 撤回“v3.2.5 是唯一解”：旧扩展包在真机上初始化失败，当前 owner 改为 4.1.13 + 两个官方独立继任者
-- 当前候选更新为作弊拓展 v1.20 / 框架 v4.1.13 / 游戏 0.5.10.12
+- 当前 `vega` 主线更新为作弊拓展 v1.20 / 框架 v4.1.13 / 游戏 0.5.10.12
 - 记录基础栈 `0 error / 0 warning` 与作弊界面、抽样功能通过
 - 明确头部遮罩相容模式属于 Cheat Extended v1.20
