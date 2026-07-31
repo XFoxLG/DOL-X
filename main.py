@@ -166,6 +166,7 @@ def cmd_warmup(args) -> int:
 
     下载并解压所有美化资源，避免并行构建时的冲突。
     """
+    from lyra.code_validation import normalize_build_codes, validate_build_codes
     from lyra.warmup import ResourceWarmer
 
     setup_logging(args.verbose)
@@ -175,8 +176,19 @@ def cmd_warmup(args) -> int:
     paths = BuildPaths(workspace=Path(args.workspace))
     paths.ensure_dirs()
 
+    requested_codes = _split_build_codes(args.codes)
+    normalized_codes = None
+    if requested_codes is not None:
+        validation_results = validate_build_codes(requested_codes)
+        invalid_results = [result for result in validation_results if not result.valid]
+        if invalid_results:
+            for result in invalid_results:
+                logger.error(f"无效预热构建代码 {result.raw}: {result.findings}")
+            return 1
+        normalized_codes = normalize_build_codes(requested_codes)
+
     # 预热资源
-    warmer = ResourceWarmer(paths)
+    warmer = ResourceWarmer(paths, codes=normalized_codes)
     registry = warmer.warmup_all()
 
     # 加载已有版本信息并合并
@@ -439,6 +451,11 @@ def main():
         description="下载并解压所有美化资源，避免并行构建时的冲突。",
     )
     warmup_parser.add_argument("--workspace", default=".", help="工作目录")
+    warmup_parser.add_argument(
+        "--codes",
+        nargs="+",
+        help="显式构建代码（可重复或逗号分隔），与 build 使用同一资源集合",
+    )
     warmup_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
     # build 命令

@@ -26,6 +26,11 @@ on:
 permissions:
   contents: write
 
+env:
+  # AU 作者仓库明确禁止二传、拆包和未经授权搬运。公开 Actions 因此只
+  # 构建并上传不含 AU 资源的 base；四码配置仍保留给本地授权自构建。
+  PUBLIC_BUILD_CODES: "15704320"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -65,51 +70,22 @@ jobs:
           echo ${{ secrets.SIGNING_KEY }} > dol.base64
           base64 -d dol.base64 > dol.jks
 
-      # 预热美化资源
+      # 预热与构建使用同一显式 base code，避免下载不会进入公开产物的资源。
       - name: Warmup beautify resources
         run: |
-          python main.py warmup --workspace "${{ github.workspace }}" -v
+          python main.py warmup --workspace "${{ github.workspace }}" --codes "${PUBLIC_BUILD_CODES}" -v
 
-      # 并行构建所有组合
-      - name: Build all combinations
+      # 公开 CI 只构建 base，避免重新分发 AU 作者禁止二传的资源。
+      - name: Build public base combination
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            python main.py build --workspace "${{ github.workspace }}" --tag "${{ github.ref_name }}" --jobs 4 -v
+            python main.py build --workspace "${{ github.workspace }}" --tag "${{ github.ref_name }}" --codes "${PUBLIC_BUILD_CODES}" --jobs 2 -v
           else
-            python main.py build --workspace "${{ github.workspace }}" --jobs 4 -v
+            python main.py build --workspace "${{ github.workspace }}" --codes "${PUBLIC_BUILD_CODES}" --jobs 2 -v
           fi
 
       - name: List outputs
         run: ls -lah "${{ github.workspace }}/output/" || echo "No output files generated"
-
-      - name: Pick sample outputs (non-tag)
-        if: github.ref_type != 'tag'
-        id: sample
-        run: |
-          ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" ! -name "*-au-*" | sort | head -n 1)
-          if [[ -z "$ZIP_FILE" ]]; then
-            ZIP_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)
-          fi
-          APK_FILE=$(find "${{ github.workspace }}/output" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)
-
-          echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
-          echo "apk=$APK_FILE" >> "$GITHUB_OUTPUT"
-
-      - name: Upload ZIP sample artifact (non-tag)
-        if: github.ref_type != 'tag' && steps.sample.outputs.zip != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: dol-builds-zip-sample
-          path: ${{ steps.sample.outputs.zip }}
-          retention-days: 30
-
-      - name: Upload APK sample artifact (non-tag)
-        if: github.ref_type != 'tag' && steps.sample.outputs.apk != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: dol-builds-apk-sample
-          path: ${{ steps.sample.outputs.apk }}
-          retention-days: 30
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6

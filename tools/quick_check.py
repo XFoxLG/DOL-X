@@ -13,8 +13,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
-import urllib.request
-import urllib.error
+
+import requests
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -210,11 +210,14 @@ class QuickChecker:
     def _check_url_head(self, url: str, timeout: int = 10) -> bool:
         """发送 HEAD 请求检查 URL 可达性"""
         try:
-            req = urllib.request.Request(url, method="HEAD")
-            req.add_header("User-Agent", "DOL-X-Quick-Check/1.0")
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                return response.status == 200
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
+            response = requests.head(
+                url,
+                headers={"User-Agent": "DOL-X-Quick-Check/1.0"},
+                timeout=timeout,
+                allow_redirects=True,
+            )
+            return response.ok
+        except requests.RequestException:
             return False
 
 

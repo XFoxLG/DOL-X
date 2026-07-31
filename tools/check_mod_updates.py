@@ -2,6 +2,7 @@
 """Check for mod updates from GitHub releases with enhanced features."""
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -16,6 +17,37 @@ from packaging.version import parse as parse_version, InvalidVersion
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lyra.config_loader import load_build_config
+
+
+def github_headers() -> dict[str, str]:
+    """Build authenticated GitHub API headers when a token is available."""
+    headers = {"Accept": "application/vnd.github+json"}
+    github_token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if github_token:
+        headers["Authorization"] = f"Bearer {github_token}"
+    return headers
+
+
+def normalize_sha256(digest: str | None) -> str:
+    """Return a lowercase SHA-256 value without GitHub's algorithm prefix."""
+    if not digest:
+        return ""
+    return digest.removeprefix("sha256:").lower()
+
+
+def extract_version_from_tag(tag: str) -> str:
+    """Extract the final dotted numeric version from a release tag."""
+    version_matches = re.findall(r"\d+(?:\.\d+)+", tag)
+    return version_matches[-1] if version_matches else tag.lstrip("vV")
+
+
+def select_release_asset(release: dict, asset_pattern: str) -> dict | None:
+    """Select the first release asset matching an exact or wildcard pattern."""
+    for asset in release.get("assets", []):
+        asset_name = asset.get("name", "")
+        if asset_name == asset_pattern or fnmatch.fnmatch(asset_name, asset_pattern):
+            return asset
+    return None
 
 
 def load_mods_lock(lock_path: Path) -> dict:
@@ -92,8 +124,8 @@ def assess_risk(
     
     # Version comparison
     try:
-        current_ver = parse_version(current_tag.lstrip('v'))
-        latest_ver = parse_version(latest_tag.lstrip('v'))
+        current_ver = parse_version(extract_version_from_tag(current_tag))
+        latest_ver = parse_version(extract_version_from_tag(latest_tag))
         
         # Major version change
         if current_ver.major != latest_ver.major:
@@ -121,21 +153,28 @@ def check_github_release(
     repo: str,
     current_tag: str,
     mod_key: str,
+    asset_pattern: str,
     include_prerelease: bool,
     lock_data: dict
 ) -> dict:
     """Check if GitHub repo has a newer release."""
-    api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-    
-    # Support GitHub API token to avoid rate limiting
-    headers = {}
-    if token := os.getenv("GITHUB_TOKEN"):
-        headers["Authorization"] = f"Bearer {token}"
+    if include_prerelease:
+        api_url = f"https://api.github.com/repos/{repo}/releases?per_page=20"
+    else:
+        api_url = f"https://api.github.com/repos/{repo}/releases/latest"
     
     try:
-        response = requests.get(api_url, headers=headers, timeout=10)
+        response = requests.get(api_url, headers=github_headers(), timeout=10)
         response.raise_for_status()
-        latest = response.json()
+        response_data = response.json()
+
+        if include_prerelease:
+            releases = [release for release in response_data if not release.get("draft")]
+            if not releases:
+                raise RuntimeError(f"No published releases found for {repo}")
+            latest = releases[0]
+        else:
+            latest = response_data
         
         # Check if it's a pre-release
         is_prerelease = latest.get("prerelease", False)
@@ -151,7 +190,21 @@ def check_github_release(
                 "skipped_prerelease": latest["tag_name"],
             }
         
-        has_update = latest["tag_name"] != current_tag
+        latest_asset = select_release_asset(latest, asset_pattern)
+        latest_asset_digest = normalize_sha256(
+            latest_asset.get("digest") if latest_asset else ""
+        )
+        locked_asset_digest = normalize_sha256(
+            lock_data.get("mods", {}).get(mod_key, {}).get("last_tested_sha256")
+        )
+        release_tag_changed = latest["tag_name"] != current_tag
+        release_asset_changed = bool(
+            not release_tag_changed
+            and latest_asset_digest
+            and locked_asset_digest
+            and latest_asset_digest != locked_asset_digest
+        )
+        has_update = release_tag_changed or release_asset_changed
         
         # Extract changelog
         changelog = extract_changelog(latest.get("body", "")) if has_update else ""
@@ -164,6 +217,11 @@ def check_github_release(
             lock_data,
             is_prerelease
         ) if has_update else ("low", [])
+        if release_asset_changed:
+            risk_level = "medium"
+            risk_notes = [
+                "Release asset digest changed under the same tag; re-validation required"
+            ]
         
         return {
             "repo": repo,
@@ -173,6 +231,11 @@ def check_github_release(
             "url": latest["html_url"],
             "published_at": latest.get("published_at", ""),
             "is_prerelease": is_prerelease,
+            "asset_name": latest_asset.get("name", "") if latest_asset else "",
+            "asset_digest": latest_asset_digest,
+            "locked_asset_digest": locked_asset_digest,
+            "release_tag_changed": release_tag_changed,
+            "release_asset_changed": release_asset_changed,
             "changelog_summary": changelog,
             "changelog_url": latest["html_url"],
             "risk_level": risk_level,
@@ -225,7 +288,8 @@ def check_all_mods(include_prerelease: bool = False) -> dict:
             mod.github_repo,
             mod.release_tag,
             mod.key,
-            include_prerelease,
+            mod.asset_pattern,
+            include_prerelease or mod.include_prerelease_updates,
             lock_data
         )
         result["mod_key"] = mod.key

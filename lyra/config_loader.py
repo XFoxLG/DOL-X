@@ -126,6 +126,9 @@ class ModloaderModConfig:
     # 是否纳入每周上游更新检查。钉死版本（等 v4.x 兼容 / 自建镜像）的 mod
     # 设为 False，避免检查脚本把"故意不跟的新版"报成待办更新、刷无意义 Issue。
     track_upstream: bool = True
+    # 个别项目只通过 GitHub Pre-release 发布当前版本；这些 mod 的更新检查需要
+    # 同时读取预发布列表。默认关闭，避免把普通 mod 的测试版误报为稳定更新。
+    include_prerelease_updates: bool = False
 
     @property
     def required_feature_ids(self) -> list[str]:
@@ -157,6 +160,7 @@ class ModloaderModConfig:
             key=data.get("key", ""),
             name=data.get("name", ""),
             track_upstream=data.get("track_upstream", True),
+            include_prerelease_updates=data.get("include_prerelease_updates", False),
         )
 
 

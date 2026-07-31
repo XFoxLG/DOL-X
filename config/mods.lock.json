@@ -1,38 +1,76 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-06-29T13:30:00Z",
+  "last_updated": "2026-07-30T04:30:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
-      "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "asset_pattern": "maplebirch-0.5.8.10-v3.1.14.mod.zip",
-      "release_tag": "maplebirch-release-v3.1.14",
-      "last_tested_version": "v3.1.14",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-23",
+      "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+      "asset_pattern": "maplebirch-0.5.10.12-v4.1.13.mod.zip",
+      "release_tag": "maplebirch-release-v4.1.13",
+      "last_tested_version": "v4.1.13",
+      "last_tested_sha256": "f5161eed8a4828baac8d7667ad4311fa214f02855c32c190ac1087902e9be955",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "runtime-validated-base",
       "notes": [
-        "DOL-X: Rolled back from v4.1.8 to v3.1.14 (2026-06-23)",
-        "Reason: expansion v1.2.4 incompatible with v4.x (multiple runtime errors)",
-        "AU Face disabled temporarily (basehead.png path issue exists on v3.x)",
-        "Will upgrade to v4.x when expansion v1.2.5+ releases with native v4.x support"
+        "DOL-X next-4 (2026-07-28): v3.2.5 experiment was superseded by the official v4.1.13 release after real runtime evidence showed maplebirchEx v1.2.4 fails on v3.2.5",
+        "User runtime log for the base stack reports 0 error / 0 warning / 340 info with maplebirch 4.1.13, Cheat Extended 1.20, LongerCombat 1.0.1 and YanlingCheatCollection 1.0.1 loaded",
+        "Cheat Extended UI opens and the user smoke-tested one or two functions successfully",
+        "Official upstream is the primary download and update source; XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.13 is archive-only manual disaster recovery",
+        "The rebuilt v3.2.5 package showing 2026-07-27 as last update was caused by ZIP rebuild timestamps, not original author chronology",
+        "Rollback archives remain available, but the active owner is the official 4.x stack",
+        "CLOUD SAVE: 4.1.13 adds client + self-hosted Go/Worker implementations in upstream cloud-services/; no public endpoint is bundled or deployed by DOL-X"
       ]
     },
     "maplebirch_expansion": {
-      "name": "maplebirch扩展包",
-      "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchExpansion",
-      "asset_pattern": "maplebirchEx-v*.zip",
-      "release_tag": "release-v1.2.4",
+      "name": "maplebirch扩展包（旧版，已退役）",
+      "github_repo": "XFoxLG/DOL-X",
+      "asset_pattern": "maplebirchEx-v1.2.4.mod.zip",
+      "release_tag": "maplebirch-expansion-mirror-v1.2.4",
       "last_tested_version": "v1.2.4",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-23",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-27",
+      "status": "retired-runtime-incompatible",
       "notes": [
-        "DOL-X: Confirmed compatible with maplebirch v3.1.14 (2026-06-23)",
-        "提供：音乐播放器、理智/灵性属性、更长遭遇战、定制纹身",
-        "已知 Bug：LongerCombat 倍率计算错误（见 GitHub Issue #1）",
-        "v4.x compat: Blocked until expansion v1.2.5+ releases with native support"
+        "Static semver compatibility with maplebirch v3.2.5 was misleading: real runtime produced undefined dread/sanity/dreadmax errors in maplebirchStatusBar and maplebirchOptions",
+        "The deleted upstream package is retained only as a rollback archive and is no longer injected",
+        "Its actively released successors are LongerCombat and YanlingCheatCollection on maplebirch ^4.1.0; Deadwood-Reblooms remains unreleased and is not integrated"
+      ]
+    },
+    "longer_combat": {
+      "name": "更长遭遇战",
+      "github_repo": "MaplebirchLeaf/LongerCombat",
+      "asset_pattern": "longer-combat-0.5.10.12-v1.0.1.mod.zip",
+      "release_tag": "v1.0.1",
+      "last_tested_version": "v1.0.1",
+      "last_tested_sha256": "be1421c876f9111371f80548f9061b59135362e5c936f32e4cee0aecd1e2a0d9",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "runtime-mounted",
+      "notes": [
+        "Official standalone successor for the legacy expansion LongerCombat feature",
+        "addonPlugin requires maplebirch ^4.1.0",
+        "User runtime log shows dist/script.js mounted with 0 total errors and 0 total warnings; individual combat multiplier behavior still needs focused gameplay testing",
+        "XFoxLG mirror longer-combat-mirror-v1.0.1 is archive-only manual disaster recovery"
+      ]
+    },
+    "yanling_cheat": {
+      "name": "言灵作弊集",
+      "github_repo": "MaplebirchLeaf/YanlingCheatCollection",
+      "asset_pattern": "yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip",
+      "release_tag": "v1.0.1",
+      "last_tested_version": "v1.0.1",
+      "last_tested_sha256": "50e2341ecd6594d354653baa2c797631047de8fb0f443b7d9174728b448e0886",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "runtime-mounted",
+      "notes": [
+        "Official standalone successor for the legacy expansion Yanling feature",
+        "addonPlugin requires maplebirch ^4.1.0",
+        "User runtime log shows yanlingCheat exposed and dist/script.js mounted with 0 total errors and 0 total warnings; individual command coverage remains partial",
+        "XFoxLG mirror yanling-cheat-mirror-v1.0.1 is archive-only manual disaster recovery"
       ]
     },
     "custom_hair": {
@@ -53,21 +91,30 @@
     },
     "cheat_extended": {
       "name": "Cheat Extended",
-      "github_repo": "XFoxLG/DOL-X",
-      "asset_pattern": "cheat_extended_v118.mod.zip",
-      "release_tag": "cheat-extended-mirror-v1.18",
-      "last_tested_version": "v1.18(Dev260325)",
-      "last_tested_sha256": null,
+      "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
+      "asset_pattern": "cheat_extended.mod.zip",
+      "release_tag": "Pre-release",
+      "last_tested_version": "v1.20(dev260719) betaTest",
+      "last_tested_sha256": "7aa8ab4c318331098d6d82adbca106d4ee2e9c0e3aab93bf63f181a185b9f23f",
       "last_tested_dol_version": "0.5.10.12",
-      "last_tested_date": "2026-07-05",
+      "last_tested_date": "2026-07-28",
+      "status": "runtime-smoke-passed",
       "notes": [
+        "DOL-X next-4: v1.20 betaTest is paired with the official maplebirch v4.1.13 release; the >=3.2.5 runtime gate passes",
+        "RUNTIME SOFT-GATE (read from the mod's own JS, NOT boot.json): boot.json declares only ModLoader>=2.17.0 / ImageLoaderHook / TweeReplacer / ReplacePatcher / SweetAlert2Mod / GameVersion>=0.5.5.9 -- there is NO maplebirch entry. The framework requirement lives in scriptEarly/framework_detector.js (SweetAlert2 popup if maplebirch mod version < 3.2.5) and scriptEarly/CERegist.js (compareVersions gate; on failure only logger.error runs and all 7 addTo() registrations are skipped, so CE loads as a shell with no UI entry points)",
+        "USER VERIFIED 2026-07-28: the Cheat Extended interface opens and one or two sampled functions work; the same run reports 0 error / 0 warning / 340 info",
+        "v1.20 targets game 0.5.10.12 and bundles scripts/CE_HeadMaskCompat.js; the visible head-mask compatibility mode belongs to Cheat Extended, not Legacy-Art-Mods-Compat or maplebirch",
+        "Official Pre-release is now the primary download source. Per-mod prerelease tracking compares the GitHub asset digest so an in-place replacement under the same tag is detected",
+        "XFoxLG/DOL-X cheat-extended-mirror-v1.20 is archive-only manual disaster recovery; its bytes match the current official asset",
+        "CORRECTION: an earlier note here claimed the upstream v1.19 Release was deleted -- that was WRONG, v1.19 still exists upstream (197044 bytes, archived locally too)",
+        "Rollback: cheat-extended-mirror-v1.18 is kept intact; v1.18 has no framework gate and loads on any maplebirch version",
+        "--- v1.18 mirror history (kept for rollback reference) ---",
         "DOL-X: Repacked + re-uploaded the v1.18 mirror (2026-07-05)",
         "Original defect: self-hosted v1.18 mirror zip used Windows BACKSLASH path separators (css\\CE_CSS.css), violating the ZIP spec; ModLoader resolves boot.json forward-slash paths so every file failed ('cannot get ... from mod zip'), loading an empty shell that never registered to maplebirch and threw 8 'cannot find replaceFile' errors",
         "Fix (Python zipfile): rewrote all entries with forward slashes; dropped garbage (CE_inventory_helper.twee.bak, PIC/* screenshots, mojibake .jpg); backfilled scriptEarly/Utils/spectrum.{js,css} from clean v1.19; pruned 2 dangling boot.json refs (Widgets State Man_{1,2}.txt, absent upstream in v1.17/v1.18/v1.19 alike)",
         "Result: 63 entries, 0 backslash, all boot.json refs (incl addonPlugin) resolve; CERegist.js + framework_detector.js present so it registers to maplebirch",
         "v1.18 boot.json has NO maplebirch dependency and loads on v3.1.14; provides full Yanling system + brothel basement + customer eye/skin color",
-        "Source tag chris81605 V1.18(Dev260325), upstream Release deleted after v1.19 (recoverable via commit history); mirror pinned here to survive deletion",
-        "Do NOT use v1.19: it requires maplebirch > 3.2.5 (we run v3.1.14)"
+        "Source tag chris81605 V1.18(Dev260325), upstream Release deleted after v1.19 (recoverable via commit history); mirror retained to survive deletion"
       ]
     },
     "mae_picvary": {
@@ -104,16 +151,16 @@
       "asset_pattern": "AUfemale.model_v0.9.3.zip",
       "release_tag": "mod",
       "last_tested_version": "v0.9.3",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-29",
-      "status": "active-diagnostic",
+      "last_tested_sha256": "6c20236bc300d794ef2e77027d0d816d3ef4f2460282a5cac43aacbecc4206a0",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "au-face-local-canary-pending-runtime",
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
         "DOL-X: restored AU-F to v0.9.3 to align with upstream Lyra and AOKIUTAGE latest model asset",
-        "Known issue: AU-F v0.9.3 still shows sidebar sprite layering/position error in DOL-X while upstream Lyra renders normally",
-        "Next diagnostic: test AU-F v0.9.3 with NeoUI disabled and BunnyTransformation absent; if still broken, isolate Mae's Picvary / NPC Avatars / BeautySelector interactions"
+        "The 2026-07-28 next-4 local candidate adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
+        "AU assets are downloaded from the author repository and are not mirrored or uploaded by this canary"
       ]
     },
     "au_m": {
@@ -122,14 +169,14 @@
       "asset_pattern": "AUmale.model_v0.4.2.zip",
       "release_tag": "mod",
       "last_tested_version": "v0.4.2",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-28",
-      "status": "needs-retest",
+      "last_tested_sha256": "c46389de100c2b6c681846aa28e054fd09053e3b55d03988b25c7fe93259efae",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "au-face-local-canary-pending-runtime",
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
-        "Must be retested with latest build; do not reuse old AU-M APK logs for current diagnosis"
+        "The 2026-07-28 next-4 local candidate adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation"
       ]
     },
     "au_a": {
@@ -138,14 +185,14 @@
       "asset_pattern": "AUandrogynous.model_v0.1.1.zip",
       "release_tag": "mod",
       "last_tested_version": "v0.1.1",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-28",
-      "status": "needs-retest",
+      "last_tested_sha256": "e93c82e20fbb8e809d2bc05365209ebb4aafc47fefd50038fcc982454a335cd9",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "au-face-local-canary-pending-runtime",
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
-        "Must be retested with latest build before judging AU-A stability"
+        "The 2026-07-28 next-4 local candidate adds AU Face v1.1.0 manifest payload; AU-A has stronger upstream incompleteness reports and needs the strictest runtime review"
       ]
     },
     "au_face": {
@@ -153,18 +200,19 @@
       "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
       "asset_pattern": "AUsDoL.facial.expansion.mod.zip",
       "release_tag": "facemod",
-      "last_tested_version": "v1.2.8",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-23",
-      "status": "disabled",
+      "last_tested_version": "manifest v1.1.0 (release text v1.0.4)",
+      "last_tested_sha256": "8f2c1b66f0104e51e4f1c91f8f3a4873db517997a390c1037f4de811d387ecf6",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "enabled-local-canary-pending-runtime",
       "notes": [
-        "DOL-X: Disabled after rollback to maplebirch v3.1.14 (2026-06-23)",
-        "Reason: basehead.png path issue exists on v3.x (fixed in v4.1.7)",
-        "Issue: 头发/面部在侧边栏错位 (sidebar sprite positioning)",
-        "Will re-enable when maplebirch upgrades to v4.x",
-        "只注入 AU 三版本",
-        "依赖 AU 主模组"
+        "Enabled only on next-4 local AU-F/AU-M/AU-A candidates after the maplebirch v4.1.13 base stack reached 0 errors and 0 warnings",
+        "Never injected into base code 15704320; it is bound to au-f/au-m/au-a feature IDs",
+        "Three identities belong to the same official asset: release text v1.0.4, outer wrapper boot.json v1.1.0, and inner decrypted mod v1.2.8; the outer wrapper decrypts its .crypt payload at earlyload and calls lazyRegisterNewModZipData, so ModLoader lists the inner mod as [SideLoadLazy] AU面部扩展 1.2.8",
+        "The earlier 3.x-era tests already recorded this outer/inner split; a v1.2.8 lock entry is therefore valid evidence, not an unsourced value",
+        "boot.json dependencies: ModLoader ^2.5.1 and SweetAlert2Mod ^1.0.0; no hard maplebirch dependency is declared",
+        "AU-F runtime evidence 2026-07-29: settings UI mounts and is interactive, but the inner mod requests legacy blushN/tearN paths while canonical resources use blush-N/tears-N; visual effects remain unverified",
+        "No public upload or mirror is authorized by this change; the official author release is the only source"
       ]
     },
     "guide_to_me": {
@@ -249,6 +297,25 @@
         "构建系统绝不嵌 API key；未配后端时 mod 仍能加载，只是 AI 功能不工作",
         "许可证 CC BY-NC-SA 4.0；0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂",
         "首次加入需盯一次加载日志确认与 NeoUI overlay/maplebirch 不打架"
+      ]
+    },
+    "legacy_art_compat": {
+      "name": "旧版图片名称适配 (Legacy-Art-Mods-Compat plus)",
+      "github_repo": "XFoxLG/DOL-X",
+      "asset_pattern": "Legacy-Art-Mods-Compat.zip",
+      "release_tag": "legacy-art-compat-plus-v1.1",
+      "last_tested_version": "1.0.3-plusV1.1",
+      "last_tested_sha256": "df1debd4425467c60553a15e090a870b6924c2102614ccab4ff716776d17a727",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-30",
+      "status": "enabled-pending-rebuild",
+      "notes": [
+        "Community plus of mirrormirroronwall/Legacy-Art-Mods-Compat; upstream README explicitly allows modification and redistribution",
+        "Plus author: 鎖鏈蝴蝶 @ 百度貼吧 (acknowledged in bundled readme.md)",
+        "Difference vs upstream 1.0.3: six AU Face image-name fallback/override rules (blush{n} / tear(s){n}), grayscale-first ordering, clothing path compatibility, clothing-shop widget adjustment",
+        "Hook mechanism: window.modImgLoaderHooker.addSideHooker registers checkImageExist + imageGetter; additive, no patch to lyra/ core",
+        "Bound to cheat_extended_maplebirch feature (required bit 32768, in all four build codes); does not occupy an independent bit; four codes unchanged",
+        "User runtime evidence 2026-07-29: AU Face blushN/tearN errors disappeared with plus sideloaded; independent mouth posture confirmed working; face pattern and tear visual effects still unverified but not blocking"
       ]
     }
   }
