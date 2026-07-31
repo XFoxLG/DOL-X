@@ -13,7 +13,7 @@
 
 ## [Unreleased]
 
-> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。在 GitHub Actions base 构建与产物检查成功前，0713 仍是当前稳定 Release，本节只代表待发布主线。
+> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。GitHub Actions run [`30610401219`](https://github.com/XFoxLG/DOL-X/actions/runs/30610401219) 已成功生成并上传 base ZIP/APK；该次运行由分支推送触发，未创建新 Release，因此最新已打 tag 的稳定 Release 仍是 0713。
 
 > **公开分发边界**：AU 作者 README 明确禁止二传、拆包和未经授权搬运。四个 build code 继续保留本地自构建能力，但公共 Actions 只构建并上传 base `15704320`；获得作者明确授权前不新增公开 AU artifact 或 Release。
 
@@ -93,7 +93,7 @@
   资源是新式 `blush-N.png` 与 `tears-N.png`。这不是 AU model `kiss改脸` 的已知缺图，也不是
   ModLoader error；它是 AU Face 旧路径合同与 DoL 0.5.10.12 新资源命名之间的不匹配。
   官方 `Legacy-Art-Mods-Compat` 1.0.3 不包含这些 AU Face 通配符规则；社区二改
-  `1.0.3-plusV1.1` 精确包含，并已作为 4.x 候选的常驻命名兼容层接入。
+  `1.0.3-plusV1.1` 精确包含，并已作为 4.x 主线的常驻命名兼容层接入。
 
 ## [v0.5.10.12-1.0.8a-0713] - 2026-07-13
 
