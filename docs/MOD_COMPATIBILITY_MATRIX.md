@@ -2,7 +2,7 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-07-31
+**最后更新**: 2026-08-02
 **当前公开主线框架 mod**: maplebirch v4.1.13（作者官方 Release）
 **当前游戏本体版本**: DoL v0.5.10.12（汉化仓库 tag `v0.5.10.12-chs-1.0.8a`）
 **当前公开主线作弊**: Cheat Extended v1.20 betaTest（作者官方 Pre-release）
@@ -20,7 +20,7 @@
 ### 测试环境
 
 - **本地配置验证**: `python -m pytest tests/ -v`
-- **构建产物**: 本地已完成四个 ZIP；GitHub Actions run `30611108121` 已完成公开 base ZIP/APK
+- **构建产物**: GitHub Actions run `30709200905` 已完成全四码构建（base / AU-F / AU-M / AU-A × ZIP+APK，共 8 件）
 - **浏览器测试**: `python tools/browser_smoke_test.py output/*.zip`
 - **模拟器测试**: APK 在 MuMu 模拟器上运行
 - **ModLoader 日志**: 检查加载错误和冲突
@@ -75,7 +75,7 @@
 | 4.1.13 + CE 1.20 + LongerCombat + Yanling | 现役包要求满足 | 0 error / 0 warning，CE 抽样正常 | 当前主线 |
 
 四个 ZIP 本地构建 `4/4` 成功；base 为 36 个有效 payload，三个 AU 版各 38 个。公共 Actions
-run `30611108121` 只构建并上传 base ZIP/APK。3.2.5 重建包显示的 2026.07.27 是重打包时间戳，
+run `30709200905` 已完成全四码构建（8 件产物）。3.2.5 重建包显示的 2026.07.27 是重打包时间戳，
 不是作者更新顺序。当前事实与产物名见 [CURRENT_PROJECT_STATE.md](CURRENT_PROJECT_STATE.md)。
 
 ### AU 美化（本地候选，可选）
@@ -294,6 +294,6 @@ AU Face 是独立脚本 mod，不等同于主 model 里的改脸目录。
 
 ---
 
-**文档状态**: `vega` 4.x 公开主线与 base Actions 产物已验证，AU Face 仍待三体型真机验收
-**下次更新**: AU-F/M/A 本地真机测试后
+**文档状态**: 4.x 公开主线已发版（`v0.5.10.12-1.0.8a-0802`），全四码 CI 构建已验证；AU-M / AU-A 真机验收待补
+**下次更新**: AU-M / AU-A 真机测试后，或 More Love v0.1.7.0 升级验证后
 **维护者**: DOL-X 项目组
