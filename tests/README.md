@@ -1,132 +1,86 @@
-# DoL-X 自动化测试
+# DOL-X 自动化测试
 
-Phase 1、Phase 2、Phase 3 静态 smoke 和 Phase 4 浏览器 smoke helper 的自动化测试已实现。
+跟踪的测试覆盖构建矩阵、公开构建分档、供应链锁定、兼容补丁与产物 smoke。
 
 ## 本地运行
 
-### 安装依赖
-
 ```bash
 pip install -r requirements.txt
-```
 
-### 运行配置测试
+# 全量
+python -m pytest tests -q
 
-```bash
-# 运行所有非 slow 测试（与 CI config-tests 一致）
-python -m pytest tests/ -v --tb=short -m "not slow"
+# 跳过 slow 标记
+python -m pytest tests -v --tb=short -m "not slow"
 
-# 运行构建矩阵和 mod 配置测试
-python -m pytest tests/test_build_matrix.py tests/test_mod_config.py -v
-
-# 只运行构建矩阵测试
+# 单个模块
 python -m pytest tests/test_build_matrix.py -v
-
-# 只运行 mod 配置测试
-python -m pytest tests/test_mod_config.py -v
 ```
 
-### 运行 Mod 资源审计
+配置改动后的最快检查：
 
 ```bash
-# 审计所有 mod 并生成报告
-python tools/mod_audit.py
-
-# 指定输出目录
-python tools/mod_audit.py --output-dir output
-
-# 禁用缓存（每次重新下载）
-python tools/mod_audit.py --no-cache
+python tools/quick_check.py
 ```
-
-输出文件：
-- `output/mod-compatibility-report.json` - JSON 格式报告
-- `output/mod-compatibility-report.md` - Markdown 格式报告
-- `output/cache/` - 下载缓存目录
-
-### 运行 cheatExtended 替代性审计
-
-```bash
-# 下载并审计 cheatExtended 最新 release，但不启用或替换现有 mod
-python tools/cheat_extended_audit.py --output-dir output
-```
-
-输出文件：
-- `output/cheat-extended-replacement-report.json` - JSON 格式报告
-- `output/cheat-extended-replacement-report.md` - Markdown 格式报告
-
-该审计会检查：
-- cheatExtended 的 release asset、boot.json、readme.md 和 SHA256
-- 对 Cheat / CSD / BJX / BCCM 的静态覆盖程度
-- `maplebirch` 与 `Simple Frameworks` 的二选一框架要求
-- 和当前配置中项目本地旧 cheat/CSD 栈、AU 面部扩展、UCB 的潜在冲突与耦合
-
-### 运行 Phase 3 静态 HTML smoke test
-
-```bash
-# 检查单个构建 ZIP、HTML，或递归检查目录内的 ZIP/HTML
-python tools/html_smoke_test.py output --output output/html-smoke-report.json
-```
-
-输出文件：
-- `output/html-smoke-report.json` - HTML smoke JSON 报告
-
-该静态 smoke test 不启动浏览器，主要检查：
-- 构建 ZIP 中存在 HTML；
-- HTML 内存在 `window.modDataValueZipList`；
-- 内嵌 mod 列表是有效 JSON 数组；
-- 内嵌 base64 mod payload 可解码并通过 ZIP 完整性检查。
-
-## GitHub Actions
-
-每次推送到 `vega` 分支时自动运行：
-
-1. **配置与矩阵测试** - 验证构建组合、polyfill、mod 配置
-2. **Mod 资源审计** - 下载并检查所有 mod 资源
-3. **cheatExtended 替代性审计** - 评估其是否适合作为 Cheat/CSD/BJX/BCCM 的候选替代
-4. **Phase 3 静态 HTML smoke test** - 对构建 ZIP 样本做非阻断结构检查
-5. **Phase 4 浏览器 smoke test** - 对构建 ZIP 样本做 report-only 浏览器运行检查
-
-查看结果：
-- Actions 页面：https://github.com/XFoxLG/DOL-X/actions
-- 下载 artifacts 查看详细报告
 
 ## 测试覆盖
 
-### Phase 1: 配置与矩阵测试
+### 构建矩阵与公开分档
 
-- ✓ 只构建 4 个稳定自用组合 (24834, 25858, 26882, 28930)
-- ✓ polyfill 已关闭
-- ✓ 基础版不包含 AU
-- ✓ AU 三版本包含对应 AU feature
-- ✓ 所有版本包含 UCB + more-love + custom-spellbook + 项目本地旧 cheat/CSD 栈
-- ✓ 默认版本不包含 cheatExtended/maplebirch 实验 feature
-- ✓ Mod 配置正确性
-- ✓ feature_ids 有效性
-- ✓ cache_name 唯一性
+- `test_build_matrix.py`：四个构建码 `15704320 / 15705344 / 15706368 / 15708416`
+  与 feature 图自洽；polyfill 关闭；base 不含 AU；三个 AU 码各含对应体型；
+  短后缀互不重复以防产物覆盖。
+- `test_public_distribution_boundary.py`：分支档构建 base + AU-F，tag 档构建
+  全部四码；warmup 与 build 引用同一组解析后的构建码。
+- `test_warmup_explicit_codes.py`：显式构建码只预热所需 feature，且每个
+  imagepack 只匹配自己的 URL。
+- `test_identity.py`、`test_project_boundaries.py`：XFox 身份与项目边界。
 
-### Phase 2: Mod 资源审计
+### 供应链与配置
 
-- ✓ GitHub release asset 可访问
-- ✓ 文件下载成功
-- ✓ SHA256 校验和
-- ✓ ZIP 文件完整性
-- ✓ Mod 结构验证
-- ✓ 风险等级评估
-- ✓ cheatExtended 替代性/框架/冲突审计
-- ✓ GitHub API 错误分类，rate limit 不再误报为 asset 删除
+- `test_mod_config.py`：mod 条目、`feature_ids` 有效性、`cache_name` 唯一性。
+- `test_mod_audit.py`：资源审计报告生成。
+- `test_mod_update_checker.py`：带前缀 tag 的版本提取；同一 Pre-release tag 下
+  asset digest 漂移可被发现；tag 与 digest 均未变时判定为最新。
 
-### Phase 3: 静态 HTML smoke test
+### 兼容补丁
 
-- ✓ 构建产物中存在 HTML
-- ✓ HTML 内存在 ModLoader 的 `modDataValueZipList`
-- ✓ 内嵌 mod 列表可解析为 JSON 数组
-- ✓ 内嵌 base64 mod ZIP 可解码并通过完整性检查
+- `test_compatibility_registry.py`：兼容面登记表。
+- `test_more_love_drag_patch.py`：More Love 拖拽事件防御性改写。
+- `test_doli_float_icon_patch.py`：D.O.L.I 悬浮图标路径改写。
+- `test_au_face_compat.py`：AU Face 资源别名。
 
-### Phase 4: 浏览器 smoke test helper
+### 安全与 fail-closed
 
-- ✓ Playwright/Chromium report-only 运行路径
-- ✓ console、network、pageerror 和截图 artifact 输出
-- ✓ startup interaction、Game Ready、Enter Game、package identity 和 blocker 诊断摘要
-- ✓ 稳定主线与 cheatExtended/maplebirch 实验 profile 区分
-- ✓ AU face nested blush asset 高风险模式检测
+- `test_archive_extraction.py`：路径穿越与符号链接防护。
+- `test_prepare_fail_fast.py`：必需 base mod 缺失时中止而非静默产出。
+
+### 产物 smoke
+
+- `test_html_smoke.py`：构建 ZIP 内存在 HTML；`window.modDataValueZipList`
+  可解析；内嵌 base64 payload 可解码且通过 ZIP 完整性检查。
+- `test_browser_smoke.py`、`test_apk_emulator_smoke.py`、`test_mumu_apk_smoke.py`：
+  浏览器与模拟器 smoke helper。
+- `test_embedded_mod_source_scan.py`：内嵌 mod 来源扫描。
+
+## 相关工具
+
+```bash
+# 资源审计
+python tools/mod_audit.py --output-dir output
+
+# 静态 HTML smoke
+python tools/html_smoke_test.py output --output output/html-smoke-report.json
+
+# 更新检查
+python tools/check_mod_updates.py --output output/mod-updates.json
+```
+
+## GitHub Actions
+
+- `build.yaml`：推送到 `vega` 或打 tag 时构建。分支推送产出 base + AU-F，
+  tag 发版产出全部四码，并上传 ZIP/APK artifact；tag 构建额外创建 Release。
+- `mod-update-check.yml`：每周检查上游 mod 更新，结果写入 Step Summary 与
+  `mod-update-report` artifact。仓库 Issues 已关闭，不创建 Issue。
+
+结果查看：https://github.com/XFoxLG/DOL-X/actions
