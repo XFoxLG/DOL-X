@@ -11,6 +11,23 @@
 - 与上游关系：`0 behind / 193 ahead`，无待同步提交
 - 上游 `main` / `hub` / `lyra` 与 `vega` 无共同祖先，不是同步债务，不参与 ahead/behind 计算
 
+## Tag 拓扑与 `--prune-tags` 禁令
+
+本地 tag 分三类，不是两类。误判这一点会导致把上游 tag 当成本地独有资产：
+
+- 来自上游 `DoL-Lyra/Lyra` 的 113 个：fork 时随 clone 进入本地，从未推送到 `origin`。
+  按 `origin` 判断会误认为「仅本地存在」。可随时 `git fetch upstream --tags` 重取。
+- DOL-X 自有的 8 个：7 个在 `origin` 上有对应 Release，`backup/pre-scrub` 在 bundle 内。
+- 本地 tag 总数应为 121（113 + 8）。
+
+**禁止在本仓库执行 `git fetch --prune-tags`。** fork 仓库的多数本地 tag 来源是
+`upstream` 而非 `origin`，按 `origin` 剪枝会一次性删除上百个上游 tag。本轮曾因此
+将本地 tag 从 59 误删至 7；因上游可重取、自有 tag 有 Release 与 bundle 双备份，
+实际数据损失为零，但恢复过程耗费了整轮会话的尾段。
+
+判断某个 tag 是否真的独有，必须同时对比 `git ls-remote --tags origin` 与
+`git ls-remote --tags upstream`，不能只看其中一个。
+
 ## 构建矩阵
 
 四个构建码不变：
