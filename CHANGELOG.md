@@ -13,9 +13,21 @@
 
 ## [Unreleased]
 
-> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/30611108121) 已成功生成并上传 base ZIP/APK；该次运行由分支推送触发，未创建新 Release，因此最新已打 tag 的稳定 Release 仍是 0713。
+暂无未发布变更。
+
+## [v0.5.10.12-1.0.8a-0802] - 2026-08-02
+
+4.x 公开主线的首个 tag 发版，取代 0713 的 maplebirch 3.x 稳定栈成为最新稳定版。
+四体型（base / AU-F / AU-M / AU-A）× 双格式（ZIP + APK）共 8 个产物。
+
+> **2026-07-31 4.x 公开主线迁移**：从 0713 的干净 `vega` 基线重建 4.x 公共主线（maplebirch 4.1.13 + CE 1.20 + LongerCombat + Yanling + Legacy-Art-Mods-Compat plus）。旧 0713 稳定栈已存档为远程分支 `vega-archive-0713`，plus 已上传到 `XFoxLG/DOL-X` Release `legacy-art-compat-plus-v1.1`。
 
 > **构建矩阵**：分支推送构建 base + AU-F，tag 发版构建全部四码（base / AU-F / AU-M / AU-A）。
+> 手动触发（`workflow_dispatch`）可选 `build_tier=release`，在不打 tag 的前提下干跑全四码。
+
+> **发版前验证**：AU-M 与 AU-A 此前从未在 CI 里构建过（分支档只含 base + AU-F）。首次全四码
+> 干验证由 run [`30709200905`](https://github.com/XFoxLG/DOL-X/actions/runs/30709200905) 完成，
+> 8 个产物全部生成，证明这两个组合的资源链可用。真机测试只覆盖 AU-F。
 
 > **2026-07-29 后续**：AU-F 0728 本地候选的用户真机测试已经把"AU Face 尚未验收"拆成两层：设置 UI 和配置交互已通过，但运行时仍请求旧式 `blushN` / `tearN` 路径，当前包内 canonical 资源是新式 `blush-N` / `tears-N`。官方 `Legacy-Art-Mods-Compat` 1.0.3 不含这些 AU Face 通配符规则；社区二改 `1.0.3-plusV1.1` 精确包含。用户旁加载 plus 后 `blushN`/`tearN` 报错消失、独立嘴部仪态有效，面纹和流泪视觉效果不碍事、不阻塞主线——属上游 AU Face 加密内层运行时边界，DOL-X 无白盒修复手段。同时确认 maplebirch `PC模型模式` 需要独立 NPC wardrobe 数据，当前 38 个 payload 均未注册衣柜，因此具名剧情 NPC 动态模型回落 `naked` 是设计内行为，不是图片路径 bug。云存档服务端源码位于官方 `cloud-services/`，提供 Go+SQLite 与 Cloudflare Worker+R2+D1 两种自建方案，无公共实例；Go 后端当前缺少客户端会调用的 `/save-code` 路由。
 
