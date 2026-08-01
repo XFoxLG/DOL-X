@@ -185,7 +185,6 @@ AU 变体：
 - [`config/build.toml`](config/build.toml) - 构建系统配置（身份、路径、APK）
 - [`config/combinations.toml`](config/combinations.toml) - **Mod 组合配置（build_codes）**
 - [`config/features.toml`](config/features.toml) - **Feature 定义（bits）**
-- [`config/profiles.toml`](config/profiles.toml) - 用户场景配置
 
 ### Mod 配置
 - [`config/modloader/mods.toml`](config/modloader/mods.toml) - ModLoader mod 列表
