@@ -5,47 +5,46 @@ on:
     - cron: '0 0 * * 0'  # 每周日 UTC 00:00 运行
   workflow_dispatch:  # 允许手动触发
 
+# 仓库 Issues 已关闭，更新结果写入 Step Summary 与 artifact，不创建 Issue。
 permissions:
   contents: read
-  issues: write
 
 jobs:
   check-updates:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      
+
       - name: Check mod updates
         id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python tools/check_mod_updates.py --output output/mod-updates.json
-          
-          # 从 JSON 读取状态（使用 jq）
+
           if [ -f output/mod-updates.json ]; then
             HAS_UPDATES=$(jq -r '.has_updates' output/mod-updates.json)
             UPDATE_COUNT=$(jq -r '.updates_available' output/mod-updates.json)
-            
+
             echo "has_updates=$HAS_UPDATES" >> $GITHUB_OUTPUT
             echo "update_count=$UPDATE_COUNT" >> $GITHUB_OUTPUT
           else
             echo "has_updates=false" >> $GITHUB_OUTPUT
             echo "update_count=0" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Upload update report
         if: always()
         uses: actions/upload-artifact@v4
@@ -53,138 +52,62 @@ jobs:
           name: mod-update-report
           path: output/mod-updates.json
           retention-days: 30
-      
-      - name: Create issue if updates found
+
+      - name: Write update details to summary
         if: steps.check.outputs.has_updates == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            
-            // 读取更新报告
-            let report;
-            try {
-              report = JSON.parse(fs.readFileSync('output/mod-updates.json', 'utf8'));
-            } catch (error) {
-              console.log('无法读取更新报告');
-              return;
-            }
-            
-            // 构建 Issue 内容
-            let body = '## 🔄 检测到 Mod 更新\n\n';
-            body += `**检测时间**: ${report.timestamp || new Date().toISOString()}\n`;
-            body += `**更新数量**: ${report.updates_available} / ${report.total_checked}\n\n`;
-            
-            if (report.updates && report.updates.length > 0) {
-              body += '### 可用更新\n\n';
-              
-              for (const mod of report.updates) {
-                const riskEmoji = {
-                  'low': '🟢',
-                  'medium': '🟡',
-                  'high': '🔴',
-                  'unknown': '⚪'
-                }[mod.risk_level] || '⚪';
-                
-                body += `#### ${riskEmoji} ${mod.mod_name}\n\n`;
-                body += `- **当前版本**: \`${mod.current}\`\n`;
-                body += `- **最新版本**: \`${mod.latest}\`${mod.is_prerelease ? ' (Pre-release)' : ''}\n`;
-                body += `- **仓库**: ${mod.repo}\n`;
-                body += `- **发布时间**: ${mod.published_at}\n`;
-                body += `- **风险等级**: ${mod.risk_level.toUpperCase()}\n`;
-                
-                if (mod.risk_notes && mod.risk_notes.length > 0) {
-                  body += `- **风险提示**:\n`;
-                  for (const note of mod.risk_notes) {
-                    body += `  - ⚠️ ${note}\n`;
-                  }
-                }
-                
-                if (mod.changelog_summary) {
-                  body += `\n<details>\n<summary>📝 更新日志摘要</summary>\n\n`;
-                  body += mod.changelog_summary;
-                  body += `\n\n[查看完整日志](${mod.changelog_url})\n`;
-                  body += `</details>\n`;
-                }
-                
-                body += '\n';
-              }
-            }
-            
-            body += '### 📋 处理步骤\n\n';
-            body += '1. 查看上游 Release Notes 和风险提示\n';
-            body += '2. 评估依赖兼容性（参考 `config/mods.lock.json` notes）\n';
-            body += '3. 更新 `config/build.toml` 中的版本号\n';
-            body += '4. 运行 `python tools/mod_audit.py` 验证\n';
-            body += '5. 本地测试构建\n';
-            body += '6. 提交更新并更新 `mods.lock.json`\n\n';
-            body += '若更新失败，参考 [回滚指南](docs/MOD_UPDATE_ROLLBACK.md)\n\n';
-            body += '---\n';
-            body += '*此 Issue 由 GitHub Actions 自动创建*';
-            
-            // 检查是否已存在类似 Issue
-            const existingIssues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'mod-update',
-              per_page: 10
-            });
-            
-            // 如果已有未关闭的 mod-update Issue，添加评论而不是创建新 Issue
-            if (existingIssues.data.length > 0) {
-              const latestIssue = existingIssues.data[0];
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: latestIssue.number,
-                body: `## 新的更新检测\n\n${body}`
-              });
-              console.log(`已在现有 Issue #${latestIssue.number} 中添加评论`);
-            } else {
-              // 创建新 Issue
-              const issue = await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `🔄 发现 Mod 更新 (${new Date().toISOString().split('T')[0]})`,
-                body: body,
-                labels: ['mod-update', 'automation']
-              });
-              console.log(`已创建 Issue #${issue.data.number}`);
-            }
-      
-      - name: Send email notification
-        if: steps.check.outputs.has_updates == 'true'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "[DoL-X] 发现 ${{ steps.check.outputs.update_count }} 个 Mod 更新"
-          to: ${{ secrets.MAIL_TO }}
-          from: GitHub Actions <noreply@github.com>
-          body: |
-            检测到 ${{ steps.check.outputs.update_count }} 个 Mod 更新
-            
-            详情查看：https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            
-            或查看创建的 Issue（标签：mod-update）
-        continue-on-error: true
-      
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("output/mod-updates.json").read_text(encoding="utf-8"))
+
+          print("## 检测到 Mod 更新\n")
+          print(f"- 检测时间: {report.get('timestamp', 'unknown')}")
+          print(
+              f"- 更新数量: {report.get('updates_available', 0)}"
+              f" / {report.get('total_checked', 0)}\n"
+          )
+
+          for mod in report.get("updates", []):
+              prerelease_marker = " (Pre-release)" if mod.get("is_prerelease") else ""
+              print(f"### {mod.get('mod_name', 'unknown')}\n")
+              print(f"- 当前版本: `{mod.get('current')}`")
+              print(f"- 最新版本: `{mod.get('latest')}`{prerelease_marker}")
+              print(f"- 仓库: {mod.get('repo')}")
+              print(f"- 发布时间: {mod.get('published_at')}")
+              print(f"- 风险等级: {str(mod.get('risk_level', 'unknown')).upper()}")
+
+              risk_notes = mod.get("risk_notes") or []
+              if risk_notes:
+                  print("- 风险提示:")
+                  for note in risk_notes:
+                      print(f"  - {note}")
+
+              changelog_summary = mod.get("changelog_summary")
+              if changelog_summary:
+                  print("\n<details><summary>更新日志摘要</summary>\n")
+                  print(changelog_summary)
+                  changelog_url = mod.get("changelog_url")
+                  if changelog_url:
+                      print(f"\n[查看完整日志]({changelog_url})")
+                  print("\n</details>")
+              print()
+
+          print("### 处理步骤\n")
+          print("1. 查看上游 Release Notes 和风险提示")
+          print("2. 评估依赖兼容性（参考 `config/mods.lock.json` notes）")
+          print("3. 更新 `config/build.toml` 中的版本号")
+          print("4. 运行 `python tools/mod_audit.py` 验证")
+          print("5. 本地测试构建")
+          print("6. 提交更新并更新 `mods.lock.json`")
+          PY
+
       - name: Summary
         if: always()
         run: |
-          echo "## Mod 更新检查完成" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
           if [ "${{ steps.check.outputs.has_updates }}" = "true" ]; then
-            echo "✅ 发现 ${{ steps.check.outputs.update_count }} 个可用更新" >> $GITHUB_STEP_SUMMARY
-            echo "已创建/更新 Issue" >> $GITHUB_STEP_SUMMARY
+            echo "发现 ${{ steps.check.outputs.update_count }} 个可用更新，详情见上方与 mod-update-report artifact。" >> $GITHUB_STEP_SUMMARY
           else
-            echo "ℹ️ 所有 Mod 均为最新版本" >> $GITHUB_STEP_SUMMARY
+            echo "所有 Mod 均为最新版本。" >> $GITHUB_STEP_SUMMARY
           fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "查看详细报告: [mod-updates.json](./mod-updates.json)" >> $GITHUB_STEP_SUMMARY

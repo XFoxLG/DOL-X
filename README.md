@@ -51,7 +51,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 | **基础美化** | BESC 推荐 | UCB 唯一 |
 | **AU 组合** | AU（单独） | AU+UCB |
 | **作弊 Mod** | cheat + CSD | cheatExtended + maplebirch |
-| **构建矩阵** | 约 10 个 | 本地 4 码；公共 Actions 仅 base |
+| **构建矩阵** | 约 10 个 | 4 码；分支 base+AU-F / tag 全四码 |
 
 ### 相关文档
 
@@ -94,9 +94,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - AU-M：AU 男性模型 v0.4.2
 - AU-A：AU 双性模型 v0.1.1
 
-> AU 模型使用 AOKIUTAGE `mod` Release 的 ModLoader 直装方式。作者 README 明确禁止二传、倒卖、
-> 拆包和未经授权搬运，因此 DOL-X 保留 AU 三码给本地自构建，但公共 GitHub Actions 只构建、上传
-> 不含 AU 资源的 base。获得作者明确授权前，不新增公开 AU artifact 或 Release。
+> AU 模型使用 AOKIUTAGE `mod` Release 的 ModLoader 直装方式。
 
 ## 下载与版本选择
 
@@ -105,21 +103,14 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - **ZIP**：电脑浏览器直接打开玩
 - **APK**：安卓手机安装玩（推荐用 MuMu 等模拟器或较新手机）
 
-0713 历史 Release 曾提供四种体型。新的 4.x 公共 Actions 在授权边界澄清前只发布 base；下表中的
-AU 三码只表示本地构建能力，不表示可以从 DOL-X 公开下载：
-
-| 版本 | 文件名后缀 | 和基础版的区别 | 推荐 |
+| 版本 | 文件名后缀 | 和基础版的区别 | CI 触发 |
 |------|-----------|------|------|
-| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） | ✅ 公共 Actions |
-| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | 本地自构建 |
-| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | 本地自构建 |
-| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | 本地自构建 |
+| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） | 每次推送 + tag |
+| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | 每次推送 + tag |
+| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | 仅 tag 发版 |
+| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | 仅 tag 发版 |
 
-**怎么选：**公开下载请选择基础版。需要 AU 时，请遵守作者 README，从作者官方 Release 获取资源并
-在本地自构建，不要转载 DOL-X 生成的整合包。
-
-> 已公开的 0713 稳定版仍不内置 AU Face。4.x 主线把 AU Face 仅加入三个本地 AU 变体；base 不含
-> AU model 或 AU Face。Legacy-Art-Mods-Compat plus 进入所有 4.x 构建码，不占独立 bit。
+> AU Face 仅加入三个 AU 变体；base 不含 AU model 或 AU Face。Legacy-Art-Mods-Compat plus 进入所有 4.x 构建码，不占独立 bit。
 
 ## 包含哪些 Mod
 
@@ -255,7 +246,6 @@ DoL-{原版版本}-XFox-{汉化版本}-{体型}-{日期}.apk
 ### Mod 开发工具链
 
 - 🚀 [TypeScript Mod 模板](https://github.com/XFoxLG/DOL-X-TS-Mod-Template) - 现代化 TS 开发环境
-- 📚 [高级 Mod 开发指南](docs/ADVANCED_MOD_DEV.md) - 完整开发文档
 - 🔧 [ModLoader 文档](docs/MODLOADER_OVERVIEW.md) - ModLoader 使用说明
 - ✅ [同步检查清单](UPSTREAM_SYNC_CHECKLIST.md) - 如何保持与上游同步
 
