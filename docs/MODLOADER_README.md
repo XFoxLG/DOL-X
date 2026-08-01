@@ -147,7 +147,6 @@
 - [`config/build.toml`](../config/build.toml) - Mod 配置
 - [`config/features.toml`](../config/features.toml) - Feature 定义
 - [`config/combinations.toml`](../config/combinations.toml) - 构建矩阵
-- [`config/profiles.toml`](../config/profiles.toml) - 用户场景
 
 ### 调研报告
 

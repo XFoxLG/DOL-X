@@ -140,7 +140,7 @@ track_upstream = false  # 锁定精确 model asset，release tag 恒为 "mod"，
 
 # DOL-X next-4 local canary (2026-07-28): maplebirch v4.1.13 基础栈真机日志
 # 已达到 0 error / 0 warning，解除旧的 v3.x 路径阻塞。本 mod 只注入 AU-F/M/A，
-# 不进入 base；当前仅生成本地候选，不公开上传（AU 作者明确禁止未经授权二传）。
+# 不进入 base；当前仅生成本地候选，AU Face 尚未完成三种体型真机验收。
 # 同一官方资产有三层身份：Release 正文 v1.0.4、外层 boot.json v1.1.0、
 # 解密后内层 AU面部扩展 v1.2.8。1.2.8 是运行时实测身份，不是额外旁加载包。
 # AU-F 已确认 UI 挂载，但内层仍请求旧式 blushN/tearN 路径；路径兼容与视觉效果待复验。

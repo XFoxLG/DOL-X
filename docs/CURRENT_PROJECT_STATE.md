@@ -40,12 +40,7 @@
 - AU-M `15706368`
 - AU-A `15708416`
 
-AU 作者仓库 README 明确写明 AU 原版部件及衍生内容“严禁二传、倒卖、拆包”和未经授权搬运。
-因此四码只代表本地构建能力，不等于四个包都可由公共 Actions 重新分发。
-
-公开 `.github/workflows/build.yaml` 只构建并上传 base `15704320`。AU 三码必须由用户从作者官方 Release
-获取资源后在本地自构建，或在获得作者明确授权后再开放公共 artifact/Release。历史 0713 曾公开包含
-AU，不构成继续分发的授权依据。
+公开 CI 分支推送构建 base + AU-F，tag 发版构建全部四码。
 
 GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/30611108121) 已在提交
 `fedcbf5` 上成功生成并上传：
@@ -53,7 +48,7 @@ GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/
 - `DoL-0.5.10.12-XFox-1.0.8a-base-0731.zip`
 - `DoL-0.5.10.12-XFox-1.0.8a-base-0731.apk`
 
-日志中的 `PUBLIC_BUILD_CODES` 为 `15704320`，输出目录只有上述两件 base 产物。该次运行由分支推送
+该次运行由分支推送
 触发，所以 release job 按设计跳过；产物保存在 Actions artifact，不等同于新建 GitHub Release。
 
 ## 4. AU Face 与 plus

@@ -160,7 +160,7 @@
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
         "DOL-X: restored AU-F to v0.9.3 to align with upstream Lyra and AOKIUTAGE latest model asset",
         "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
-        "AU assets are downloaded from the author repository and are not mirrored or uploaded by public Actions"
+        "AU assets are downloaded from the author repository at build time"
       ]
     },
     "au_m": {

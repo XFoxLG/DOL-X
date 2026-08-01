@@ -7,7 +7,6 @@ on:
     tags:
       - "*"
       - "!*-mirror-*"  # 忽略镜像 tags (imagepack-mirror-*, cheat-extended-mirror-*)
-      - "!*-compat-*"  # 忽略自研兼容 mod 发布 tags (maplebirch-v3-layer-compat-*)
     paths-ignore:
       - "README.md"
       - "LICENSE"
@@ -15,10 +14,6 @@ on:
       - ".vscode/**"                                   # VSCode 配置不触发
       - "*.md"                                         # 所有 Markdown 文件
       - ".gitignore"
-      - "CLEANUP_PLAN.md"
-      - "BUILD_VERIFICATION_REPORT.md"
-      - ".github/workflows/trigger.yaml"
-      - ".github/workflows/deploy-hub.yaml"
   workflow_dispatch:
 
 # release job 用 svenstaro/upload-release-action 创建 Release 需要写权限。
@@ -27,9 +22,9 @@ permissions:
   contents: write
 
 env:
-  # AU 作者仓库明确禁止二传、拆包和未经授权搬运。公开 Actions 因此只
-  # 构建并上传不含 AU 资源的 base；四码配置仍保留给本地授权自构建。
-  PUBLIC_BUILD_CODES: "15704320"
+  # 分支推送构建 base + AU-F；tag 发版构建全部四个组合。
+  BRANCH_BUILD_CODES: "15704320 15705344"
+  RELEASE_BUILD_CODES: "15704320 15705344 15706368 15708416"
 
 jobs:
   build:
@@ -70,18 +65,25 @@ jobs:
           echo ${{ secrets.SIGNING_KEY }} > dol.base64
           base64 -d dol.base64 > dol.jks
 
-      # 预热与构建使用同一显式 base code，避免下载不会进入公开产物的资源。
-      - name: Warmup beautify resources
-        run: |
-          python main.py warmup --workspace "${{ github.workspace }}" --codes "${PUBLIC_BUILD_CODES}" -v
-
-      # 公开 CI 只构建 base，避免重新分发 AU 作者禁止二传的资源。
-      - name: Build public base combination
+      - name: Select build codes
+        id: codes
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            python main.py build --workspace "${{ github.workspace }}" --tag "${{ github.ref_name }}" --codes "${PUBLIC_BUILD_CODES}" --jobs 2 -v
+            echo "value=${RELEASE_BUILD_CODES}" >> "$GITHUB_OUTPUT"
           else
-            python main.py build --workspace "${{ github.workspace }}" --codes "${PUBLIC_BUILD_CODES}" --jobs 2 -v
+            echo "value=${BRANCH_BUILD_CODES}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Warmup beautify resources
+        run: |
+          python main.py warmup --workspace "${{ github.workspace }}" --codes "${{ steps.codes.outputs.value }}" -v
+
+      - name: Build combinations
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            python main.py build --workspace "${{ github.workspace }}" --tag "${{ github.ref_name }}" --codes "${{ steps.codes.outputs.value }}" --jobs 2 -v
+          else
+            python main.py build --workspace "${{ github.workspace }}" --codes "${{ steps.codes.outputs.value }}" --jobs 2 -v
           fi
 
       - name: List outputs
