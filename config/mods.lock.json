@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-07-31T06:44:00Z",
+  "last_updated": "2026-08-01T00:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
@@ -21,22 +21,6 @@
         "The rebuilt v3.2.5 package showing 2026-07-27 as last update was caused by ZIP rebuild timestamps, not original author chronology",
         "Rollback archives remain available, but the active owner is the official 4.x stack",
         "CLOUD SAVE: 4.1.13 adds client + self-hosted Go/Worker implementations in upstream cloud-services/; no public endpoint is bundled or deployed by DOL-X"
-      ]
-    },
-    "maplebirch_expansion": {
-      "name": "maplebirch扩展包（旧版，已退役）",
-      "github_repo": "XFoxLG/DOL-X",
-      "asset_pattern": "maplebirchEx-v1.2.4.mod.zip",
-      "release_tag": "maplebirch-expansion-mirror-v1.2.4",
-      "last_tested_version": "v1.2.4",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.10.12",
-      "last_tested_date": "2026-07-27",
-      "status": "retired-runtime-incompatible",
-      "notes": [
-        "Static semver compatibility with maplebirch v3.2.5 was misleading: real runtime produced undefined dread/sanity/dreadmax errors in maplebirchStatusBar and maplebirchOptions",
-        "The deleted upstream package is retained only as a rollback archive and is no longer injected",
-        "Its actively released successors are LongerCombat and YanlingCheatCollection on maplebirch ^4.1.0; Deadwood-Reblooms remains unreleased and is not integrated"
       ]
     },
     "longer_combat": {
@@ -106,7 +90,6 @@
         "v1.20 targets game 0.5.10.12 and bundles scripts/CE_HeadMaskCompat.js; the visible head-mask compatibility mode belongs to Cheat Extended, not Legacy-Art-Mods-Compat or maplebirch",
         "Official Pre-release is now the primary download source. Per-mod prerelease tracking compares the GitHub asset digest so an in-place replacement under the same tag is detected",
         "XFoxLG/DOL-X cheat-extended-mirror-v1.20 is archive-only manual disaster recovery; its bytes match the current official asset",
-        "CORRECTION: an earlier note here claimed the upstream v1.19 Release was deleted -- that was WRONG, v1.19 still exists upstream (197044 bytes, archived locally too)",
         "Rollback: cheat-extended-mirror-v1.18 is kept intact; v1.18 has no framework gate and loads on any maplebirch version",
         "--- v1.18 mirror history (kept for rollback reference) ---",
         "DOL-X: Repacked + re-uploaded the v1.18 mirror (2026-07-05)",
@@ -114,7 +97,7 @@
         "Fix (Python zipfile): rewrote all entries with forward slashes; dropped garbage (CE_inventory_helper.twee.bak, PIC/* screenshots, mojibake .jpg); backfilled scriptEarly/Utils/spectrum.{js,css} from clean v1.19; pruned 2 dangling boot.json refs (Widgets State Man_{1,2}.txt, absent upstream in v1.17/v1.18/v1.19 alike)",
         "Result: 63 entries, 0 backslash, all boot.json refs (incl addonPlugin) resolve; CERegist.js + framework_detector.js present so it registers to maplebirch",
         "v1.18 boot.json has NO maplebirch dependency and loads on v3.1.14; provides full Yanling system + brothel basement + customer eye/skin color",
-        "Source tag chris81605 V1.18(Dev260325), upstream Release deleted after v1.19 (recoverable via commit history); mirror retained to survive deletion"
+        "Source tag chris81605 V1.18(Dev260325); upstream v1.19 still exists (197044 bytes), and the DOL-X mirror is retained purely as offline rollback"
       ]
     },
     "mae_picvary": {
