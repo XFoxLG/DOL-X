@@ -19,7 +19,7 @@
 DOL-X 本地矩阵是 base/AU-F/AU-M/AU-A 四码，统一使用 UCB、maplebirch、Cheat Extended 和项目选择的
 功能 mod。矩阵由 `config/combinations.toml` 精确控制，不跟随 Lyra 推荐组合变化。
 
-公共 Actions 只构建 base `15704320`。AU 三码保留给使用作者官方资源的本地自构建，原因是 AU 作者
+分支推送构建 base + AU-F，tag 发版构建全部四码。
 明确禁止二传、拆包和未经授权搬运。
 
 ## 当前框架栈
@@ -45,7 +45,7 @@ DOL-X 本地矩阵是 base/AU-F/AU-M/AU-A 四码，统一使用 UCB、maplebirch
 
 ## 工作流差异
 
-- `build.yaml` 使用 XFox 身份、签名 secret 和 base-only 公共分发边界。
+- `build.yaml` 使用 XFox 身份、签名 secret 和双档构建矩阵。
 - tag 构建才创建 Release；普通分支构建只保留 Actions artifact。
 - `mod-update-check.yml` 每周检查作者官方 Release。
 
