@@ -11,17 +11,39 @@ def read_build_workflow() -> str:
     return BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
-def test_branch_tier_contains_base_and_au_f():
+def read_codes_tier(tier_name: str) -> str:
+    """Return the quoted value assigned to a build-code tier variable."""
     workflow = read_build_workflow()
+    tier_line = [
+        line for line in workflow.splitlines()
+        if line.strip().startswith(f"{tier_name}:")
+    ][0]
+    return tier_line.split(":", 1)[1].strip().strip('"')
 
-    assert 'BRANCH_BUILD_CODES: "15704320 15705344"' in workflow
+
+def test_branch_tier_contains_base_and_au_f():
+    branch_codes = read_codes_tier("BRANCH_BUILD_CODES").split(",")
+
+    assert branch_codes == ["15704320", "15705344"]
 
 
 def test_branch_tier_excludes_au_m_and_au_a():
-    workflow = read_build_workflow()
+    branch_codes = read_codes_tier("BRANCH_BUILD_CODES").split(",")
 
-    assert "15706368" not in workflow.split("BRANCH_BUILD_CODES")[1].split("\n")[0]
-    assert "15708416" not in workflow.split("BRANCH_BUILD_CODES")[1].split("\n")[0]
+    assert "15706368" not in branch_codes
+    assert "15708416" not in branch_codes
+
+
+def test_build_code_tiers_are_comma_separated():
+    """main.py splits --codes on commas only, so space separators silently fail."""
+    for tier_name in ("BRANCH_BUILD_CODES", "RELEASE_BUILD_CODES"):
+        tier_value = read_codes_tier(tier_name)
+
+        assert " " not in tier_value, (
+            f"{tier_name} must be comma-separated; spaces are parsed as one code"
+        )
+        for code in tier_value.split(","):
+            assert code.isdigit(), f"{tier_name} contains a non-numeric code: {code}"
 
 
 def test_release_tier_contains_all_four_codes():
