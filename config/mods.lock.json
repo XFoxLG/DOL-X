@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-08-01T00:00:00Z",
+  "last_updated": "2026-08-02T00:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
@@ -105,13 +105,16 @@
       "github_repo": "Maenoko/Mae-s-Picvary-NPC-mod",
       "asset_pattern": "*.mod.zip",
       "release_tag": "DOL",
-      "last_tested_version": "v1.3.2",
+      "last_tested_version": "1.3.2",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_dol_version": "0.5.10.12",
       "notes": [
-        "v4.1.7 兼容性待验证",
-        "测试阶段: 阶段 2.4 本地测试"
-      ]
+        "Pinned to the fixed tag DOL; the release carries a single 1.3.2 asset and upstream has published nothing newer (checked 2026-08-02)",
+        "Verified coexisting with NPC Avatars Mod on maplebirch 4.1.13: both register through ImageLoaderHook2BeautySelectorAddon as converted mods and the runtime log reports 0 error and 0 warning",
+        "Provides pre-drawn static NPC portraits, so it does not depend on NPC wardrobe data"
+      ],
+      "last_tested_date": "2026-08-02",
+      "status": "runtime-mounted"
     },
     "more_love": {
       "name": "更多恋人",
@@ -120,13 +123,16 @@
       "release_tag": "More-Love-Interests-Mod-v0.1.6.0",
       "last_tested_version": "v0.1.6.0",
       "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-17",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-08-02",
       "notes": [
-        "独立 feature，不依赖其他 mod",
-        "通过 build.toml 直链下载",
-        "兼容所有 imagepack 组合"
-      ]
+        "Standalone feature with no dependency on other mods; downloaded via a pinned download_url in build.toml",
+        "Compatible with every imagepack combination",
+        "UPSTREAM UPDATE AVAILABLE (checked 2026-08-02): v0.1.7.0 was published 2026-06-27. Dependency-wise the upgrade is viable because v0.1.6.0 declares GameVersion >=0.5.5.0 and v0.1.7.0 tightens it to >=0.5.10.0, while the shipped game body is 0.5.10.12",
+        "Held at v0.1.6.0 for the 0802 release on purpose: 0.1.6.0 is the runtime-verified version, and the love-interest rework touches TweeReplacer rules on Widgets Attitudes plus ReplacePatcher rules on time.js, which is save-affecting surface. The upgrade is deferred to its own validation round",
+        "Runtime log 2026-08-02 lists More Love Interests Mod 0.1.6.0 loaded with 0 error and 0 warning"
+      ],
+      "status": "runtime-mounted"
     },
     "au_f": {
       "name": "AU Female",
@@ -269,18 +275,20 @@
       "github_repo": "ArsNativa/Degrees-of-Lewdity-Intelligence",
       "asset_pattern": "DOLI.mod.zip",
       "release_tag": "v0.2.3",
-      "last_tested_version": "v0.2.3",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-07-01",
+      "last_tested_version": "release tag v0.2.3 / boot.json 0.2.2",
+      "last_tested_sha256": "82785c3d6d8a5f311763190e8429b77dfd1f1130c1dcfd95d2ab77187e356890",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-08-02",
       "notes": [
-        "Added in DOL-X integration (2026-07-01)",
-        "LLM AI 对话/战斗文本增强，ReAct 模式，需玩家在游戏内自填 OpenAI 兼容 API key",
-        "maplebirch 插件：boot.json 要求 ModLoader ^2.0.0 + maplebirch ^3.1.0（当前 2.101.1 + 3.1.14 满足）",
-        "构建系统绝不嵌 API key；未配后端时 mod 仍能加载，只是 AI 功能不工作",
-        "许可证 CC BY-NC-SA 4.0；0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂",
-        "首次加入需盯一次加载日志确认与 NeoUI overlay/maplebirch 不打架"
-      ]
+        "Added in DOL-X integration (2026-07-01); LLM dialogue and combat text enhancement, player supplies their own OpenAI-compatible API key in game",
+        "DOL-X never embeds an API key; with no key configured the mod still loads and only the AI features stay idle",
+        "VERSION DOUBLE IDENTITY (verified 2026-08-02): the release tag is v0.2.3 but the packaged boot.json declares version 0.2.2 because the author did not bump the manifest. ModLoader reads boot.json, so a runtime listing of DOLI 0.2.2 is correct and does NOT mean the build fetched a stale asset",
+        "CORRECTION (2026-08-02): the earlier note claiming boot.json requires ModLoader ^2.0.0 plus maplebirch ^3.1.0 satisfied by 2.101.1 and 3.1.14 was wrong on two counts. dependenceInfo only requires ModLoader ^2.0.0, and maplebirch appears solely under addonPlugin with range ^3.1.0, which does NOT cover the current 4.1.13",
+        "Consequence: the in-framework Options entry doliMaplebirchOptionsEntry is not registered under maplebirch 4.x. DOLI ships patches/overlay-replace.json with an explicit not-window.maplebirch branch that adds a DOLI button to the native game Options overlay, so the configuration entry stays reachable and the mod is not broken",
+        "Re-verify the in-framework entry if the author widens the addonPlugin range to ^4.0.0",
+        "License CC BY-NC-SA 4.0; pinned to v0.2.3 and deliberately not tracking latest during the 0.2.x early phase"
+      ],
+      "status": "runtime-mounted"
     },
     "legacy_art_compat": {
       "name": "旧版图片名称适配 (Legacy-Art-Mods-Compat plus)",
