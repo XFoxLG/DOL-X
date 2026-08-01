@@ -55,6 +55,11 @@
 - `DoL-0.5.10.12-XFox-1.0.8a-base-0801.zip` / `.apk`
 - `DoL-0.5.10.12-XFox-1.0.8a-au-f-0801.zip` / `.apk`
 
+`workflow_dispatch` 另有 `build_tier` 输入（`branch` / `release`），选 `release`
+可在不打 tag 的前提下干跑全四码。release job 仍受 `github.ref_type == 'tag'` 保护，
+手动干验证不会误发 Release。全四码首验见 run
+[`30709200905`](https://github.com/XFoxLG/DOL-X/actions/runs/30709200905)，8 个产物齐全。
+
 ## 本轮退役的组件
 
 以下组件已无调用方或本身已损坏，全部删除：
