@@ -81,26 +81,21 @@ If mod should be in default builds, update `config/combinations.toml`:
 build_codes = ["24834", "25858", "26882", "28930", "90370"]
 ```
 
-### 2.4 Add Profile (Optional)
+### 2.4 Add Build Combination (Optional)
 
-If mod needs a dedicated profile, update `config/profiles.toml`:
-
-```toml
-[[profiles]]
-id = "with-beauty-selector"
-name = "整合包 + Beauty Selector"
-description = "标准整合包 + Beauty Selector Addon"
-build_code = 90370
-```
+If mod needs a dedicated build target, add it to `config/combinations.toml`
+instead. The old `config/profiles.toml` subsystem has been removed; build codes
+are the single source of truth for which features get bundled.
 
 ---
 
 ## Phase 3: Automated Testing
 
-### 3.1 Run Validation Pipeline
+### 3.1 Build and Test
 
 ```bash
-python tools/validate_mod_addition.py <mod_key> <test_code>
+python main.py build --codes <test_code>
+python tools/html_smoke_test.py output/*.zip
 ```
 
 **Expected output**:
@@ -180,15 +175,11 @@ Add mod to feature list in `README.md`:
 - **Beauty Selector Addon** (v1.0.0): Customizable beauty traits selector
 ```
 
-### 5.2 Update PROFILE_USAGE.md
+### 5.2 Update the build matrix docs
 
-If added new profile:
-
-```markdown
-| Profile ID | Build Code | Description |
-|------------|------------|-------------|
-| with-beauty-selector | 90370 | 整合包 + Beauty Selector |
-```
+If you added a new build code, record it in
+[`docs/CURRENT_PROJECT_STATE.md`](CURRENT_PROJECT_STATE.md) so the documented
+matrix stays in sync with `config/combinations.toml`.
 
 ### 5.3 Document Known Issues
 
@@ -219,7 +210,7 @@ If mod has known issues, add to `docs/KNOWN_ISSUES.md`:
 
 ```bash
 git checkout -b feature/add-beauty-selector
-git add config/build.toml config/features.toml config/profiles.toml
+git add config/build.toml config/features.toml config/combinations.toml
 git commit -m "feat: add Beauty Selector Addon integration"
 git push origin feature/add-beauty-selector
 ```
@@ -309,7 +300,6 @@ enabled = false  # Disable without removing
 # Remove from config/build.toml
 # Remove from config/features.toml
 # Remove from config/combinations.toml (if added)
-# Remove from config/profiles.toml (if added)
 
 git commit -m "revert: remove problematic mod"
 ```

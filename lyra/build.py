@@ -27,7 +27,6 @@ from .compatibility import (
     is_patch_success_status,
 )
 from .lyra_mod import build_lyra_mod
-from .local_mod import build_local_mod
 from .combo import CombinationCalculator
 from .config_loader import load_build_config, get_config_loader
 from .prepare import ModInjector
@@ -578,53 +577,6 @@ class PackageBuilder(ABC):
 
         return applied
 
-    def _inject_local_mods(self) -> list[str]:
-        """
-        构建并注入仓库内自研的本地兼容 mod。
-
-        与 _inject_modloader_mods（远程下载的第三方 mod）不同，这里的 mod
-        源码就在仓库 mods/ 目录内，构建期现场打包成 .mod.zip 再注入 HTML。
-
-        当前 4.x 主线没有需要现场打包注入的本地 mod。历史
-        maplebirch-v3-layer-compat 只服务 3.x 回滚线；4.1.13 已原生使用
-        新式图层命名，因此不再把该补丁塞进每个 4.x 产物。
-
-        Returns:
-            注入的本地 mod 名称列表
-        """
-        # (feature_id, mod 目录名) —— feature 命中即注入。
-        local_mods = []
-
-        config_loader = get_config_loader()
-        mod_paths = []
-        applied = []
-
-        for feature_id, mod_name in local_mods:
-            feature = config_loader.get_feature_by_id(feature_id)
-            if not feature:
-                logger.warning(f"本地 mod 触发 feature 不存在: {feature_id}")
-                continue
-            if not (self.mod_code & feature.bit):
-                continue
-
-            mod_zip = (
-                self.paths.temp_dir
-                / f"{mod_name}-{self.pack_type}-{self.task.code_str}.mod.zip"
-            )
-            try:
-                build_local_mod(mod_name, mod_zip)
-            except (FileNotFoundError, ValueError) as exc:
-                raise RuntimeError(f"本地 mod 打包失败 ({mod_name}): {exc}")
-
-            mod_paths.append(mod_zip)
-            applied.append(mod_name)
-
-        if mod_paths:
-            injector = ModInjector(self.paths)
-            injector.add_mods(self.html_path, mod_paths)
-
-        return applied
-
     def _inject_lyra_mod(self):
         """
         构建并注入 Lyra 信息 mod
@@ -703,9 +655,6 @@ class ZipBuilder(PackageBuilder):
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
-
-            # 注入本地自研兼容 mod（现场打包，ModLoader 依赖检查决定是否生效）
-            applied_mods.extend(self._inject_local_mods())
 
             # 注入 Lyra 信息 mod
             self._inject_lyra_mod()
@@ -787,9 +736,6 @@ class ApkBuilder(PackageBuilder):
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
-
-            # 注入本地自研兼容 mod（现场打包，ModLoader 依赖检查决定是否生效）
-            applied_mods.extend(self._inject_local_mods())
 
             # 注入 Lyra 信息 mod
             self._inject_lyra_mod()
