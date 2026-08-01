@@ -26,8 +26,18 @@
 - 分支推送（`vega`）：构建 base + AU-F
 - tag 发版：构建全部四码，并创建 Release
 
+构建码在 workflow 里必须**逗号分隔**：`main.py` 的 `_split_build_codes` 只按逗号拆分，
+空格分隔会被当成单个构建码并在校验阶段失败。由
+`tests/test_public_distribution_boundary.py` 锁定该约束。
+
 `warmup` 与 `build` 共用同一组解析后的构建码，避免预热资源集合与构建目标不一致。
-由 `tests/test_public_distribution_boundary.py` 锁定。
+
+分档已由 GitHub Actions run
+[`30686010865`](https://github.com/XFoxLG/DOL-X/actions/runs/30686010865) 在提交
+`66a28e5` 上验证，产出四件：
+
+- `DoL-0.5.10.12-XFox-1.0.8a-base-0801.zip` / `.apk`
+- `DoL-0.5.10.12-XFox-1.0.8a-au-f-0801.zip` / `.apk`
 
 ## 本轮退役的组件
 
