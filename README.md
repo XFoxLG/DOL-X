@@ -144,26 +144,20 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ## 当前版本说明
 
-**当前稳定版本**：`v0.5.10.12-1.0.8a-0713`
+**当前稳定版本**：`v0.5.10.12-1.0.8a-0802`
 
 - **游戏版本**：DoL 0.5.10.12（跟随汉化仓库更新）
+- **Mod 栈**：maplebirch 4.1.13 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1 + Legacy-Art-Mods-Compat plus 1.0.3-plusV1.1
 - **产物**：4 个版本（基础版 + AU-F / AU-M / AU-A）× 两种格式（ZIP + APK），共 8 个文件
-- **测试情况**：AU-F 版已在 MuMu 模拟器和浏览器上实机测试通过；其余 3 个版本用的是同一套 Mod（只有体型资源不同），预期表现一致，但没有逐个上机验证。
-
-**当前 `vega` 公开主线**：4.x 栈（尚未创建新 tag/Release）
-
-- maplebirch 4.1.13 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1。
-- 基础栈用户真机日志为 `0 error / 0 warning / 340 info`，作弊界面可打开，抽样功能正常。
-- GitHub Actions run [`30611108121`](https://github.com/XFoxLG/DOL-X/actions/runs/30611108121) 已成功构建并上传
-  `DoL-0.5.10.12-XFox-1.0.8a-base-0731.zip` 与 `.apk`；公开输出仅有 base。
-- 四个 ZIP 已在本地成功构建并通过静态 payload 检查；基础版不含 AU/AU Face，三个 AU 版各含正确体型和 AU Face 1.1.0。
-- AU Face 尚未完成三种体型真机验收，因此三个 AU 本地变体不是新稳定 Release，也没有公开上传。
+- **测试情况**：AU-F 版已在真机上测试通过，基础栈日志为 `0 error / 0 warning`，作弊界面可打开、抽样功能正常。base / AU-M / AU-A 三个版本用的是同一套 Mod（只有体型资源不同），构建全部成功，但没有逐个上机验证。
+- 上一代稳定版 `v0.5.10.12-1.0.8a-0713` 使用 maplebirch 3.x 栈，源码已存档在分支 `vega-archive-0713`，Release 仍保留可下载。
 - 当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
 > **已知边界（当前 4.x 主线）**：
 > - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，具名剧情 NPC 在动态模型里不显示衣服**：两个开关不是同一张图。「NPC 侧边栏图像显示」使用预绘制静态图；「PC 模型模式」用玩家纸娃娃系统动态生成，需要独立 NPC 衣柜数据。当前 4.x 主线没有任何 mod 注册衣柜，框架会按设计回落到 `naked`，不是图片路径 bug。**解决办法**：关闭「PC 模型模式」，只保留「NPC 侧边栏图像显示」，即可使用 Mae's Picvary 静态立绘。完整方案是制作独立 wardrobe 数据 mod，为每个 NPC 按地点注册服装；尚未实现。
 > - **AU Face 面部扩展测试中出现 `Failed to load image img/face/default/blushN.png` / `tearN.png` 红框**：这是 AU Face 内层请求旧式文件名，而当前资源使用新式 `blush-N.png` / `tears-N.png`，不是 AU model 的 `kiss改脸` 问题。AU Face 设置 UI 已确认可打开，但脸红/高潮流泪等视觉效果还没通过；不要用“ModLoader 0 error”替代视觉验收。
 > - **切换 AU 改脸时弹出 `Failed to load image .../kiss改脸/.../eyes.png` 红框**：这是 AU 美化本体自带改脸目录的缺图层提示，与 AU Face 是另一个独立 mod；直接点 **Clear** 或 **Close** 关掉即可。
+> - **Mod 管理器里 DOLI 显示 `v0.2.2`，但配置钉的是 Release `v0.2.3`**：作者发布 v0.2.3 时没有同步升级包内 `boot.json` 的版本号。Mod 管理器读的是包内声明，所以显示 0.2.2 是正常现象，不代表装了旧版本。同理，NPC Avatars 的 Release tag 是 `1.4` 而包内声明 `1.4.1`。
 > - **云存档面板没有可预填的服务地址**：maplebirch 4.1.13 自带云存档客户端和两套官方自建后端（Go+SQLite、Cloudflare Worker+R2+D1），但作者没有提供公共实例。DOL-X 不代为部署远程资源；需要使用时按源码文档自建，且不要填写未知第三方地址。
 >
 > 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
