@@ -39,7 +39,6 @@ DOL-X 的直接构建上游是 [DoL-Lyra/Lyra](https://github.com/DoL-Lyra/Lyra)
 
 - 第三方资产进入公开 `vega` 前必须确认许可证或取得明确转载授权。
 - 分支推送构建 base + AU-F，tag 发版构建全部四码。
-  获得作者明确授权前不上传 artifact/Release。
 - 原始 Discord/贴吧抓取、下载缓存和一次性分析脚本不进入主线；提炼后的结论必须标注来源与验证层级。
 
 ## 6. 同步验收
