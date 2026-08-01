@@ -83,3 +83,32 @@ def test_workflow_selects_tier_by_ref_type():
     assert "RELEASE_BUILD_CODES" in selection_block
     assert "BRANCH_BUILD_CODES" in selection_block
     assert 'github.ref_type' in selection_block
+
+
+def test_manual_dispatch_can_request_the_release_tier():
+    """A pre-release dry run needs to build all four codes without pushing a tag."""
+    workflow = read_build_workflow()
+
+    assert "build_tier" in workflow, (
+        "workflow_dispatch must expose a build_tier input for release dry runs"
+    )
+
+    codes_section = workflow[workflow.index("Select build codes"):]
+    selection_block = codes_section[:codes_section.index("Warmup")]
+    assert 'inputs.build_tier' in selection_block, (
+        "the codes selection step must honour the build_tier input"
+    )
+
+
+def test_release_job_only_runs_for_tags():
+    """A manual release-tier dry run must never publish a Release."""
+    workflow = read_build_workflow()
+
+    release_job_section = workflow[workflow.index("  release:"):]
+    guard_lines = [
+        line.strip() for line in release_job_section.splitlines()
+        if line.strip().startswith("if:")
+    ]
+
+    assert guard_lines, "the release job must keep an explicit ref_type guard"
+    assert guard_lines[0] == "if: github.ref_type == 'tag'"

@@ -15,6 +15,14 @@ on:
       - "*.md"                                         # 所有 Markdown 文件
       - ".gitignore"
   workflow_dispatch:
+    inputs:
+      build_tier:
+        description: "构建档：branch = base + AU-F；release = 全部四码（发版前干验证用）"
+        type: choice
+        default: branch
+        options:
+          - branch
+          - release
 
 # release job 用 svenstaro/upload-release-action 创建 Release 需要写权限。
 # GitHub 收紧默认 token 权限后，缺声明会导致创建 Release 报 "Not Found"（403）。
@@ -69,7 +77,7 @@ jobs:
       - name: Select build codes
         id: codes
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+          if [[ "${{ github.ref_type }}" == "tag" || "${{ inputs.build_tier }}" == "release" ]]; then
             echo "value=${RELEASE_BUILD_CODES}" >> "$GITHUB_OUTPUT"
           else
             echo "value=${BRANCH_BUILD_CODES}" >> "$GITHUB_OUTPUT"
