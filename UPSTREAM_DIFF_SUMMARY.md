@@ -20,7 +20,6 @@ DOL-X 本地矩阵是 base/AU-F/AU-M/AU-A 四码，统一使用 UCB、maplebirch
 功能 mod。矩阵由 `config/combinations.toml` 精确控制，不跟随 Lyra 推荐组合变化。
 
 分支推送构建 base + AU-F，tag 发版构建全部四码。
-明确禁止二传、拆包和未经授权搬运。
 
 ## 当前框架栈
 
