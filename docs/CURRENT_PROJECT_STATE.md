@@ -83,4 +83,4 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 包内 `boot.json` 声明版本、plus ZIP manifest、配置加载、Python 编译、201 项自动测试，
 以及 GitHub Actions 全四码构建（run `30709200905`，8 个产物）。
 
-真机验收只覆盖 AU-F；AU-M / AU-A 仅有构建成功记录，无上机验证。
+真机验收只覆盖 AU-F；AU-M / AU-A 仅有构建成功记录，无上机验证，且按既定决策不再补。
