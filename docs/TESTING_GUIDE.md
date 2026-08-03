@@ -149,7 +149,7 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
    - maplebirchEx v1.2.4
    - CustomHair v1.0.0
    - Mae's Picvary v1.3.2
-   - More Love Interests Mod v0.1.6.0
+   - More Love Interests Mod v0.1.7.0（食物偏好页面应无红框报错；含 Avery/艾弗里）
    - 当前启用的新 mod（guide_to_me, npc_social_icon）
    - NeoUI Patch 应出现（2026-07-05 升为必选，全部包内置）
    - BunnyTransformation 不应出现（已禁用，若出现说明测试包不是当前配置）

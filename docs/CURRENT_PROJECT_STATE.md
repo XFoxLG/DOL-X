@@ -37,13 +37,64 @@
 NeoUI `1.1.0`、GuideToMe `1.1.0`、CustomHair、Mae's Picvary `1.3.2`、NPC Avatars `1.4.1`
 均已是上游最新，无待升级项。
 
-唯一存在上游新版的是 More Love Interests Mod：上游已发布 `v0.1.7.0`（2026-06-27），
-本仓库仍钉 `v0.1.6.0`。依赖上可升（`v0.1.7.0` 要求 GameVersion `>=0.5.10.0`，当前游戏
-`0.5.10.12` 满足），但恋人系统改动会碰 `Widgets Attitudes` 与 `time.js` 的替换规则，
-属存档相关高影响面，0802 发版刻意不带，留给下一轮单独验证。
+More Love Interests Mod 已升级 `v0.1.6.0` → `v0.1.7.0`，详见下一节。
 
 AU 四个资产（三个 model + AU Face）与 Cheat Extended 的官方 asset digest 逐一比对
 `config/mods.lock.json`，全部一致，无同 tag 原位换包。
+
+### More Love 版本错配的发现与修复（2026-08-02）
+
+**这是修 bug，不是可选升级。此前把它记录为「刻意不升的保守选择」是错误判断，已撤回。**
+
+作者 README 提供游戏版本与 mod 版本的对照表：`v0.5.10.x` 的游戏必须用 `v0.1.7.0`，
+`v0.1.6.0` 对应的是 `v0.5.7.x`。本项目游戏本体是 `0.5.10.12`，此前钉 `v0.1.6.0`
+属于版本错配，不是稳妥。
+
+上游 issue #1「关于 v0.5.10.12 后，查看食物偏好爆红的问题」记录了该错配的实际后果，
+作者当天回复已发布 0.5.10 适配版，即 `v0.1.7.0`。根因是游戏本体重命名，五处均已在
+`v0.1.7.0` 包内逐条核对落实：
+
+| 游戏本体改动 | v0.1.6.0 | v0.1.7.0 |
+|---|---|---|
+| 食材集合重命名 | `setup.plants` | `setup.foodstuff` |
+| 配方结构下移 | `_foodInfo.ingredients` | `_foodInfo.recipe.ingredients` |
+| 图标宏替换 | `<<tendingicon>>`（传图标路径） | `<<foodstufficon>>`（直接收 key） |
+| 状态变量重命名 | `$plants` | `$foodstuff` |
+| 舒芙蕾键名去重音 | `soufflé` | `souffle` |
+
+最后一项只影响 Avery，是 issue 反馈者在修好前四项后才发现的独立问题。
+
+上述五项已直接对着随汉化 `v0.5.10.12-chs-1.0.8a` 发布的游戏本体 HTML
+（`DoL-ModLoader-0.5.10.12-v2.101.1.zip` 内 `Degrees of Lewdity.html`，6266 万字符）
+核实，不只采信作者与 issue 反馈者的说法：
+
+- `setup.foodstuff` 出现 237 次，`setup.plants` **0 次**
+- `foodstufficon` 出现 167 次，`tendingicon` **0 次**
+- `recipe: {` 出现 81 次，确认配方对象结构存在
+
+舒芙蕾一项需要精确表述，不能简单说成「旧写法已消失」：带重音的 `soufflé` 在本体里
+仍有 11 处，但**全部是显示文本或迁移逻辑，不是键**。数据定义为
+`souffle: { index: 95, name: "soufflé", singular: "soufflé", plural: "soufflés" }`
+——键不带重音，重音只留在给玩家看的名称上。本体自身还带一段存档迁移
+`<<if $foodstuff.soufflé>><<updateFoodstuffKey "soufflé" "souffle">>`，主动把旧存档的
+带重音键改写为不带重音。Avery 的喜爱食物也以 `saveFavoriteFood "Avery" "souffle"`
+注册。因此 v0.1.6.0 用 `"soufflé"` 作键去查必然查不到，这正是 Avery 单独报错的机制。
+
+改动面（逐文件 diff）：仅 `boot.json`、`game/foodPreference.js`、
+`game/more_love_interest_food_preference.twee`、`game/more_love_interest_main.twee`
+四个文件不同，无增删文件。`main.twee` 另有一处行为改动：`$auriga_artefact` 缺失或
+Avery 已 dismissed 时会把 Avery 从 `$loveInterestList` 移除，属上游有意的状态清理，
+已把 Avery 设为恋人的旧存档值得留意。
+
+**风险复核推翻了先前假设**：`boot.json` 的 5 条 addonPlugin 替换规则（3 条 TweeReplacer
+命中 `Widgets Attitudes` / `Widgets`，2 条 ReplacePatcher 命中 `time.js`）在两个版本
+之间逐条指纹比对**完全一致**，因此升级不改变本 mod 对游戏本体的 patch 面。先前
+「恋人系统改动会碰这些规则」的判断没有证据支持。
+
+`GameVersion` 门槛由 `>=0.5.5.0` 收紧到 `>=0.5.10.0`，当前 `0.5.10.12` 满足。
+
+回滚：`v0.1.6.0` 资产已归档到仓库外 `mod-archive/more-love-interests/v0.1.6.0`，
+sha256 `7c63f642…`，归档时已与 GitHub 报告的 digest 核对一致。
 
 ### Release tag 与包内声明版本不一致的两个 mod
 
@@ -120,7 +171,18 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、上游各 mod 最新版本、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载、Python 编译、201 项自动测试，
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载、Python 编译、202 项自动测试，
 以及 GitHub Actions 全四码构建（run `30709200905`，8 个产物）。
 
+More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产跑构建期改写函数完成的：
+`game/More_Love_Interest_Mod_Drag.js` 两版同为 3178 字节、同一 sha256
+`cd9c9a48ee2bfa06…`；改写后 `ev.preventDefault(` / `ev.stopPropagation(` /
+`ev.dataTransfer.getData` / `ev.dataTransfer.setData` 的直接调用点均为 0，9 个 ZIP
+条目全部保留，除被改写的成员外字节一致。
+
+注意区分「字符串出现次数」与「直接调用点」：改写后的文件里仍能搜到
+`stopPropagation` 字样，那是注入的辅助函数内部 `var stopPropagation = ev && ev.stopPropagation;`，
+即防护本身，不是漏改。判断是否漏改要用 `\bev\.stopPropagation\s*\(` 这类调用点正则。
+
 真机验收只覆盖 AU-F；AU-M / AU-A 仅有构建成功记录，无上机验证，且按既定决策不再补。
+More Love `v0.1.7.0` 的食物偏好页面（含 Avery）与既有存档的恋人列表行为仍待真机确认。
