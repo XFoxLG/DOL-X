@@ -162,15 +162,29 @@ enabled = true
 feature_id = "more_love"
 github_repo = "Nephthelana/DoL-More-Love-Interests-Mod"
 asset_pattern = "More.Love.Interests.Mod.mod.zip"
-release_tag = "More-Love-Interests-Mod-v0.1.6.0"
-download_url = "https://github.com/Nephthelana/DoL-More-Love-Interests-Mod/releases/download/More-Love-Interests-Mod-v0.1.6.0/More.Love.Interests.Mod.mod.zip"
-track_upstream = false  # 锁定 v0.1.6.0，download_url 钉死具体 asset，不跟 latest
-# 上游已有 v0.1.7.0（2026-06-27），本轮 0802 发版刻意不升（2026-08-02 调研）：
-#   v0.1.6.0 声明 GameVersion >=0.5.5.0，v0.1.7.0 收紧到 >=0.5.10.0。两者都覆盖
-#   当前的 0.5.10.12，所以升级在依赖上可行、不是阻塞项。
-#   不升的理由：0.1.6.0 是本轮真机验证过的版本（0 error / 0 warning），而恋人系统
-#   改动会碰 Widgets Attitudes 与 time.js 的 TweeReplacer/ReplacePatcher 规则，
-#   属于存档相关的高影响面。发版只带已验证组合，升级留给下一轮单独验证。
+release_tag = "More-Love-Interests-Mod-v0.1.7.0"
+download_url = "https://github.com/Nephthelana/DoL-More-Love-Interests-Mod/releases/download/More-Love-Interests-Mod-v0.1.7.0/More.Love.Interests.Mod.mod.zip"
+track_upstream = false  # 锁定 v0.1.7.0，download_url 钉死具体 asset，不跟 latest
+# 升级 v0.1.6.0 -> v0.1.7.0（2026-08-02）。这是修 bug，不是尝鲜。
+# 作者 README 给出版本对照表：v0.5.10.x 的游戏必须用 v0.1.7.0，v0.1.6.0 对应
+#   v0.5.7.x。本项目游戏本体是 0.5.10.12，此前钉 v0.1.6.0 属于版本错配。
+# 上游 issue #1「关于 v0.5.10.12 后，查看食物偏好爆红的问题」记录了错配的后果，
+#   作者当天回复已发布 0.5.10 适配版，即 v0.1.7.0。根因是游戏本体重命名：
+#     setup.plants -> setup.foodstuff
+#     _foodInfo.ingredients -> _foodInfo.recipe.ingredients
+#     <<tendingicon>> 宏删除，替换为 <<foodstufficon>>（直接收 key，不再传图标路径）
+#     $plants -> $foodstuff
+#     舒芙蕾键名去掉重音：soufflé -> souffle（否则 Avery 单独报错）
+#   以上五处已在 v0.1.7.0 包内逐条核对落实。
+# 改动面（逐文件 diff）：只有 boot.json、game/foodPreference.js、
+#   game/more_love_interest_food_preference.twee、game/more_love_interest_main.twee
+#   四个文件变化，无增删文件。main.twee 另有一处行为改动：$auriga_artefact 缺失或
+#   Avery 已 dismissed 时从 $loveInterestList 移除 Avery，属上游有意的状态清理。
+# 风险复核：boot.json 的 5 条 addonPlugin 替换规则（3 条 TweeReplacer 命中
+#   Widgets Attitudes / Widgets，2 条 ReplacePatcher 命中 time.js）在两版之间
+#   逐条指纹比对完全一致，因此升级不改变对游戏本体的 patch 面。
+# GameVersion 门槛由 >=0.5.5.0 收紧到 >=0.5.10.0，当前 0.5.10.12 满足。
+# 回滚：v0.1.6.0 资产已归档在仓库外 mod-archive，digest 见 mods.lock.json 历史。
 
 [[modloader_mods]]
 key = "maplebirch"
