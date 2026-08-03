@@ -122,20 +122,25 @@
       "name": "更多恋人",
       "github_repo": "Nephthelana/DoL-More-Love-Interests-Mod",
       "asset_pattern": "More.Love.Interests.Mod.mod.zip",
-      "release_tag": "More-Love-Interests-Mod-v0.1.6.0",
-      "last_tested_version": "v0.1.6.0",
-      "last_tested_sha256": "7c63f642876dac52fc35b6b174a16624b0e83b6ebce22ba38f4b49ac0421b9c7",
+      "release_tag": "More-Love-Interests-Mod-v0.1.7.0",
+      "last_tested_version": "v0.1.7.0",
+      "last_tested_sha256": "f90dee45da8a364136b9e6d6a7d5b26e2deb79f96f91ba5e217f65dc893061d5",
       "last_tested_dol_version": "0.5.10.12",
       "last_tested_date": "2026-08-02",
+      "status": "upgraded-pending-runtime",
       "notes": [
         "Standalone feature with no dependency on other mods; downloaded via a pinned download_url in build.toml",
         "Compatible with every imagepack combination",
-        "UPSTREAM UPDATE AVAILABLE (checked 2026-08-02): v0.1.7.0 was published 2026-06-27. Dependency-wise the upgrade is viable because v0.1.6.0 declares GameVersion >=0.5.5.0 and v0.1.7.0 tightens it to >=0.5.10.0, while the shipped game body is 0.5.10.12",
-        "Held at v0.1.6.0 for the 0802 release on purpose: 0.1.6.0 is the runtime-verified version, and the love-interest rework touches TweeReplacer rules on Widgets Attitudes plus ReplacePatcher rules on time.js, which is save-affecting surface. The upgrade is deferred to its own validation round",
-        "Runtime log 2026-08-02 lists More Love Interests Mod 0.1.6.0 loaded with 0 error and 0 warning",
-        "DIGEST BACKFILLED (2026-08-02): the pinned v0.1.6.0 asset had a null sha256 in this lockfile, so an in-place upstream swap would not have been detectable. Downloaded the official asset and confirmed it matches the GitHub-reported digest; the release still shows the original 2026-02-17 publish date with no later asset update"
-      ],
-      "status": "runtime-mounted"
+        "UPGRADED v0.1.6.0 -> v0.1.7.0 (2026-08-02). This is a bug fix, not an optional bump",
+        "The author README publishes a game-to-mod version table: games on v0.5.10.x must use mod v0.1.7.0, while v0.1.6.0 targets v0.5.7.x. This project ships game body 0.5.10.12, so the previous v0.1.6.0 pin was a version mismatch rather than a conservative choice",
+        "Upstream issue #1 'about the red error when viewing food preferences after v0.5.10.12' documents the consequence of that mismatch. The author replied the same day that the 0.5.10 compatible build was published, which is v0.1.7.0",
+        "Root cause is upstream game renaming, and all five points were verified present in the v0.1.7.0 package: setup.plants became setup.foodstuff, ingredients moved under recipe.ingredients, the tendingicon macro was removed in favour of foodstufficon which takes a key instead of an icon path, $plants became $foodstuff, and the souffle key lost its accent so Avery no longer fails alone",
+        "Change surface is narrow: only boot.json, game/foodPreference.js, game/more_love_interest_food_preference.twee and game/more_love_interest_main.twee differ, with no files added or removed",
+        "main.twee also gains a behavioural cleanup: Avery is removed from $loveInterestList when $auriga_artefact is absent or Avery is dismissed. This is an intentional upstream state fix, worth watching on existing saves that already had Avery set as a love interest",
+        "RISK RECHECK: the five addonPlugin replacement rules (three TweeReplacer rules on Widgets Attitudes / Widgets, two ReplacePatcher rules on time.js) were fingerprinted in both versions and are byte-identical, so the upgrade does not change this mod's patch surface against the game body. The earlier concern that these rules were the upgrade risk was incorrect",
+        "GameVersion requirement tightens from >=0.5.5.0 to >=0.5.10.0, satisfied by the shipped 0.5.10.12",
+        "ROLLBACK: v0.1.6.0 asset archived outside the repository under mod-archive/more-love-interests/v0.1.6.0 with sha256 7c63f642876dac52fc35b6b174a16624b0e83b6ebce22ba38f4b49ac0421b9c7, digest confirmed against GitHub at archive time"
+      ]
     },
     "au_f": {
       "name": "AU Female",
