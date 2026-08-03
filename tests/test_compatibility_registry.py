@@ -64,7 +64,7 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
     assert more_love.fail_policy == "fail-closed"
     assert more_love.cache_name == "more_love"
     assert more_love.github_repo == "Nephthelana/DoL-More-Love-Interests-Mod"
-    assert more_love.release_tag == "More-Love-Interests-Mod-v0.1.6.0"
+    assert more_love.release_tag == "More-Love-Interests-Mod-v0.1.7.0"
     assert more_love.asset_pattern == "More.Love.Interests.Mod.mod.zip"
     assert more_love.member == "game/More_Love_Interest_Mod_Drag.js"
     assert more_love.marker == "function preventDefaultMLIM(ev)"
