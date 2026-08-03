@@ -13,7 +13,32 @@
 
 ## [Unreleased]
 
-暂无未发布变更。
+### Fixed
+
+- **修复 More Love Interests 版本错配**：mod 从 `v0.1.6.0` 升级到 `v0.1.7.0`。这是修 bug，
+  不是尝鲜。作者 README 给出游戏版本与 mod 版本的对照表：`v0.5.10.x` 的游戏必须用 `v0.1.7.0`，
+  `v0.1.6.0` 对应 `v0.5.7.x`。本项目游戏本体是 `0.5.10.12`，此前钉 `v0.1.6.0` 属于错配。
+  上游 issue #1「关于 v0.5.10.12 后，查看食物偏好爆红的问题」记录了错配后果，作者当天回复已
+  发布 0.5.10 适配版。根因是游戏本体五处重命名（`setup.plants` → `setup.foodstuff`、
+  `_foodInfo.ingredients` → `_foodInfo.recipe.ingredients`、`<<tendingicon>>` 宏删除并改为
+  `<<foodstufficon>>`、`$plants` → `$foodstuff`、舒芙蕾键名 `soufflé` → `souffle`），五处均已
+  对着真实游戏 HTML 独立核实。改动面只有 4 个文件，无增删文件。`GameVersion` 门槛由
+  `>=0.5.5.0` 收紧到 `>=0.5.10.0`，当前版本满足。
+  **注意**：`more_love_interest_main.twee` 另有一处上游有意的状态清理——`$auriga_artefact`
+  缺失或 Avery 已 dismissed 时会把 Avery 从 `$loveInterestList` 移除。旧存档若已把 Avery
+  设为恋人，条件不满足时该条目会消失。
+
+### Changed
+
+- **同步 fork 兼容补丁登记表**：`lyra/compatibility.py` 中 More Love 拖拽补丁登记项的
+  `release_tag` 随之更新。该补丁是 DOL-X 专属、上游没有的构建期 payload 修改，因此升级走
+  登记表流程而非绕过护栏。`compatibility_source_errors()` 的 fail-closed 校验在改登记表前
+  正确拦下了构建（报 `release_tag expected ... got ...`），证明护栏按设计生效。
+  `More_Love_Interest_Mod_Drag.js` 在两版之间**字节完全相同**（同一 sha256、同样 3178 字节），
+  上游仍未对非 DOM 拖拽事件参数加防护，故补丁依然必要且原样适用，`removal_condition` 不变。
+  CI run [`30833299579`](https://github.com/XFoxLG/DOL-X/actions/runs/30833299579) 日志确认
+  补丁在 base 与 AU-F 两码上均命中（`More Love drag event compatibility patch applied`，
+  非 `already_patched`）。
 
 ## [v0.5.10.12-1.0.8a-0802] - 2026-08-02
 
