@@ -173,9 +173,34 @@ def test_more_love_injection_fails_closed_when_source_metadata_drifts(tmp_path):
     drifted_config = SimpleNamespace(
         cache_name="more_love",
         github_repo="example/wrong",
-        release_tag="More-Love-Interests-Mod-v0.1.6.0",
+        release_tag="More-Love-Interests-Mod-v0.1.7.0",
         asset_pattern="More.Love.Interests.Mod.mod.zip",
     )
 
     with pytest.raises(RuntimeError, match="source mismatch"):
         builder._modloader_mod_path_for_injection(drifted_config, source)
+
+
+@pytest.mark.config
+def test_more_love_injection_fails_closed_when_release_tag_drifts(tmp_path):
+    """A future upstream version bump must not slip past the registry.
+
+    This guard is what caught the 2026-08-03 upgrade: build.toml had moved to
+    v0.1.7.0 while the registry still pinned v0.1.6.0, so the build refused to
+    inject a payload nobody had audited. Every field except release_tag is
+    correct here, which isolates version drift from repository drift.
+    """
+    paths = BuildPaths(workspace=tmp_path)
+    builder = ZipBuilder(BuildTask(pack_type="zip", mod_code=24834, paths=paths))
+    source = paths.get_mod_cache_path("more_love")
+    _write_more_love_payload(source)
+
+    version_drifted_config = SimpleNamespace(
+        cache_name="more_love",
+        github_repo="Nephthelana/DoL-More-Love-Interests-Mod",
+        release_tag="More-Love-Interests-Mod-v0.1.8.0",
+        asset_pattern="More.Love.Interests.Mod.mod.zip",
+    )
+
+    with pytest.raises(RuntimeError, match="release_tag expected"):
+        builder._modloader_mod_path_for_injection(version_drifted_config, source)
