@@ -67,14 +67,21 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         kind="payload-patch",
         cache_name="more_love",
         github_repo="Nephthelana/DoL-More-Love-Interests-Mod",
-        release_tag="More-Love-Interests-Mod-v0.1.6.0",
+        release_tag="More-Love-Interests-Mod-v0.1.7.0",
         asset_pattern="More.Love.Interests.Mod.mod.zip",
         member="game/More_Love_Interest_Mod_Drag.js",
         marker="function preventDefaultMLIM(ev)",
         fail_policy="fail-closed",
         tests=("tests/test_more_love_drag_patch.py", "tests/test_compatibility_registry.py"),
         removal_condition="Remove after upstream More Love guards non-DOM drag event arguments.",
-        notes="Default stable builds include More Love, so this payload patch must not silently fall back.",
+        notes=(
+            "Default stable builds include More Love, so this payload patch must not "
+            "silently fall back. Repointed v0.1.6.0 -> v0.1.7.0 on 2026-08-03: that mod "
+            "upgrade only fixed food symbols renamed by game 0.5.10.12, and "
+            "game/More_Love_Interest_Mod_Drag.js is byte-identical between the two "
+            "releases, so the unguarded ev.preventDefault() calls remain and this patch "
+            "still applies without code changes."
+        ),
     ),
     CompatibilitySurface(
         key=DOLI_FLOAT_ICON_PATCH_KEY,
