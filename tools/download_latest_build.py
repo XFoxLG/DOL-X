@@ -1,38 +1,31 @@
 #!/usr/bin/env python3
-"""
-DOL-X 测试构建下载工具
+"""Generate a manual test checklist for a GitHub Actions build.
 
-从 GitHub Actions 下载最新构建并自动生成测试清单。
+Artifact download is intentionally left to GitHub CLI or the Actions web page;
+this helper prepares the local directory and current-stack checklist only.
 """
 
 import argparse
 import json
-import os
 import sys
-import urllib.request
-import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 
+DEFAULT_BUILD_CODE = 15705344
+
+
 class BuildDownloader:
-    """GitHub Actions 构建下载器"""
-    
-    def __init__(self, project_root: Path, token: Optional[str] = None):
+    """Prepare a local directory and checklist for manual artifact testing."""
+
+    def __init__(self, project_root: Path):
         self.project_root = project_root
-        self.token = token or os.environ.get("GITHUB_TOKEN", "")
         self.repo = "XFoxLG/DOL-X"
         
     def download_latest(self, build_code: Optional[int] = None, run_id: Optional[str] = None) -> Path:
-        """下载最新构建"""
-        if not self.token:
-            print("WARNING: GITHUB_TOKEN not set, download may fail")
-            print("   Set with: export GITHUB_TOKEN=your_token")
-        
-        # 这里应该实现 GitHub API 调用
-        # 由于实际实现需要 API 调用，我们先创建框架
-        print("Querying latest build...")
+        """Prepare a local test directory for a selected Actions build."""
+        print("Preparing manual test directory...")
         print(f"   Repository: {self.repo}")
         if build_code:
             print(f"   Build code: {build_code}")
@@ -45,17 +38,17 @@ class BuildDownloader:
         
         # 生成时间戳和目录
         timestamp = datetime.now().strftime("%Y%m%d")
-        commit_hash = "pending"  # 从 API 获取
+        commit_hash = "pending"  # Replace after selecting the actual Actions run.
         
         build_dir = downloads_dir / f"{timestamp}-{commit_hash}"
         build_dir.mkdir(parents=True, exist_ok=True)
         
         print(f"\nDownload directory: {build_dir}")
-        print("\nWARNING: Full implementation requires GitHub API integration")
-        print("   Current version is a framework, please manually download APK from GitHub Actions")
+        print("\nArtifact download is manual by design")
+        print("   Use the Actions web page or: gh run download <run-id> --repo XFoxLG/DOL-X")
         
         # 生成测试清单
-        self._generate_test_checklist(build_dir, build_code or 15706368)
+        self._generate_test_checklist(build_dir, build_code or DEFAULT_BUILD_CODE)
         
         return build_dir
     
@@ -84,6 +77,12 @@ class BuildDownloader:
             15706368: "AU-M",
             15708416: "AU-A",
         }
+        au_model_expectations = {
+            15704320: "AU model 与 AU Face 不应出现（base 构建）",
+            15705344: "AU Female v0.9.3 + AU Face v1.1.0",
+            15706368: "AU Male v0.4.2 + AU Face v1.1.0",
+            15708416: "AU Androgynous v0.1.1 + AU Face v1.1.0",
+        }
         
         return f"""# DOL-X 测试清单
 
@@ -97,8 +96,8 @@ class BuildDownloader:
 ## 自动化验证结果（已完成）
 
 - [x] 构建成功（GitHub Actions）
-- [x] 配置一致性验证通过
-- [x] Mod URL 可达性验证通过
+- [x] 完整 pytest 通过（以对应 Actions run 的 Run test suite 步骤为准）
+- [x] ZIP AU 面部别名审计通过（以 Audit ZIP artifacts 步骤为准）
 - [x] 包含当前启用的新 mod：guide_to_me, npc_social_icon, neoui_patch
 - [x] 已知不兼容 mod 预期禁用：bunny_transformation
 
@@ -116,17 +115,19 @@ class BuildDownloader:
 
 - [ ] 打开 ModLoader 管理器（游戏内 Alt+M 或设置菜单）
 - [ ] 确认以下 mod 已加载：
-  - [ ] maplebirch v3.1.14
-  - [ ] cheat extended v1.18
-  - [ ] maplebirchEx v1.2.4
+  - [ ] maplebirch v4.1.13
+  - [ ] Cheat Extended v1.20(dev260719)
+  - [ ] LongerCombat v1.0.1
+  - [ ] YanlingCheatCollection v1.0.1
+  - [ ] maplebirchEx v1.2.4 不应出现（已退役）
   - [ ] CustomHair v1.0.0
   - [ ] Mae's Picvary v1.3.2
-  - [ ] More Love Interests Mod v0.1.6.0
+  - [ ] More Love Interests Mod v0.1.7.0
   - [ ] **guide_to_me v1.1.0**
   - [ ] **NeoUI-Patch**（2026-07-05 升为必选，应出现在全部包）
   - [ ] **npc_social_icon v1.4.1**
   - [ ] **不应出现 BunnyTransformation**（已禁用，若出现说明测试包不是当前配置）
-  - [ ] AU Male v0.4.2 (仅 AU-M 构建)
+  - [ ] {au_model_expectations.get(build_code, "按构建码核对 AU model")}
 - [ ] 加载日志无 error（0 error, X warning, X info）
 
 ### 3. 核心功能抽查（10分钟）
@@ -138,7 +139,10 @@ class BuildDownloader:
   - [ ] 打开作弊界面，可看到"模组作弊栏"
   - [ ] 快速言灵：添加防狼喷雾测试
   
-- [ ] **更多恋人**：能看到相关 NPC
+- [ ] **更多恋人**：
+  - [ ] 正式游戏“态度”页出现“查看NPC喜爱的食物”入口
+  - [ ] 无恋爱兴趣时空列表正常，不出现红框
+  - [ ] 有恋爱兴趣 NPC 时食物图标与配方材料正常；Avery 显示舒芙蕾
 
 - [ ] **新增功能（选测1-2项）**：
   - [ ] **控制NPC嘴部**：进入游戏后检查相关选项是否出现
@@ -164,8 +168,8 @@ class BuildDownloader:
   - 理发店 → 染发 → 先选择自定义染发
   - 检查十六进制输入框是否出现
   
-- [ ] **AU Face 禁用**（预期行为）
-  - 确认侧边栏人物贴图无错位/重复
+- [ ] **AU Face（仅 AU 构建）**
+  - 设置 UI 与开关应可用；脸红/流泪视觉仍属部分验收边界
   
 - [ ] **自定义言灵集报错**（已知问题，有快速言灵替代）
   - 作弊拓展 → 自定义言灵集 → 确认是否报错
@@ -195,9 +199,9 @@ class BuildDownloader:
 
 ## 测试后步骤
 
-1. 将此文件重命名为 `TEST_RESULT_{date}.md` 保存
+1. 将此文件重命名为 `TEST_RESULT_{{date}}.md` 保存
 2. 如发现新问题，更新 `config/mods.lock.json` 的 notes
-3. 在 MCP 记忆中记录测试结果
+3. 把可复核结果同步到 `config/mods.lock.json` notes 与当前状态文档
 """
 
 
@@ -206,8 +210,8 @@ def main():
     parser.add_argument(
         "--build-code",
         type=int,
-        help="指定 build_code（默认 15706368 = AU-M）",
-        default=15706368
+        help=f"指定 build_code（默认 {DEFAULT_BUILD_CODE} = AU-F）",
+        default=DEFAULT_BUILD_CODE
     )
     parser.add_argument(
         "--run-id",
