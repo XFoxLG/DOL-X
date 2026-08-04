@@ -120,11 +120,11 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 |-----|------|
 | ModLoader GUI | 游戏内的模组管理器 |
 | 汉化（ModI18N） | 简体中文，已自带对应游戏版本的最新汉化 |
-| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)（maplebirch） | 其他 Mod 依赖的核心框架；4.x 主线使用作者官方 v4.1.13 |
+| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)（maplebirch） | 其他 Mod 依赖的核心框架；4.x 主线锁定已验证的官方 v4.1.13，v4.1.14 另案评估 |
 | [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat) | 旧扩展包对应功能的官方独立继任者；4.x 主线使用 v1.0.1 |
 | [言灵作弊集](https://github.com/MaplebirchLeaf/YanlingCheatCollection) | 旧扩展包言灵功能的官方独立继任者；4.x 主线使用 v1.0.1 |
 | [通用战斗美化](https://github.com/site098/mysterious)（UCB） | 战斗画面美化 |
-| [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod) | 增加可攻略 NPC |
+| [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod) | v0.1.7.0；增加可攻略 NPC，并适配 DoL 0.5.10.x 食物系统 |
 | [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair) | 自定义发色 |
 | [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary） | 侧边栏显示 NPC 立绘头像 |
 | [NPC社交栏头像](https://github.com/Eudemonism00/DOL-npcicon-mods/) | 社交界面显示 NPC 头像 |
@@ -150,6 +150,8 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - **Mod 栈**：maplebirch 4.1.13 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1 + Legacy-Art-Mods-Compat plus 1.0.3-plusV1.1
 - **产物**：4 个版本（基础版 + AU-F / AU-M / AU-A）× 两种格式（ZIP + APK），共 8 个文件
 - **测试情况**：AU-F 版已在真机上测试通过，基础栈日志为 `0 error / 0 warning`，作弊界面可打开、抽样功能正常。base / AU-M / AU-A 三个版本用的是同一套 Mod（只有体型资源不同），构建全部成功，但没有逐个上机验证。
+- **More Love 验证边界**：v0.1.7.0 的态度页入口、食物偏好页面跳转和空列表已真机通过；有恋爱兴趣 NPC 时的食物数据、Avery/舒芙蕾与旧存档清理行为尚未覆盖。
+- **上游更新决策**：maplebirch v4.1.14 已发布，但恢复了 NPC 怀孕周期等运行时行为；本轮不混入，继续使用已验证的 v4.1.13。
 - 上一代稳定版 `v0.5.10.12-1.0.8a-0713` 使用 maplebirch 3.x 栈，源码已存档在分支 `vega-archive-0713`，Release 仍保留可下载。
 - 当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 

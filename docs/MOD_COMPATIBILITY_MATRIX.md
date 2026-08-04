@@ -2,7 +2,7 @@
 
 本文档记录所有候选 mod 的兼容性测试结果，用于决策哪些 mod 可以安全集成到 DOL-X。
 
-**最后更新**: 2026-08-02
+**最后更新**: 2026-08-04
 **当前公开主线框架 mod**: maplebirch v4.1.13（作者官方 Release）
 **当前游戏本体版本**: DoL v0.5.10.12（汉化仓库 tag `v0.5.10.12-chs-1.0.8a`）
 **当前公开主线作弊**: Cheat Extended v1.20 betaTest（作者官方 Pre-release）
@@ -11,7 +11,8 @@
 > 「游戏本体版本」（0.5.10.12）指游戏本身。下方表格的 "DoL 版本" 列一律指**游戏本体版本**，
 > "框架要求" 列一律指**框架 mod 版本**。
 >
-> 已打 tag 的 0713 稳定 Release 仍是历史 3.x 栈；本表顶部“当前”均指 `vega` 的 4.x 公开主线。
+> 当前稳定 Release `v0.5.10.12-1.0.8a-0802` 与 `vega` 均使用 4.x 栈；0713 是保留的历史
+> 3.x 回滚版本。
 
 ---
 
@@ -20,6 +21,7 @@
 ### 测试环境
 
 - **本地配置验证**: `python -m pytest tests/ -v`
+- **CI 门禁**: Build workflow 在构建前执行完整 pytest，上传前执行 AU ZIP 产物审计
 - **构建产物**: GitHub Actions run `30709200905` 已完成全四码构建（base / AU-F / AU-M / AU-A × ZIP+APK，共 8 件）
 - **浏览器测试**: `python tools/browser_smoke_test.py output/*.zip`
 - **模拟器测试**: APK 在 MuMu 模拟器上运行
@@ -51,13 +53,13 @@
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| maplebirch Framework | **v4.1.13** | - | 0.5.10.12 | ✅ 基础栈 smoke | 全功能未遍历；云存档需自建后端 | 官方资产 digest 一致；用户真机总日志 0 error / 0 warning |
+| maplebirch Framework | **v4.1.13** | - | 0.5.10.12 | ✅ 基础栈 smoke | 全功能未遍历；云存档需自建后端；上游 4.1.14 待另案评估 | 官方资产 digest 一致；用户真机总日志 0 error / 0 warning；本轮不混入恢复 NPC 怀孕流程的 4.1.14 |
 | Cheat Extended | **v1.20 betaTest** | **≥v3.2.5**（运行时软门控） | 0.5.10.12 | ✅ 抽样通过 | Pre-release 可在同 tag 下换包，按 digest 跟踪 | UI 可打开、抽样功能正常；头部遮罩相容模式来自该 mod |
 | LongerCombat | **v1.0.1** | `^4.1.0`（addonPlugin） | ≥0.5.10.12 | ⚠️ 已挂载 | 具体倍率与长战斗行为未逐项测试 | 作者官方独立继任者，`dist/script.js` 已挂载 |
 | YanlingCheatCollection | **v1.0.1** | `^4.1.0`（addonPlugin） | ≥0.5.10.12 | ⚠️ 已挂载 | 言灵命令未逐项遍历 | 作者官方独立继任者，`yanlingCheat` 已暴露 |
 | maplebirchEx（旧整包） | v1.2.4 | `^3.1.0` | 0.5.10.12 | ❌ 退役 | 3.2.5 真机出现 dread/sanity/dreadmax undefined | 不再注入；镜像只作历史回滚档案 |
 | CustomHair | v1.0.0 | 无要求 | 0.5.2.7-0.5.2.10 | ✅ | 无 | 十六进制输入框需先点击“自定义染发”选项才出现 |
-| More Love Interests | **v0.1.7.0** | 无要求 | **≥0.5.10.0** | ⚠️ 已升级待真机 | 旧存档若已把 Avery 设为恋人，新版会在条件不满足时移除该条目 | 2026-08-02 从 v0.1.6.0 升级；作者版本对照表要求 0.5.10.x 用此版，旧版属版本错配并导致食物偏好爆红 |
+| More Love Interests | **v0.1.7.0** | 无要求 | **≥0.5.10.0** | ⚠️ 空态真机通过 | 有 NPC 的食物数据、Avery/舒芙蕾与旧存档清理行为未覆盖 | 入口、页面跳转和空列表无红框；旧版属版本错配并导致食物偏好爆红 |
 | Mae's Picvary NPC | v1.3.2 | 无要求 | 0.5.10.12 | ✅ | 无 | 侧边栏头像 |
 | Guide To Me | v1.1.0 | 无要求 | 0.5.10.12 | ✅ | 无 | 控制 NPC 嘴部动作，当前稳定矩阵启用 |
 | NeoUI Patch | V1.1.0 | 无要求 | 0.5.10.12 | ✅ | 覆盖式侧边栏遮挡正文为设计本意、非 bug；经对比确认非 AU 错位原因 | 2026-07-05 升为必选，进入全部 4 个 build_codes |
@@ -78,14 +80,14 @@
 run `30709200905` 已完成全四码构建（8 件产物）。3.2.5 重建包显示的 2026.07.27 是重打包时间戳，
 不是作者更新顺序。当前事实与产物名见 [CURRENT_PROJECT_STATE.md](CURRENT_PROJECT_STATE.md)。
 
-### AU 美化（本地候选，可选）
+### AU 美化（公开 AU 构建）
 
 | Mod 名称 | 版本 | maplebirch 要求 | DoL 版本 | 测试状态 | 已知问题 | 备注 |
 |----------|------|-----------------|----------|----------|----------|------|
-| AU Female model | v0.9.3 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 与 AU Face 组合待真机视觉验收 | 官方 `mod` Release，model 直装 |
-| AU Male model | v0.4.2 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 与 AU Face 组合待真机视觉验收 | 官方 `mod` Release，model 直装 |
-| AU Androgynous model | v0.1.1 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ 静态通过 | 作者资源仍不完整，需最严格复测 | 官方 `mod` Release，model 直装 |
-| AU Face Expansion | Release v1.0.4 / 外层 v1.1.0 / 内层 v1.2.8 | manifest 无 maplebirch 硬依赖 | 待 0.5.10.12 真机验证 | ⚠️ 本地候选 | 运行时仍请求旧式 blushN/tearN；视觉效果未通过 | 只进 AU 三版；base 明确不注入；未上传 |
+| AU Female model | v0.9.3 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ AU-F 真机代表 | 与 AU Face 的脸红/流泪视觉未完整遍历 | 官方 `mod` Release；分支与 tag 均构建 |
+| AU Male model | v0.4.2 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ CI + 静态通过 | 按既定决策不做真机验收 | 官方 `mod` Release；tag 构建 |
+| AU Androgynous model | v0.1.1 | BeautySelector 路径识别 | 下游用于 0.5.10.12 | ⚠️ CI + 静态通过 | 按既定决策不做真机验收 | 官方 `mod` Release；tag 构建 |
+| AU Face Expansion | Release v1.0.4 / 外层 v1.1.0 / 内层 v1.2.8 | manifest 无 maplebirch 硬依赖 | 0.5.10.12 | ⚠️ 部分真机 | 设置 UI 与交互通过；视觉效果未完整遍历 | 只进 AU 三版；base 明确不注入；0802 起公开发布 |
 
 AU 诊断记录见 [AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md](AU_MODEL_DIAGNOSTIC_MATRIX_2026-06-28.md)。
 当前仍使用 model 路线，不使用 AU `imgpack`；
@@ -296,5 +298,5 @@ AU Face 是独立脚本 mod，不等同于主 model 里的改脸目录。
 
 **文档状态**: 4.x 公开主线已发版（`v0.5.10.12-1.0.8a-0802`），全四码 CI 构建已验证。
 AU-M / AU-A 按既定决策不做真机验收，验证层级止于 CI 构建 + 静态 payload 检查。
-**下次更新**: More Love v0.1.7.0 真机复验后，或上游 mod 出现新版本时
+**下次更新**: More Love 有 NPC 的食物数据路径复验后，或 maplebirch 4.1.14 另案评估时
 **维护者**: DOL-X 项目组

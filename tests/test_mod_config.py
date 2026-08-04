@@ -66,7 +66,7 @@ class TestModConfig:
             f"期望: {expected_features}\n"
             f"实际: {actual_features}"
         )
-        assert au_face_mod.enabled is True, "next-4 AU Face 本地候选应默认进入 AU 构建"
+        assert au_face_mod.enabled is True, "AU Face 应默认进入三个公开 AU 构建"
         assert au_face_mod.download_url.startswith(
             "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/"
         ), "AU Face 必须直接使用作者官方 Release"
