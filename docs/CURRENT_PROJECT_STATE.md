@@ -1,6 +1,6 @@
 # DOL-X 当前项目状态
 
-**核验日期**：2026-08-02
+**核验日期**：2026-08-04
 
 **事实基线**：`vega` 的 4.x 公开主线 + `vega-archive-0713` 历史稳定归档
 
@@ -31,11 +31,15 @@
 功能可用。LongerCombat 与 Yanling 已挂载，但没有逐功能遍历，因此状态是“运行时挂载通过”，不是
 “全功能通过”。
 
-### 上游版本核对（2026-08-02）
+### 上游版本核对（2026-08-04）
 
-逐个仓库核对结果：maplebirch `4.1.13`、LongerCombat `1.0.1`、YanlingCheatCollection `1.0.1`、
-NeoUI `1.1.0`、GuideToMe `1.1.0`、CustomHair、Mae's Picvary `1.3.2`、NPC Avatars `1.4.1`
-均已是上游最新，无待升级项。
+当前主动跟踪的五个上游中，LongerCombat `1.0.1`、YanlingCheatCollection `1.0.1`、
+Cheat Extended `1.20(dev260719)` 与 DOLI Release `v0.2.3` 没有变化。maplebirch 已于
+2026-08-02 发布 `4.1.14`；当前主线仍锁定已通过真机基础栈验证的 `4.1.13`。
+
+`4.1.14` 不只包含 0.5.11.x 怪兽服遮罩路径兼容，还恢复 NPC 怀孕扩展、每日周期、受孕和
+分娩流程，行为面大于本轮 More Love 修复。它已被更新检查器正确报告，但不临发版前混入；另案
+评估、构建和真机验证后再决定升级。这里的“发现新版本”不等于“当前候选已过时不可发布”。
 
 More Love Interests Mod 已升级 `v0.1.6.0` → `v0.1.7.0`，详见下一节。
 
@@ -93,6 +97,11 @@ Avery 已 dismissed 时会把 Avery 从 `$loveInterestList` 移除，属上游�
 
 `GameVersion` 门槛由 `>=0.5.5.0` 收紧到 `>=0.5.10.0`，当前 `0.5.10.12` 满足。
 
+2026-08-04 真机复验确认：正式游戏的“态度”页出现“查看NPC喜爱的食物”入口，链接可进入
+食物偏好页，无恋爱兴趣 NPC 时空列表正常显示、没有红框。该存档没有恋爱兴趣 NPC，因此
+`setup.foodstuff`、`recipe.ingredients`、`foodstufficon` 与 Avery/舒芙蕾的数据渲染路径尚未
+实际执行；状态是“空态真机通过”，不是食物偏好全功能通过，也不把未覆盖部分写成发版阻塞。
+
 回滚：`v0.1.6.0` 资产已归档到仓库外 `mod-archive/more-love-interests/v0.1.6.0`，
 sha256 `7c63f642…`，归档时已与 GitHub 报告的 digest 核对一致。
 
@@ -124,6 +133,12 @@ maplebirch 时于游戏原生 Options 覆盖层补一个 DOLI 按钮，配置入
 公开 CI 分支推送构建 base + AU-F，tag 发版构建全部四码。手动触发
 （`workflow_dispatch`）新增 `build_tier` 输入，选 `release` 可在不打 tag 的前提下
 干跑全四码，release job 仍受 `github.ref_type == 'tag'` 保护、不会误发 Release。
+
+Build workflow 现在在构建前执行完整 pytest，在构建后、上传 artifact 前执行
+`tools/au_artifact_check.py`。AU 审计按三种官方 model 的共同真实契约检查嵌套
+`blush-1.png` 至 `blush-5.png`，并排除独立的 `blusher.png`；旧检查器曾只接受外层
+`blush1.png`、错误要求 6 个编号层，导致真实 AU-F 产物被误判。修正后的工具已对
+base/AU-F 当前候选及上一轮 base/AU-F/AU-M/AU-A 全矩阵 ZIP 复验通过。
 
 AU-M 与 AU-A 在此之前从未经 CI 构建过（分支档只含 base + AU-F）。首次全四码干验证由
 run [`30709200905`](https://github.com/XFoxLG/DOL-X/actions/runs/30709200905) 完成，
@@ -170,9 +185,10 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - AU：https://github.com/AOKIUTAGE/UTAGEsDOL3.0
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
-本轮已核验：GitHub Release/branch 实况、官方资产 digest、上游各 mod 最新版本、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载、Python 编译、202 项自动测试，
-以及 GitHub Actions 全四码构建（run `30709200905`，8 个产物）。
+本轮已核验：GitHub Release/branch 实况、官方资产 digest、主动跟踪 mod 的上游版本实况、
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载、Python 编译、208 项自动测试，
+以及历史 GitHub Actions 全四码构建（run `30709200905`，8 个产物）。More Love v0.1.7.0 与
+新 CI 门禁所在的当前 HEAD 仍需在打 tag 前完成一次 `build_tier=release` 全四码干验证。
 
 More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产跑构建期改写函数完成的：
 `game/More_Love_Interest_Mod_Drag.js` 两版同为 3178 字节、同一 sha256
@@ -185,4 +201,5 @@ More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产
 即防护本身，不是漏改。判断是否漏改要用 `\bev\.stopPropagation\s*\(` 这类调用点正则。
 
 真机验收只覆盖 AU-F；AU-M / AU-A 仅有构建成功记录，无上机验证，且按既定决策不再补。
-More Love `v0.1.7.0` 的食物偏好页面（含 Avery）与既有存档的恋人列表行为仍待真机确认。
+More Love `v0.1.7.0` 的入口、页面跳转和空列表已真机通过；有恋爱兴趣 NPC 时的食物数据渲染、
+Avery/舒芙蕾以及既有存档的恋人列表清理行为仍未覆盖。

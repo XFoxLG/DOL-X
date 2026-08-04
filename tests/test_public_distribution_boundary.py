@@ -100,6 +100,30 @@ def test_manual_dispatch_can_request_the_release_tier():
     )
 
 
+def test_workflow_runs_test_suite_before_building():
+    """CI must execute the suite; installing pytest without running it proves nothing."""
+    workflow = read_build_workflow()
+
+    assert "python -m pytest tests -q" in workflow, (
+        "the build job must run the test suite, not merely install pytest"
+    )
+    assert workflow.index("python -m pytest tests -q") < workflow.index(
+        "Build combinations"
+    ), "the test suite must gate the build, so failures surface before packaging"
+
+
+def test_workflow_audits_artifacts_before_upload():
+    """Artifact-level AU alias audit must gate uploads, not run after publishing."""
+    workflow = read_build_workflow()
+
+    assert "tools/au_artifact_check.py" in workflow, (
+        "the build job must audit built ZIP artifacts for AU face aliases"
+    )
+    assert workflow.index("tools/au_artifact_check.py") < workflow.index(
+        "Upload ZIP artifacts"
+    ), "the artifact audit must run before artifacts are uploaded"
+
+
 def test_release_job_only_runs_for_tags():
     """A manual release-tier dry run must never publish a Release."""
     workflow = read_build_workflow()
