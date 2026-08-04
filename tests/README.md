@@ -59,8 +59,10 @@ python tools/quick_check.py
 
 - `test_html_smoke.py`：构建 ZIP 内存在 HTML；`window.modDataValueZipList`
   可解析；内嵌 base64 payload 可解码且通过 ZIP 完整性检查。
-- `test_browser_smoke.py`、`test_apk_emulator_smoke.py`、`test_mumu_apk_smoke.py`：
-  浏览器与模拟器 smoke helper。
+- `test_browser_smoke.py`、`test_apk_emulator_smoke.py`：公开仓库中的浏览器与通用模拟器
+  smoke helper。
+- `test_mumu_apk_smoke.py`：本机 MuMu 私有诊断测试，和依赖的本地工具一起由 `.gitignore`
+  排除，不进入 commit 或 GitHub Actions；本地全量 pytest 的计数会因此比 CI 多 15 项。
 - `test_embedded_mod_source_scan.py`：内嵌 mod 来源扫描。
 
 ## 相关工具
