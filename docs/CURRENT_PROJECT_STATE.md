@@ -146,8 +146,12 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 
 候选提交 `186fc463` 的分支 run [`30907013186`](https://github.com/XFoxLG/DOL-X/actions/runs/30907013186)
 已实际执行并通过公开 193 项测试、base + AU-F 构建、AU ZIP 产物审计和双格式上传；release job
-按分支语义 skipped。历史全四码 run `30709200905` 有 8 个产物，但 More Love v0.1.7.0 与新 CI
-门禁所在的当前候选仍需在打 tag 前完成一次 `build_tier=release` 全四码干验证。
+按分支语义 skipped。最终候选 HEAD `713924b4` 的全四码 dry run
+[`30907723945`](https://github.com/XFoxLG/DOL-X/actions/runs/30907723945) 随后通过：公开 193 项测试、
+四码构建、AU ZIP 审计、ZIP/APK 上传均 success，release job 正确 skipped。下载后的两个 artifact
+archive SHA-256 与 GitHub digest 完全一致；8 件产物逐件解码确认 More Love `0.1.7.0`、四个拖拽
+防护函数、四类未防护调用为 0、DOLI 新图标路径存在且旧路径为 0。四个 APK 的
+`jarsigner -verify` 均返回 0；本机没有 `apksigner`，不外推为 APK v2/v3 完整验证。
 
 More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产跑构建期改写函数完成的：
 `game/More_Love_Interest_Mod_Drag.js` 两版同为 3178 字节、同一 sha256

@@ -11,7 +11,13 @@
 > 次版本、修复类改动进修订号。变更分类使用 Keep a Changelog 的六类：
 > `Added`（新增）/`Changed`（变更）/`Deprecated`（弃用）/`Removed`（移除）/`Fixed`（修复）/`Security`（安全）。
 
-## [Unreleased]
+## [v0.5.10.12-1.0.8a-0804] - 2026-08-04
+
+修复 More Love 与 DoL 0.5.10.x 的版本错配，并把完整 pytest 与 AU 产物审计接入发版门禁。
+发版前全四码干跑由 run [`30907723945`](https://github.com/XFoxLG/DOL-X/actions/runs/30907723945)
+完成：公开 193 项测试、base / AU-F / AU-M / AU-A 四码构建、4 ZIP 静态审计和 8 件产物上传
+全部成功，release job 按非 tag 语义 skipped。下载后的两个 artifact archive 与 GitHub digest
+一致；8 件解包产物中的 More Love `0.1.7.0`、拖拽防护、DOLI 图标路径均逐件复验通过。
 
 ### Fixed
 
