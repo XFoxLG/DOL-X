@@ -193,7 +193,7 @@
 
 ### Q: DOL-X 现在用的是哪个版本？高版本作弊拓展需要什么？
 
-**A**: DOL-X 当前 `vega` 和稳定 Release `v0.5.10.12-1.0.8a-0802` 都使用
+**A**: DOL-X 当前 `vega` 和稳定 Release `v0.5.10.12-1.0.8a-0804` 都使用
 **Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13**。0713 是保留的历史 3.x 回滚版本。
 上游已有 maplebirch 4.1.14，但它恢复 NPC 怀孕扩展等运行时行为，本轮继续锁定已验证的 4.1.13，
 等待另案评估而不在发版前混入。
@@ -389,7 +389,7 @@
 
 ---
 
-**最后更新**: 2026-07-31（基于 Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13 真机与 GitHub Actions 构建证据）
+**最后更新**: 2026-08-04（基于 Cheat Extended v1.20 betaTest + maplebirch 框架 v4.1.13 真机与 0804 全四码构建证据）
 
 **本次修订要点**：
 - 勘误「框架 v3.2.x 不存在」的错误结论：v3.2.5 确实存在，已从被删 tag 的提交 `33129fe7` 重建

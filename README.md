@@ -144,7 +144,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ## 当前版本说明
 
-**当前稳定版本**：`v0.5.10.12-1.0.8a-0802`
+**当前稳定版本**：`v0.5.10.12-1.0.8a-0804`
 
 - **游戏版本**：DoL 0.5.10.12（跟随汉化仓库更新）
 - **Mod 栈**：maplebirch 4.1.13 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1 + Legacy-Art-Mods-Compat plus 1.0.3-plusV1.1
