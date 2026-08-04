@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import sys
 import zipfile
 from dataclasses import asdict, dataclass, field
@@ -21,7 +22,9 @@ from tools.artifact_inspection import (
 )
 
 
-REQUIRED_NESTED_BLUSH = "img/face/default/default/blush1.png"
+CURRENT_REQUIRED_NESTED_BLUSH = "img/face/default/default/blush-1.png"
+LEGACY_REQUIRED_NESTED_BLUSH = "img/face/default/default/blush1.png"
+MINIMUM_NUMBERED_NESTED_BLUSH_LAYERS = 5
 
 
 @dataclass
@@ -45,19 +48,45 @@ def _is_au_zip(path: Path) -> bool:
     return any(token in normalized for token in ("-au-f-", "-au-m-", "-au-a-"))
 
 
-def _is_embedded_default_blush(name: str) -> bool:
+def _is_numbered_default_blush(name: str) -> bool:
+    """Return whether a member is a numbered nested blush layer.
+
+    Official AU assets provide blush-1.png through blush-5.png plus the
+    independent blusher.png asset. The latter is not a numbered blush layer.
+    Legacy payloads may still use the unhyphenated blush1.png spelling.
+    """
     normalized = name.replace("\\", "/").lower()
-    return (
-        "/img/face/default/default/blush" in normalized
-        and normalized.endswith(".png")
+    return bool(
+        re.search(
+            r"(?:^|/)img/face/default/default/blush-?\d+\.png$",
+            normalized,
+        )
     )
 
 
 def _is_required_embedded_default_blush(name: str) -> bool:
     normalized = name.replace("\\", "/").lower()
-    return _is_embedded_default_blush(normalized) and (
+    return _is_numbered_default_blush(normalized) and (
         normalized.endswith("/blush-1.png") or normalized.endswith("/blush1.png")
     )
+
+
+def _is_outer_default_blush(name: str) -> bool:
+    normalized = name.replace("\\", "/").lower()
+    return bool(
+        re.fullmatch(
+            r"img/face/default/default/blush-?\d+\.png",
+            normalized,
+        )
+    )
+
+
+def _is_required_outer_default_blush(name: str) -> bool:
+    normalized = name.replace("\\", "/").lower()
+    return normalized in {
+        CURRENT_REQUIRED_NESTED_BLUSH,
+        LEGACY_REQUIRED_NESTED_BLUSH,
+    }
 
 
 def _embedded_mod_member_names(zip_path: Path) -> set[str]:
@@ -109,17 +138,19 @@ def audit_zip_artifact(zip_path: Path) -> AuArtifactResult:
     outer_nested_blush = sorted(
         name
         for name in outer_names
-        if name.startswith("img/face/default/default/blush") and name.endswith(".png")
+        if _is_outer_default_blush(name)
     )
     embedded_names = _embedded_mod_member_names(zip_path)
     embedded_nested_blush = sorted(
-        name for name in embedded_names if _is_embedded_default_blush(name)
+        name for name in embedded_names if _is_numbered_default_blush(name)
     )
 
     result.outer_nested_blush_count = len(outer_nested_blush)
     result.embedded_nested_blush_count = len(embedded_nested_blush)
     result.nested_blush_count = result.outer_nested_blush_count + result.embedded_nested_blush_count
-    result.outer_required_nested_blush_present = REQUIRED_NESTED_BLUSH in outer_names
+    result.outer_required_nested_blush_present = any(
+        _is_required_outer_default_blush(name) for name in outer_nested_blush
+    )
     result.embedded_required_nested_blush_present = any(
         _is_required_embedded_default_blush(name) for name in embedded_nested_blush
     )
@@ -130,12 +161,15 @@ def audit_zip_artifact(zip_path: Path) -> AuArtifactResult:
 
     if not result.required_nested_blush_present:
         result.errors.append(
-            f"missing required AU face alias: {REQUIRED_NESTED_BLUSH} "
-            "or embedded */img/face/default/default/blush-1.png"
+            "missing required AU face alias: "
+            f"{CURRENT_REQUIRED_NESTED_BLUSH}, {LEGACY_REQUIRED_NESTED_BLUSH}, "
+            "or an embedded equivalent"
         )
-    if result.nested_blush_count < 6:
+    if result.nested_blush_count < MINIMUM_NUMBERED_NESTED_BLUSH_LAYERS:
         result.errors.append(
-            f"expected at least 6 nested AU blush aliases, found {result.nested_blush_count}"
+            "expected at least "
+            f"{MINIMUM_NUMBERED_NESTED_BLUSH_LAYERS} numbered nested AU blush "
+            f"aliases, found {result.nested_blush_count}"
         )
 
     result.success = not result.errors

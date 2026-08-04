@@ -22,16 +22,16 @@ def _zip_builder(tmp_path, mod_code: int) -> ZipBuilder:
 def test_au_face_compatibility_aliases_copy_default_blush_layers(tmp_path):
     """AU builds copy default blush layers to the nested runtime path."""
     builder = _zip_builder(tmp_path, 28930)
-    source = builder.img_path / "face" / "default" / "blush1.png"
+    source = builder.img_path / "face" / "default" / "blush-1.png"
     source.parent.mkdir(parents=True)
     source.write_bytes(b"fake-png")
 
     copied = builder._apply_au_face_compatibility_aliases()
 
-    target = builder.img_path / "face" / "default" / "default" / "blush1.png"
+    target = builder.img_path / "face" / "default" / "default" / "blush-1.png"
     assert target.exists()
     assert target.read_bytes() == b"fake-png"
-    assert copied == ["face/default/default/blush1.png"]
+    assert copied == ["face/default/default/blush-1.png"]
 
 
 @pytest.mark.config
@@ -106,7 +106,8 @@ def _write_zip_with_embedded_mod(path, embedded_names: list[str]) -> None:
 @pytest.mark.config
 def test_au_artifact_check_accepts_nested_blush_aliases(tmp_path):
     zip_path = tmp_path / "DoL-au-f-ucb-more-love-custom-spellbook.zip"
-    names = [f"img/face/default/default/blush{index}.png" for index in range(1, 7)]
+    names = [f"img/face/default/default/blush{index}.png" for index in range(1, 6)]
+    names.append("img/face/default/default/blusher.png")
     _write_zip(zip_path, names)
 
     result = audit_zip_artifact(zip_path)
@@ -114,7 +115,24 @@ def test_au_artifact_check_accepts_nested_blush_aliases(tmp_path):
     assert result.success is True
     assert result.is_au is True
     assert result.required_nested_blush_present is True
-    assert result.nested_blush_count == 6
+    assert result.nested_blush_count == 5
+    assert result.errors == []
+
+
+@pytest.mark.config
+def test_au_artifact_check_accepts_current_hyphenated_outer_aliases(tmp_path):
+    """Current official AU assets use blush-1..5 plus independent blusher.png."""
+    zip_path = tmp_path / "DoL-au-f-ucb-more-love-custom-spellbook.zip"
+    names = [f"img/face/default/default/blush-{index}.png" for index in range(1, 6)]
+    names.append("img/face/default/default/blusher.png")
+    _write_zip(zip_path, names)
+
+    result = audit_zip_artifact(zip_path)
+
+    assert result.success is True
+    assert result.outer_required_nested_blush_present is True
+    assert result.outer_nested_blush_count == 5
+    assert result.nested_blush_count == 5
     assert result.errors == []
 
 
@@ -124,8 +142,9 @@ def test_au_artifact_check_accepts_embedded_hyphenated_blush_aliases(tmp_path):
     zip_path = tmp_path / "DoL-au-m-ucb-more-love-custom-spellbook.zip"
     names = [
         f"AUmale/img/face/default/default/blush-{index}.png"
-        for index in range(1, 7)
+        for index in range(1, 6)
     ]
+    names.append("AUmale/img/face/default/default/blusher.png")
     _write_zip_with_embedded_mod(zip_path, names)
 
     result = audit_zip_artifact(zip_path)
@@ -133,8 +152,8 @@ def test_au_artifact_check_accepts_embedded_hyphenated_blush_aliases(tmp_path):
     assert result.success is True
     assert result.is_au is True
     assert result.outer_nested_blush_count == 0
-    assert result.embedded_nested_blush_count == 6
-    assert result.nested_blush_count == 6
+    assert result.embedded_nested_blush_count == 5
+    assert result.nested_blush_count == 5
     assert result.embedded_required_nested_blush_present is True
     assert result.required_nested_blush_present is True
     assert result.errors == []
@@ -150,8 +169,8 @@ def test_au_artifact_check_rejects_missing_nested_blush_aliases(tmp_path):
     assert result.success is False
     assert result.required_nested_blush_present is False
     assert result.nested_blush_count == 1
-    assert any("blush1.png" in error for error in result.errors)
-    assert any("at least 6" in error for error in result.errors)
+    assert any("blush-1.png" in error for error in result.errors)
+    assert any("at least 5" in error for error in result.errors)
 
 
 @pytest.mark.config
@@ -169,7 +188,9 @@ def test_au_artifact_check_ignores_non_au_zip(tmp_path):
 def test_au_artifact_check_directory_covers_all_zips(tmp_path):
     au_zip = tmp_path / "DoL-au-m-ucb-more-love-custom-spellbook.zip"
     base_zip = tmp_path / "DoL-ucb-more-love-custom-spellbook.zip"
-    _write_zip(au_zip, [f"img/face/default/default/blush{index}.png" for index in range(1, 7)])
+    names = [f"img/face/default/default/blush-{index}.png" for index in range(1, 6)]
+    names.append("img/face/default/default/blusher.png")
+    _write_zip(au_zip, names)
     _write_zip(base_zip, [])
 
     results = audit_target(tmp_path)
