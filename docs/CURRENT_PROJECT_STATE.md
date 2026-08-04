@@ -186,9 +186,14 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、主动跟踪 mod 的上游版本实况、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载、Python 编译、208 项自动测试，
-以及历史 GitHub Actions 全四码构建（run `30709200905`，8 个产物）。More Love v0.1.7.0 与
-新 CI 门禁所在的当前 HEAD 仍需在打 tag 前完成一次 `build_tier=release` 全四码干验证。
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 208 项自动测试
+通过，其中 193 项属于公开仓库，另 15 项来自 `.gitignore` 排除的私有 MuMu 诊断工具，不能冒充
+远端 CI 覆盖。
+
+候选提交 `186fc463` 的分支 run [`30907013186`](https://github.com/XFoxLG/DOL-X/actions/runs/30907013186)
+已实际执行并通过公开 193 项测试、base + AU-F 构建、AU ZIP 产物审计和双格式上传；release job
+按分支语义 skipped。历史全四码 run `30709200905` 有 8 个产物，但 More Love v0.1.7.0 与新 CI
+门禁所在的当前候选仍需在打 tag 前完成一次 `build_tier=release` 全四码干验证。
 
 More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产跑构建期改写函数完成的：
 `game/More_Love_Interest_Mod_Drag.js` 两版同为 3178 字节、同一 sha256
