@@ -52,6 +52,11 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      # 配置与兼容层回归测试。放在构建工具安装之前，让配置漂移立即失败，
+      # 而不是等十几分钟的构建跑完才发现。
+      - name: Run test suite
+        run: python -m pytest tests -q
+
       - uses: actions/setup-java@v5
         with:
           distribution: "adopt"
@@ -97,6 +102,13 @@ jobs:
 
       - name: List outputs
         run: ls -lah "${{ github.workspace }}/output/" || echo "No output files generated"
+
+      # 产物级 AU 面部别名审计。构建成功不代表运行时资源齐全，
+      # 因此在上传前对每个 ZIP 复核嵌套 blush 别名，失败即中断发版。
+      - name: Audit ZIP artifacts
+        run: |
+          python tools/au_artifact_check.py "${{ github.workspace }}/output" --output "${{ github.workspace }}/output/au-artifact-report.json"
+          cat "${{ github.workspace }}/output/au-artifact-report.json"
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6

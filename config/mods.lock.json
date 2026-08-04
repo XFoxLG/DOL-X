@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-08-02T00:00:00Z",
+  "last_updated": "2026-08-04T00:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
@@ -126,8 +126,8 @@
       "last_tested_version": "v0.1.7.0",
       "last_tested_sha256": "f90dee45da8a364136b9e6d6a7d5b26e2deb79f96f91ba5e217f65dc893061d5",
       "last_tested_dol_version": "0.5.10.12",
-      "last_tested_date": "2026-08-02",
-      "status": "upgraded-pending-runtime",
+      "last_tested_date": "2026-08-04",
+      "status": "runtime-empty-state-passed",
       "notes": [
         "Standalone feature with no dependency on other mods; downloaded via a pinned download_url in build.toml",
         "Compatible with every imagepack combination",
@@ -139,6 +139,8 @@
         "main.twee also gains a behavioural cleanup: Avery is removed from $loveInterestList when $auriga_artefact is absent or Avery is dismissed. This is an intentional upstream state fix, worth watching on existing saves that already had Avery set as a love interest",
         "RISK RECHECK: the five addonPlugin replacement rules (three TweeReplacer rules on Widgets Attitudes / Widgets, two ReplacePatcher rules on time.js) were fingerprinted in both versions and are byte-identical, so the upgrade does not change this mod's patch surface against the game body. The earlier concern that these rules were the upgrade risk was incorrect",
         "GameVersion requirement tightens from >=0.5.5.0 to >=0.5.10.0, satisfied by the shipped 0.5.10.12",
+        "RUNTIME 2026-08-04: user confirmed the More Love panel appears on the actual Attitudes passage, the food-preference link opens, and the no-love-interest empty state renders without a red error box",
+        "RUNTIME BOUNDARY: the tested save had no love-interest NPCs, so actual setup.foodstuff, recipe.ingredients, foodstufficon and Avery/souffle rendering remain unexercised; this is partial runtime validation rather than full feature coverage",
         "ROLLBACK: v0.1.6.0 asset archived outside the repository under mod-archive/more-love-interests/v0.1.6.0 with sha256 7c63f642876dac52fc35b6b174a16624b0e83b6ebce22ba38f4b49ac0421b9c7, digest confirmed against GitHub at archive time"
       ]
     },

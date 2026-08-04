@@ -15,6 +15,12 @@
 
 ### Fixed
 
+- **修复 AU 产物审计器与官方资源契约漂移**：官方 AU-F/M/A 的嵌套脸红资源是
+  `blush-1.png` 至 `blush-5.png`，另有独立的 `blusher.png`。旧检查器只接受外层
+  `blush1.png`、错误要求 6 个编号层，并把 `blusher.png` 混入计数，导致真实 AU-F 产物误判
+  失败。检查器现在同时兼容新旧连字符命名、只统计编号层，三种 AU 真实产物均通过；新增真实
+  `1..5 + blusher` 回归样本。
+
 - **修复 More Love Interests 版本错配**：mod 从 `v0.1.6.0` 升级到 `v0.1.7.0`。这是修 bug，
   不是尝鲜。作者 README 给出游戏版本与 mod 版本的对照表：`v0.5.10.x` 的游戏必须用 `v0.1.7.0`，
   `v0.1.6.0` 对应 `v0.5.7.x`。本项目游戏本体是 `0.5.10.12`，此前钉 `v0.1.6.0` 属于错配。
@@ -28,7 +34,24 @@
   缺失或 Avery 已 dismissed 时会把 Avery 从 `$loveInterestList` 移除。旧存档若已把 Avery
   设为恋人，条件不满足时该条目会消失。
 
+  2026-08-04 真机确认正式“态度”页入口、食物偏好页面跳转和空列表无红框。因测试存档尚无
+  恋爱兴趣 NPC，食物图标、配方材料、Avery/舒芙蕾和旧存档列表清理仍属未覆盖边界。
+
 ### Changed
+
+- **加强 GitHub Actions 发版门禁**：Build workflow 现在在构建前运行完整 pytest，并在构建后、
+  上传 artifact 前运行 AU ZIP 产物审计。此前 CI 只安装 pytest 而从不执行测试，产物审计工具也
+  未接入 workflow；因此“build 成功”不能证明完整测试或 AU 资源门禁通过。新增 workflow
+  边界测试，防止这两个步骤被静默移除。
+
+- **校准真机测试工具与文档**：测试清单默认体型从 AU-M 改为实际维护者使用的 AU-F，清除
+  maplebirch 3.1.14、Cheat Extended 1.18、maplebirchEx 启用、AU Face 禁用等旧矩阵残留。
+  `download_latest_build.py` 明确为测试目录/清单生成器，artifact 下载仍由 Actions 页面或
+  `gh run download` 完成。
+
+- **记录 maplebirch 4.1.14 延后决策**：更新检查已发现正式版 4.1.14，但它恢复 NPC 怀孕扩展、
+  每日周期、受孕和分娩流程，行为面大于本轮 More Love 修复；当前候选继续锁定已真机验证的
+  4.1.13，4.1.14 另案评估，不在发版前混入。
 
 - **同步 fork 兼容补丁登记表**：`lyra/compatibility.py` 中 More Love 拖拽补丁登记项的
   `release_tag` 随之更新。该补丁是 DOL-X 专属、上游没有的构建期 payload 修改，因此升级走
@@ -61,11 +84,11 @@
 - **接入官方拆分继任者**：新增 LongerCombat `1.0.1` 与 YanlingCheatCollection `1.0.1`，
   分别承接旧 maplebirchEx 的更长遭遇战和言灵功能。两个包均来自作者官方仓库，声明
   maplebirch `^4.1.0`。
-- **AU Face 本地候选**：官方 `AUsDoL.facial.expansion.mod.zip` 仅绑定 AU-F/M/A，不进入基础版。
+- **AU Face 进入公开 AU 构建**：官方 `AUsDoL.facial.expansion.mod.zip` 仅绑定 AU-F/M/A，不进入基础版。
   Release 正文版本为 `1.0.4`，包内 manifest 为 `1.1.0`，内层解密后实际注册为 `AU面部扩展 1.2.8`；
   本地锁定官方 SHA-256 `8f2c1b66f0104e51e4f1c91f8f3a4873db517997a390c1037f4de811d387ecf6`。
-  AU-F 已确认设置 UI 可打开、配置可交互，但运行时仍请求旧式 `blushN` / `tearN` 路径，视觉效果
-  尚未通过；尚未上传。
+  AU-F 已确认设置 UI 可打开、配置可交互；运行时旧式 `blushN` / `tearN` 路径由社区 plus
+  提供兼容，视觉效果仍属部分验收边界。0802 Release 已公开四体型双格式产物。
 - **预发布资产更新追踪**：Mod 配置新增默认关闭的 `include_prerelease_updates`。Cheat Extended
   v1.20 使用官方 `Pre-release` 通道，更新检查除 tag 外还比较 GitHub asset digest 与
   `mods.lock.json`，可发现同一 tag 下的原位换包。
@@ -121,7 +144,8 @@
   的正常内外差异，3.x 时期测试已记录；此前把 `v1.2.8` 写成“无官方证据”属于误判，已改回。
 - **纠正改脸报错归属**：`img/face/kiss改脸/...` 的缺图报错来自 AU 美化本体自带的改脸目录，
   与 AU 面部扩展无关。0713 稳定版 `au_face` 为 `enabled = false` 时同样存在该红框，可直接排除
-  AU Face 作为起因。AU 面部扩展是另一个独立 mod，本轮才首次进入本地候选，其自身功能尚未验收。
+  AU Face 作为起因。AU 面部扩展是另一个独立 mod，0802 起进入公开 AU 构建；其设置 UI 与交互
+  已通过，脸红/流泪等视觉仍未完整验收。
 - **修复 Quick Check 的 GitHub URL 误报**：原有 Python `urllib` 在连续处理 GitHub Release
   重定向时会随机 `RemoteDisconnected`，导致有效官方链接被判为不可达。改用项目已有的
   `requests` 客户端并显式跟随重定向，不添加重试或镜像 fallback；复验 12/12 个启用直链通过。
