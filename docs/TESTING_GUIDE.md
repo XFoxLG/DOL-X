@@ -23,9 +23,9 @@ python tools/quick_check.py
 
 ### GitHub Actions 构建后测试（15-20 分钟）
 
-1. **下载测试清单**：
+1. **生成测试清单目录**：
    ```bash
-   python tools/download_latest_build.py --build-code 15706368
+   python tools/download_latest_build.py --build-code 15705344
    ```
 
 2. **手动下载 APK**：
@@ -43,15 +43,17 @@ python tools/quick_check.py
 
 ### 代表性测试
 
-**每次必测**：AU-M (build_code 15706368)
-- 原因：最常用，功能最全
-- 时间：15-20 分钟手动测试
+**真机代表**：AU-F (build_code 15705344)
+- 原因：维护者实际使用和验收的体型
+- 时间：涉及运行时行为的候选版按需做 15-20 分钟手动测试
 
-**CI 自动化**：其他 3 个构建
-- 基础版 (15704320)
-- AU-F (15705344)
-- AU-A (15708416)
-- 验证：启动成功 + mod 加载完整
+**CI 自动化**：
+- 分支推送：base (15704320) + AU-F (15705344)
+- 发版干跑与 tag：base / AU-F / AU-M / AU-A 全四码
+- 构建前运行完整 pytest；构建后对 ZIP 执行 AU 面部别名静态审计
+
+AU-M / AU-A 按既定决策不做真机验收，验证层级止于 CI 构建成功和静态 payload 检查。
+CI 不等于浏览器或模拟器真机测试，不能把“构建成功”表述为“运行时全部通过”。
 
 ### 测试触发条件
 
@@ -92,7 +94,7 @@ python tools/quick_check.py --checks urls
 
 ### tools/download_latest_build.py
 
-**用途**：下载测试构建并生成测试清单
+**用途**：准备测试目录并生成清单；artifact 仍通过 Actions 页面或 `gh run download` 下载
 
 **使用场景**：
 - GitHub Actions 构建完成后
@@ -100,13 +102,13 @@ python tools/quick_check.py --checks urls
 
 **示例**：
 ```bash
-# 下载 AU-M 构建（默认）
+# 生成默认 AU-F 测试清单
 python tools/download_latest_build.py
 
-# 下载指定 build_code
+# 生成指定 build_code 的清单
 python tools/download_latest_build.py --build-code 15704320
 
-# 下载指定 Run ID
+# 记录指定 Run ID 到准备流程
 python tools/download_latest_build.py --run-id 27995040396
 ```
 
@@ -144,12 +146,14 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 
 1. 打开 ModLoader 管理器（Alt+M）
 2. 确认所有 mod 已加载：
-   - maplebirch v3.1.14
-   - cheat extended v1.18
-   - maplebirchEx v1.2.4
+   - maplebirch v4.1.13
+   - Cheat Extended v1.20(dev260719)
+   - LongerCombat v1.0.1
+   - YanlingCheatCollection v1.0.1
+   - maplebirchEx v1.2.4 不应出现（已退役）
    - CustomHair v1.0.0
    - Mae's Picvary v1.3.2
-   - More Love Interests Mod v0.1.7.0（食物偏好页面应无红框报错；含 Avery/艾弗里）
+   - More Love Interests Mod v0.1.7.0
    - 当前启用的新 mod（guide_to_me, npc_social_icon）
    - NeoUI Patch 应出现（2026-07-05 升为必选，全部包内置）
    - BunnyTransformation 不应出现（已禁用，若出现说明测试包不是当前配置）
@@ -163,7 +167,10 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
    - 验证侧边栏作弊按钮
    - 测试快速言灵
 
-2. **更多恋人**：检查相关 NPC
+2. **更多恋人**：
+   - 在正式游戏的“态度”页确认出现“查看NPC喜爱的食物”入口
+   - 空列表应正常显示“你还没有对任何NPC产生恋爱兴趣”，不得出现红框
+   - 有恋爱兴趣 NPC 的存档再验证食物图标、配方材料；Avery 应显示舒芙蕾
 
 3. **新增功能**（选测 1-2 项）：
    - 控制NPC嘴部
@@ -179,7 +186,8 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 
 ### 已知问题验证（5分钟）
 
-详见 MCP 记忆 `core://dol-x-test-management`
+以 [`CURRENT_PROJECT_STATE.md`](CURRENT_PROJECT_STATE.md) 的“已知产品边界”和
+[`MOD_COMPATIBILITY_MATRIX.md`](MOD_COMPATIBILITY_MATRIX.md) 为可复核事实来源。
 
 ---
 
@@ -216,11 +224,11 @@ DoL-0.5.8.10-XFox-3.1.3a-ucb-more-love-...-0615-e0b1a4b.apk
 - **说明**：需先点击“自定义染发”选项，十六进制输入框才会出现。
 - **计划**：不再作为 bug 跟踪。
 
-### AU Face 已禁用
+### AU Face 部分验收
 
-- **原因**：maplebirch v3.1.14 路径问题
-- **计划**：框架升级到 v4.x 后重新启用
-- **验证**：侧边栏无错位
+- **状态**：三个 AU 构建均启用；设置 UI 与配置交互已通过。
+- **静态门禁**：CI 验证 `img/face/default/default/blush-1..5.png` 兼容别名。
+- **运行时边界**：脸红、流泪和部分改脸视觉未完整遍历，不把加载成功外推为视觉全通过。
 
 ### 自定义言灵集报错
 
@@ -248,7 +256,7 @@ git status | grep -E "\\.env|credentials"
 
 ```bash
 # 1. 生成测试清单
-python tools/download_latest_build.py --build-code 15706368
+python tools/download_latest_build.py --build-code 15705344
 
 # 2. 手动下载 APK
 
@@ -256,7 +264,7 @@ python tools/download_latest_build.py --build-code 15706368
 
 # 4. 填写测试清单
 
-# 5. 记录结果到 MCP 记忆
+# 5. 更新锁文件 notes 与当前状态文档
 ```
 
 ### 问题报告
@@ -264,32 +272,27 @@ python tools/download_latest_build.py --build-code 15706368
 发现新问题时：
 
 1. 记录到 `config/mods.lock.json` 的 `notes`
-2. 更新 MCP 记忆 `core://dol-x-test-management`
-3. 如需跟进，创建 GitHub Issue
+2. 更新 `docs/CURRENT_PROJECT_STATE.md` 或兼容矩阵中的验证边界
+3. 仓库 Issues 当前关闭；需长期跟进时写入仓库文档或用户私有任务记录
 
 ---
 
 ## CI 自动化测试
 
-### Phase 1A: 基线验证
+当前 `.github/workflows/build.yaml` 的强制门禁：
 
-- Warmup 资源
-- 构建 4 个 variants
-- Browser smoke test (ZIP)
-- APK CDP smoke test (Android)
+- 构建前运行完整 `python -m pytest tests -q`
+- 分支推送构建 base + AU-F；发版干跑和 tag 构建全四码
+- 构建后、上传前运行 `tools/au_artifact_check.py`
+- tag 才允许 release job 创建 GitHub Release
 
-### Phase 1B/1C: Mod 兼容性
-
-- maplebirch 版本检查
-- expansion 更新检查
-
-详见 `.github/workflows/baseline-candidate-gate.yml`
+浏览器 smoke、APK CDP 与真机行为属于更深层验证工具，不应在未实际执行时写成 CI 已覆盖。
 
 ---
 
 ## 参考
 
-- [AGENTS.md](AGENTS.md) - Agent 使用指南
-- [CHANGELOG.md](CHANGELOG.md) - 版本变更历史
+- [tests/README.md](../tests/README.md) - 自动测试分层与文件索引
+- [CHANGELOG.md](../CHANGELOG.md) - 版本变更历史
 - [config/mods.lock.json](../config/mods.lock.json) - Mod 版本锁定
 - [MANUAL_TESTING_CHECKLIST.md](MANUAL_TESTING_CHECKLIST.md) - 手动测试详细步骤
