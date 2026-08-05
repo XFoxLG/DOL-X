@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-08-04T00:00:00Z",
+  "last_updated": "2026-08-05T00:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
@@ -297,7 +297,7 @@
         "DOL-X never embeds an API key; with no key configured the mod still loads and only the AI features stay idle",
         "VERSION DOUBLE IDENTITY (verified 2026-08-02): the release tag is v0.2.3 but the packaged boot.json declares version 0.2.2 because the author did not bump the manifest. ModLoader reads boot.json, so a runtime listing of DOLI 0.2.2 is correct and does NOT mean the build fetched a stale asset",
         "CORRECTION (2026-08-02): the earlier note claiming boot.json requires ModLoader ^2.0.0 plus maplebirch ^3.1.0 satisfied by 2.101.1 and 3.1.14 was wrong on two counts. dependenceInfo only requires ModLoader ^2.0.0, and maplebirch appears solely under addonPlugin with range ^3.1.0, which does NOT cover the current 4.1.13",
-        "Consequence: the in-framework Options entry doliMaplebirchOptionsEntry is not registered under maplebirch 4.x. DOLI ships patches/overlay-replace.json with an explicit not-window.maplebirch branch that adds a DOLI button to the native game Options overlay, so the configuration entry stays reachable and the mod is not broken",
+        "RUNTIME CORRECTION (2026-08-05): addonPlugin declares maplebirch ^3.1.0, but user runtime evidence confirms DOLI works on the current 4.1.13 stack. Do not infer entry registration solely from the declared range. DOLI's own patches/overlay-replace.json is separate from the DOL-X build-time patch, which only fixes the bottom-right floating assistant icon path.",
         "Re-verify the in-framework entry if the author widens the addonPlugin range to ^4.0.0",
         "License CC BY-NC-SA 4.0; pinned to v0.2.3 and deliberately not tracking latest during the 0.2.x early phase"
       ],

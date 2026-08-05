@@ -1,10 +1,13 @@
 """Verify the two-tier public build code configuration in the CI workflow."""
 
+import re
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BUILD_WORKFLOW_PATH = PROJECT_ROOT / ".github" / "workflows" / "build.yaml"
+CHANGELOG_PATH = PROJECT_ROOT / "CHANGELOG.md"
+RELEASE_NOTES_DIRECTORY = PROJECT_ROOT / "docs" / "release-notes"
 
 
 def read_build_workflow() -> str:
@@ -122,6 +125,35 @@ def test_workflow_audits_artifacts_before_upload():
     assert workflow.index("tools/au_artifact_check.py") < workflow.index(
         "Upload ZIP artifacts"
     ), "the artifact audit must run before artifacts are uploaded"
+
+
+def test_release_job_requires_versioned_release_notes():
+    """Tag releases must fail closed instead of publishing an empty body."""
+    workflow = read_build_workflow()
+    release_job_section = workflow[workflow.index("  release:"):]
+
+    assert 'docs/release-notes/${GITHUB_REF_NAME}.md' in release_job_section
+    assert "Missing release notes" in release_job_section
+    assert "exit 1" in release_job_section
+    assert "body: ${{ steps.release_notes.outputs.body }}" in release_job_section
+    assert release_job_section.index("Read release notes") < release_job_section.index(
+        "Upload to release"
+    )
+
+
+def test_latest_changelog_version_has_release_notes():
+    """Every releasable CHANGELOG entry needs a reviewed player-facing body."""
+    changelog = CHANGELOG_PATH.read_text(encoding="utf-8")
+    version_match = re.search(r"^## \[(v[^\]]+)\]", changelog, re.MULTILINE)
+
+    assert version_match is not None, "CHANGELOG must contain a versioned entry"
+    release_notes_path = RELEASE_NOTES_DIRECTORY / f"{version_match.group(1)}.md"
+    assert release_notes_path.is_file(), (
+        f"missing player-facing release notes for {version_match.group(1)}"
+    )
+    assert release_notes_path.read_text(encoding="utf-8").strip(), (
+        f"release notes for {version_match.group(1)} must not be empty"
+    )
 
 
 def test_release_job_only_runs_for_tags():
