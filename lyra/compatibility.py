@@ -12,6 +12,7 @@ from typing import Any
 
 MORE_LOVE_DRAG_PATCH_KEY = "more_love_drag_event_handlers"
 DOLI_FLOAT_ICON_PATCH_KEY = "doli_float_icon_path"
+MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY = "maplebirch_basehead_fallback"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
 APK_CDP_REMOTE_END_RECONNECT_KEY = "apk_cdp_remote_end_reconnect"
 
@@ -98,6 +99,36 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         tests=("tests/test_doli_float_icon_patch.py", "tests/test_compatibility_registry.py"),
         removal_condition="Remove after DOLI ships an icon path matching current DoL (sym-*.png) asset naming.",
         notes="DOLI v0.2.3 hardcodes the pre-0.5.9.8 sym_awareness.png; DoL renamed sym_*→sym-*, so the float button 404s without this rewrite.",
+    ),
+    CompatibilitySurface(
+        key=MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
+        target="Maplebirch face-style basehead fallback",
+        scope="default-path",
+        kind="payload-patch",
+        cache_name="maplebirch",
+        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+        release_tag="maplebirch-release-v4.1.13",
+        asset_pattern="maplebirch-0.5.10.12-v4.1.13.mod.zip",
+        member="dist/inject_early.js",
+        marker="aP.has(`img/face/${e.facestyle}/base-head.png`)",
+        fail_policy="fail-closed",
+        tests=(
+            "tests/test_maplebirch_basehead_patch.py",
+            "tests/test_compatibility_registry.py",
+        ),
+        removal_condition=(
+            "Remove after upstream Maplebirch resolves basehead candidates from "
+            "its completed face-image index instead of treating an asynchronous "
+            "image lookup as a synchronous existence result."
+        ),
+        notes=(
+            "Maplebirch v4.1.13 synchronously chooses a face-style base-head path "
+            "through loadImage(), which normally returns a Promise for an uncached "
+            "path. The Promise is treated as an unknown-but-usable result, so the "
+            "first render requests a missing img/face/<style>/base-head.png and can "
+            "temporarily remove the head. The patch uses the already-populated "
+            "faceImagePaths index and preserves img/body/base-head.png as fallback."
+        ),
     ),
     CompatibilitySurface(
         key=AU_FACE_ALIAS_KEY,
