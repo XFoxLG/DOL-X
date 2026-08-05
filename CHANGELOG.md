@@ -40,8 +40,15 @@
   否则立即回退到 body 底图。补丁不复制图片、不修改 AU 加密包，且只对官方 v4.1.13 的精确
   仓库/tag/asset 和唯一压缩代码指纹生效；上游漂移时 fail-closed。官方 186010 B 资产实物验证
   sha256 为 `f5161eed8a4828baac8d7667ad4311fa214f02855c32c190ac1087902e9be955`，补丁仅改变
-  `dist/inject_early.js`，成员列表与 `boot.json` 均不变。自动测试和实物补丁验证已通过，修复后
-  的 APK/ZIP 仍待真机复测，不能写成已验证运行时修复。
+  `dist/inject_early.js`，成员列表与 `boot.json` 均不变。MuMu 12 对 CI run `31015066739` 的
+  AU-F 0805 候选完成运行时复验：按各脸型注册的有效变体，使用 UI 实际采用的单次
+  `<<updatesidebarimg>>` 刷新依次切换传统、kiss、nss、Twinkle、兔子、加辣、沅芷、碱性糖，
+  8/8 桌宠 canvas 均非空，0 条图片加载错误、0 个 page error，且始终回退到正确的
+  `img/body/base-head.png`。测试后已恢复传统脸型、25px 遮罩与桌宠关闭。
+
+  base 0805 对照包的桌宠 canvas 只有完整小人，AU-F canvas 额外带右侧 close-up 大脸；框架又
+  明确用可配置的“桌宠遮罩分割线”（默认 25px）裁切桌宠容器。因此反馈中的“大脸显示不全”
+  属于 AU 画布布局叠加框架遮罩的设计/调节边界，不是 `base-head.png` 缺图修复的残留故障。
 
 - **纠正 DOLI 4.x 记录**：用户真机证据表明 DOLI 在当前 maplebirch 4.1.13 栈中可以运行，不能
   仅凭 `addonPlugin` 的声明范围推断框架入口不注册。DOLI 自带的 overlay patch 与 DOL-X 的
