@@ -1,6 +1,6 @@
 # DOL-X 当前项目状态
 
-**核验日期**：2026-08-04
+**核验日期**：2026-08-05
 
 ## 2. 4.x 公开主线栈
 
@@ -101,10 +101,10 @@ sha256 `7c63f642…`，归档时已与 GitHub 报告的 digest 核对一致。
 
 ModLoader 读取包内 `boot.json`，所以 Mod 管理器里看到的版本以该列为准。
 
-另有一处此前的记录错误已在本轮修正：DOLI 的 `dependenceInfo` 只要求 ModLoader `^2.0.0`，
-maplebirch 出现在 `addonPlugin` 且范围为 `^3.1.0`，**不覆盖当前的 4.1.13**，因此框架内的
-Options 入口在 4.x 下不注册。DOLI 自带 `patches/overlay-replace.json`，在检测不到
-maplebirch 时于游戏原生 Options 覆盖层补一个 DOLI 按钮，配置入口仍可达、功能不失效。
+DOLI 的 `dependenceInfo` 只要求 ModLoader `^2.0.0`；`addonPlugin` 虽声明 maplebirch
+`^3.1.0`，该次设备检查确认 DOLI 在当前 4.1.13 栈中可运行，因此不能仅凭声明范围推断框架入口
+不注册。DOLI 自带的 `patches/overlay-replace.json` 与 DOL-X 的构建期图标补丁是两件事：后者
+只修复右下角智能助手悬浮按钮的旧图片路径，不负责补配置入口。
 
 ## 4. AU Face 与 plus
 
@@ -140,7 +140,7 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、主动跟踪 mod 的上游版本实况、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 208 项自动测试
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 210 项自动测试
 
 远端 CI 覆盖。
 
