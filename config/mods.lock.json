@@ -20,7 +20,10 @@
         "Official upstream is the primary download and update source; XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.13 is archive-only manual disaster recovery",
         "The rebuilt v3.2.5 package showing 2026-07-27 as last update was caused by ZIP rebuild timestamps, not original author chronology",
         "Rollback archives remain available, but the active owner is the official 4.x stack",
-        "CLOUD SAVE: 4.1.13 adds client + self-hosted Go/Worker implementations in upstream cloud-services/; no public endpoint is bundled or deployed by DOL-X"
+        "CLOUD SAVE: 4.1.13 adds client + self-hosted Go/Worker implementations in upstream cloud-services/; no public endpoint is bundled or deployed by DOL-X",
+        "RUNTIME 2026-08-05: an AU-F user video captured `Failed to load image img/face/default/base-head.png for layer basehead` while the Maplebirch desktop pet was enabled and the face style changed; the desktop pet can temporarily lose its head. The reporter clarified that the main sidebar model remains normal independently: the desktop pet is a separate fixed-position canvas derived from main-model layers, and only the pet rendering path is affected. This is outside the earlier base-stack 0-error test scope and does not invalidate that narrower evidence",
+        "ROOT CAUSE 2026-08-05: v4.1.13 basehead.srcfn passes the face-style candidate and img/body/base-head.png fallback through synchronous resolveFaceImagePath(), but loadImage() normally returns a Promise for uncached paths; the Promise is treated as unknown-but-usable and selects a missing face path on first render",
+        "LOCAL PATCH 2026-08-05: DOL-X now uses Maplebirch's fully populated faceImagePaths index for basehead selection, preserving real per-style base-head overrides and falling back immediately to img/body/base-head.png when absent. The fail-closed patch is statically tested and was applied to the official 186010-byte asset with only dist/inject_early.js changed; a rebuilt APK/ZIP still requires runtime confirmation"
       ]
     },
     "longer_combat": {
@@ -211,6 +214,8 @@
         "The earlier 3.x-era tests already recorded this outer/inner split; a v1.2.8 lock entry is therefore valid evidence, not an unsourced value",
         "boot.json dependencies: ModLoader ^2.5.1 and SweetAlert2Mod ^1.0.0; no hard maplebirch dependency is declared",
         "AU-F runtime evidence 2026-07-29: settings UI mounts and is interactive, but the inner mod requests legacy blushN/tearN paths while canonical resources use blush-N/tears-N; visual effects remain unverified",
+        "RUNTIME 2026-08-05: a separate reporter's save errors in Mirror -> Examine your body because the encrypted AU_facial_expansion selectors read mouthFacestyle, eyesFacestyle and eyeColor from an undefined parent object. The maintainer cannot reproduce on the same AU-F build in portrait or landscape; their valid Traditional face-style state renders the Face settings and AU facial expansion sections. Save-state/config migration is the leading hypothesis, but an exported failing save or expanded error details are still required",
+        "BOUNDARY: the Maplebirch base-head fallback patch fixes the image-load red box and temporary missing head shown in the desktop-pet video; it does not claim to fix the separate undefined AU selector/save error",
         "No public upload or mirror is authorized by this change; the official author release is the only source"
       ]
     },

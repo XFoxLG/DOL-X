@@ -8,6 +8,7 @@ from lyra.compatibility import (
     COMPATIBILITY_SURFACES,
     DOLI_FLOAT_ICON_PATCH_KEY,
     GENERIC_REFACTOR_PLAN,
+    MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
     MORE_LOVE_DRAG_PATCH_KEY,
     TEST_POLICY_REQUIREMENTS,
     compatibility_surface_by_key,
@@ -25,6 +26,7 @@ def test_compatibility_surfaces_are_registered_and_classified():
     assert set(surfaces_by_key) == {
         MORE_LOVE_DRAG_PATCH_KEY,
         DOLI_FLOAT_ICON_PATCH_KEY,
+        MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
         AU_FACE_ALIAS_KEY,
         APK_CDP_REMOTE_END_RECONNECT_KEY,
     }
@@ -34,6 +36,18 @@ def test_compatibility_surfaces_are_registered_and_classified():
     assert surfaces_by_key[DOLI_FLOAT_ICON_PATCH_KEY].scope == "default-path"
     assert surfaces_by_key[DOLI_FLOAT_ICON_PATCH_KEY].kind == "payload-patch"
     assert surfaces_by_key[DOLI_FLOAT_ICON_PATCH_KEY].fail_policy == "fail-closed"
+    assert (
+        surfaces_by_key[MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY].scope
+        == "default-path"
+    )
+    assert (
+        surfaces_by_key[MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY].kind
+        == "payload-patch"
+    )
+    assert (
+        surfaces_by_key[MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY].fail_policy
+        == "fail-closed"
+    )
     assert surfaces_by_key[AU_FACE_ALIAS_KEY].scope == "default-path"
     assert surfaces_by_key[APK_CDP_REMOTE_END_RECONNECT_KEY].scope == "generic-harness"
 
@@ -59,6 +73,7 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
     assert [surface.key for surface in default_payload_patches] == [
         MORE_LOVE_DRAG_PATCH_KEY,
         DOLI_FLOAT_ICON_PATCH_KEY,
+        MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
     ]
     more_love = default_payload_patches[0]
     assert more_love.fail_policy == "fail-closed"
@@ -78,6 +93,23 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
     assert doli.member == "dist/DOLI.js"
     assert doli.marker == "img/ui/sym_awareness.png"
 
+    maplebirch = default_payload_patches[2]
+    assert maplebirch.fail_policy == "fail-closed"
+    assert maplebirch.cache_name == "maplebirch"
+    assert (
+        maplebirch.github_repo
+        == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+    )
+    assert maplebirch.release_tag == "maplebirch-release-v4.1.13"
+    assert (
+        maplebirch.asset_pattern
+        == "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+    )
+    assert maplebirch.member == "dist/inject_early.js"
+    assert maplebirch.marker == (
+        "aP.has(`img/face/${e.facestyle}/base-head.png`)"
+    )
+
 
 @pytest.mark.config
 def test_doli_registry_matches_current_build_config():
@@ -93,6 +125,20 @@ def test_more_love_registry_matches_current_build_config():
     more_love_config = next(mod for mod in load_build_config().modloader_mods if mod.cache_name == "more_love")
 
     assert compatibility_source_errors(surface, more_love_config) == []
+
+
+@pytest.mark.config
+def test_maplebirch_registry_matches_current_build_config():
+    surface = compatibility_surface_by_key(
+        MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY
+    )
+    maplebirch_config = next(
+        mod
+        for mod in load_build_config().modloader_mods
+        if mod.cache_name == "maplebirch"
+    )
+
+    assert compatibility_source_errors(surface, maplebirch_config) == []
 
 
 @pytest.mark.config
