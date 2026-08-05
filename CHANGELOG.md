@@ -30,6 +30,19 @@
 
 ### Fixed
 
+- **修复 Maplebirch 桌宠启用时切换改脸，桌宠头脸暂时消失并弹出 `base-head.png` 红框**：
+  用户补充确认主侧边栏模型始终正常；桌宠是独立显示、从 `main` 模型派生图层的固定位置画布，
+  本问题只发生在桌宠自身启用并切换脸型时。Maplebirch 4.1.13 的桌宠模型刷新会请求不存在的
+  `img/face/<facestyle>/base-head.png`。上游源码本意是在风格未提供专属头部底图时回退到
+  `img/body/base-head.png`，但同步的 `resolveFaceImagePath()` 调用了异步 `loadImage()`，把首次
+  返回的 Promise 当成“未知但可用”路径，因此先选择不存在的候选。构建期补丁现在使用框架已在
+  `afterRegisterMod2Addon()` 中同步建立完成的 face 图片索引判断：索引命中才使用风格专属底图，
+  否则立即回退到 body 底图。补丁不复制图片、不修改 AU 加密包，且只对官方 v4.1.13 的精确
+  仓库/tag/asset 和唯一压缩代码指纹生效；上游漂移时 fail-closed。官方 186010 B 资产实物验证
+  sha256 为 `f5161eed8a4828baac8d7667ad4311fa214f02855c32c190ac1087902e9be955`，补丁仅改变
+  `dist/inject_early.js`，成员列表与 `boot.json` 均不变。自动测试和实物补丁验证已通过，修复后
+  的 APK/ZIP 仍待真机复测，不能写成已验证运行时修复。
+
 - **纠正 DOLI 4.x 记录**：用户真机证据表明 DOLI 在当前 maplebirch 4.1.13 栈中可以运行，不能
   仅凭 `addonPlugin` 的声明范围推断框架入口不注册。DOLI 自带的 overlay patch 与 DOL-X 的
   构建期补丁也不是一件事；后者只修复右下角智能助手悬浮按钮的破图。

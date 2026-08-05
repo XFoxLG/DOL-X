@@ -22,6 +22,7 @@ from .config import ModCode
 from .compatibility import (
     MORE_LOVE_DRAG_PATCH_KEY,
     DOLI_FLOAT_ICON_PATCH_KEY,
+    MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
     compatibility_source_errors,
     compatibility_surface_by_key,
     is_patch_success_status,
@@ -195,6 +196,72 @@ def patch_doli_float_icon_path(
                 for member in source_zip.infolist():
                     data = source_zip.read(member)
                     if member.filename == DOLI_FLOAT_ICON_MEMBER:
+                        data = patched_script.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
+
+
+MAPLEBIRCH_CACHE_NAME = "maplebirch"
+MAPLEBIRCH_BASEHEAD_MEMBER = "dist/inject_early.js"
+MAPLEBIRCH_BASEHEAD_OLD = (
+    'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
+    'aO([`img/face/${e.facestyle}/base-head.png`,"img/body/base-head.png"])}'
+)
+MAPLEBIRCH_BASEHEAD_NEW = (
+    'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
+    'aP.has(`img/face/${e.facestyle}/base-head.png`)?'
+    '`img/face/${e.facestyle}/base-head.png`:"img/body/base-head.png"}'
+)
+
+
+def patch_maplebirch_basehead_fallback(
+    source_path: Path,
+    target_path: Path,
+) -> dict[str, object]:
+    """Use Maplebirch's completed face index for basehead fallback selection."""
+    result: dict[str, object] = {
+        "applied": False,
+        "member": MAPLEBIRCH_BASEHEAD_MEMBER,
+        "source": str(source_path),
+        "target": str(target_path),
+    }
+
+    try:
+        with zipfile.ZipFile(source_path, "r") as source_zip:
+            if MAPLEBIRCH_BASEHEAD_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_script = source_zip.read(MAPLEBIRCH_BASEHEAD_MEMBER).decode(
+                "utf-8",
+                errors="replace",
+            )
+            if MAPLEBIRCH_BASEHEAD_OLD not in original_script:
+                result["status"] = (
+                    "already_patched"
+                    if MAPLEBIRCH_BASEHEAD_NEW in original_script
+                    else "patch_needle_not_found"
+                )
+                return result
+
+            patched_script = original_script.replace(
+                MAPLEBIRCH_BASEHEAD_OLD,
+                MAPLEBIRCH_BASEHEAD_NEW,
+                1,
+            )
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member)
+                    if member.filename == MAPLEBIRCH_BASEHEAD_MEMBER:
                         data = patched_script.encode("utf-8")
                     target_zip.writestr(member, data)
     except zipfile.BadZipFile as exc:
@@ -477,6 +544,8 @@ class PackageBuilder(ABC):
             return self._patch_more_love_payload(mod_config, mod_path)
         if mod_config.cache_name == DOLI_CACHE_NAME:
             return self._patch_doli_payload(mod_config, mod_path)
+        if mod_config.cache_name == MAPLEBIRCH_CACHE_NAME:
+            return self._patch_maplebirch_payload(mod_config, mod_path)
         return mod_path
 
     def _patch_more_love_payload(self, mod_config, mod_path: Path) -> Path:
@@ -524,6 +593,34 @@ class PackageBuilder(ABC):
             logger.info("DOLI float icon compatibility patch already present")
             return mod_path
         raise RuntimeError(f"DOLI float icon compatibility patch failed: {status}")
+
+    def _patch_maplebirch_payload(self, mod_config, mod_path: Path) -> Path:
+        """Make Maplebirch choose the indexed basehead fallback synchronously."""
+        patch_surface = compatibility_surface_by_key(
+            MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY
+        )
+        source_errors = compatibility_source_errors(patch_surface, mod_config)
+        if source_errors:
+            raise RuntimeError(
+                "Maplebirch basehead compatibility patch source mismatch: "
+                + "; ".join(source_errors)
+            )
+
+        patched_path = (
+            self.paths.temp_dir
+            / f"{MAPLEBIRCH_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.patched.mod.zip"
+        )
+        patch_result = patch_maplebirch_basehead_fallback(mod_path, patched_path)
+        status = str(patch_result.get("status") or "unknown")
+        if status == "patched":
+            logger.info("Maplebirch basehead compatibility patch applied")
+            return patched_path
+        if is_patch_success_status(status):
+            logger.info("Maplebirch basehead compatibility patch already present")
+            return mod_path
+        raise RuntimeError(
+            f"Maplebirch basehead compatibility patch failed: {status}"
+        )
 
     def _inject_modloader_mods(self) -> list[str]:
         """
