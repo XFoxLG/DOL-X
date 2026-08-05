@@ -11,6 +11,29 @@
 > 次版本、修复类改动进修订号。变更分类使用 Keep a Changelog 的六类：
 > `Added`（新增）/`Changed`（变更）/`Deprecated`（弃用）/`Removed`（移除）/`Fixed`（修复）/`Security`（安全）。
 
+## [Unreleased]
+
+### Added
+
+- **补齐玩家向 Release 正文与写作规范**：新增 0802、0804 两份可审查的版本说明和
+  `docs/DOCUMENTATION_GUIDE.md`。Release 正文只写玩家能观察到的现象、下载选择、实测范围与
+  已知边界，技术根因继续留在 CHANGELOG。GitHub 上 0802 / 0804 原本为空的正文已分别补齐，
+  0802 同时明确提示其 More Love 版本错配并指向 0804 修复版。
+
+### Changed
+
+- **Release 正文改为发版门禁**：tag workflow 会读取
+  `docs/release-notes/${GITHUB_REF_NAME}.md` 并传给上传 action；缺文件时 fail-closed，避免再次
+  发布空白正文。新增边界测试，要求 CHANGELOG 最新正式版本存在非空的玩家向说明。
+- **重写快速参考与文档索引**：`QUICK_REFERENCE.md` 改用当前四码、真实 CLI 参数、现有配置路径
+  和两档 CI 流程；移除旧 499968 系列、不存在的 profile / dev 子命令及无证据的健康分数。
+
+### Fixed
+
+- **纠正 DOLI 4.x 记录**：用户真机证据表明 DOLI 在当前 maplebirch 4.1.13 栈中可以运行，不能
+  仅凭 `addonPlugin` 的声明范围推断框架入口不注册。DOLI 自带的 overlay patch 与 DOL-X 的
+  构建期补丁也不是一件事；后者只修复右下角智能助手悬浮按钮的破图。
+
 ## [v0.5.10.12-1.0.8a-0804] - 2026-08-04
 
 修复 More Love 与 DoL 0.5.10.x 的版本错配，并把完整 pytest 与 AU 产物审计接入发版门禁。

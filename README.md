@@ -27,7 +27,7 @@
 
 DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统（直接上游构建流程来源），但不是本仓库的项目身份。
 
-本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 GitHub Actions 自动化构建，提供多种 Mod 组合，并跟随游戏和汉化更新。
+本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 GitHub Actions 自动化构建，提供多种 Mod 组合，并按维护者核验结果跟随游戏和汉化更新。
 
 **本仓库不是 DoL 或汉化组官方发布渠道**
 
@@ -64,7 +64,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ## 特色
 
-- ✅ **自动化构建**：GitHub Actions 云端构建，每周自动检测更新
+- ✅ **自动化构建**：GitHub Actions 云端构建，另有工具检查上游更新
 - ✅ **本地多版本支持**：基础版 + 3 个 AU 变体（AU-F、AU-M、AU-A）
 - ✅ **现代框架**：秋枫白桦框架 + cheatExtended 作弊扩展
 - ✅ **完整集成**：ModLoader + 汉化 + 美化包（UCB）
@@ -80,7 +80,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod)
 - [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair)
 - [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary）
-- [NPC社交栏头像](https://github.com/Eudemonism00/DOL-npcicon-mods/)
+- [NPC社交栏头像](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod)
 - [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe)
 - [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended）
 - [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat)（LongerCombat）
@@ -127,7 +127,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 | [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod) | v0.1.7.0；增加可攻略 NPC，并适配 DoL 0.5.10.x 食物系统 |
 | [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair) | 自定义发色 |
 | [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary） | 侧边栏显示 NPC 立绘头像 |
-| [NPC社交栏头像](https://github.com/Eudemonism00/DOL-npcicon-mods/) | 社交界面显示 NPC 头像 |
+| [NPC社交栏头像](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod) | 社交界面显示 NPC 头像 |
 | [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe) | 控制 NPC 嘴部动作 |
 | [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能；4.x 主线使用官方 v1.20 Pre-release，头部遮罩相容模式也由它提供 |
 | [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat) | 社区 plus 提供旧/新图片命名兼容；原作者允许二改二传 |
@@ -153,14 +153,14 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - **More Love 验证边界**：v0.1.7.0 的态度页入口、食物偏好页面跳转和空列表已真机通过；有恋爱兴趣 NPC 时的食物数据、Avery/舒芙蕾与旧存档清理行为尚未覆盖。
 - **上游更新决策**：maplebirch v4.1.14 已发布，但恢复了 NPC 怀孕周期等运行时行为；本轮不混入，继续使用已验证的 v4.1.13。
 - 上一代稳定版 `v0.5.10.12-1.0.8a-0713` 使用 maplebirch 3.x 栈，源码已存档在分支 `vega-archive-0713`，Release 仍保留可下载。
+- 面向玩家的更新内容、下载选择与实测范围见 [`0804 Release 说明`](docs/release-notes/v0.5.10.12-1.0.8a-0804.md)。
 - 当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
 > **已知边界（当前 4.x 主线）**：
-> - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，具名剧情 NPC 在动态模型里不显示衣服**：两个开关不是同一张图。「NPC 侧边栏图像显示」使用预绘制静态图；「PC 模型模式」用玩家纸娃娃系统动态生成，需要独立 NPC 衣柜数据。当前 4.x 主线没有任何 mod 注册衣柜，框架会按设计回落到 `naked`，不是图片路径 bug。**解决办法**：关闭「PC 模型模式」，只保留「NPC 侧边栏图像显示」，即可使用 Mae's Picvary 静态立绘。完整方案是制作独立 wardrobe 数据 mod，为每个 NPC 按地点注册服装；尚未实现。
-> - **AU Face 面部扩展测试中出现 `Failed to load image img/face/default/blushN.png` / `tearN.png` 红框**：这是 AU Face 内层请求旧式文件名，而当前资源使用新式 `blush-N.png` / `tears-N.png`，不是 AU model 的 `kiss改脸` 问题。AU Face 设置 UI 已确认可打开，但脸红/高潮流泪等视觉效果还没通过；不要用“ModLoader 0 error”替代视觉验收。
-> - **切换 AU 改脸时弹出 `Failed to load image .../kiss改脸/.../eyes.png` 红框**：这是 AU 美化本体自带改脸目录的缺图层提示，与 AU Face 是另一个独立 mod；直接点 **Clear** 或 **Close** 关掉即可。
-> - **Mod 管理器里 DOLI 显示 `v0.2.2`，但配置钉的是 Release `v0.2.3`**：作者发布 v0.2.3 时没有同步升级包内 `boot.json` 的版本号。Mod 管理器读的是包内声明，所以显示 0.2.2 是正常现象，不代表装了旧版本。同理，NPC Avatars 的 Release tag 是 `1.4` 而包内声明 `1.4.1`。
-> - **云存档面板没有可预填的服务地址**：maplebirch 4.1.13 自带云存档客户端和两套官方自建后端（Go+SQLite、Cloudflare Worker+R2+D1），但作者没有提供公共实例。DOL-X 不代为部署远程资源；需要使用时按源码文档自建，且不要填写未知第三方地址。
+> - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，具名剧情 NPC 在动态模型里不显示衣服**：这些角色没有配套的动态服装数据，是 NPC 模型系统本身的机制，不是本整合打包引入的问题。**解决办法**：关闭实验性的「PC 模型模式」，只保留「NPC 侧边栏图像显示」。
+> - **用 AU 改脸时可能弹出红色报错框，提示某张图片加载失败**：这是 AU 改脸美化包缺少部分素材图，脸和表情实际仍能显示，不影响剧情和玩法。直接点 **Clear** 或 **Close** 关掉即可。脸红、流泪等细节妆效尚未完整验收。
+> - **Mod 管理器里 DOLI 显示 `v0.2.2`，但发布页写的是 `v0.2.3`**：作者发布新包时没有同步升级包内显示版本，所以这是正常现象，不代表装了旧版本。同理，NPC Avatars 的发布版本是 `1.4`，游戏里显示 `1.4.1`。
+> - **云存档连不上**：框架没有提供公共云存档服务器，需要自行搭建。本地存档和导出存档不受影响。
 >
 > 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -344,9 +344,9 @@ DoL-{原版版本}-XFox-{汉化版本}-{体型}-{日期}.apk
 - 版本格式
 
   - 文件名格式
-    - `dol-{原版版本号}-chsmods-{汉化版本号}-{MODS}-{日期}[.{修订号}].{zip,apk}`
+    - `DoL-{游戏版本}-XFox-{汉化版本}-{体型}-{日期}.{zip,apk}`
   - tag 格式
-    - `{原版版本号}-{汉化版本号}-{日期}[.{修订号}]`
+    - `v{游戏版本}-{整合版本}a-{日期}`
 
 - 本整合包为完整游戏本体，请勿将压缩包作为 mod 在 modloader 内加载
 
