@@ -1,6 +1,6 @@
 # DOL-X 文档索引
 
-**最后更新**: 2026-07-30
+**最后更新**: 2026-08-05
 
 ---
 
@@ -8,12 +8,16 @@
 
 - [README](../README.md) - 项目简介和快速开始
 - [QUICK_REFERENCE](../QUICK_REFERENCE.md) - 快速命令参考
+- [CHANGELOG](../CHANGELOG.md) - 完整技术更新日志
+- [CURRENT_PROJECT_STATE](CURRENT_PROJECT_STATE.md) - 当前事实的唯一总入口
 - [CHEAT_EXTENDED_FAQ](CHEAT_EXTENDED_FAQ.md) - Cheat Extended 使用常见问题
+- [RELEASE_NOTES](release-notes/) - 面向玩家的各版本 Release 正文
 
 ## 开发文档
 
 ### Mod 矩阵与决策
 - [MOD_MATRIX_RATIONALE](../MOD_MATRIX_RATIONALE.md) - Mod 选择和组合理由
+- [MOD_COMPATIBILITY_MATRIX](MOD_COMPATIBILITY_MATRIX.md) - 当前 mod 版本、验证层级与边界
 - [UCB_COMPATIBILITY_REPORT](UCB_COMPATIBILITY_REPORT.md) - UCB 与 AU 兼容性验证
 
 ### 上游同步
@@ -22,6 +26,8 @@
 - [UPSTREAM_SYNC_GUIDE](UPSTREAM_SYNC_GUIDE.md) - 同步操作指南
 
 ### 技术参考
+- [DOCUMENTATION_GUIDE](DOCUMENTATION_GUIDE.md) - CHANGELOG、Release 正文与状态文档写作规范
+- [TESTING_GUIDE](TESTING_GUIDE.md) - 当前测试流程与验证边界
 - [COMMUNITY_TOOLS](COMMUNITY_TOOLS.md) - 社区工具评估
 - [AU_MODS_INTEGRATION](AU_MODS_INTEGRATION.md) - AU Mod 集成说明
 - [MODLOADER_TROUBLESHOOTING](MODLOADER_TROUBLESHOOTING.md) - ModLoader 排障
@@ -42,7 +48,7 @@
 1. **用户文档保持简洁**，面向使用者
 2. **内部文档记录决策理由**，面向维护者
 3. **临时文档不上传**，避免泄露敏感信息
-4. **所有文档在此索引**，方便查找
+4. **当前有效的核心文档在此索引**，历史研究与会话快照保留在原目录，不逐项列出
 
 ---
 
@@ -56,6 +62,3 @@
 
 ### 临时文档（.local/，不上传）
 临时分析、研究报告、自动化脚本，仅在本地使用。
-
-### 记忆文档（AGENTS.md，不上传）
-AI Agent 的记忆库，包含项目定位、环境雷区、决策理由、进度追踪。

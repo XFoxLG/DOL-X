@@ -1,6 +1,6 @@
 # DOL-X 当前项目状态
 
-**核验日期**：2026-08-04
+**核验日期**：2026-08-05
 
 **事实基线**：`vega` 的 4.x 公开主线 + `vega-archive-0713` 历史稳定归档
 
@@ -116,10 +116,10 @@ sha256 `7c63f642…`，归档时已与 GitHub 报告的 digest 核对一致。
 
 ModLoader 读取包内 `boot.json`，所以 Mod 管理器里看到的版本以该列为准。
 
-另有一处此前的记录错误已在本轮修正：DOLI 的 `dependenceInfo` 只要求 ModLoader `^2.0.0`，
-maplebirch 出现在 `addonPlugin` 且范围为 `^3.1.0`，**不覆盖当前的 4.1.13**，因此框架内的
-Options 入口在 4.x 下不注册。DOLI 自带 `patches/overlay-replace.json`，在检测不到
-maplebirch 时于游戏原生 Options 覆盖层补一个 DOLI 按钮，配置入口仍可达、功能不失效。
+DOLI 的 `dependenceInfo` 只要求 ModLoader `^2.0.0`；`addonPlugin` 虽声明 maplebirch
+`^3.1.0`，用户真机已确认 DOLI 在当前 4.1.13 栈中可运行，因此不能仅凭声明范围推断框架入口
+不注册。DOLI 自带的 `patches/overlay-replace.json` 与 DOL-X 的构建期图标补丁是两件事：后者
+只修复右下角智能助手悬浮按钮的旧图片路径，不负责补配置入口。
 
 ## 3. 构建矩阵与公开分发边界
 
@@ -139,6 +139,10 @@ Build workflow 现在在构建前执行完整 pytest，在构建后、上传 art
 `blush-1.png` 至 `blush-5.png`，并排除独立的 `blusher.png`；旧检查器曾只接受外层
 `blush1.png`、错误要求 6 个编号层，导致真实 AU-F 产物被误判。修正后的工具已对
 base/AU-F 当前候选及上一轮 base/AU-F/AU-M/AU-A 全矩阵 ZIP 复验通过。
+
+0802 与 0804 的 GitHub Release 原本由上传 action 自动创建但正文为空，已于 2026-08-05 补齐
+面向玩家的版本说明。后续 tag workflow 从 `docs/release-notes/<tag>.md` 读取正文；对应文件缺失
+时 release job fail-closed，不再允许发布空白说明。
 
 AU-M 与 AU-A 在此之前从未经 CI 构建过（分支档只含 base + AU-F）。首次全四码干验证由
 run [`30709200905`](https://github.com/XFoxLG/DOL-X/actions/runs/30709200905) 完成，
@@ -186,8 +190,8 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、主动跟踪 mod 的上游版本实况、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 208 项自动测试
-通过，其中 193 项属于公开仓库，另 15 项来自 `.gitignore` 排除的私有 MuMu 诊断工具，不能冒充
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 210 项自动测试
+通过，其中 195 项属于公开仓库，另 15 项来自 `.gitignore` 排除的私有 MuMu 诊断工具，不能冒充
 远端 CI 覆盖。
 
 候选提交 `186fc463` 的分支 run [`30907013186`](https://github.com/XFoxLG/DOL-X/actions/runs/30907013186)
