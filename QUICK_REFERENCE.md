@@ -1,479 +1,196 @@
 # DOL-X 快速参考
 
-快速查找 DOL-X 常用命令、配置和故障排除方法。
+常用构建、测试和发版命令。当前事实总入口见
+[`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
-**最后更新**: 2026-06-14  
-**系统状态**: ✅ 健康 (95/100)  
-**Python 版本**: 3.12 (推荐)
+**最后更新**：2026-08-05
+
+**当前稳定版本**：`v0.5.10.12-1.0.8a-0804`
+
+**CI Python**：3.12
+
+> 构建码以 `config/combinations.toml` 为准，命令参数以 `python main.py <命令> --help` 为准。
 
 ---
 
-## ⚙️ 环境要求
+## 环境准备
 
-**Python 版本**:
-- ✅ Python 3.11, 3.12, 3.13 支持
-- ❌ Python 3.14 不可用 (尚未发布)
-- ⚠️ CI/CD 已统一使用 Python 3.12
-
-**验证命令**:
 ```bash
-python --version  # 应显示 3.11+ 但非 3.14
+python --version
+python -m pip install -r requirements.txt
+python tools/check_environment.py
 ```
 
+CI 固定使用 Python 3.12；本地也建议使用同一版本。仓库没有 `pyproject.toml`，依赖记录在
+`requirements.txt`。
+
 ---
 
-## 常用命令
+## 构建码
 
-### 构建命令
+| 构建码 | 产物 | 说明 |
+|--------|------|------|
+| `15704320` | base | 基础版，不含 AU 体型模型与 AU 改脸 |
+| `15705344` | AU-F | AU 女性模型 + AU 改脸 |
+| `15706368` | AU-M | AU 男性模型 + AU 改脸 |
+| `15708416` | AU-A | AU 双性模型 + AU 改脸 |
+
+AU Face 不占独立 bit；任一 AU 体型命中时自动注入，base 明确不注入。
+
+### 当前必选 bit
+
+```text
+32768    cheat_extended_maplebirch
+65536    custom_hair
+131072   mae_picvary
+262144   maplebirch_expansion（当前由 LongerCombat + YanlingCheatCollection 承担）
+524288   guide_to_me
+2097152  neoui_patch
+4194304  npc_social_icon
+8388608  doli
+```
+
+当前四码还都包含 `ucb`（256）与 `more_love`（8192）。`bunny_transformation`（1048576）因已知
+不兼容而禁用；BESC、Hikari、Goose、Susato、WAX、KR/BJ 特写不属于当前公开矩阵。
+
+---
+
+## 常用构建命令
 
 ```bash
-# 查看所有可用组合
+# 查看配置中的四个公开构建码
 python main.py matrix
 
-# 构建特定代码
-python main.py build --codes 499968
+# 准备当前稳定版本的游戏与 mod 资源
+python main.py prepare --tag v0.5.10.12-1.0.8a-0804 --workspace . -v
 
-# 构建 AU 变体
-python main.py build --codes 500992,502016,504064
+# 预热四码共用资源
+python main.py warmup --codes 15704320,15705344,15706368,15708416 --workspace . -v
 
-# 使用 profile 构建
-python main.py build --profile standard
+# 构建单一码（默认同时生成 ZIP 和 APK）
+python main.py build --codes 15704320 --workspace . --jobs 2 -v
 
-# 实验性 profile（cheatExtended）
-python main.py build --profile cheat-extended-base
+# 构建全四码并写入构建清单
+python main.py build --tag v0.5.10.12-1.0.8a-0804 \
+  --codes 15704320,15705344,15706368,15708416 \
+  --workspace . --jobs 2 --manifest output/build-manifest.json -v
 
-# 并行构建（4 个进程）
-python main.py build --jobs 4
-
-# 准备构建环境
-python main.py prepare --tag v0.5.8.10
-
-# 预热缓存
-python main.py warmup
+# 只构建一种格式
+python main.py build zip --codes 15704320 --workspace . -v
+python main.py build apk --codes 15704320 --workspace . -v
 ```
 
-### 测试命令
+`--codes` 支持逗号分隔，也支持多个参数。CI 使用逗号分隔字符串；不要使用不存在的 `--profile`
+参数。
+
+---
+
+## 测试与产物检查
 
 ```bash
-# 运行所有配置测试
-pytest tests/ -v
+# 与公开 CI 相同的测试入口
+python -m pytest tests -q
 
-# 运行特定测试文件
-pytest tests/test_build_matrix.py -v
+# 只跑构建矩阵与公开分发边界
+python -m pytest tests/test_build_matrix.py tests/test_public_distribution_boundary.py -q
 
-# 运行单个测试
-pytest tests/test_build_matrix.py::TestBuildMatrix::test_all_versions_have_ucb -v
+# HTML 静态烟雾测试（参数可以是 ZIP、HTML 或目录）
+python tools/html_smoke_test.py output --output output/html-smoke-report.json
 
-# HTML 烟雾测试
-python tools/html_smoke_test.py output/*.zip
+# 浏览器烟雾测试（一次传一个 ZIP、解包目录或 HTML）
+python tools/browser_smoke_test.py output/<artifact>.zip --output-dir output/browser-smoke
 
-# 浏览器烟雾测试
-python tools/browser_smoke_test.py output/*.zip --output output/smoke-report.json
-
-# Mod 审计
+# Mod 资源审计
 python tools/mod_audit.py --output-dir output/audit
+
+# AU ZIP 产物审计
+python tools/au_artifact_check.py output --output output/au-artifact-report.json
+
+# 检查上游 mod 更新
+python tools/check_mod_updates.py --output output/mod-updates.json --include-prerelease
 ```
 
-### 开发命令
+本机全量会额外发现 `.gitignore` 排除的私有 MuMu 诊断测试，因此本机计数可能高于公开 CI；不要把
+本机计数写成 CI 覆盖。
+
+---
+
+## GitHub Actions 分档
+
+- 推送 `vega`：构建 base + AU-F。
+- 手动运行 `build_tier=release`：在不打 tag 的前提下干跑全四码，release job 必须跳过。
+- 推送普通发版 tag：构建全四码并创建 Release。
+- 镜像 tag（`*-mirror-*`）被 workflow 排除。
+
+发版前必须先创建 `docs/release-notes/<tag>.md`。Release job 会把它作为玩家向正文；文件缺失时
+fail-closed，不允许发布空白正文。
+
+---
+
+## 发版顺序
 
 ```bash
-# 检查环境
-python tools/check_environment.py
+# 1. 本地测试
+python -m pytest tests -q
 
-# 检查 Mod 更新
-python tools/check_mod_updates.py --output output/mod-updates.json
+# 2. 推送 vega，等待分支 CI 成功
+# 3. 手动运行 build_tier=release，等待全四码 dry run 成功
+# 4. 确认 CHANGELOG、README、CURRENT_PROJECT_STATE、mods.lock 和 release-notes 已同步
+# 5. 创建并推送 annotated tag（把 <tag> 替换成实际版本）
+git tag -a <tag> -m "<tag>"
+git push origin <tag>
 
-# Commit 转 Mod（待实现）
-python main.py dev commit-to-mod <commit-hash>
-
-# 热加载开发（待实现）
-python tools/dev_server.py --watch mods/my_mod
-```
-
-### Git 命令
-
-```bash
-# 查看状态
-git status
-
-# 推送到自己的仓库
-git push origin vega
-
-# 拉取上游更新
-git fetch upstream
-
-# 查看上游差异
-git log upstream/vega..vega --oneline
-
-# 对比核心构建系统
-git diff upstream/vega...vega -- lyra/
-
-# 对比配置文件
-git diff upstream/vega...vega -- config/
-
-# 选择性同步单个提交
-git cherry-pick <commit-hash>
-
-# 合并上游分支
-git merge upstream/vega
-
-# 创建 Release（自动触发云端构建）
-git tag v0.5.8.10-3.1.13-20260613
-git push origin v0.5.8.10-3.1.13-20260613
-
-# 查看构建状态
+# 6. 核对 Release、Latest 指针、8 件资产与正文
 # https://github.com/XFoxLG/DOL-X/actions
+# https://github.com/XFoxLG/DOL-X/releases/latest
 ```
-```
+
+不要在门禁失败时强行打 tag。Release 正文的写法与必填结构见
+[`docs/DOCUMENTATION_GUIDE.md`](docs/DOCUMENTATION_GUIDE.md)。
 
 ---
 
-## Build Codes 速查表
+## 配置文件
 
-### 当前稳定组合
-
-| Code | 组合 | 说明 |
-|------|------|------|
-| **499968** | UCB + more_love + cheatExtended+maplebirch + custom_hair + mae_picvary + expansion | **基础版（推荐）** |
-| **500992** | 上述 + AU-F | **AU Female 变体** |
-| **502016** | 上述 + AU-M | **AU Male 变体** |
-| **504064** | 上述 + AU-A | **AU Androgynous 变体** |
-
-### Build Code 计算
-
-```
-基础码 499968 = 256 (UCB) + 8192 (more_love) + 32768 (cheatExtended+maplebirch) 
-                + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (expansion)
-
-AU 变体：
-500992 = 499968 + 1024 (AU-F)
-502016 = 499968 + 2048 (AU-M)
-504064 = 499968 + 4096 (AU-A)
-```
+| 文件 | 用途 |
+|------|------|
+| `config/build.toml` | 游戏身份、APK、图片包和 ModLoader mod 下载配置 |
+| `config/combinations.toml` | 当前四个构建码 |
+| `config/features.toml` | feature bit、依赖、冲突与禁用状态 |
+| `config/mods.lock.json` | 已核验版本、SHA-256、验证状态与备注 |
+| `.github/workflows/build.yaml` | 分支/发版构建与发布门禁 |
 
 ---
 
-## Feature Bits 参考
+## 常见问题
 
-| Feature | Bit | 十六进制 | 说明 | 状态 |
-|---------|-----|----------|------|------|
-| BESC | 1 | 0x1 | 基础图片包 | ❌ **已禁用（skip=true）** |
-| cheat_csd | 2 | 0x2 | 旧作弊模组 | ❌ 已废弃 |
-| reserved | 4 | 0x4 | 保留位 | ⚠️ 跳过 |
-| BJ特写 | 8 | 0x8 | BJ特写 | ⚠️ 跳过 |
-| KR特写 | 16 | 0x10 | KR特写 | ⚠️ 跳过 |
-| HIKARI | 32 | 0x20 | Hikari 图片包 | ⚠️ 依赖 BESC |
-| WAX | 64 | 0x40 | Wax 图片包 | ⚠️ 跳过 |
-| SUSATO | 128 | 0x80 | Susato 图片包 | ⚠️ 跳过 |
-| **UCB** | **256** | **0x100** | **UCB 战斗美化** | **✅ 启用** |
-| GOOSE | 512 | 0x200 | Goose 图片包 | ⚠️ 冲突 |
-| **AU-F** | **1024** | **0x400** | **AU Face 面部扩展** | **✅ 启用** |
-| **AU-M** | **2048** | **0x800** | **AU 武术** | **✅ 启用** |
-| **AU-A** | **4096** | **0x1000** | **AU 小巷** | **✅ 启用** |
-| **more_love** | **8192** | **0x2000** | **更多恋人** | **✅ 启用** |
-| ~~custom_spellbook~~ | ~~16384~~ | ~~0x4000~~ | ~~自定义魔法书（已移除）~~ | **❌ 已移除** |
-| **cheat_extended_maplebirch** | **32768** | **0x8000** | **作弊扩展+秋枫白桦框架** | **✅ 启用** |
-| **custom_hair** | **65536** | **0x10000** | **自定义染发** | **✅ 启用** |
-| **mae_picvary** | **131072** | **0x20000** | **NPC侧边栏头像** | **✅ 启用** |
-| **maplebirch_expansion** | **262144** | **0x40000** | **秋枫白桦扩展包** | **✅ 启用** |
+### APK 与 ZIP 怎么选？
+
+`.apk` 用于安卓安装，`.zip` 用于浏览器版。安卓应用名是 `DoL XFox`，包名是
+`com.vrelnir.dol.xfox`，可与原版/汉化版共存；存档请通过游戏内导出/导入功能迁移。
+
+### UCB 和 AU 是否冲突？
+
+当前公开矩阵已同时构建 UCB 与三个 AU 体型。UCB 主要覆盖战斗图片，AU 主要覆盖体型和面部；
+产物级检查已接入 CI。兼容性边界见
+[`docs/MOD_COMPATIBILITY_MATRIX.md`](docs/MOD_COMPATIBILITY_MATRIX.md)。
+
+### D.O.L.I 为什么没有直接可用的 AI？
+
+D.O.L.I 需要玩家在游戏内自行填写 OpenAI 兼容 API key；整合包不会内置或上传任何密钥。
+
+### 云存档为什么连不上？
+
+框架没有提供公共云存档服务器，需要自行部署服务端。本地存档和导出存档不受影响。
 
 ---
 
-## 配置文件位置
-
-### 核心配置
-- [`config/build.toml`](config/build.toml) - 构建系统配置（身份、路径、APK）
-- [`config/combinations.toml`](config/combinations.toml) - **Mod 组合配置（build_codes）**
-- [`config/features.toml`](config/features.toml) - **Feature 定义（bits）**
-
-### Mod 配置
-- [`config/modloader/mods.toml`](config/modloader/mods.toml) - ModLoader mod 列表
-- [`config/base_mods.toml`](config/base_mods.toml) - 基础 mod 配置
-
----
-
-## 常见场景
-
-### 场景 1: 构建新版本
-
-```bash
-# 1. 准备环境
-python main.py prepare --tag v0.5.8.10
-
-# 2. 预热缓存
-python main.py warmup
-
-# 3. 构建所有配置
-python main.py build --jobs 4
-
-# 4. 运行测试
-pytest tests/ -v
-python tools/browser_smoke_test.py output/*.zip
-
-# 5. 检查输出
-ls output/
-# 预期：DoL-0.5.8.10-XFox-499968-*.zip 等 4 个文件
-```
-
-### 场景 2: 添加新 Mod
-
-```bash
-# 1. 编辑 config/modloader/mods.toml
-# 添加新 mod 配置
-
-# 2. 更新 build_codes（如需要）
-# 编辑 config/combinations.toml
-
-# 3. 运行测试验证
-pytest tests/test_mod_config.py -v
-
-# 4. 构建验证
-python main.py build --codes <new_code>
-
-# 5. 浏览器测试
-python tools/browser_smoke_test.py output/*.zip
-```
-
-### 场景 3: 测试上游新功能
-
-```bash
-# 1. 查看上游最新提交
-git fetch upstream
-git log upstream/vega --oneline --max-count=10
-
-# 2. 转换为 mod（待实现）
-python main.py dev commit-to-mod <commit-hash>
-
-# 3. 构建测试
-python main.py build --profile experimental
-
-# 4. 验证功能
-python tools/browser_smoke_test.py output/*.zip
-```
-
-### 场景 4: 同步上游改进
-
-```bash
-# 1. 拉取上游更新
-git fetch upstream
-
-# 2. 查看差异
-git diff upstream/vega...vega -- lyra/
-git log upstream/vega..vega --oneline
-
-# 3. 选择性合并
-git cherry-pick <commit-hash>
-# 或
-git merge upstream/vega
-
-# 4. 解决冲突（保留 DOL-X 的身份和 Mod 矩阵）
-git diff --name-only --diff-filter=U
-# 编辑冲突文件
-
-# 5. 提交并推送
-git commit
-git push origin vega
-
-# 6. 运行测试验证
-pytest tests/ -v
-```
-
----
-
-## 故障排除
-
-### PowerShell AMSI 错误
-
-**症状**: 运行 Python 或 Git 命令时出现 `AccessViolationException` 或 AMSI 相关错误
-
-**解决方案**:
-```bash
-# 方法 1: 切换到 Git Bash（推荐）
-# 1. 打开 Git Bash
-# 2. cd /e/game/repo/DOL-X
-# 3. 重新运行命令
-
-# 方法 2: 使用环境检测脚本
-python tools/check_environment.py
-
-# 方法 3: 在 Git Bash 中验证环境
-echo $MSYSTEM  # 应输出 MINGW64 或类似
-```
-
-### 测试失败
-
-**症状**: `pytest` 测试失败
-
-**排查步骤**:
-```bash
-# 1. 检查工作区状态
-git status
-
-# 2. 查看未提交的更改
-git diff
-
-# 3. 暂存并重新测试
-git stash
-pytest tests/ -v
-
-# 4. 恢复更改
-git stash pop
-
-# 5. 运行特定测试查看详细信息
-pytest tests/test_build_matrix.py -v -s
-```
-
-### 构建失败
-
-**症状**: `python main.py build` 失败
-
-**排查步骤**:
-```bash
-# 1. 检查环境
-python tools/check_environment.py
-
-# 2. 重新准备环境
-python main.py prepare --tag v0.5.8.10
-
-# 3. 清理缓存
-rm -rf workspace/cache/*
-rm -rf workspace/temp/*
-
-# 4. 重新预热
-python main.py warmup
-
-# 5. 重试构建
-python main.py build --codes 499968 --jobs 1
-
-# 6. 检查日志
-# 查看错误信息，通常在输出末尾
-```
-
-### Mod 加载失败
-
-**症状**: 浏览器测试显示 mod 加载错误
-
-**排查步骤**:
-```bash
-# 1. 运行 HTML 烟雾测试
-python tools/html_smoke_test.py output/*.zip
-
-# 2. 检查 boot.json
-unzip -p output/*.zip ModLoader/boot.json | python -m json.tool
-
-# 3. 检查 mod 依赖
-python tools/mod_audit.py
-
-# 4. 查看详细浏览器日志
-python tools/browser_smoke_test.py output/*.zip --verbose
-```
-
-### Git 冲突
-
-**症状**: `git merge` 或 `git cherry-pick` 出现冲突
-
-**解决步骤**:
-```bash
-# 1. 查看冲突文件
-git status
-git diff --name-only --diff-filter=U
-
-# 2. 对于配置文件冲突（保留 DOL-X 版本）
-git checkout --ours config/build.toml
-git checkout --ours config/combinations.toml
-
-# 3. 对于核心代码冲突（保留上游版本）
-git checkout --theirs lyra/build.py
-
-# 4. 手动编辑其他冲突
-code <conflicted-file>
-
-# 5. 标记为已解决
-git add <resolved-file>
-
-# 6. 继续操作
-git merge --continue
-# 或
-git cherry-pick --continue
-```
-
----
-
-## 美化兼容性说明
-
-### UCB 与 AU 是否冲突？
-
-**不冲突**。根据技术验证：
-- UCB 专注战斗场景（`img/sex/`）
-- AU 专注体型和面部（`img/body/`、`img/face/`）
-- 两者路径无重叠
-
-详见 [UCB 兼容性报告](docs/UCB_COMPATIBILITY_REPORT.md)。
-
-### 为什么不用 BESC？
-
-DOL-X 选择 UCB 作为唯一战斗美化，原因：
-1. UCB 最后应用会覆盖 BESC 的战斗图片
-2. 上游也不推荐 BESC+UCB 组合（code=259）
-3. 避免冗余下载和构建时间
-
-详见 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md)。
-
-### 贴吧美化（KR/BJ 特写）与 UCB 兼容吗？
-
-**需要自行测试**。DOL-X 官方仅支持 DOLP 的美化包（UCB、Hikari、Goose）。
-
-贴吧美化理论上与 UCB 兼容（特写美化应该不在 `img/sex/`），但未经实测。
-
-安装方法：将美化包的 `img/` 目录复制到游戏的 `game/img/` 目录。
-
----
-
-## 环境变量
-
-### 可选配置
-
-```bash
-# 设置并行构建进程数
-export DOL_BUILD_JOBS=4
-
-# 设置工作目录
-export DOL_WORKSPACE=/custom/path
-
-# Playwright 无头模式
-export PWDEBUG=0  # 0=headless, 1=headed
-
-# Python 优化
-export PYTHONOPTIMIZE=1
-```
-
----
-
-## 相关文档
-
-- [完整构建文档](BUILD.md)
-- [上游同步清单](UPSTREAM_SYNC_CHECKLIST.md)
-- [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md)
-- [社区工具](docs/COMMUNITY_TOOLS.md)
-- [测试指南](TESTING.md)
-
----
-
-## Cheat Sheet 下载
-
-打印或保存本文档以便离线参考：
-
-```bash
-# 生成 PDF（需要 pandoc）
-pandoc QUICK_REFERENCE.md -o QUICK_REFERENCE.pdf
-
-# 生成 HTML
-pandoc QUICK_REFERENCE.md -o QUICK_REFERENCE.html
-```
-
----
-
-**最后更新**: 2026-06-13  
-**维护者**: DOL-X 项目组
-
-**反馈**: 如发现错误或需要补充内容，请在 GitHub Issues 中提出
+## 进一步阅读
+
+- [README](README.md)
+- [当前项目状态](docs/CURRENT_PROJECT_STATE.md)
+- [更新日志](CHANGELOG.md)
+- [文档写作规范](docs/DOCUMENTATION_GUIDE.md)
+- [测试指南](docs/TESTING_GUIDE.md)
+- [Mod 兼容矩阵](docs/MOD_COMPATIBILITY_MATRIX.md)
+- [构建文档](BUILD.md)

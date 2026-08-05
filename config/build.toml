@@ -369,12 +369,10 @@ download_url = "https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence/rel
 # 版本号双身份（2026-08-02 核验）：Release tag 是 v0.2.3，但包内 boot.json 声明
 #   version="0.2.2"，作者未同步升 manifest。ModLoader 读 boot.json，所以运行时
 #   显示 [DOLI] {v:0.2.2} 属正常，不是构建取到旧包。
-# maplebirch 集成是软性的：boot.json 的 dependenceInfo 只要 ModLoader ^2.0.0，
-#   maplebirch 出现在 addonPlugin 且范围为 ^3.1.0，不覆盖当前的 4.1.13，因此
-#   框架内的 Options 入口（doliMaplebirchOptionsEntry）在 4.x 下不注册。
-#   DOLI 自带 patches/overlay-replace.json 走 `<<if !window.maplebirch>>` 分支，
-#   在游戏原生 Options 覆盖层补一个 DOLI 按钮，所以配置入口仍可达、功能不失效。
-#   等作者放宽到 ^4.0.0 后可复验框架内入口。
+# maplebirch 集成是软性的：boot.json 的 dependenceInfo 只要求 ModLoader ^2.0.0；
+#   addonPlugin 虽声明 maplebirch ^3.1.0，但用户真机已确认 DOLI 在当前 4.1.13 栈中可运行。
+#   不再仅凭声明范围推断框架入口是否注册。DOLI 自带 patches/overlay-replace.json；它与
+#   DOL-X 的构建期图标补丁不是同一件事。后者只把右下角悬浮按钮的旧图片路径改成现名。
 
 # DOL-X (2026-07-30): Legacy-Art-Mods-Compat plus 常驻集成。
 # 社区二改 1.0.3-plusV1.1（作者：鎖鏈蝴蝶＠百度貼吧），上游 mirrormirroronwall
