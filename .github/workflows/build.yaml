@@ -141,6 +141,25 @@ jobs:
           name: dol-builds-apk
           path: outputs/
 
+      # Release 正文与 tag 一同进入仓库审查。缺文件时 fail-closed，避免再次发布空白正文。
+      - name: Read release notes
+        id: release_notes
+        shell: bash
+        run: |
+          notes_path="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [[ ! -f "${notes_path}" ]]; then
+            echo "::error::Missing release notes: ${notes_path}"
+            exit 1
+          fi
+
+          {
+            echo 'body<<DOLX_RELEASE_NOTES_EOF'
+            cat "${notes_path}"
+            # 确保没有结尾换行的 Markdown 也不会与结束标记粘连。
+            echo
+            echo 'DOLX_RELEASE_NOTES_EOF'
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Upload to release
         uses: svenstaro/upload-release-action@v2
         with:
@@ -151,3 +170,4 @@ jobs:
           file_glob: true
           make_latest: true
           release_name: ${{ github.ref_name }}
+          body: ${{ steps.release_notes.outputs.body }}
