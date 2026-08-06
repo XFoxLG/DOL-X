@@ -9,6 +9,7 @@ from lyra.compatibility import (
     DOLI_FLOAT_ICON_PATCH_KEY,
     GENERIC_REFACTOR_PLAN,
     MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
+    MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
     MORE_LOVE_DRAG_PATCH_KEY,
     TEST_POLICY_REQUIREMENTS,
     compatibility_surface_by_key,
@@ -27,6 +28,7 @@ def test_compatibility_surfaces_are_registered_and_classified():
         MORE_LOVE_DRAG_PATCH_KEY,
         DOLI_FLOAT_ICON_PATCH_KEY,
         MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
+        MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
         AU_FACE_ALIAS_KEY,
         APK_CDP_REMOTE_END_RECONNECT_KEY,
     }
@@ -46,6 +48,18 @@ def test_compatibility_surfaces_are_registered_and_classified():
     )
     assert (
         surfaces_by_key[MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY].fail_policy
+        == "fail-closed"
+    )
+    assert (
+        surfaces_by_key[MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY].scope
+        == "default-path"
+    )
+    assert (
+        surfaces_by_key[MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY].kind
+        == "payload-patch"
+    )
+    assert (
+        surfaces_by_key[MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY].fail_policy
         == "fail-closed"
     )
     assert surfaces_by_key[AU_FACE_ALIAS_KEY].scope == "default-path"
@@ -74,6 +88,7 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         MORE_LOVE_DRAG_PATCH_KEY,
         DOLI_FLOAT_ICON_PATCH_KEY,
         MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
+        MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
     ]
     more_love = default_payload_patches[0]
     assert more_love.fail_policy == "fail-closed"
@@ -110,6 +125,21 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         "aP.has(`img/face/${e.facestyle}/base-head.png`)"
     )
 
+    pet_remount = default_payload_patches[3]
+    assert pet_remount.fail_policy == "fail-closed"
+    assert pet_remount.cache_name == "maplebirch"
+    assert (
+        pet_remount.github_repo
+        == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+    )
+    assert pet_remount.release_tag == "maplebirch-release-v4.1.13"
+    assert (
+        pet_remount.asset_pattern
+        == "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+    )
+    assert pet_remount.member == "dist/inject_early.js"
+    assert pet_remount.marker == "dolxPetRemountAfterPassageDisplay"
+
 
 @pytest.mark.config
 def test_doli_registry_matches_current_build_config():
@@ -131,6 +161,20 @@ def test_more_love_registry_matches_current_build_config():
 def test_maplebirch_registry_matches_current_build_config():
     surface = compatibility_surface_by_key(
         MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY
+    )
+    maplebirch_config = next(
+        mod
+        for mod in load_build_config().modloader_mods
+        if mod.cache_name == "maplebirch"
+    )
+
+    assert compatibility_source_errors(surface, maplebirch_config) == []
+
+
+@pytest.mark.config
+def test_maplebirch_pet_remount_registry_matches_current_build_config():
+    surface = compatibility_surface_by_key(
+        MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY
     )
     maplebirch_config = next(
         mod
