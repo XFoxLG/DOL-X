@@ -23,6 +23,7 @@ from .compatibility import (
     MORE_LOVE_DRAG_PATCH_KEY,
     DOLI_FLOAT_ICON_PATCH_KEY,
     MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
+    MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
     compatibility_source_errors,
     compatibility_surface_by_key,
     is_patch_success_status,
@@ -220,6 +221,42 @@ MAPLEBIRCH_BASEHEAD_NEW = (
     '`img/face/${e.facestyle}/base-head.png`:"img/body/base-head.png"}'
 )
 
+# SugarCube rebuilds StoryFooter on every passage render, so the
+# <div id="maplebirch-character-pet"> container the framework mounted its canvas
+# into is replaced by a fresh empty node. Maplebirch only re-syncs the pet from
+# its wrapped <<updatesidebarimg>> macro, which is not guaranteed to run on a
+# passage change, so the pet stays invisible while the framework still holds the
+# detached old container.
+#
+# The remount must go through <<updatesidebarimg>> rather than calling pet.sync()
+# directly: Pet.draw() reads clothing from Renderer.CanvasModelCaches.main.sidebar
+# and silently falls back to model.defaultOptions() (an undressed model) when that
+# cache is not populated yet. Verified on MuMu 12 - a direct pet.sync() on a fresh
+# passage produced 16316 opaque pixels with no sidebar cache, while the macro path
+# produced 17588 with clothing layers present. The framework already wraps that
+# macro to call pet.sync() after rendering the sidebar, so reusing it keeps the
+# pet's appearance identical to upstream behaviour.
+MAPLEBIRCH_PET_REMOUNT_MEMBER = "dist/inject_early.js"
+MAPLEBIRCH_PET_REMOUNT_OLD = (
+    'preInit(){let{core:e,pet:t}=this;e.once(":storyready",()=>{'
+    'let n=e.SugarCube.Macro.get("updatesidebarimg");'
+    'n&&e.tool.macro.define("updatesidebarimg",function(){'
+    'n.handler.call(this),t.sync()})})'
+)
+MAPLEBIRCH_PET_REMOUNT_NEW = (
+    'preInit(){let{core:e,pet:t}=this;e.once(":storyready",()=>{'
+    'let n=e.SugarCube.Macro.get("updatesidebarimg");'
+    'n&&e.tool.macro.define("updatesidebarimg",function(){'
+    'n.handler.call(this),t.sync()})}),'
+    'e.on(":passagedisplay",()=>{try{'
+    'if(!V.options?.maplebirch?.character?.pet?.enabled)return;'
+    'let r=document.getElementById("maplebirch-character-pet");'
+    'if(r&&0===r.childElementCount)$.wiki("<<updatesidebarimg>>")'
+    '}catch(a){}},"dolxPetRemountAfterPassageDisplay")'
+)
+
+MAPLEBIRCH_PET_REMOUNT_MARKER = "dolxPetRemountAfterPassageDisplay"
+
 
 def patch_maplebirch_basehead_fallback(
     source_path: Path,
@@ -262,6 +299,62 @@ def patch_maplebirch_basehead_fallback(
                 for member in source_zip.infolist():
                     data = source_zip.read(member)
                     if member.filename == MAPLEBIRCH_BASEHEAD_MEMBER:
+                        data = patched_script.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
+
+
+def patch_maplebirch_pet_passage_remount(
+    source_path: Path,
+    target_path: Path,
+) -> dict[str, object]:
+    """Re-sync the Maplebirch desktop pet after each passage rebuilds the footer."""
+    result: dict[str, object] = {
+        "applied": False,
+        "member": MAPLEBIRCH_PET_REMOUNT_MEMBER,
+        "source": str(source_path),
+        "target": str(target_path),
+    }
+
+    try:
+        with zipfile.ZipFile(source_path, "r") as source_zip:
+            if MAPLEBIRCH_PET_REMOUNT_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_script = source_zip.read(MAPLEBIRCH_PET_REMOUNT_MEMBER).decode(
+                "utf-8",
+                errors="replace",
+            )
+            # The replacement keeps the original preInit() text and appends the
+            # :passagedisplay subscription, so the marker - not the needle - is
+            # what distinguishes an already patched payload.
+            if MAPLEBIRCH_PET_REMOUNT_MARKER in original_script:
+                result["status"] = "already_patched"
+                return result
+
+            if MAPLEBIRCH_PET_REMOUNT_OLD not in original_script:
+                result["status"] = "patch_needle_not_found"
+                return result
+
+            patched_script = original_script.replace(
+                MAPLEBIRCH_PET_REMOUNT_OLD,
+                MAPLEBIRCH_PET_REMOUNT_NEW,
+                1,
+            )
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member)
+                    if member.filename == MAPLEBIRCH_PET_REMOUNT_MEMBER:
                         data = patched_script.encode("utf-8")
                     target_zip.writestr(member, data)
     except zipfile.BadZipFile as exc:
@@ -614,12 +707,40 @@ class PackageBuilder(ABC):
         status = str(patch_result.get("status") or "unknown")
         if status == "patched":
             logger.info("Maplebirch basehead compatibility patch applied")
-            return patched_path
+            return self._patch_maplebirch_pet_remount(mod_config, patched_path)
         if is_patch_success_status(status):
             logger.info("Maplebirch basehead compatibility patch already present")
-            return mod_path
+            return self._patch_maplebirch_pet_remount(mod_config, mod_path)
         raise RuntimeError(
             f"Maplebirch basehead compatibility patch failed: {status}"
+        )
+
+    def _patch_maplebirch_pet_remount(self, mod_config, mod_path: Path) -> Path:
+        """Re-sync the desktop pet after a passage rebuilds the footer container."""
+        patch_surface = compatibility_surface_by_key(
+            MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY
+        )
+        source_errors = compatibility_source_errors(patch_surface, mod_config)
+        if source_errors:
+            raise RuntimeError(
+                "Maplebirch pet remount compatibility patch source mismatch: "
+                + "; ".join(source_errors)
+            )
+
+        patched_path = (
+            self.paths.temp_dir
+            / f"{MAPLEBIRCH_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.pet-remount.mod.zip"
+        )
+        patch_result = patch_maplebirch_pet_passage_remount(mod_path, patched_path)
+        status = str(patch_result.get("status") or "unknown")
+        if status == "patched":
+            logger.info("Maplebirch pet remount compatibility patch applied")
+            return patched_path
+        if is_patch_success_status(status):
+            logger.info("Maplebirch pet remount compatibility patch already present")
+            return mod_path
+        raise RuntimeError(
+            f"Maplebirch pet remount compatibility patch failed: {status}"
         )
 
     def _inject_modloader_mods(self) -> list[str]:

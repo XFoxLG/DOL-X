@@ -13,6 +13,7 @@ from typing import Any
 MORE_LOVE_DRAG_PATCH_KEY = "more_love_drag_event_handlers"
 DOLI_FLOAT_ICON_PATCH_KEY = "doli_float_icon_path"
 MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY = "maplebirch_basehead_fallback"
+MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY = "maplebirch_pet_passage_remount"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
 APK_CDP_REMOTE_END_RECONNECT_KEY = "apk_cdp_remote_end_reconnect"
 
@@ -128,6 +129,50 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
             "first render requests a missing img/face/<style>/base-head.png and can "
             "temporarily remove the head. The patch uses the already-populated "
             "faceImagePaths index and preserves img/body/base-head.png as fallback."
+        ),
+    ),
+    CompatibilitySurface(
+        key=MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
+        target="Maplebirch desktop pet passage remount",
+        scope="default-path",
+        kind="payload-patch",
+        cache_name="maplebirch",
+        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+        release_tag="maplebirch-release-v4.1.13",
+        asset_pattern="maplebirch-0.5.10.12-v4.1.13.mod.zip",
+        member="dist/inject_early.js",
+        marker="dolxPetRemountAfterPassageDisplay",
+        fail_policy="fail-closed",
+        tests=(
+            "tests/test_maplebirch_pet_remount_patch.py",
+            "tests/test_compatibility_registry.py",
+        ),
+        removal_condition=(
+            "Remove after upstream Maplebirch re-mounts the desktop pet when a "
+            "passage rebuilds StoryFooter, instead of relying only on its wrapped "
+            "<<updatesidebarimg>> macro."
+        ),
+        notes=(
+            "SugarCube rebuilds StoryFooter on every passage render, so the "
+            "<div id=\"maplebirch-character-pet\"> that Maplebirch mounted its canvas "
+            "into is replaced by a fresh empty node. v4.1.13 only re-syncs the pet "
+            "from the <<updatesidebarimg>> wrapper registered in Character.preInit(), "
+            "which is not guaranteed to run on a passage change, so an enabled pet "
+            "stays invisible while the framework still holds the detached container. "
+            "Verified on MuMu 12: after a passage render the live container had 0 "
+            "children while pet.container was detached with 1 child, and a single "
+            "<<updatesidebarimg>> restored 17588 opaque pixels. The patch subscribes "
+            "the framework's own :passagedisplay event to its own wrapped "
+            "<<updatesidebarimg>> macro and only acts when the pet is enabled and the "
+            "live container is empty, so it is idempotent. The macro path is required "
+            "rather than a direct pet.sync(): Pet.draw() reads clothing from "
+            "Renderer.CanvasModelCaches.main.sidebar and silently falls back to "
+            "model.defaultOptions() (an undressed model) when that cache is not "
+            "populated yet. Measured on MuMu 12: direct pet.sync() on a fresh passage "
+            "gave 16316 opaque pixels with no sidebar cache, while the macro path gave "
+            "17588 with clothing layers present, matching upstream appearance. Upstream "
+            "v4.1.14 ships a byte-identical Pet.ts and the same sync wiring, so "
+            "upgrading does not remove the need for this patch."
         ),
     ),
     CompatibilitySurface(
