@@ -10,6 +10,7 @@ from lyra.build import (
     MAPLEBIRCH_BASEHEAD_MEMBER,
     MAPLEBIRCH_BASEHEAD_NEW,
     MAPLEBIRCH_BASEHEAD_OLD,
+    MAPLEBIRCH_PET_REMOUNT_OLD,
     ZipBuilder,
     patch_maplebirch_basehead_fallback,
 )
@@ -17,10 +18,13 @@ from lyra.config_loader import load_build_config
 from lyra.paths import BuildPaths
 
 
+# The Maplebirch payload receives two chained fail-closed patches, so the fake
+# payload must carry both upstream needles for the injection path to succeed.
 MAPLEBIRCH_SCRIPT = (
     "const faceImagePaths = new Set();"
     "const aP = faceImagePaths;"
     f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD},freckles:{{}}}};"
+    f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD},this.use('pre',aB,'main')}}}}"
 )
 
 
