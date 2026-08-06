@@ -30,6 +30,20 @@
 
 ### Fixed
 
+- **修复 Maplebirch 桌宠切换段落后消失（开启也看不到、偶尔一闪）**：
+  SugarCube 每次渲染段落都会重建 StoryFooter，因此框架挂载 canvas 的
+  `<div id="maplebirch-character-pet">` 会被替换成一个全新的空节点。v4.1.13 只在
+  `Character.preInit()` 包装的 `<<updatesidebarimg>>` 宏里重新同步桌宠，而切换段落并不
+  必然触发该宏，于是桌宠虽为启用状态却不再出现，框架仍持有已脱离文档的旧容器。
+  MuMu 12 实测：切段落后页面上的活容器 0 个子元素，而 `pet.container` 已脱离且仍带 1 个
+  子元素；手动调用一次 `<<updatesidebarimg>>` 可恢复 17588 个非透明像素。修复在构建期
+  把框架自己的 `:passagedisplay` 事件订阅到它自己的 `<<updatesidebarimg>>` 宏，且仅在桌宠
+  已启用且活容器为空时触发，因此幂等、不改变桌宠外观与设置。这里必须走宏而不是直接调用
+  `pet.sync()`：`Pet.draw()` 从 `Renderer.CanvasModelCaches.main.sidebar` 读取穿着，缓存
+  未建立时会静默退回 `model.defaultOptions()`（未穿衣模型）——实测直接 `pet.sync()` 得到
+  16316 个非透明像素且无侧边栏缓存，走宏得到 17588 且穿着图层齐全。上游 v4.1.14 的
+  `Pet.ts` 与 v4.1.13 逐字节相同、同步接线未变，升级无法替代本补丁。补丁 fail-closed，
+  只改官方资产的 `dist/inject_early.js`，成员列表与 `boot.json` 均不变。
 - **修复 Maplebirch 桌宠启用时切换改脸，桌宠头脸暂时消失并弹出 `base-head.png` 红框**：
   用户补充确认主侧边栏模型始终正常；桌宠是独立显示、从 `main` 模型派生图层的固定位置画布，
   本问题只发生在桌宠自身启用并切换脸型时。Maplebirch 4.1.13 的桌宠模型刷新会请求不存在的
