@@ -1308,6 +1308,140 @@ def _looks_playable(game_ready: dict[str, Any]) -> bool:
     return bool(game_ready.get("interactiveElementCount", 0) > 0 and game_ready.get("bodyTextLength", 0) > 500)
 
 
+# Enables the Maplebirch desktop pet, renders a passage, and reports whether the
+# pet canvas is actually mounted with visible pixels. SugarCube rebuilds
+# StoryFooter on every passage render, so a pet that only mounts once silently
+# disappears; this probe is what catches that regression in CI instead of leaving
+# it to player reports. Restores the original settings before returning.
+def _desktop_pet_probe_script() -> str:
+    return r"""
+async () => {
+  const CONTAINER_ID = 'maplebirch-character-pet';
+  const variables = window.SugarCube?.State?.variables || window.State?.variables;
+  const petSettings = variables?.options?.maplebirch?.character?.pet;
+  if (!variables || !petSettings) return {supported: false, reason: 'maplebirch pet options unavailable'};
+  if (!window.maplebirch?.char?.pet) return {supported: false, reason: 'maplebirch pet controller unavailable'};
+
+  const originalEnabled = petSettings.enabled;
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const inspect = () => {
+    const container = document.getElementById(CONTAINER_ID);
+    const canvas = container?.querySelector('canvas') ?? null;
+    let opaquePixelCount = 0;
+    if (canvas) {
+      try {
+        const pixels = canvas.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data || [];
+        for (let offset = 3; offset < pixels.length; offset += 4) {
+          if (pixels[offset]) opaquePixelCount++;
+        }
+      } catch (error) {
+        return {containerPresent: Boolean(container), canvasPresent: Boolean(canvas),
+                opaquePixelCount: null, readError: String(error)};
+      }
+    }
+    return {
+      containerPresent: Boolean(container),
+      canvasPresent: Boolean(canvas),
+      childElementCount: container?.childElementCount ?? null,
+      opaquePixelCount,
+      frameworkContainerDetached: Boolean(
+        window.maplebirch?.char?.pet?.container &&
+        !document.contains(window.maplebirch.char.pet.container)
+      ),
+    };
+  };
+
+  const result = {supported: true, originalEnabled, passageRenders: []};
+  try {
+    petSettings.enabled = true;
+    window.jQuery?.wiki?.('<<updatesidebarimg>>');
+    await wait(1200);
+    result.afterEnable = inspect();
+
+    // Re-render the current passage repeatedly: each render rebuilds StoryFooter,
+    // so a correctly wired pet must come back on its own every time.
+    const passage = window.SugarCube?.State?.passage;
+    for (let attempt = 0; attempt < 2 && passage; attempt++) {
+      window.SugarCube.Engine.play(passage);
+      await wait(1500);
+      result.passageRenders.push(inspect());
+    }
+  } catch (error) {
+    result.error = String(error);
+  } finally {
+    try {
+      petSettings.enabled = originalEnabled;
+      if (!originalEnabled) window.maplebirch?.char?.pet?.unmount?.();
+      window.jQuery?.wiki?.('<<updatesidebarimg>>');
+    } catch (restoreError) {
+      result.restoreError = String(restoreError);
+    }
+  }
+  return result;
+}
+"""
+
+
+def _check_desktop_pet(report: BrowserSmokeReport, page: Any) -> None:
+    """Record whether the desktop pet survives passage re-renders."""
+    try:
+        probe = page.evaluate(_desktop_pet_probe_script())
+    except PlaywrightError as exc:
+        report.observations["desktop_pet"] = {"error": str(exc)}
+        _add_issue(
+            report,
+            Issue("warning", "desktop_pet_probe_error", "desktop_pet", str(exc)),
+        )
+        return
+
+    report.observations["desktop_pet"] = probe
+
+    if not probe.get("supported"):
+        # Packages without the framework legitimately have no pet to test.
+        return
+
+    after_enable = probe.get("afterEnable") or {}
+    if not after_enable.get("canvasPresent"):
+        _add_issue(
+            report,
+            Issue(
+                "high",
+                "desktop_pet_not_mounted",
+                "desktop_pet",
+                "desktop pet was enabled but no canvas was mounted into the footer container",
+            ),
+        )
+        return
+
+    if not after_enable.get("opaquePixelCount"):
+        _add_issue(
+            report,
+            Issue(
+                "high",
+                "desktop_pet_blank_canvas",
+                "desktop_pet",
+                "desktop pet canvas was mounted but contained no visible pixels",
+            ),
+        )
+
+    for index, render in enumerate(probe.get("passageRenders") or [], start=1):
+        if not render.get("canvasPresent") or not render.get("opaquePixelCount"):
+            _add_issue(
+                report,
+                Issue(
+                    "high",
+                    "desktop_pet_lost_after_passage",
+                    "desktop_pet",
+                    f"desktop pet disappeared after passage render {index}: "
+                    f"canvas={render.get('canvasPresent')} "
+                    f"opaquePixels={render.get('opaquePixelCount')} "
+                    f"detachedContainer={render.get('frameworkContainerDetached')}",
+                ),
+            )
+            break
+
+
 def _add_game_ready_issues(report: BrowserSmokeReport, game_ready: dict[str, Any]) -> None:
     if not game_ready.get("hasSugarCube"):
         _add_issue(
@@ -2086,6 +2220,10 @@ def _run_playwright(
 
         if "game_ready" in report.observations:
             _attempt_enter_game(report, page)
+
+            # StoryFooter is rebuilt on every passage render, so the desktop pet
+            # must be probed after entering the game rather than at startup.
+            _check_desktop_pet(report, page)
 
         click_results: dict[str, dict[str, Any]] = {}
         for selector in profile.click_selectors:
