@@ -10,6 +10,8 @@ import zipfile
 import pytest
 
 from tools.browser_smoke_test import (
+    _check_desktop_pet,
+    _desktop_pet_probe_script,
     BrowserSmokeReport,
     CHEAT_EXTENDED_RUNTIME_MOD_PROBES,
     ENTER_GAME_LABELS,
@@ -1047,3 +1049,91 @@ def test_browser_smoke_strict_main_exits_nonzero_with_high_risk(monkeypatch, tmp
     exit_code = main(["dummy.zip", "--output-dir", str(tmp_path)])
 
     assert exit_code == 1
+
+
+class _StubPage:
+    """Minimal page double returning a canned desktop pet probe result."""
+
+    def __init__(self, probe_result):
+        self._probe_result = probe_result
+
+    def evaluate(self, script, *args):
+        return self._probe_result
+
+
+def _pet_report():
+    return BrowserSmokeReport(target="pkg.zip", profile="none", report_only=True)
+
+
+def test_desktop_pet_probe_script_restores_original_setting():
+    script = _desktop_pet_probe_script()
+
+    # The probe must not leave the pet enabled for players who had it off.
+    assert "originalEnabled" in script
+    assert "petSettings.enabled = originalEnabled" in script
+    assert "unmount" in script
+    # It must re-render the passage, which is what rebuilds StoryFooter.
+    assert "Engine.play(passage)" in script
+
+
+def test_desktop_pet_probe_flags_pet_lost_after_passage_render():
+    report = _pet_report()
+    page = _StubPage(
+        {
+            "supported": True,
+            "afterEnable": {"canvasPresent": True, "opaquePixelCount": 17588},
+            "passageRenders": [
+                {"canvasPresent": False, "opaquePixelCount": 0, "frameworkContainerDetached": True}
+            ],
+        }
+    )
+
+    _check_desktop_pet(report, page)
+
+    kinds = [issue.kind for issue in report.issues]
+    assert "desktop_pet_lost_after_passage" in kinds
+    assert any(issue.severity == "high" for issue in report.issues)
+
+
+def test_desktop_pet_probe_accepts_pet_surviving_passage_renders():
+    report = _pet_report()
+    page = _StubPage(
+        {
+            "supported": True,
+            "afterEnable": {"canvasPresent": True, "opaquePixelCount": 17588},
+            "passageRenders": [
+                {"canvasPresent": True, "opaquePixelCount": 17587, "frameworkContainerDetached": False},
+                {"canvasPresent": True, "opaquePixelCount": 17587, "frameworkContainerDetached": False},
+            ],
+        }
+    )
+
+    _check_desktop_pet(report, page)
+
+    assert report.issues == []
+    assert report.observations["desktop_pet"]["supported"] is True
+
+
+def test_desktop_pet_probe_flags_blank_canvas():
+    report = _pet_report()
+    page = _StubPage(
+        {
+            "supported": True,
+            "afterEnable": {"canvasPresent": True, "opaquePixelCount": 0},
+            "passageRenders": [],
+        }
+    )
+
+    _check_desktop_pet(report, page)
+
+    assert "desktop_pet_blank_canvas" in [issue.kind for issue in report.issues]
+
+
+def test_desktop_pet_probe_is_quiet_for_packages_without_framework():
+    report = _pet_report()
+    page = _StubPage({"supported": False, "reason": "maplebirch pet options unavailable"})
+
+    _check_desktop_pet(report, page)
+
+    assert report.issues == []
+    assert report.observations["desktop_pet"]["supported"] is False
