@@ -1,8 +1,8 @@
 # 会话状态 2026-08-07：AU 换脸同步与旧存档迁移
 
 本文是当前恢复入口，优先级高于更早的会话状态记录。当前分支是 `vega`，本轮起点
-HEAD 为 `4bfe21cf891308bbfd9aff4e7504693c363a791d`。本轮修改尚未提交、推送或进入 CI，
-也未创建 tag 或 Release。
+HEAD 为 `4bfe21cf891308bbfd9aff4e7504693c363a791d`。本轮修复已提交为 `cf60d15` 并推送
+`vega`，分支 CI 与全四码干跑均已通过；截至 2026-08-08 尚未打 tag 或创建 Release。
 
 正式 APK 签名已经通过一次性公钥加密 Actions 流程从现有 `SIGNING_KEY` Secret 恢复。本机恢复的
 PKCS12 keystore 只有一个 `dol` PrivateKeyEntry，证书 SHA-256 为
@@ -124,3 +124,22 @@ Python 编译、真实 Maplebirch 4.1.13 payload patch、新 APK 最终严格审
 `tests/test_maplebirch_basehead_patch.py`、`tools/browser_smoke_test.py` 是 Windows CRLF 状态假阳性，
 Git blob 已证明与 HEAD 完全一致，不要回滚也不要提交。之后 commit/push 并观察 branch CI，再
 手动触发全四码 release-tier 干跑；全四码候选和同源签名 APK 复验通过前不得打 tag 或发布。
+
+## 最终验证结果（2026-08-08）
+
+候选提交 `cf60d15` 已推送 `vega`。分支 CI run `31239491888` success（测试、构建、ZIP/APK 产物
+审计、上传全部通过）。手动触发的全四码 `release-tier` 干跑 run `31239641405` success，release job
+按分支语义 skipped，未创建 Release；8 个产物全部生成并通过新严格审计：AU 三码各命中 3+1+1
+marker 与 5 个腮红层，base 干净；四个 APK 签名指纹均为正式
+`b21cd15b9ff02d603a20d94b8403d5d9661946518f88e0551474c93ab829ece6`。
+
+MuMu 12 上已用四码干跑生成的正式签名 AU-F APK 覆盖安装正式应用，`firstInstallTime` 保留、
+`lastUpdateTime` 更新为 2026-08-08。运行时复验：Start 段落完整中文；8 个脸型链接逐个点击且不点
+仪态时全部立即选中第一个合法仪态（default、大眼鼠鼠、冷脸萌、猫猫脸、宝石糖、温柔改、小圆眼、
+Q萌一号），radio 均勾选，渲染画布哈希互异；`kiss改脸/default` 测试存档加载后自动迁移为
+`kiss改脸/大眼鼠鼠`，reporter 为空，测试槽位已删除；console 无异常抛出，错误级条目全部为
+离线环境网络拒绝与 Simple Frameworks 可选查找等良性/环境性日志，无 `img/face` 加载失败。
+
+至此，除打 tag 与创建 Release 外的发布前验证全部完成。tag/Release 属于公开发布动作，仍需用户
+明确授权后执行；授权后将使用现有正式签名 APK 四码产物与 `docs/release-notes/v0.5.10.12-1.0.8a-0807.md`
+正文发布。
