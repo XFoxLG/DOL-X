@@ -1,5 +1,26 @@
 # DoL-X 自动化 Mod 兼容性测试 - 实施总结
 
+> [!CAUTION]
+> **本文是 2026 年初 Phase 1/2 建设期的历史实施总结，内容已全面失效，不要当作当前测试说明。**
+>
+> 已知失效点（2026-08-08 核实）：
+> - 构建码 `24834 / 25858 / 26882 / 28930` 早已废弃，当前四码是
+>   `15704320`（base）/ `15705344`（AU-F）/ `15706368`（AU-M）/ `15708416`（AU-A）。
+> - 文中提到的测试函数 `test_base_code_is_24834` 不存在，真实函数是
+>   `tests/test_build_matrix.py` 的 `test_base_code_is_15704320`。
+> - `custom-spellbook` 已于 2026-06-17 移出矩阵；"所有版本包含 custom-spellbook"不成立。
+> - "默认版本不包含 cheatExtended/maplebirch"与现状**完全相反**：
+>   `cheat_extended_maplebirch`（bit 32768）是四码共有的必选位。
+> - 各文件的测试用例数（13 / 22 等）均为建设期数字，与当前不符。当前本机
+>   `python -m pytest -q` 为 274 passed，其中公开 259 项、私有 15 项。
+>
+> **当前测试说明请看**：
+> - [`docs/TESTING_GUIDE.md`](docs/TESTING_GUIDE.md) —— 真机测试流程
+> - [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md) —— 当前四码、CLI 与 CI 两档流程
+> - [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md) —— 当前事实与验证边界
+>
+> 保留本文仅为记录当时的建设范围，供追溯历史决策使用。
+
 ## 已完成内容
 
 ### Phase 1: 配置与矩阵测试 ✓
