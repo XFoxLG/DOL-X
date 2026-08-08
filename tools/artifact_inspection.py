@@ -56,12 +56,23 @@ def decode_base64_payload(encoded: str) -> bytes:
 
 def parse_mod_data_value_zip_list(content: str) -> ModDataValueZipListParse:
     """Parse the generated ModLoader payload list from raw HTML content."""
-    match = MOD_DATA_VALUE_ZIP_LIST_PATTERN.search(content)
-    if not match:
+    matches = MOD_DATA_VALUE_ZIP_LIST_PATTERN.findall(content)
+    if not matches:
         return ModDataValueZipListParse(error_kind="missing", error="HTML does not contain modDataValueZipList")
 
+    # A later assignment wins at runtime, so more than one list makes the
+    # audited payload set differ from the one the game actually loads.
+    if len(matches) > 1:
+        return ModDataValueZipListParse(
+            error_kind="duplicate_assignment",
+            error=(
+                "HTML assigns modDataValueZipList "
+                f"{len(matches)} times; the runtime payload set is ambiguous"
+            ),
+        )
+
     try:
-        entries = json.loads(match.group(1))
+        entries = json.loads(matches[0])
     except json.JSONDecodeError as exc:
         return ModDataValueZipListParse(error_kind="invalid_json", error=str(exc))
 

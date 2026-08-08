@@ -1,0 +1,126 @@
+# 会话状态 2026-08-07：AU 换脸同步与旧存档迁移
+
+本文是当前恢复入口，优先级高于更早的会话状态记录。当前分支是 `vega`，本轮起点
+HEAD 为 `4bfe21cf891308bbfd9aff4e7504693c363a791d`。本轮修改尚未提交、推送或进入 CI，
+也未创建 tag 或 Release。
+
+正式 APK 签名已经通过一次性公钥加密 Actions 流程从现有 `SIGNING_KEY` Secret 恢复。本机恢复的
+PKCS12 keystore 只有一个 `dol` PrivateKeyEntry，证书 SHA-256 为
+`b21cd15b9ff02d603a20d94b8403d5d9661946518f88e0551474c93ab829ece6`，并已完成真实 JAR
+签名/验签。项目内副本位于 `.local/DO_NOT_UPLOAD_FORMAL_SIGNING_KEY/dol-release-formal.jks`，
+`.local/` 受 Git 忽略且目录 ACL 仅允许当前 Windows 账户；项目外 Documents 副本保留作第二份
+备份。恢复用临时远程分支、加密 artifact、一次性私钥、密文和 worktree 均已删除；GitHub 原 Secret
+未修改。项目根目录的 `dol.jks` 仍是不同指纹的测试 key，不能用于正式覆盖安装。
+
+## 用户复现与根因
+
+用户在 AU-F 角色创建中复现：只切换脸型、不再选择仪态时，模型没有正确同步并会缺少
+眼睛；选一次仪态后才恢复。过去的 8/8 测试在每次换脸时同时指定了第一个合法仪态，绕过了
+这个真实路径，因此旧结论不能覆盖本次问题。
+
+真实 DoL 0.5.10.12 的角色创建、镜子和作弊页三个换脸入口，在切换 `$facestyle` 后都把
+`$facevariant` 固定设为 `default`。DoL 自带脸型遵循这个约定，但 AU model 的非传统脸型
+把真实图片目录名注册为仪态值，例如“大眼鼠鼠”“猫猫脸”“Q萌一号”，没有相应的
+`default` 目录。于是 UI 稳定地产生非法的 `facestyle/default` 组合，并请求不存在的 eyes、
+sclera、iris、eyelids、lashes 图片。这是 DoL UI 与 AU model 脸型注册值之间的契约问题，
+不是独立的“AU面部扩展”加密选择器问题，也不是随机图片加载失败。
+
+## 已实现修复
+
+`lyra/build.py` 增加 AU-only 的 Maplebirch payload 补丁：复用框架现有的
+`modifyFaceStyle()` owner，在 `ModI18N` 完成翻译后修改最终 Passage。三个换脸入口都从
+`setup.faceVariantOptions[$facestyle]` 选择第一个已注册值；只有脸型没有任何注册仪态时才
+回退到 `default`。base 构建码 `15704320` 明确跳过，AU-F/M/A 三个公开码均应用。
+
+旧存档修复放在 DoL `backComp` 的无条件兼容区。当前脸型存在注册仪态且保存值不在合法列表
+中时，才改成第一个合法值。合法值保持不变；没有注册仪态列表的第三方脸型保持不变。该行为是
+用户选择的“自动修复非法脸型/仪态组合”方案，不仅限于非法值恰好等于 `default` 的情况。
+
+最初实现是在构建期直接改主 HTML。运行时 A/B 已证明该 owner 错误：正式 0807 包与隔离热修包
+均加载 `ModI18N 1.0.8a` 且主语言为 `zh`，正式包的 `Widgets Settings` 为中文，而预先改写
+HTML 的热修包整段仍为英文。`ModI18N` 的 `i18n.json` 明确包含“请选择游戏模式、角色创建、
+体型、脸型、仪态”等规则，并依赖 Passage 与位置；预先改变同一 Passage 会使整组规则不应用。
+因此旧 HTML 写入路径已退役。构建现在只读验证三个 UI 与一个迁移的原始 HTML 上下文仍各一次、
+旧预汉化补丁为零；真正修复只写入 Maplebirch `dist/inject_early.js`。payload patch 要求真实
+`modifyFaceStyle()` 插入点唯一，运行时又要求四个最终 Passage 的旧上下文各唯一，否则 fail-closed。
+
+`tools/au_artifact_check.py` 已扩展为同时审计 ZIP 和 APK。AU 产物必须保持原 HTML 四个未改写的
+翻译输入，同时内嵌 Maplebirch payload 必须包含唯一后汉化 marker 与完整 3+1 行为规则，不能只
+凑够 marker；同时必须覆盖互异的嵌套腮红层号 1、2、3、4、5，外层和内嵌 payload
+的重复层不重复计数，`blush-6` 等额外编号不能替代缺失层。workflow 在 ZIP/APK 上传前运行该
+审计。构建矩阵完整性继续由 `main.py build` 作为唯一 owner：每个请求码乘两种格式都会创建任务，
+任一任务失败都会返回非零，不在 AU 审计器内重复维护第二份矩阵。
+
+## MuMu 12 运行时证据
+
+正式应用 `com.vrelnir.dol.xfox` 与独立测试应用
+`com.vrelnir.dol.xfox.facehotfix` 并行安装。正式应用没有卸载、覆盖或清数据；最终核对仍为
+`firstInstallTime=2026-07-20 02:48:30`、`lastUpdateTime=2026-08-07 13:10:24`。
+
+角色创建真实 UI 验证不是直接改变量：逐个点击传统、Kiss、Nss、Twinkle、兔子、加辣、沅芷、
+碱性糖八个真实脸型链接，每次不再点击仪态。8/8 都立即选中合法仪态，选中 radio 标签与
+`$facevariant` 一致，角色内容 canvas 的八个哈希互不相同，reporter、console error、page error
+均为零。
+
+汉化安全候选使用正式 0807 原始 LF HTML，只替换一个内嵌 Maplebirch Base64 payload。源与目标
+均为 995770 个 LF、0 个 CRLF；候选用隔离包名与本地测试证书覆盖测试应用，`firstInstallTime`
+保持不变。运行时 `ModI18N 1.0.8a`、主语言 `zh`；`Widgets Settings` 中“请选择游戏模式、
+角色创建、体型、脸型、仪态”全部存在，对应四个英文设置词全部不存在。`Widgets Mirror`、
+`Cheats`、`Widgets Settings` 各有一个换脸 marker，`Widgets variablesVersionUpdate` 有一个迁移
+marker，reporter 不可见。相同候选重新逐个点击八个真实脸型，8/8 合法且八个 canvas 哈希互异。
+
+旧存档自然加载验证使用完整有效开局状态。第一次直接改 `V` 后立即保存没有提交 SugarCube
+history，读档回到旧值，因此该尝试不算证据。最终流程先设置 `kiss改脸/default`，调用
+`SugarCube.State.create(SugarCube.State.passage)` 提交 turn，再保存到隔离应用槽位 8；随后提交
+`default/default`，再通过 `SugarCube.Save.slots.load(8)` 真实加载。结果正常进入
+`Orphanage Intro`，自动迁移为 `kiss改脸/大眼鼠鼠`，reporter 不可见；页面有 4 个 canvas，
+最大非透明像素数为 49972。槽位 8 已删除。
+
+## APK 与签名边界
+
+MuMu 正式候选包证书 SHA-256 是
+`b21cd15b9ff02d603a20d94b8403d5d9661946518f88e0551474c93ab829ece6`；仓库本地
+`dol.jks` 证书 SHA-256 是
+`8c6eb4d6c9c889fa790bc07e0f53c07d714706a7be4fab2313d8fd23b1a0d2ed`。两者不同，
+本地签名 APK 无法通过 `install -r` 覆盖 CI 候选，因此本轮使用独立包名运行时验证，不读取、
+猜测或提交 GitHub signing secret。
+
+历史并行测试 APK 在手工制作阶段曾把整份 HTML 换成 CRLF；该包以及后续直接改 LF HTML 的候选
+都属于已退役的错误 owner，不能作为发布候选。新的隔离候选使用正式 0807 原始 LF HTML并只替换
+Maplebirch payload，已通过新严格审计：原翻译输入 3+1、payload 行为 3+1、后汉化 marker 1、
+腮红层号 1 至 5、零错误。候选证书为本地测试指纹 `8c6e…d2ed`，不是正式发布包。
+
+## 验证与审查
+
+新增测试覆盖：原 HTML 只读保持、三个入口、三个公开 AU 码、base 跳过、真实 Maplebirch owner、
+幂等、上游方法/UI/迁移漂移、错误位置 marker、ZIP/APK 缺 payload 补丁、base APK 跳过、互异
+腮红层 1 至 5，以及 workflow 在两种格式上传前执行审计。
+
+独立 review 的首轮中等 finding 已处理：marker-only 假阳性、兼容登记 source 归属、第三方脸型
+措辞、AU-F 状态和真机结果外推范围均已收紧。二次 review 找出的 base 补丁表述错误和腮红层只数
+文件不验层号也已处理。汉化 A/B 又发现并纠正了预汉化 HTML owner；后续独立审查发现并关闭了
+marker-only/截断 payload、只声明不执行、完整 IIFE 脱离 owner、重复 Maplebirch owner、AU 缺
+Maplebirch 缓存、AU 产物改名和损坏嵌入清单七类 fail-open 边界。最终完整 pytest 为 258 passed，
+Python 编译、真实 Maplebirch 4.1.13 payload patch、新 APK 最终严格审计、MuMu 中文与换脸/读档
+运行时均通过；最终独立复审无新 finding，`git diff --check` 返回 0（仅有 CRLF→LF 提示）。
+
+## 仍未覆盖的边界
+
+- 最初另一个旧存档错误涉及 `eyesFacestyle`、`mouthFacestyle`、`eyeColor` 等更老字段；失败
+  存档已删除，无法确定正确迁移值。本轮不能声称修复了该独立问题。
+- 运行时只覆盖 AU-F。AU-M/A 共享同一后汉化 Maplebirch payload 补丁但使用不同 model payload；base 明确不应用
+  本补丁。三者都不能用 AU-F 结果冒充真机验证。
+- 角色创建入口已用八个真实链接逐项验证；镜子和作弊页由同一逻辑的精确源码上下文、单元测试和
+  产物门禁覆盖，但本轮没有分别在真机 UI 中逐个点击八种脸型。
+- 正式发布仍需 CI 生成同源签名候选，下载后复核 ZIP/APK 审计报告，再用同证书 APK 覆盖安装
+  MuMu 正式应用进行最终回归。
+- MuMu 中仍安装独立测试应用 `DoL XFox Face Hotfix Test`。它与正式应用数据隔离；没有得到用户
+  删除确认前不擅自卸载。
+
+## 下一步顺序
+
+最终全量 pytest 258 passed、Python 编译、JSON 解析、精确 APK 审计与 `git diff --check` 已完成并通过。
+下一步审查真实 diff，只纳入本轮十余个文件；`tests/test_download_latest_build.py`、
+`tests/test_maplebirch_basehead_patch.py`、`tools/browser_smoke_test.py` 是 Windows CRLF 状态假阳性，
+Git blob 已证明与 HEAD 完全一致，不要回滚也不要提交。之后 commit/push 并观察 branch CI，再
+手动触发全四码 release-tier 干跑；全四码候选和同源签名 APK 复验通过前不得打 tag 或发布。

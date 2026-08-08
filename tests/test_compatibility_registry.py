@@ -5,6 +5,7 @@ import pytest
 from lyra.compatibility import (
     APK_CDP_REMOTE_END_RECONNECT_KEY,
     AU_FACE_ALIAS_KEY,
+    AU_FACE_VARIANT_SELECTION_KEY,
     COMPATIBILITY_SURFACES,
     DOLI_FLOAT_ICON_PATCH_KEY,
     GENERIC_REFACTOR_PLAN,
@@ -30,6 +31,7 @@ def test_compatibility_surfaces_are_registered_and_classified():
         MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
         MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
         AU_FACE_ALIAS_KEY,
+        AU_FACE_VARIANT_SELECTION_KEY,
         APK_CDP_REMOTE_END_RECONNECT_KEY,
     }
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].scope == "default-path"
@@ -63,6 +65,9 @@ def test_compatibility_surfaces_are_registered_and_classified():
         == "fail-closed"
     )
     assert surfaces_by_key[AU_FACE_ALIAS_KEY].scope == "default-path"
+    assert surfaces_by_key[AU_FACE_VARIANT_SELECTION_KEY].scope == "default-path"
+    assert surfaces_by_key[AU_FACE_VARIANT_SELECTION_KEY].kind == "payload-patch"
+    assert surfaces_by_key[AU_FACE_VARIANT_SELECTION_KEY].fail_policy == "fail-closed"
     assert surfaces_by_key[APK_CDP_REMOTE_END_RECONNECT_KEY].scope == "generic-harness"
 
 
@@ -89,6 +94,7 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         DOLI_FLOAT_ICON_PATCH_KEY,
         MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
         MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
+        AU_FACE_VARIANT_SELECTION_KEY,
     ]
     more_love = default_payload_patches[0]
     assert more_love.fail_policy == "fail-closed"
@@ -139,6 +145,20 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
     )
     assert pet_remount.member == "dist/inject_early.js"
     assert pet_remount.marker == "dolxPetRemountAfterPassageDisplay"
+
+    au_face_variant = default_payload_patches[4]
+    assert au_face_variant.fail_policy == "fail-closed"
+    assert au_face_variant.cache_name == "maplebirch"
+    assert (
+        au_face_variant.github_repo
+        == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+    )
+    assert au_face_variant.release_tag == "maplebirch-release-v4.1.13"
+    assert (
+        au_face_variant.asset_pattern
+        == "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+    )
+    assert au_face_variant.marker == "dolxAuFaceVariantAfterI18n"
 
 
 @pytest.mark.config
