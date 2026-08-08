@@ -4,6 +4,8 @@
 在并行构建前预先下载并解压所有美化资源，避免并发下载冲突。
 """
 
+import hashlib
+import json
 import logging
 import shutil
 from pathlib import Path, PurePosixPath
@@ -24,6 +26,8 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+LOCKED_AU_PAYLOAD_CACHE_NAMES = frozenset({"au_f", "au_m", "au_a", "au_face"})
 
 
 class ResourceWarmer:
@@ -388,6 +392,7 @@ class ResourceWarmer:
 
         # 检查是否已存在
         if dest_path.exists():
+            self._validate_locked_au_payload_digest(mod_config, dest_path)
             logger.debug(f"  {display_name}: 已缓存")
             return
 
@@ -402,6 +407,7 @@ class ResourceWarmer:
                 )
             )
             download_file(mod_config.download_url, dest_path, quiet=True)
+            self._validate_locked_au_payload_digest(mod_config, dest_path)
             logger.info(f"  {display_name}: 下载完成 ({mod_config.release_tag})")
             return
 
@@ -428,7 +434,37 @@ class ResourceWarmer:
 
         # 下载 mod 文件
         download_file(asset.url, dest_path, quiet=True)
+        self._validate_locked_au_payload_digest(mod_config, dest_path)
         logger.info(f"  {display_name}: 下载完成 ({asset.version})")
+
+    def _validate_locked_au_payload_digest(
+        self,
+        mod_config: ModloaderModConfig,
+        payload_path: Path,
+    ) -> None:
+        """Fail closed if a fixed-tag AU payload differs from its reviewed lock."""
+        cache_name = mod_config.cache_name
+        if cache_name not in LOCKED_AU_PAYLOAD_CACHE_NAMES:
+            return
+
+        lock_path = self.paths.workspace / "config" / "mods.lock.json"
+        try:
+            lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
+            expected_digest = str(
+                lock_data["mods"][cache_name]["last_tested_sha256"]
+            ).lower()
+        except (FileNotFoundError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                f"AU payload lock metadata is missing for {cache_name}: {lock_path}"
+            ) from exc
+
+        actual_digest = hashlib.sha256(payload_path.read_bytes()).hexdigest()
+        if actual_digest != expected_digest:
+            safe_remove(payload_path)
+            raise RuntimeError(
+                "AU payload digest mismatch for "
+                f"{cache_name}: expected {expected_digest}, got {actual_digest}"
+            )
 
     def _copy_directory(self, src: Path, dest: Path):
         """复制目录内容"""

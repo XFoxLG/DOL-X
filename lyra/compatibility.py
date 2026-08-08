@@ -15,6 +15,7 @@ DOLI_FLOAT_ICON_PATCH_KEY = "doli_float_icon_path"
 MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY = "maplebirch_basehead_fallback"
 MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY = "maplebirch_pet_passage_remount"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
+AU_FACE_VARIANT_SELECTION_KEY = "au_face_variant_selection"
 APK_CDP_REMOTE_END_RECONNECT_KEY = "apk_cdp_remote_end_reconnect"
 
 PATCH_SUCCESS_STATUSES = frozenset({"patched", "already_patched"})
@@ -189,6 +190,62 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         tests=("tests/test_au_face_compat.py", "tests/test_compatibility_registry.py"),
         removal_condition="Remove after upstream/runtime no longer requests nested default face aliases.",
         notes="Lower-risk resource aliasing; no third-party JavaScript is modified.",
+    ),
+    CompatibilitySurface(
+        key=AU_FACE_VARIANT_SELECTION_KEY,
+        target="DoL face-style variant selection for AU model styles",
+        scope="default-path",
+        kind="payload-patch",
+        cache_name="maplebirch",
+        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+        release_tag="maplebirch-release-v4.1.13",
+        asset_pattern="maplebirch-0.5.10.12-v4.1.13.mod.zip",
+        member=(
+            "dist/inject_early.js modifyFaceStyle() post-ModI18N passage patch"
+        ),
+        marker="dolxAuFaceVariantAfterI18n",
+        fail_policy="fail-closed",
+        tests=(
+            "tests/test_au_face_compat.py",
+            "tests/test_compatibility_registry.py",
+        ),
+        removal_condition=(
+            "Retire the three live selection rewrites after DoL selects a registered "
+            "variant rather than the literal default value, or after all three AU "
+            "model assets register a real default variant for every style. Keep the "
+            "saved-state migration as a separate compatibility obligation until the "
+            "old DOL-X versions that could create invalid pairs are outside the "
+            "supported save-upgrade window."
+        ),
+        notes=(
+            "DoL 0.5.10.12 assumes every face style's first variant has the code value "
+            "default and hardcodes that value in three interactive style-switch UIs "
+            "(mirror, cheats and character creation). The AU model styles register real "
+            "image-directory values such as 大眼鼠鼠 and 猫猫脸 instead, so clicking a "
+            "style creates an "
+            "invalid style/default pair, does not visually update until a demeanour is "
+            "selected, and can report missing eyes/sclera/iris/eyelids/lashes. The "
+            "AU-only fail-closed Maplebirch payload patch chooses the first registered "
+            "value from setup.faceVariantOptions[$facestyle], preserving default only "
+            "for styles with no registered variants. It runs inside Maplebirch's "
+            "existing modifyFaceStyle() owner after ModI18N has translated the final "
+            "passage cache; editing the prepared HTML first invalidates ModI18N's "
+            "position-indexed Widgets Settings rules and regresses character creation "
+            "to English. The same post-translation patch adds the unconditional "
+            "backComp repair only when the selected style has registered variants and "
+            "the saved value is not among them; legal choices and styles without "
+            "registered options remain untouched. The prepared HTML is now read-only "
+            "validated to retain all four original translation inputs, while the "
+            "Maplebirch payload requires all four final passage contexts exactly once. "
+            "The three AU model feature bits are applicability conditions rather than "
+            "payloads modified by this patch, and the artifact gate requires the one "
+            "payload marker plus exactly 3+1 behavior markers while rejecting the "
+            "obsolete pre-translation HTML patch. "
+            "MuMu 12 verified all eight real character-creation links without a second "
+            "demeanour click (distinct rendered hashes, no reporter/console/page errors) "
+            "and a naturally loaded committed kiss改脸/default test save migrated to "
+            "kiss改脸/大眼鼠鼠 with non-empty canvases and no reporter."
+        ),
     ),
     CompatibilitySurface(
         key=APK_CDP_REMOTE_END_RECONNECT_KEY,
