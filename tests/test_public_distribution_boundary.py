@@ -116,15 +116,44 @@ def test_workflow_runs_test_suite_before_building():
 
 
 def test_workflow_audits_artifacts_before_upload():
-    """Artifact-level AU alias audit must gate uploads, not run after publishing."""
+    """Artifact-level AU compatibility audit must gate both artifact formats."""
     workflow = read_build_workflow()
 
     assert "tools/au_artifact_check.py" in workflow, (
-        "the build job must audit built ZIP artifacts for AU face aliases"
+        "the build job must audit built ZIP/APK artifacts for AU compatibility"
     )
     assert workflow.index("tools/au_artifact_check.py") < workflow.index(
         "Upload ZIP artifacts"
     ), "the artifact audit must run before artifacts are uploaded"
+    assert workflow.index("tools/au_artifact_check.py") < workflow.index(
+        "Upload APK artifacts"
+    ), "the artifact audit must gate APK uploads as well as ZIP uploads"
+
+
+def test_build_job_has_read_only_permissions_and_release_write_is_tag_gated():
+    """Third-party build inputs must not receive repository write capability."""
+    workflow = read_build_workflow()
+    build_job_section = workflow[workflow.index("  build:"):workflow.index("  release:")]
+    release_job_section = workflow[workflow.index("  release:"):]
+
+    assert "permissions:\n  contents: read" in workflow
+    assert "contents: write" not in build_job_section
+    assert "if: github.ref_type == 'tag'" in release_job_section
+    assert "permissions:\n      contents: write" in release_job_section
+
+
+def test_signing_secret_is_not_interpolated_directly_into_shell_script():
+    """Secret values belong in step env, never generated shell source."""
+    workflow = read_build_workflow()
+    signing_section = workflow[workflow.index("Setup signing key"):]
+    signing_section = signing_section[:signing_section.index("Select build codes")]
+
+    assert "SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY }}" in signing_section
+    run_block = signing_section[signing_section.index("run: |") :]
+    assert "${{ secrets." not in run_block
+    assert "printf '%s' \"${SIGNING_KEY_BASE64}\"" in run_block
+    assert "base64 --decode > dol.jks" in run_block
+    assert "Remove signing key" in workflow
 
 
 def test_release_job_requires_versioned_release_notes():
