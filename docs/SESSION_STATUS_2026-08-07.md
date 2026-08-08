@@ -104,7 +104,9 @@ Maplebirch 缓存、AU 产物改名和损坏嵌入清单七类 fail-open 边界�
 fail-open：`window.modDataValueZipList` 出现多次赋值时旧解析器只取第一个（运行时以最后一个为准，
 审计会看到与实际加载不同的列表），现在判为 `duplicate_assignment` 不可审计错误；产物文件名含
 零个或多个身份 token 时旧逻辑仅在检测到 AU payload 才报错，现在无条件要求每个 ZIP/APK 文件名
-恰好声明一个 `base/au-f/au-m/au-a`。两处修复由 ZIP 与 APK 两条路径共享。最终完整 pytest 为 274 passed，
+恰好声明一个 `base/au-f/au-m/au-a`。两处修复由 ZIP 与 APK 两条路径共享。最终本机 pytest 为 274 passed，
+其中 259 项属于公开仓库、15 项来自 `.gitignore:155` 排除的私有 `tests/test_mumu_apk_smoke.py`；
+远端 CI 只跑得到公开的 259 项（run `31249152788` 实测 `259 passed`）。
 Python 编译、真实 Maplebirch 4.1.13 payload patch、新 APK 最终严格审计、MuMu 中文与换脸/读档
 运行时均通过；最终独立复审无新 finding，`git diff --check` 返回 0（仅有 CRLF→LF 提示）。
 
@@ -123,7 +125,8 @@ Python 编译、真实 Maplebirch 4.1.13 payload patch、新 APK 最终严格审
 
 ## 下一步顺序
 
-最终全量 pytest 274 passed、Python 编译、JSON 解析、精确 APK 审计与 `git diff --check` 已完成并通过。
+最终本机 pytest 274 passed（公开 259 + 私有 15）、Python 编译、JSON 解析、精确 APK 审计与
+`git diff --check` 已完成并通过。
 commit/push、branch CI 与全四码 release-tier 干跑均已完成（见下节）。`tests/test_download_latest_build.py`、
 `tests/test_maplebirch_basehead_patch.py`、`tools/browser_smoke_test.py` 是 Windows CRLF 状态假阳性，
 Git blob 已证明与 HEAD 完全一致，不要回滚也不要提交。剩余唯一动作是打 tag 并创建 Release，
