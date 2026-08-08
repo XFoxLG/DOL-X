@@ -38,9 +38,19 @@ DOL-X 本地矩阵是 base/AU-F/AU-M/AU-A 四码，统一使用 UCB、maplebirch
 |---|---|---|
 | `lyra/config_loader.py` | 每个 mod 可声明 `include_prerelease_updates` | 默认 false，旧配置行为不变 |
 | `lyra/downloader.py` | GitHub API 可使用 `GITHUB_TOKEN`/`GH_TOKEN` | 无 token 时保持匿名请求 |
-| `lyra/build.py` | 4.x 不再注入 v3 图层兼容 mod | 不改变通用打包契约 |
+| `lyra/build.py` | 4.x 不再注入 v3 图层兼容 mod；按兼容登记对固定第三方 payload 应用 fail-closed 补丁 | base 与无关组合保持原行为；来源版本、精确 owner、测试和移除条件集中登记 |
+| `lyra/compatibility.py` | 登记 DOL-X 的第三方兼容面、来源版本、失败策略和移除条件 | 上游或资产漂移时停止构建，不用静默 fallback 伪装兼容 |
+| `tools/au_artifact_check.py` | 对 AU ZIP/APK 检查资源层和汉化后换脸补丁 | 保留 ModI18N 原始输入；补丁缺失、错位、重复或旧预汉化补丁残留均拒绝产物 |
 | `tools/check_mod_updates.py` | 支持 Pre-release 和 asset digest | 项目更新策略留在 tools，不扩散进核心 |
 | `tools/quick_check.py` | 使用 `requests` 检查 Release URL | 显式跟随重定向，不静默镜像 fallback |
+
+AU 换脸兼容只对 AU-F/AU-M/AU-A 生效。它复用 Maplebirch `modifyFaceStyle()` 的汉化后 Passage
+执行载体，不修改 ModI18N 的原始 HTML。已知的 DoL 原始字节上下文或 Maplebirch 插入点漂移会在
+构建期明确失败；未知的翻译行为变化仍需由 CI 产物检查与运行时 smoke 发现，不能把静态门禁写成
+对所有未来汉化变化的证明。
+如果 DoL 改为选择脸型已注册的合法仪态，或三个 AU model 都为每个脸型提供真实 `default` 仪态，
+三个实时选择替换应删除而不是继续叠加；旧存档迁移则需保留到会产生非法组合的历史 DOL-X 版本
+退出支持的存档升级窗口。
 
 ## 工作流差异
 
