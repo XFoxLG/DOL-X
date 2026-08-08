@@ -30,6 +30,17 @@
 - **重写快速参考与文档索引**：`QUICK_REFERENCE.md` 改用当前四码、真实 CLI 参数、现有配置路径
   和两档 CI 流程；移除旧 499968 系列、不存在的 profile / dev 子命令及无证据的健康分数。
 
+### Security
+
+- **构建 job 收窄为只读权限，写 Release 的能力限定在 tag-only job**：`build.yaml` 顶层改为
+  `permissions: contents: read`，并移除 build job 的 job 级 `GITHUB_TOKEN`；只有带
+  `if: github.ref_type == 'tag'` 的 release job 单独声明 `contents: write`。构建过程会下载并执行
+  第三方 mod 资产，此前 build job 持有仓库写权限，收窄后第三方输入不再触及写能力。
+- **签名密钥不再插值进生成的 shell 源码**：`Setup signing key` 改为通过 step `env` 传入
+  `SIGNING_KEY_BASE64`，配合 `set -euo pipefail` 与 `umask 077` 解码；新增 `Remove signing key`
+  步骤以 `if: always()` 在任务结束时 `shred -u`。新增边界测试断言 run 块内不出现
+  `${{ secrets.` 插值。
+
 ### Fixed
 
 - **修复 AU 换脸后仪态不同步、未再选择仪态时眼睛消失，并迁移已保存的非法组合**：

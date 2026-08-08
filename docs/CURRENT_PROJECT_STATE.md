@@ -191,18 +191,23 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、主动跟踪 mod 的上游版本实况、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 210 项自动测试
-通过，其中 195 项属于公开仓库，另 15 项来自 `.gitignore` 排除的私有 MuMu 诊断工具，不能冒充
-远端 CI 覆盖。
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 274 项公开自动
+测试通过（`python -m pytest -q`）。私有 MuMu 诊断工具受 `.gitignore` 排除，不计入该数字，也不能
+冒充远端 CI 覆盖。
 
-候选提交 `186fc463` 的分支 run [`30907013186`](https://github.com/XFoxLG/DOL-X/actions/runs/30907013186)
-已实际执行并通过公开 193 项测试、base + AU-F 构建、AU ZIP 产物审计和双格式上传；release job
-按分支语义 skipped。最终候选 HEAD `713924b4` 的全四码 dry run
-[`30907723945`](https://github.com/XFoxLG/DOL-X/actions/runs/30907723945) 随后通过：公开 193 项测试、
-四码构建、AU ZIP 审计、ZIP/APK 上传均 success，release job 正确 skipped。下载后的两个 artifact
-archive SHA-256 与 GitHub digest 完全一致；8 件产物逐件解码确认 More Love `0.1.7.0`、四个拖拽
-防护函数、四类未防护调用为 0、DOLI 新图标路径存在且旧路径为 0。四个 APK 的
-`jarsigner -verify` 均返回 0；本机没有 `apksigner`，不外推为 APK v2/v3 完整验证。
+0808 候选提交 `cf60d15` 的分支 run [`31239491888`](https://github.com/XFoxLG/DOL-X/actions/runs/31239491888)
+已实际执行并通过测试、base + AU-F 构建、ZIP/APK 产物审计和双格式上传；release job 按分支语义
+skipped。同一提交的全四码 `release-tier` dry run
+[`31239641405`](https://github.com/XFoxLG/DOL-X/actions/runs/31239641405) 随后 success：四码构建、
+ZIP/APK 审计与上传均通过，release job 正确 skipped，未创建 Release。8 件产物全部通过新严格审计
+（AU 三码各命中 3 个换脸 + 1 个迁移 + 1 个后汉化 marker 与 5 个互异腮红层，base 干净）。四个 APK
+的签名指纹均为正式证书 `b21cd15b9ff02d603a20d94b8403d5d9661946518f88e0551474c93ab829ece6`。
+两个 run 的 `conclusion=success` 与 `headSha=cf60d154` 已于 2026-08-08 经 GitHub API 复核。
+
+上一版 0804 的证据（提交 `186fc463` / `713924b4`，run `30907013186` / `30907723945`，当时 193 项
+公开测试、More Love `0.1.7.0` 与拖拽防护逐件解码复验、四个 APK `jarsigner -verify` 返回 0）保留在
+`CHANGELOG.md` 的 0804 条目中，不再复述于本节。本机始终没有 `apksigner`，因此任何轮次都不把
+`jarsigner -verify` 外推为 APK v2/v3 完整验证。
 
 More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产跑构建期改写函数完成的：
 `game/More_Love_Interest_Mod_Drag.js` 两版同为 3178 字节、同一 sha256
