@@ -24,10 +24,9 @@ on:
           - branch
           - release
 
-# release job 用 svenstaro/upload-release-action 创建 Release 需要写权限。
-# GitHub 收紧默认 token 权限后，缺声明会导致创建 Release 报 "Not Found"（403）。
+# 构建和第三方资源处理只需要读权限；只有 tag-only release job 可以写 Release。
 permissions:
-  contents: write
+  contents: read
 
 env:
   # 分支推送构建 base + AU-F；tag 发版构建全部四个组合。
@@ -38,8 +37,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
 
@@ -75,9 +72,13 @@ jobs:
           fi
 
       - name: Setup signing key
+        shell: bash
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY }}
         run: |
-          echo ${{ secrets.SIGNING_KEY }} > dol.base64
-          base64 -d dol.base64 > dol.jks
+          set -euo pipefail
+          umask 077
+          printf '%s' "${SIGNING_KEY_BASE64}" | base64 --decode > dol.jks
 
       - name: Select build codes
         id: codes
@@ -103,9 +104,9 @@ jobs:
       - name: List outputs
         run: ls -lah "${{ github.workspace }}/output/" || echo "No output files generated"
 
-      # 产物级 AU 面部别名审计。构建成功不代表运行时资源齐全，
-      # 因此在上传前对每个 ZIP 复核嵌套 blush 别名，失败即中断发版。
-      - name: Audit ZIP artifacts
+      # 产物级 AU 兼容审计。构建成功不代表运行时资源和 HTML 补丁齐全，
+      # 因此上传前复核每个 ZIP/APK 的嵌套 blush 别名与换脸补丁 marker。
+      - name: Audit ZIP and APK artifacts
         run: |
           python tools/au_artifact_check.py "${{ github.workspace }}/output" --output "${{ github.workspace }}/output/au-artifact-report.json"
           cat "${{ github.workspace }}/output/au-artifact-report.json"
@@ -124,10 +125,17 @@ jobs:
           path: ${{ github.workspace }}/output/*.apk
           retention-days: 30
 
+      - name: Remove signing key
+        if: always()
+        shell: bash
+        run: shred -u dol.jks 2>/dev/null || rm -f dol.jks
+
   release:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref_type == 'tag'
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
 

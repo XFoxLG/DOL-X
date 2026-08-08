@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-08-05T00:00:00Z",
+  "last_updated": "2026-08-07T00:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
@@ -164,13 +164,16 @@
       "last_tested_sha256": "6c20236bc300d794ef2e77027d0d816d3ef4f2460282a5cac43aacbecc4206a0",
       "last_tested_dol_version": "0.5.10.12",
       "last_tested_date": "2026-07-28",
-      "status": "au-face-local-canary-pending-runtime",
+      "status": "face-style-runtime-validated-other-au-visuals-partial",
       "notes": [
         "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
         "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
         "DOL-X: restored AU-F to v0.9.3 to align with upstream Lyra and AOKIUTAGE latest model asset",
         "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
-        "AU assets are downloaded from the author repository at build time"
+        "AU assets are downloaded from the author repository at build time",
+        "ROOT CAUSE 2026-08-07 (face style does not sync): DoL 0.5.10.12 hardcodes facevariant='default' in the character creation, mirror and cheats face-style switch UIs, but AU model styles register real image-directory values such as 大眼鼠鼠, 猫猫脸 and Q萌一号 rather than a default variant. Switching only the style therefore creates an invalid pair, delays visual synchronization until another demeanour click and can request missing eye layers. This is an AU model style contract issue, not the separate encrypted AU facial expansion selector issue.",
+        "LOCAL PATCH 2026-08-07: all three AU public build codes (15705344/15706368/15708416) preserve ModI18N's original HTML input and apply a byte-exact fail-closed passage patch inside Maplebirch's existing modifyFaceStyle() owner after translation. The three interactive style switches select the first registered setup.faceVariantOptions value, while the unconditional backComp load path repairs only saved pairs that are invalid for a known style; legal values and unknown third-party styles remain unchanged. Base code 15704320 is explicitly excluded. ZIP/APK artifact audit requires the original 3+1 translation inputs plus one complete post-ModI18N payload owner and rejects the retired pre-translation HTML patch.",
+        "RUNTIME VERIFIED 2026-08-07 (AU-F): in an isolated MuMu 12 package, all eight real character-creation style links were clicked without a second demeanour click; 8/8 immediately selected a legal variant, the selected radio label matched facevariant, the character canvas produced eight distinct hashes, and there were 0 reporter, console and page errors. A committed playable save containing kiss改脸/default was then loaded through SugarCube's real slot API and naturally migrated to kiss改脸/大眼鼠鼠 in Orphanage Intro with no reporter and non-empty 49972/17587-pixel canvases. The test slot was deleted. AU-M/A share the same post-ModI18N compatibility behavior but use different model payloads and were not installed for runtime verification."
       ]
     },
     "au_m": {
