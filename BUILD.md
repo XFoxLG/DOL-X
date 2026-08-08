@@ -1,5 +1,27 @@
 # DoL-Lyra 构建系统文档
 
+> [!CAUTION]
+> **本文是上游 DoL-Lyra 的构建系统文档，不是 DOL-X 的构建说明。**内容与本项目现状有大量
+> 不一致，不要照着它操作本仓库。
+>
+> 已知不一致（2026-08-08 核实）：
+> - 文中让你 `git clone https://github.com/DoL-Lyra/Lyra.git`，那是上游仓库，不是 DOL-X。
+> - 构建码示例 `3 / 35 / 259 / 514 / 1058` 与 13 mod 矩阵属于上游；DOL-X 当前是四码
+>   `15704320 / 15705344 / 15706368 / 15708416`。
+> - tag 示例 `v0.5.7.9-5.0.2a-0112` 是上游版本格式的旧例；DOL-X 当前为
+>   `v0.5.10.12-1.0.8a-0808`。
+> - APK 包名写作 `com.vrelnir.dol.lyra`；DOL-X 实际是 `com.vrelnir.dol.xfox`。
+> - 文中的 `page` 子命令不属于 DOL-X 的使用路径。
+> - Python 要求写 `3.8+`；DOL-X 的 CI 固定使用 3.12（`.github/workflows/build.yaml`）。
+>
+> **DOL-X 的实际构建与使用说明请看**：
+> - [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md) —— 当前四码、真实 CLI 参数、CI 两档流程
+> - [`README.md`](README.md) —— 项目定位、mod 组成、下载与版本选择
+> - [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md) —— 当前事实与发布边界
+> - [`UPSTREAM_DIFF_SUMMARY.md`](UPSTREAM_DIFF_SUMMARY.md) —— DOL-X 与上游的长期差异
+>
+> 保留本文是为了对照上游构建系统的设计意图，便于同步上游通用修复时参考。
+
 ## 目录
 
 - [简介](#简介)
