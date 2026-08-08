@@ -191,9 +191,10 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - Legacy compat：https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat
 
 本轮已核验：GitHub Release/branch 实况、官方资产 digest、主动跟踪 mod 的上游版本实况、
-包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机运行 274 项公开自动
-测试通过（`python -m pytest -q`）。私有 MuMu 诊断工具受 `.gitignore` 排除，不计入该数字，也不能
-冒充远端 CI 覆盖。
+包内 `boot.json` 声明版本、plus ZIP manifest、配置加载与 Python 编译。本机 `python -m pytest -q`
+为 274 passed，其中 **259 项属于公开仓库**，另 15 项来自 `.gitignore:155` 排除的私有 MuMu 诊断
+工具 `tests/test_mumu_apk_smoke.py`。远端 CI 只能看到公开的 259 项，因此引用测试数时必须说明是
+哪一个口径，本机总数不能冒充远端 CI 覆盖。
 
 0808 候选提交 `cf60d15` 的分支 run [`31239491888`](https://github.com/XFoxLG/DOL-X/actions/runs/31239491888)
 已实际执行并通过测试、base + AU-F 构建、ZIP/APK 产物审计和双格式上传；release job 按分支语义
