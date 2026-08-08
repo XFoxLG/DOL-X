@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-08-07T00:00:00Z",
+  "last_updated": "2026-08-08T00:00:00Z",
   "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
