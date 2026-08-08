@@ -5,6 +5,7 @@
 专为CI流程设计，不包含资源下载逻辑。
 """
 
+import html
 import json
 import logging
 import re
@@ -20,6 +21,7 @@ from .paths import BuildPaths
 from .version import LyraVersion, VersionRegistry
 from .config import ModCode
 from .compatibility import (
+    AU_FACE_VARIANT_SELECTION_KEY,
     MORE_LOVE_DRAG_PATCH_KEY,
     DOLI_FLOAT_ICON_PATCH_KEY,
     MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
@@ -256,6 +258,196 @@ MAPLEBIRCH_PET_REMOUNT_NEW = (
 )
 
 MAPLEBIRCH_PET_REMOUNT_MARKER = "dolxPetRemountAfterPassageDisplay"
+
+# DoL assumes every face style has a variant whose code value is "default".
+# Third-party AU face styles instead register their real image-directory names,
+# so DoL's three face-style UIs create an invalid style/default pair until the
+# player also picks a demeanour. These replacements must run after ModI18N: a
+# build-time edit to the original passage shifts ModI18N's position-indexed
+# rules and leaves the whole character-creation settings passage in English.
+AU_FACE_VARIANT_FALLBACK_EXPRESSION = (
+    '<<run $facevariant = '
+    'Object.values(setup.faceVariantOptions[$facestyle] || {})[0] || "default">>'
+)
+AU_FACE_VARIANT_SWITCH_NEEDLES = (
+    (
+        '<<set $facestyle to _facestyle>>\n'
+        '\t\t\t<<set $facevariant to "default">>',
+        '<<set $facestyle to _facestyle>>\n'
+        f'\t\t\t{AU_FACE_VARIANT_FALLBACK_EXPRESSION}',
+    ),
+    (
+        '<<set $facestyle to _faceStyles[_i]>>\n'
+        '\t\t\t\t\t<<set $facevariant to "default">>',
+        '<<set $facestyle to _faceStyles[_i]>>\n'
+        f'\t\t\t\t\t{AU_FACE_VARIANT_FALLBACK_EXPRESSION}',
+    ),
+    (
+        '<<set $facestyle to _styleValue>>\n'
+        '\t\t\t\t\t\t\t<<set $facevariant to "default">>',
+        '<<set $facestyle to _styleValue>>\n'
+        f'\t\t\t\t\t\t\t{AU_FACE_VARIANT_FALLBACK_EXPRESSION}',
+    ),
+)
+AU_FACE_VARIANT_MIGRATION_EXPRESSION = (
+    '<<run (() => {'
+    'const legalVariants = Object.values('
+    'setup.faceVariantOptions[V.facestyle] || {});'
+    'if (legalVariants.length && '
+    '!legalVariants.includes(V.facevariant)) '
+    'V.facevariant = legalVariants[0];'
+    '})()>>'
+)
+AU_FACE_VARIANT_MIGRATION_OLD = (
+    '/* Code that should not be moved into a check like above */\n'
+    '\t<<set $runWardrobeSanityChecker to true>>'
+)
+AU_FACE_VARIANT_MIGRATION_NEW = (
+    '/* Code that should not be moved into a check like above */\n'
+    f'\t{AU_FACE_VARIANT_MIGRATION_EXPRESSION}\n'
+    '\t<<set $runWardrobeSanityChecker to true>>'
+)
+
+AU_FACE_VARIANT_PASSAGE_PATCH_RULES = (
+    ("Widgets Mirror", *AU_FACE_VARIANT_SWITCH_NEEDLES[0]),
+    ("Cheats", *AU_FACE_VARIANT_SWITCH_NEEDLES[1]),
+    ("Widgets Settings", *AU_FACE_VARIANT_SWITCH_NEEDLES[2]),
+    (
+        "Widgets variablesVersionUpdate",
+        AU_FACE_VARIANT_MIGRATION_OLD,
+        AU_FACE_VARIANT_MIGRATION_NEW,
+    ),
+)
+AU_FACE_VARIANT_HTML_SWITCH_NEEDLES = tuple(
+    (
+        html.escape(old_context, quote=False),
+        html.escape(new_context, quote=False),
+    )
+    for old_context, new_context in AU_FACE_VARIANT_SWITCH_NEEDLES
+)
+AU_FACE_VARIANT_HTML_MIGRATION_OLD = html.escape(
+    AU_FACE_VARIANT_MIGRATION_OLD,
+    quote=False,
+)
+AU_FACE_VARIANT_HTML_MIGRATION_NEW = html.escape(
+    AU_FACE_VARIANT_MIGRATION_NEW,
+    quote=False,
+)
+
+MAPLEBIRCH_AU_FACE_VARIANT_MEMBER = "dist/inject_early.js"
+MAPLEBIRCH_AU_FACE_VARIANT_MARKER = "dolxAuFaceVariantAfterI18n"
+MAPLEBIRCH_AU_FACE_VARIANT_RULES_JSON = json.dumps(
+    AU_FACE_VARIANT_PASSAGE_PATCH_RULES,
+    ensure_ascii=False,
+    separators=(",", ":"),
+)
+MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD = (
+    'n.content=e.replace(n.content,a,"FaceStyle"),r.set(t,n)}'
+    "n.passageDataItems.back2Array(),"
+    "e.modUtils.replaceFollowSC2DataInfo(n,t)}"
+)
+MAPLEBIRCH_AU_FACE_VARIANT_RUNTIME_PATCH = (
+    f'(()=>{{const patchName="{MAPLEBIRCH_AU_FACE_VARIANT_MARKER}",'
+    f"patchRules={MAPLEBIRCH_AU_FACE_VARIANT_RULES_JSON};"
+    "for(const[passageName,oldContext,newContext]of patchRules){"
+    "const passage=r.get(passageName);"
+    "if(!passage?.content)"
+    "throw new Error(`${patchName}: missing passage ${passageName}`);"
+    "const contextCount=passage.content.split(oldContext).length-1;"
+    "if(1!==contextCount)"
+    "throw new Error(`${patchName}: ${passageName} context count ${contextCount}`);"
+    "passage.content=passage.content.replace(oldContext,newContext);"
+    "r.set(passageName,passage)}})();"
+)
+MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW = (
+    'n.content=e.replace(n.content,a,"FaceStyle"),r.set(t,n)};'
+    f"{MAPLEBIRCH_AU_FACE_VARIANT_RUNTIME_PATCH}"
+    "n.passageDataItems.back2Array(),"
+    "e.modUtils.replaceFollowSC2DataInfo(n,t)}"
+)
+
+
+def patch_maplebirch_au_face_variant_selection(
+    source_path: Path,
+    target_path: Path,
+) -> dict[str, object]:
+    """Patch final translated passages instead of ModI18N's source HTML."""
+    result: dict[str, object] = {
+        "applied": False,
+        "member": MAPLEBIRCH_AU_FACE_VARIANT_MEMBER,
+        "source": str(source_path),
+        "target": str(target_path),
+    }
+
+    try:
+        with zipfile.ZipFile(source_path, "r") as source_zip:
+            if MAPLEBIRCH_AU_FACE_VARIANT_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_script = source_zip.read(
+                MAPLEBIRCH_AU_FACE_VARIANT_MEMBER
+            ).decode("utf-8", errors="replace")
+            if MAPLEBIRCH_AU_FACE_VARIANT_MARKER in original_script:
+                marker_count = original_script.count(
+                    MAPLEBIRCH_AU_FACE_VARIANT_MARKER
+                )
+                complete_patch_count = original_script.count(
+                    MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW
+                )
+                obsolete_insertion_count = original_script.count(
+                    MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD
+                )
+                if (
+                    marker_count == 1
+                    and complete_patch_count == 1
+                    and obsolete_insertion_count == 0
+                ):
+                    result["status"] = "already_patched"
+                else:
+                    result["status"] = "partial_patch"
+                    result["marker_count"] = marker_count
+                    result["complete_patch_count"] = complete_patch_count
+                    result["obsolete_insertion_count"] = obsolete_insertion_count
+                return result
+
+            insertion_count = original_script.count(
+                MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD
+            )
+            if insertion_count != 1:
+                result["status"] = "patch_needle_not_found"
+                result["needle_count"] = insertion_count
+                return result
+
+            patched_script = original_script.replace(
+                MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD,
+                MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW,
+                1,
+            )
+            if (
+                patched_script.count(MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW)
+                != 1
+                or patched_script.count(MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD)
+                != 0
+            ):
+                result["status"] = "patch_verification_failed"
+                return result
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member)
+                    if member.filename == MAPLEBIRCH_AU_FACE_VARIANT_MEMBER:
+                        data = patched_script.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
 
 
 def patch_maplebirch_basehead_fallback(
@@ -631,6 +823,56 @@ class PackageBuilder(ABC):
 
         return copied
 
+    def _validate_au_face_variant_source(self) -> dict[str, object]:
+        """Fail closed if the untranslated DoL face passages drift upstream."""
+        result: dict[str, object] = {
+            "applied": False,
+            "target": str(self.html_path),
+        }
+        if not self._has_au_feature():
+            result["status"] = "not_applicable"
+            return result
+
+        if not self.html_path.exists():
+            raise RuntimeError(
+                f"AU face variant source validation failed: missing HTML {self.html_path}"
+            )
+
+        content = self.html_path.read_bytes()
+        expected_switch_count = len(AU_FACE_VARIANT_HTML_SWITCH_NEEDLES)
+        old_switch_context_counts = [
+            content.count(old_text.encode("utf-8"))
+            for old_text, _new_text in AU_FACE_VARIANT_HTML_SWITCH_NEEDLES
+        ]
+        new_switch_context_counts = [
+            content.count(new_text.encode("utf-8"))
+            for _old_text, new_text in AU_FACE_VARIANT_HTML_SWITCH_NEEDLES
+        ]
+        migration_old_count = content.count(
+            AU_FACE_VARIANT_HTML_MIGRATION_OLD.encode("utf-8")
+        )
+        migration_new_count = content.count(
+            AU_FACE_VARIANT_HTML_MIGRATION_NEW.encode("utf-8")
+        )
+        source_is_unmodified = (
+            old_switch_context_counts == [1] * expected_switch_count
+            and new_switch_context_counts == [0] * expected_switch_count
+            and migration_old_count == 1
+            and migration_new_count == 0
+        )
+        if not source_is_unmodified:
+            raise RuntimeError(
+                "AU face variant source validation failed: translated input drift "
+                "or obsolete build-time patch detected; "
+                f"legacy_switch_contexts={old_switch_context_counts}, "
+                f"patched_switch_contexts={new_switch_context_counts}, "
+                f"legacy_migration_context={migration_old_count}/1, "
+                f"patched_migration_context={migration_new_count}/0"
+            )
+
+        result["status"] = "validated"
+        return result
+
     def _modloader_mod_path_for_injection(self, mod_config, mod_path: Path) -> Path:
         """Return the payload path to inject, applying build-local hotfixes."""
         if mod_config.cache_name == MORE_LOVE_CACHE_NAME:
@@ -735,12 +977,56 @@ class PackageBuilder(ABC):
         status = str(patch_result.get("status") or "unknown")
         if status == "patched":
             logger.info("Maplebirch pet remount compatibility patch applied")
-            return patched_path
+            return self._patch_maplebirch_au_face_variants(
+                mod_config,
+                patched_path,
+            )
         if is_patch_success_status(status):
             logger.info("Maplebirch pet remount compatibility patch already present")
-            return mod_path
+            return self._patch_maplebirch_au_face_variants(mod_config, mod_path)
         raise RuntimeError(
             f"Maplebirch pet remount compatibility patch failed: {status}"
+        )
+
+    def _patch_maplebirch_au_face_variants(
+        self,
+        mod_config,
+        mod_path: Path,
+    ) -> Path:
+        """Repair AU style/variant pairs after ModI18N translates passages."""
+        if not self._has_au_feature():
+            return mod_path
+
+        patch_surface = compatibility_surface_by_key(
+            AU_FACE_VARIANT_SELECTION_KEY
+        )
+        source_errors = compatibility_source_errors(patch_surface, mod_config)
+        if source_errors:
+            raise RuntimeError(
+                "Maplebirch AU face variant compatibility patch source mismatch: "
+                + "; ".join(source_errors)
+            )
+
+        patched_path = (
+            self.paths.temp_dir
+            / f"{MAPLEBIRCH_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.au-face.mod.zip"
+        )
+        patch_result = patch_maplebirch_au_face_variant_selection(
+            mod_path,
+            patched_path,
+        )
+        status = str(patch_result.get("status") or "unknown")
+        if status == "patched":
+            logger.info("Maplebirch AU face variant compatibility patch applied")
+            return patched_path
+        if is_patch_success_status(status):
+            logger.info(
+                "Maplebirch AU face variant compatibility patch already present"
+            )
+            return mod_path
+        raise RuntimeError(
+            "Maplebirch AU face variant compatibility patch failed: "
+            f"{status}"
         )
 
     def _inject_modloader_mods(self) -> list[str]:
@@ -787,7 +1073,10 @@ class PackageBuilder(ABC):
                     else:
                         applied.append(mod_config.key or mod_config.asset_pattern)
                 else:
-                    logger.warning(f"mod 文件不存在: {mod_path}")
+                    raise RuntimeError(
+                        "required mod payload cache is missing: "
+                        f"{mod_config.cache_name}: {mod_path}"
+                    )
 
         if mod_paths:
             injector = ModInjector(self.paths)
@@ -871,6 +1160,8 @@ class ZipBuilder(PackageBuilder):
             if self._apply_au_face_compatibility_aliases():
                 applied_mods.append("AU face compatibility aliases")
 
+            self._validate_au_face_variant_source()
+
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())
 
@@ -951,6 +1242,8 @@ class ApkBuilder(PackageBuilder):
 
             if self._apply_au_face_compatibility_aliases():
                 applied_mods.append("AU face compatibility aliases")
+
+            self._validate_au_face_variant_source()
 
             # 注入 modloader mod
             applied_mods.extend(self._inject_modloader_mods())

@@ -1,6 +1,9 @@
 from types import SimpleNamespace
+import hashlib
+import json
 
 from lyra.config_loader import get_config_loader
+from lyra.config_loader import ModloaderModConfig
 from lyra.paths import BuildPaths
 from lyra.warmup import ResourceWarmer
 from main import cmd_warmup
@@ -92,3 +95,79 @@ def test_ucb_keeps_all_mysterious_mirror_urls(tmp_path):
     assert all("mysterious" in source_url for source_url in source_urls)
     assert any("github.com" in source_url for source_url in source_urls)
     assert any("gitgud.io" in source_url for source_url in source_urls)
+
+
+def _write_au_lock_file(tmp_path, cache_name: str, payload: bytes) -> None:
+    config_directory = tmp_path / "config"
+    config_directory.mkdir(parents=True, exist_ok=True)
+    (config_directory / "mods.lock.json").write_text(
+        json.dumps(
+            {
+                "mods": {
+                    cache_name: {
+                        "last_tested_sha256": hashlib.sha256(payload).hexdigest(),
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_au_modloader_cache_must_match_lock_digest(tmp_path):
+    resource_warmer = ResourceWarmer(
+        BuildPaths(workspace=tmp_path),
+        codes=["15705344"],
+    )
+    mod_config = ModloaderModConfig(
+        key="au_f",
+        feature_id="au-f",
+        github_repo="AOKIUTAGE/UTAGEsDOL3.0",
+        asset_pattern="AUfemale.model_v0.9.3.zip",
+        release_tag="mod",
+    )
+    cached_payload = b"tampered AU model payload"
+    cache_path = resource_warmer.paths.get_mod_cache_path("au_f")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(cached_payload)
+    _write_au_lock_file(tmp_path, "au_f", b"expected AU model payload")
+
+    try:
+        resource_warmer._download_modloader_mod(mod_config, get_config_loader())
+    except RuntimeError as exc:
+        assert "AU payload digest mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered cached AU payload must fail closed")
+
+
+def test_downloaded_au_modloader_payload_must_match_lock_digest(
+    tmp_path,
+    monkeypatch,
+):
+    resource_warmer = ResourceWarmer(
+        BuildPaths(workspace=tmp_path),
+        codes=["15705344"],
+    )
+    mod_config = ModloaderModConfig(
+        key="au_face",
+        feature_ids=["au-f", "au-m", "au-a"],
+        github_repo="AOKIUTAGE/UTAGEsDOL3.0",
+        asset_pattern="AUsDoL.facial.expansion.mod.zip",
+        release_tag="facemod",
+        download_url="https://example.invalid/au-face.zip",
+    )
+    _write_au_lock_file(tmp_path, "au_face", b"expected AU Face payload")
+
+    def write_tampered_payload(_url, destination, quiet):
+        del quiet
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"tampered downloaded AU Face payload")
+
+    monkeypatch.setattr("lyra.warmup.download_file", write_tampered_payload)
+
+    try:
+        resource_warmer._download_modloader_mod(mod_config, get_config_loader())
+    except RuntimeError as exc:
+        assert "AU payload digest mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered downloaded AU payload must fail closed")

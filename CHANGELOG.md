@@ -30,6 +30,33 @@
 
 ### Fixed
 
+- **修复 AU 换脸后仪态不同步、未再选择仪态时眼睛消失，并迁移已保存的非法组合**：
+  DoL 0.5.10.12 约定每个脸型的首个仪态代码值必须是 `default`，角色创建、镜子和作弊页三个
+  交互入口在切换脸型后都把 `$facevariant` 硬设为 `default`。AU model 脸型实际注册值则是
+  “大眼鼠鼠”“猫猫脸”“Q萌一号”等真实图片目录名，没有非传统脸型的 `default` 目录；因此只点
+  脸型会形成无效的 `facestyle/default` 组合，模型不立即同步，并可能请求不存在的 eyes、sclera、
+  iris、eyelids、lashes 等图片，直到玩家再点一个仪态。AU 三码现在复用 Maplebirch 已有的
+  `modifyFaceStyle()` owner，在 `ModI18N` 完成翻译后修改最终 Passage：角色创建、镜子和作弊页
+  三个入口从 `setup.faceVariantOptions[$facestyle]` 选择第一个注册值，并沿用原入口自身的
+  `<<updatesidebarimg>>` 刷新。`backComp` 每次加载都会额外检查当前组合：只有当前脸型存在注册仪态
+  且当前值不在合法列表中时，才改成第一个合法值；合法选择和未注册仪态列表的第三方脸型保持
+  不变。最初的构建期主 HTML 改写已退役：A/B 证明它会改变 `Widgets Settings` 的原始 Passage，
+  使 `ModI18N 1.0.8a` 的位置型规则整组失效，导致开局设置与角色创建变回英文。构建现在只读验证
+  原 HTML 的四个翻译输入仍各出现一次，再对 Maplebirch payload 做 fail-closed 精确补丁；base
+  构建不应用。AU ZIP/APK 产物审计同时要求原 HTML 保持四个未改写输入、内嵌 payload 含唯一的
+  后汉化 marker 和完整 3+1 行为规则，避免修好换脸却破坏汉化，也拒绝 marker 错位或旧预汉化
+  补丁残留。
+
+  MuMu 12 的汉化安全隔离 AU-F 候选中，`ModI18N 1.0.8a` 主语言为 `zh`，`Widgets Settings` 的“请选择游戏模式、角色创建、
+  体型、脸型、仪态”均为中文，对应英文源串均不存在；三个最终 UI Passage 各有一条换脸规则，
+  `Widgets variablesVersionUpdate` 有一条迁移规则，且无 reporter。角色创建真实 UI 逐个点击八脸且
+  不再点击仪态时，8/8 都立即形成合法组合，人物 canvas 有 8 个不同内容哈希。旧存档路径也用
+  完整有效游戏状态验证：在可保存 passage
+  中提交并保存 `kiss改脸/default`，把当前状态提交回 `default/default` 后真实加载槽位，加载结果为
+  `kiss改脸/大眼鼠鼠`，正常进入 `Orphanage Intro`，无红框；页面有 4 个 canvas，最大非透明像素数
+  为 49972。测试槽位已删除。更早存档中的 `eyesFacestyle`、`mouthFacestyle`、
+  `eyeColor` 报错因原问题存档已删除，仍无证据确定迁移值，本修复不对此作过度声明。
+
 - **修复 Maplebirch 桌宠切换段落后消失（开启也看不到、偶尔一闪）**：
   SugarCube 每次渲染段落都会重建 StoryFooter，因此框架挂载 canvas 的
   `<div id="maplebirch-character-pet">` 会被替换成一个全新的空节点。v4.1.13 只在
