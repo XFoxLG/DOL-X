@@ -22,8 +22,9 @@
   这推翻了 0808 当时"不混入 4.1.14"的决策，理由是升级面经字节级核对后确认为纯钉版号替换。
   - **三个本地补丁全部保留且无需重新定位**：basehead fallback、pet remount、AU face variant
     的定位串在 4.1.14 的 `dist/inject_early.js` 中各命中恰好 1 次，三个 marker 均为 0 次。
-    压缩变量名 `aO` / `aP` 未发生漂移，上游也未修掉这三个缺陷（旧代码原样保留），
-    因此不存在"上游已修复"与"仅变量改名"的歧义，无需按 `removal_condition` 退役任何补丁。
+    上游未修掉这三个缺陷（旧代码原样保留），无需按 `removal_condition` 退役任何补丁。
+    **更正**：此处原先写"压缩变量名 `aO` / `aP` 未发生漂移"，这句是错的。只核对了**定位串**，
+    没核对**替换文本引用的 `aP`**——后者确实漂移了，详见下方 Fixed 段。
   - **实物验证**：三个补丁按构建顺序链式套用到真实官方资产后全部返回 `patched`，
     产物中每个 marker 各 1 次、旧定位串归零，成员清单与 `boot.json` 保持字节不变，
     官方源文件未被修改。这是对真实资产的验证，不是夹具断言。
@@ -38,8 +39,59 @@
   - **依赖链不变**：LongerCombat v1.0.1、YanlingCheatCollection v1.0.1、DOLI 的
     `addonPlugin` 均声明 maplebirch `^4.1.0`，4.1.14 落在 caret 范围内；
     Cheat Extended v1.20 的运行时门控要求 `>= 3.2.5`，同样放行。
-  - **验证状态**：本机 274 项测试（公开 259 + 私有 15）与 `compileall` 全部通过，
-    但**真机完全未测**，怀孕扩展的实际游玩表现也完全未测。
+  - **验证状态**：本机 277 项测试与 `compileall` 全部通过（含为下方 basehead 回归新增的
+    3 项）。2026-08-09 的 AU-F 真机验证发现并修复了一个升级引入的回归，**修好后的包尚未
+    构建、也尚未上机**，因此本次升级仍不可发版。
+
+### Fixed
+
+- **修复 basehead 补丁在 4.1.14 上每次渲染必抛异常（升级引入的回归，真机发现）**：
+  这是本次升级最重要的一条。我们的 basehead 补丁把上游 `aO([候选, 回退])` 改写成
+  `aP.has(候选)?候选:回退`，其中 `aP` 是**硬编码的压缩变量名**。上游在 4.1.14 里把那个
+  Set 改名为 `aI`，并把 `aP` 让给了一个毫无关系的变身等级调节表：
+
+  ```js
+  // 4.1.13：aP 就是那个 Set，补丁正确
+  let aP=new Set; function aO(e){let t=e.find(e=>aP.has(e)); ...}
+
+  // 4.1.14：Set 改名 aI，aP 变成别的东西
+  let aI=new Set; function aO(e){let t=e.find(e=>aI.has(e)); ...}
+  aP={wolf:e=>V.wolfbuild=..., cat:..., cow:..., bird:...}
+  ```
+
+  于是补丁产出的 `srcfn` 对着那张表调 `.has()`，**每次调用都抛
+  `TypeError: aP.has is not a function`**。MuMu 12 实测：八种脸型加空参数逐个直接探测全部
+  抛错；走完整开局流程 40 步渲染共记录 **81 条** `Error evaluating layer basehead property src`。
+  - **已发布的 0808 不受影响**：它用 4.1.13，那一版 `aP` 确实就是该 Set。
+  - **修法**：`lyra/build.py` 不再硬编码，改为用 `MAPLEBIRCH_FACE_INDEX_PATTERN` 从资产里
+    动态解析——正则锚定在 `aO()` 辅助函数自身的结构上（`let X=new Set;function aO(e){...X.has(e)...}`），
+    解析不出来就 fail-closed 返回 `face_index_identifier_unresolved` 拒绝构建，绝不猜名字。
+  - **实物验证**：对两个真实官方资产各跑一次，4.1.13 解析出 `aP`、4.1.14 解析出 `aI`，
+    各只产出 1 处替换、旧定位串归零、成员清单不变。
+  - **补上测试缺口**：原来 274 项测试放过了这个 bug，因为夹具把载荷伪造成
+    `const faceImagePaths=new Set();const aP=faceImagePaths;`——一个手写别名，让任何硬编码
+    `aP` 都天然成立。三个 maplebirch 夹具现在都内嵌上游真实的 `aO()` 辅助函数，并新增三项
+    回归测试：跨两种命名的标识符解析、对 `aI` 改名载荷打补丁后断言不残留 `aP.has`、
+    以及解析失败时 fail-closed。本机 277 passed。
+
+- （无代码改动，仅记录真机验证结论）**AU-F 真机验证：另两个补丁在 4.1.14 上运行时生效**。
+  用 CI run `31296592461` 产出的 AU-F APK（132345566 字节，正式签名证书
+  `b21cd15b…829ece6`）以 `adb install -r` 覆盖安装到 0808 版本之上：
+  - **桌宠重挂正常**：连续四次导航（Start → Orphanage Intro → Start → Bedroom，全部经
+    `Story.has()` 确认存在）每次都自动恢复为 1 子节点、**17587/17588 个不透明像素**，
+    与 0808 基线一致（对应带穿着的宏路径，而非 16316 的裸模退化）。说明 4.1.14 新注册在
+    `:storyready` 上的怀孕监听器没有干扰重挂订阅。
+  - **AU 脸型补丁生效**：`setup.faceVariantOptions` 含全部八种注册脸型，每种暴露真实变体名，
+    而不是无效的 style/default 组合。
+  - **存档通路可用**：走游戏自己的 IndexedDB 层完成 存档 → 读档 往返，
+    `idb.saveState` 返回 true、`getSaveDetails` 列出已写槽位、`idb.loadState` 完成，零抛错。
+  - **注意范围**：以上都是在**带着坏 basehead 补丁**的那个 APK 上测的。修好后的包尚未构建、
+    也未上机，所以锁文件状态保持 `static-validated-pending-runtime`。
+  - **未能验证的部分（如实记录）**：原定"加载已有 0808 存档"这一项**没有素材**——
+    这台设备的 `degrees-of-lewdity` 存档库 `saves` / `details` 两个 store 计数都是 0，
+    即 0808 那次安装从未存过档（配置类数据恢复正常，可确认不是恢复失败）。
+    因此长期存档的迁移表现仍未测试。4.1.14 新增的 kaiju 遮罩在 0.5.10.12 上是死代码：
+    构建产物中字面量 `kaiju costume` 出现 0 次、APK 内无任何 kaiju 图片资源，无法触发。
 
 ### Added
 

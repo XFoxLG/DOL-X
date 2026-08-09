@@ -21,9 +21,17 @@ from lyra.paths import BuildPaths
 
 # Mirrors the two upstream regions the Maplebirch payload patches rewrite: the
 # basehead fallback needle and the Character.preInit() pet sync wiring.
+# The basehead patch resolves the face-index Set out of the payload, so the
+# fixture has to carry Maplebirch's real aO() helper rather than a hand-written
+# alias.
+MAPLEBIRCH_FACE_INDEX_HELPER = (
+    "let aP=new Set;"
+    "function aO(e){let t=e.find(e=>aP.has(e));if(t)return t;"
+    'let n="";for(let t of e){let e=no(t);if(e===t||!0===e)return t;'
+    "!1===e||n||(n=t)}return n||e[0]}"
+)
 MAPLEBIRCH_SCRIPT = (
-    "const faceImagePaths = new Set();"
-    "const aP = faceImagePaths;"
+    f"{MAPLEBIRCH_FACE_INDEX_HELPER}"
     f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD},freckles:{{}}}};"
     f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD},this.use('pre',aB,'main')}}}}"
 )
@@ -169,8 +177,7 @@ def test_pet_remount_injection_fails_closed_when_needle_drifts(tmp_path):
     _write_maplebirch_payload(
         source,
         (
-            "const faceImagePaths = new Set();"
-            "const aP = faceImagePaths;"
+            f"{MAPLEBIRCH_FACE_INDEX_HELPER}"
             f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD}}};"
             "class Character{preInit(){/* upstream rewrote pet wiring */}}"
         ),
