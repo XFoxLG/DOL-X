@@ -192,9 +192,9 @@ name = "maplebirch"
 enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
-asset_pattern = "maplebirch-0.5.10.12-v4.1.13.mod.zip"
-release_tag = "maplebirch-release-v4.1.13"
-download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.13/maplebirch-0.5.10.12-v4.1.13.mod.zip"
+asset_pattern = "maplebirch-0.5.10.12-v4.1.14.mod.zip"
+release_tag = "maplebirch-release-v4.1.14"
+download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.14/maplebirch-0.5.10.12-v4.1.14.mod.zip"
 track_upstream = true  # 构建与更新检查以作者官方仓库为准；XFoxLG 镜像只作官方资产消失时的人工灾备
 # DOL-X next-4 experiment (2026-07-28): maplebirch v3.2.5 -> v4.1.13 (upstream 正式 release).
 # WHY 升到 4.x（推翻了上一轮"v3.2.5 是唯一解"的结论）:
