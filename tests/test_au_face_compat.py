@@ -447,7 +447,7 @@ def _write_maplebirch_face_patch_payload(
     with zipfile.ZipFile(path, "w") as payload_zip:
         payload_zip.writestr(
             "boot.json",
-            '{"name":"maplebirch","version":"4.1.13"}',
+            '{"name":"maplebirch","version":"4.1.14"}',
         )
         payload_zip.writestr(
             "dist/inject_early.js",
@@ -470,7 +470,7 @@ def _patched_maplebirch_payload() -> bytes:
     with zipfile.ZipFile(source_buffer, "w") as source_zip:
         source_zip.writestr(
             "boot.json",
-            '{"name":"maplebirch","version":"4.1.13"}',
+            '{"name":"maplebirch","version":"4.1.14"}',
         )
         source_zip.writestr(
             "dist/inject_early.js",
@@ -771,7 +771,7 @@ def test_au_artifact_check_rejects_correct_marker_counts_in_wrong_context(tmp_pa
     with zipfile.ZipFile(payload_buffer, "w") as payload_zip:
         payload_zip.writestr(
             "boot.json",
-            '{"name":"maplebirch","version":"4.1.13"}',
+            '{"name":"maplebirch","version":"4.1.14"}',
         )
         payload_zip.writestr("dist/inject_early.js", misplaced_script)
     encoded_payloads = [
