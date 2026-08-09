@@ -121,10 +121,10 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         maplebirch.github_repo
         == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
     )
-    assert maplebirch.release_tag == "maplebirch-release-v4.1.13"
+    assert maplebirch.release_tag == "maplebirch-release-v4.1.14"
     assert (
         maplebirch.asset_pattern
-        == "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+        == "maplebirch-0.5.10.12-v4.1.14.mod.zip"
     )
     assert maplebirch.member == "dist/inject_early.js"
     assert maplebirch.marker == (
@@ -138,10 +138,10 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         pet_remount.github_repo
         == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
     )
-    assert pet_remount.release_tag == "maplebirch-release-v4.1.13"
+    assert pet_remount.release_tag == "maplebirch-release-v4.1.14"
     assert (
         pet_remount.asset_pattern
-        == "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+        == "maplebirch-0.5.10.12-v4.1.14.mod.zip"
     )
     assert pet_remount.member == "dist/inject_early.js"
     assert pet_remount.marker == "dolxPetRemountAfterPassageDisplay"
@@ -153,10 +153,10 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         au_face_variant.github_repo
         == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
     )
-    assert au_face_variant.release_tag == "maplebirch-release-v4.1.13"
+    assert au_face_variant.release_tag == "maplebirch-release-v4.1.14"
     assert (
         au_face_variant.asset_pattern
-        == "maplebirch-0.5.10.12-v4.1.13.mod.zip"
+        == "maplebirch-0.5.10.12-v4.1.14.mod.zip"
     )
     assert au_face_variant.marker == "dolxAuFaceVariantAfterI18n"
 
