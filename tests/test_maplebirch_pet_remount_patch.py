@@ -34,7 +34,7 @@ def _write_maplebirch_payload(path, script: str = MAPLEBIRCH_SCRIPT) -> None:
     with zipfile.ZipFile(path, "w") as payload_zip:
         payload_zip.writestr(
             "boot.json",
-            '{"name":"maplebirch","version":"4.1.13"}',
+            '{"name":"maplebirch","version":"4.1.14"}',
         )
         payload_zip.writestr(MAPLEBIRCH_PET_REMOUNT_MEMBER, script)
         payload_zip.writestr("README.md", "unchanged")
@@ -115,7 +115,7 @@ def test_pet_remount_patch_preserves_unrelated_payload_members(tmp_path):
     with zipfile.ZipFile(target, "r") as payload_zip:
         assert payload_zip.read("README.md") == b"unchanged"
         assert payload_zip.read("boot.json") == (
-            b'{"name":"maplebirch","version":"4.1.13"}'
+            b'{"name":"maplebirch","version":"4.1.14"}'
         )
 
 
@@ -193,8 +193,8 @@ def test_pet_remount_injection_fails_closed_when_source_metadata_drifts(tmp_path
     drifted_config = SimpleNamespace(
         cache_name="maplebirch",
         github_repo="example/wrong",
-        release_tag="maplebirch-release-v4.1.13",
-        asset_pattern="maplebirch-0.5.10.12-v4.1.13.mod.zip",
+        release_tag="maplebirch-release-v4.1.14",
+        asset_pattern="maplebirch-0.5.10.12-v4.1.14.mod.zip",
     )
 
     with pytest.raises(RuntimeError, match="source mismatch"):
