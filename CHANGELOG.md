@@ -13,6 +13,52 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **maplebirch 框架升级 v4.1.13 -> v4.1.14（尚未发布）**：官方资产
+  `maplebirch-0.5.10.12-v4.1.14.mod.zip`，186903 字节，
+  sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，
+  与 GitHub Release digest 逐字一致，上游构建 commit `cf57f88c`。
+  这推翻了 0808 当时"不混入 4.1.14"的决策，理由是升级面经字节级核对后确认为纯钉版号替换。
+  - **三个本地补丁全部保留且无需重新定位**：basehead fallback、pet remount、AU face variant
+    的定位串在 4.1.14 的 `dist/inject_early.js` 中各命中恰好 1 次，三个 marker 均为 0 次。
+    压缩变量名 `aO` / `aP` 未发生漂移，上游也未修掉这三个缺陷（旧代码原样保留），
+    因此不存在"上游已修复"与"仅变量改名"的歧义，无需按 `removal_condition` 退役任何补丁。
+  - **实物验证**：三个补丁按构建顺序链式套用到真实官方资产后全部返回 `patched`，
+    产物中每个 marker 各 1 次、旧定位串归零，成员清单与 `boot.json` 保持字节不变，
+    官方源文件未被修改。这是对真实资产的验证，不是夹具断言。
+  - **结构面无变化**：成员数 4 -> 4 无增删，`boot.json` 除 `version` 外字节不变，
+    `dependenceInfo` 八条逐字一致（`GameVersion` 仍为 `>=0.5.10.12`，不强制 0.5.11），
+    `addonPlugin` 两版均为 0 条，即对游戏本体的 patch 面没有扩大。
+    改动集中在 `dist/inject_early.js`（+3432 字符）与类型声明 `.d.ts`（-30 字节）。
+  - **上游改动面**（单 commit，8 文件）：`Character.ts` 只新增 `kaiju_mask()` 并接入
+    `hair_sides` / `hair_sides_close_up` / `hair_fringe` / `hair_fringe_close_up` 四处
+    `masksrcfn`，未触及桌宠的 `:storyready` + `<<updatesidebarimg>>` 接线，也未触及 `basehead`；
+    `Time.ts` 恢复每日 NPC 怀孕周期入口；`base_layers.ts` 为 NPC 侧边栏加同一遮罩。
+  - **依赖链不变**：LongerCombat v1.0.1、YanlingCheatCollection v1.0.1、DOLI 的
+    `addonPlugin` 均声明 maplebirch `^4.1.0`，4.1.14 落在 caret 范围内；
+    Cheat Extended v1.20 的运行时门控要求 `>= 3.2.5`，同样放行。
+  - **验证状态**：本机 274 项测试（公开 259 + 私有 15）与 `compileall` 全部通过，
+    但**真机完全未测**，怀孕扩展的实际游玩表现也完全未测。
+
+### Added
+
+- **上游解封框架 NPC 怀孕扩展（随 4.1.14 引入，带不可逆存档风险）**：
+  `NPCPregnancy` 删除 `disabled = true` 字段与七处守卫，构造函数改为主动注册默认怀孕种族与
+  NPC 配置，并在 `:storyready` 时注入 `NPCPregnancyPatch`。
+  - 接管面：覆写 `window.recordSperm`、`window.pregnancyDaysEta`、`window.getChildDays`
+    三个全局函数与 `playerPregnancyAttempt`、`namedNpcPregnancy`、`endNpcPregnancy`、
+    `pregnancyBabyText`、`updateChildActivity`、`updateRecordedSperm` 六个宏，均先备份原版；
+    生成器写入 `window.pregnancyGenerator[type]`。
+  - **与 DOL-X 补丁交集为空**：这六个宏不含 `updatesidebarimg`，三个函数与侧边栏渲染无关，
+    两者仅共用 `:storyready` 事件，同一事件的多个监听器互不冲突。
+  - **不可逆方向**：会向 `setup.pregnancy.canBePregnant` 与 `canImpregnatePlayer` 单向追加
+    NPC 名单，未见迁移或回滚逻辑。**若从 4.1.14 退回 4.1.13，存档中已写入的怀孕数据将失去
+    处理方**（4.1.13 的 `savedPregnancy()` 在 disabled 下直接返回）。这是本次升级唯一的
+    不可逆风险，回滚前需自行备份存档。
+  - 上游 4.1.9 封印该扩展的理由是"避免与原版 0.6 怀孕系统改动冲突"，而本项目锁定
+    0.5.10.12 而非 0.6，该冲突前提在本栈不成立。
+
 ## [v0.5.10.12-1.0.8a-0808] - 2026-08-08
 
 ### Added
