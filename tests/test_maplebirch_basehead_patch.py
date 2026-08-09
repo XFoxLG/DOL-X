@@ -8,21 +8,46 @@ import pytest
 from lyra.build import (
     BuildTask,
     MAPLEBIRCH_BASEHEAD_MEMBER,
-    MAPLEBIRCH_BASEHEAD_NEW,
     MAPLEBIRCH_BASEHEAD_OLD,
     MAPLEBIRCH_PET_REMOUNT_OLD,
     ZipBuilder,
+    _maplebirch_basehead_replacement,
     patch_maplebirch_basehead_fallback,
+    resolve_maplebirch_face_index_identifier,
 )
 from lyra.config_loader import load_build_config
 from lyra.paths import BuildPaths
 
 
+def _face_index_helper(identifier: str) -> str:
+    """Reproduce Maplebirch's real aO() helper, which owns the face-index Set.
+
+    The patch must bind its ``.has()`` call to whatever this Set is named in the
+    asset being patched.  Upstream renamed it from ``aP`` (v4.1.13) to ``aI``
+    (v4.1.14), so fixtures have to carry the real helper shape rather than a
+    hand-written ``const aP = ...`` alias, which is what previously let a broken
+    replacement pass the suite.
+    """
+    return (
+        f"let {identifier}=new Set;"
+        f"function aO(e){{let t=e.find(e=>{identifier}.has(e));if(t)return t;"
+        'let n="";for(let t of e){let e=no(t);if(e===t||!0===e)return t;'
+        "!1===e||n||(n=t)}return n||e[0]}"
+    )
+
+
 # The Maplebirch payload receives two chained fail-closed patches, so the fake
 # payload must carry both upstream needles for the injection path to succeed.
 MAPLEBIRCH_SCRIPT = (
-    "const faceImagePaths = new Set();"
-    "const aP = faceImagePaths;"
+    f"{_face_index_helper('aP')}"
+    f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD},freckles:{{}}}};"
+    f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD},this.use('pre',aB,'main')}}}}"
+)
+
+# Same payload with the Set renamed the way upstream v4.1.14 renamed it.
+MAPLEBIRCH_SCRIPT_RENAMED_SET = (
+    f"{_face_index_helper('aI')}"
+    "let aP={wolf:e=>V.wolfbuild=e,cat:e=>V.catbuild=e};"
     f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD},freckles:{{}}}};"
     f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD},this.use('pre',aB,'main')}}}}"
 )
@@ -62,13 +87,62 @@ def test_maplebirch_basehead_patch_uses_completed_face_image_index(tmp_path):
 
     assert result["status"] == "patched"
     assert result["applied"] is True
+    assert result["face_index_identifier"] == "aP"
     patched_script = _read_maplebirch_script(target)
     assert MAPLEBIRCH_BASEHEAD_OLD not in patched_script
-    assert MAPLEBIRCH_BASEHEAD_NEW in patched_script
+    assert _maplebirch_basehead_replacement("aP") in patched_script
     assert "img/body/base-head.png" in patched_script
 
     original_script = _read_maplebirch_script(source)
     assert MAPLEBIRCH_BASEHEAD_OLD in original_script
+
+
+@pytest.mark.config
+def test_face_index_identifier_is_resolved_from_the_asset(tmp_path):
+    """The Set name is read out of the payload, not assumed to be aP."""
+    assert resolve_maplebirch_face_index_identifier(MAPLEBIRCH_SCRIPT) == "aP"
+    assert resolve_maplebirch_face_index_identifier(MAPLEBIRCH_SCRIPT_RENAMED_SET) == "aI"
+    assert resolve_maplebirch_face_index_identifier("let x=new Set;") is None
+
+
+@pytest.mark.config
+def test_basehead_patch_binds_to_renamed_face_index_set(tmp_path):
+    """Regression: upstream v4.1.14 renamed the face-index Set from aP to aI.
+
+    The previous patch hardcoded ``aP``, and in v4.1.14 ``aP`` is an unrelated
+    transformation table, so the emitted srcfn threw
+    ``TypeError: aP.has is not a function`` on every render.  The replacement must
+    follow the rename.
+    """
+    source = tmp_path / "maplebirch.mod.zip"
+    target = tmp_path / "maplebirch.patched.mod.zip"
+    _write_maplebirch_payload(source, MAPLEBIRCH_SCRIPT_RENAMED_SET)
+
+    result = patch_maplebirch_basehead_fallback(source, target)
+
+    assert result["status"] == "patched"
+    assert result["face_index_identifier"] == "aI"
+    patched_script = _read_maplebirch_script(target)
+    assert _maplebirch_basehead_replacement("aI") in patched_script
+    # The stale hardcoded form must not survive anywhere in the emitted payload.
+    assert "aP.has(" not in patched_script
+
+
+@pytest.mark.config
+def test_basehead_patch_fails_closed_when_face_index_set_cannot_be_resolved(tmp_path):
+    """No provable Set means no patch: guessing produced the aP/aI defect."""
+    source = tmp_path / "maplebirch.mod.zip"
+    target = tmp_path / "maplebirch.patched.mod.zip"
+    _write_maplebirch_payload(
+        source,
+        f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD}}};",
+    )
+
+    result = patch_maplebirch_basehead_fallback(source, target)
+
+    assert result["applied"] is False
+    assert result["status"] == "face_index_identifier_unresolved"
+    assert not target.exists()
 
 
 @pytest.mark.config
@@ -119,7 +193,9 @@ def test_maplebirch_injection_uses_build_local_patched_payload(tmp_path):
 
     assert injected_path != source
     assert injected_path.exists()
-    assert MAPLEBIRCH_BASEHEAD_NEW in _read_maplebirch_script(injected_path)
+    assert _maplebirch_basehead_replacement("aP") in _read_maplebirch_script(
+        injected_path
+    )
     assert MAPLEBIRCH_BASEHEAD_OLD in _read_maplebirch_script(source)
 
 
