@@ -430,7 +430,12 @@ def _maplebirch_face_patch_script(*, include_chained_needles: bool = False) -> s
     if not include_chained_needles:
         return script
     return (
-        "const faceImagePaths=new Set();const aP=faceImagePaths;"
+        # The basehead patch resolves the face-index Set from the payload, so the
+        # fixture must contain Maplebirch's real aO() helper, not an alias.
+        "let aP=new Set;"
+        "function aO(e){let t=e.find(e=>aP.has(e));if(t)return t;"
+        'let n="";for(let t of e){let e=no(t);if(e===t||!0===e)return t;'
+        "!1===e||n||(n=t)}return n||e[0]}"
         f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD}}};"
         f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD}}}"
         + script

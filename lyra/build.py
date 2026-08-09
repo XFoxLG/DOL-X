@@ -217,11 +217,38 @@ MAPLEBIRCH_BASEHEAD_OLD = (
     'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
     'aO([`img/face/${e.facestyle}/base-head.png`,"img/body/base-head.png"])}'
 )
-MAPLEBIRCH_BASEHEAD_NEW = (
-    'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
-    'aP.has(`img/face/${e.facestyle}/base-head.png`)?'
-    '`img/face/${e.facestyle}/base-head.png`:"img/body/base-head.png"}'
+
+# The replacement has to call .has() on the Set that Maplebirch's own aO() helper
+# consults.  That Set's minified name is NOT stable across upstream builds: it was
+# aP in v4.1.13 and aI in v4.1.14, where aP became an unrelated transformation
+# table.  Hardcoding the name shipped a patch whose every call threw
+# "TypeError: aP.has is not a function", so resolve the real identifier out of the
+# asset instead and fail closed when it cannot be proven.
+MAPLEBIRCH_FACE_INDEX_PATTERN = re.compile(
+    r"let\s+(?P<identifier>[A-Za-z_$][\w$]*)\s*=\s*new Set;\s*"
+    r"function\s+aO\s*\(\s*e\s*\)\s*\{\s*let\s+t\s*=\s*e\.find\(\s*e\s*=>\s*(?P=identifier)\.has\(\s*e\s*\)\s*\)"
 )
+
+
+def _maplebirch_basehead_replacement(face_index_identifier: str) -> str:
+    """Build the basehead replacement bound to the resolved face-index Set."""
+    candidate = "`img/face/${e.facestyle}/base-head.png`"
+    return (
+        'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
+        f"{face_index_identifier}.has({candidate})?"
+        f'{candidate}:"img/body/base-head.png"}}'
+    )
+
+
+def resolve_maplebirch_face_index_identifier(script: str) -> str | None:
+    """Return the minified name of the Set that Maplebirch's aO() helper reads.
+
+    Returns None when the surrounding helper does not match, which the caller must
+    treat as a fail-closed condition rather than guessing an identifier.
+    """
+    match = MAPLEBIRCH_FACE_INDEX_PATTERN.search(script)
+    return match.group("identifier") if match else None
+
 
 # SugarCube rebuilds StoryFooter on every passage render, so the
 # <div id="maplebirch-character-pet"> container the framework mounted its canvas
@@ -472,17 +499,32 @@ def patch_maplebirch_basehead_fallback(
                 "utf-8",
                 errors="replace",
             )
+            face_index_identifier = resolve_maplebirch_face_index_identifier(
+                original_script
+            )
             if MAPLEBIRCH_BASEHEAD_OLD not in original_script:
+                already_patched = bool(
+                    face_index_identifier
+                    and _maplebirch_basehead_replacement(face_index_identifier)
+                    in original_script
+                )
                 result["status"] = (
-                    "already_patched"
-                    if MAPLEBIRCH_BASEHEAD_NEW in original_script
-                    else "patch_needle_not_found"
+                    "already_patched" if already_patched else "patch_needle_not_found"
                 )
                 return result
 
+            # Fail closed: without a proven face-index Set the replacement would
+            # emit a .has() call against whatever that name happens to mean in this
+            # build, which is exactly how the aP -> aI rename shipped a basehead
+            # srcfn that threw on every render.
+            if not face_index_identifier:
+                result["status"] = "face_index_identifier_unresolved"
+                return result
+
+            result["face_index_identifier"] = face_index_identifier
             patched_script = original_script.replace(
                 MAPLEBIRCH_BASEHEAD_OLD,
-                MAPLEBIRCH_BASEHEAD_NEW,
+                _maplebirch_basehead_replacement(face_index_identifier),
                 1,
             )
 
