@@ -11,7 +11,6 @@ from lyra.build import (
     MAPLEBIRCH_PET_REMOUNT_MEMBER,
     MAPLEBIRCH_PET_REMOUNT_NEW,
     MAPLEBIRCH_PET_REMOUNT_OLD,
-    MAPLEBIRCH_BASEHEAD_OLD,
     ZipBuilder,
     patch_maplebirch_pet_passage_remount,
 )
@@ -19,20 +18,13 @@ from lyra.config_loader import load_build_config
 from lyra.paths import BuildPaths
 
 
-# Mirrors the two upstream regions the Maplebirch payload patches rewrite: the
-# basehead fallback needle and the Character.preInit() pet sync wiring.
-# The basehead patch resolves the face-index Set out of the payload, so the
-# fixture has to carry Maplebirch's real aO() helper rather than a hand-written
-# alias.
-MAPLEBIRCH_FACE_INDEX_HELPER = (
-    "let aP=new Set;"
-    "function aO(e){let t=e.find(e=>aP.has(e));if(t)return t;"
-    'let n="";for(let t of e){let e=no(t);if(e===t||!0===e)return t;'
-    "!1===e||n||(n=t)}return n||e[0]}"
+# Mirrors the upstream Character.preInit() pet sync wiring that the patch rewrites.
+MAPLEBIRCH_UPSTREAM_BASEHEAD = (
+    'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
+    'aO([`img/face/${e.facestyle}/base-head.png`,"img/body/base-head.png"])}'
 )
 MAPLEBIRCH_SCRIPT = (
-    f"{MAPLEBIRCH_FACE_INDEX_HELPER}"
-    f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD},freckles:{{}}}};"
+    f"const layers={{{MAPLEBIRCH_UPSTREAM_BASEHEAD},freckles:{{}}}};"
     f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD},this.use('pre',aB,'main')}}}}"
 )
 
@@ -147,7 +139,7 @@ def test_pet_remount_patch_is_idempotent(tmp_path):
 
 
 @pytest.mark.config
-def test_maplebirch_injection_applies_both_payload_patches(tmp_path):
+def test_maplebirch_injection_applies_pet_remount_patch(tmp_path):
     paths = BuildPaths(workspace=tmp_path)
     builder = ZipBuilder(BuildTask(pack_type="zip", mod_code=24834, paths=paths))
     source = paths.get_mod_cache_path("maplebirch")
@@ -162,8 +154,8 @@ def test_maplebirch_injection_applies_both_payload_patches(tmp_path):
     assert injected_path.exists()
     injected_script = _read_maplebirch_script(injected_path)
     assert MAPLEBIRCH_PET_REMOUNT_MARKER in injected_script
-    # The basehead fix from the same payload must still be present.
-    assert "aP.has(`img/face/${e.facestyle}/base-head.png`)" in injected_script
+    assert MAPLEBIRCH_UPSTREAM_BASEHEAD in injected_script
+    assert ".has(`img/face/${e.facestyle}/base-head.png`)" not in injected_script
     assert MAPLEBIRCH_PET_REMOUNT_MARKER not in _read_maplebirch_script(source)
 
 
@@ -172,15 +164,9 @@ def test_pet_remount_injection_fails_closed_when_needle_drifts(tmp_path):
     paths = BuildPaths(workspace=tmp_path)
     builder = ZipBuilder(BuildTask(pack_type="zip", mod_code=24834, paths=paths))
     source = paths.get_mod_cache_path("maplebirch")
-    # Keep the basehead needle so the first patch succeeds and the pet remount
-    # patch is the surface that must fail closed.
     _write_maplebirch_payload(
         source,
-        (
-            f"{MAPLEBIRCH_FACE_INDEX_HELPER}"
-            f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD}}};"
-            "class Character{preInit(){/* upstream rewrote pet wiring */}}"
-        ),
+        "class Character{preInit(){/* upstream rewrote pet wiring */}}",
     )
 
     with pytest.raises(

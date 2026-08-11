@@ -12,7 +12,6 @@ from typing import Any
 
 MORE_LOVE_DRAG_PATCH_KEY = "more_love_drag_event_handlers"
 DOLI_FLOAT_ICON_PATCH_KEY = "doli_float_icon_path"
-MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY = "maplebirch_basehead_fallback"
 MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY = "maplebirch_pet_passage_remount"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
 AU_FACE_VARIANT_SELECTION_KEY = "au_face_variant_selection"
@@ -101,36 +100,6 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         tests=("tests/test_doli_float_icon_patch.py", "tests/test_compatibility_registry.py"),
         removal_condition="Remove after DOLI ships an icon path matching current DoL (sym-*.png) asset naming.",
         notes="DOLI v0.2.3 hardcodes the pre-0.5.9.8 sym_awareness.png; DoL renamed sym_*→sym-*, so the float button 404s without this rewrite.",
-    ),
-    CompatibilitySurface(
-        key=MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
-        target="Maplebirch face-style basehead fallback",
-        scope="default-path",
-        kind="payload-patch",
-        cache_name="maplebirch",
-        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
-        release_tag="maplebirch-release-v4.1.14",
-        asset_pattern="maplebirch-0.5.10.12-v4.1.14.mod.zip",
-        member="dist/inject_early.js",
-        marker="aP.has(`img/face/${e.facestyle}/base-head.png`)",
-        fail_policy="fail-closed",
-        tests=(
-            "tests/test_maplebirch_basehead_patch.py",
-            "tests/test_compatibility_registry.py",
-        ),
-        removal_condition=(
-            "Remove after upstream Maplebirch resolves basehead candidates from "
-            "its completed face-image index instead of treating an asynchronous "
-            "image lookup as a synchronous existence result."
-        ),
-        notes=(
-            "Maplebirch v4.1.13 synchronously chooses a face-style base-head path "
-            "through loadImage(), which normally returns a Promise for an uncached "
-            "path. The Promise is treated as an unknown-but-usable result, so the "
-            "first render requests a missing img/face/<style>/base-head.png and can "
-            "temporarily remove the head. The patch uses the already-populated "
-            "faceImagePaths index and preserves img/body/base-head.png as fallback."
-        ),
     ),
     CompatibilitySurface(
         key=MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
@@ -222,9 +191,11 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
             "default and hardcodes that value in three interactive style-switch UIs "
             "(mirror, cheats and character creation). The AU model styles register real "
             "image-directory values such as 大眼鼠鼠 and 猫猫脸 instead, so clicking a "
-            "style creates an "
-            "invalid style/default pair, does not visually update until a demeanour is "
-            "selected, and can report missing eyes/sclera/iris/eyelids/lashes. The "
+            "style creates an invalid style/default pair. Maplebirch still runs the "
+            "existing updatesidebarimg -> pet.sync -> requestAnimationFrame -> "
+            "pet.render chain; this is not a missing desktop-pet refresh. The sidebar "
+            "or character preview can conceal the bad state with image fallbacks while "
+            "the pet shows a different fallback, loses its eyes, or becomes blank. The "
             "AU-only fail-closed Maplebirch payload patch chooses the first registered "
             "value from setup.faceVariantOptions[$facestyle], preserving default only "
             "for styles with no registered variants. It runs inside Maplebirch's "
@@ -242,9 +213,15 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
             "payload marker plus exactly 3+1 behavior markers while rejecting the "
             "obsolete pre-translation HTML patch. "
             "MuMu 12 verified all eight real character-creation links without a second "
-            "demeanour click (distinct rendered hashes, no reporter/console/page errors) "
-            "and a naturally loaded committed kiss改脸/default test save migrated to "
-            "kiss改脸/大眼鼠鼠 with non-empty canvases and no reporter."
+            "demeanour click and a naturally loaded committed kiss改脸/default test save "
+            "migrated to kiss改脸/大眼鼠鼠 with non-empty canvases and no reporter. A "
+            "2026-08-10 single-variable APK control removed only this runtime IIFE while "
+            "retaining pet remount: every AU click produced style/default; several "
+            "previews fell back to a visible face while the pet rendered closed or "
+            "missing eyes, and 兔子/沅芷/碱性糖 produced blank pet canvases. Restoring "
+            "registered variants made all eight pets visible with distinct hashes. "
+            "Valid-path eyes/mouth ImageErrors observed in a separate basehead probe are "
+            "not repaired or hidden by this state-selection patch."
         ),
     ),
     CompatibilitySurface(
