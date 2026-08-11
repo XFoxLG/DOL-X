@@ -20,14 +20,13 @@
   sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，
   与 GitHub Release digest 逐字一致，上游构建 commit `cf57f88c`。
   这推翻了 0808 当时"不混入 4.1.14"的决策，理由是升级面经字节级核对后确认为纯钉版号替换。
-  - **三个本地补丁全部保留且无需重新定位**：basehead fallback、pet remount、AU face variant
-    的定位串在 4.1.14 的 `dist/inject_early.js` 中各命中恰好 1 次，三个 marker 均为 0 次。
-    上游未修掉这三个缺陷（旧代码原样保留），无需按 `removal_condition` 退役任何补丁。
-    **更正**：此处原先写"压缩变量名 `aO` / `aP` 未发生漂移"，这句是错的。只核对了**定位串**，
-    没核对**替换文本引用的 `aP`**——后者确实漂移了，详见下方 Fixed 段。
-  - **实物验证**：三个补丁按构建顺序链式套用到真实官方资产后全部返回 `patched`，
-    产物中每个 marker 各 1 次、旧定位串归零，成员清单与 `boot.json` 保持字节不变，
-    官方源文件未被修改。这是对真实资产的验证，不是夹具断言。
+  - **只保留两个经真机证明仍有净收益的本地补丁**：pet remount 与 AU face variant。
+    basehead fallback 已在本次单变量真机对照后退役，详见下方 Removed 段；构建不再解析或引用
+    `aO` / `aP` / `aI` 等压缩局部名，也不再改写 `basehead.srcfn`。
+  - **实物验证**：保留的 pet remount 与 AU face variant 两个补丁按构建顺序链式套用到真实
+    官方资产后各返回 `patched`，每个 marker 各 1 次，成员清单与 `boot.json` 保持字节不变；
+    `basehead.srcfn` 保持上游 `aO([候选, 回退])` 原样。新增回归测试明确拒绝重新引入
+    对脸型 base-head 候选的直接 `.has()` 改写。
   - **结构面无变化**：成员数 4 -> 4 无增删，`boot.json` 除 `version` 外字节不变，
     `dependenceInfo` 八条逐字一致（`GameVersion` 仍为 `>=0.5.10.12`，不强制 0.5.11），
     `addonPlugin` 两版均为 0 条，即对游戏本体的 patch 面没有扩大。
@@ -39,40 +38,53 @@
   - **依赖链不变**：LongerCombat v1.0.1、YanlingCheatCollection v1.0.1、DOLI 的
     `addonPlugin` 均声明 maplebirch `^4.1.0`，4.1.14 落在 caret 范围内；
     Cheat Extended v1.20 的运行时门控要求 `>= 3.2.5`，同样放行。
-  - **验证状态**：本机 277 项测试与 `compileall` 全部通过（含为下方 basehead 回归新增的
-    3 项）。2026-08-09 的 AU-F 真机验证发现并修复了一个升级引入的回归，**修好后的包尚未
-    构建、也尚未上机**，因此本次升级仍不可发版。
+  - **验证状态**：basehead 退役并补齐 CRLF 门禁回归后的本机完整套件为 **269 passed**；
+    从当前源代码构建的 AU-F APK 成功通过 zipalign、v1/v2/v3 签名验证和 AU 产物门禁，随后以
+    本地测试证书原位覆盖安装到 MuMu 12。冷首开、八脸真实点击及 Start → Start2 桌宠重挂均通过，
+    因此状态提升为 `runtime-smoke-passed`。该结论不外推到正式签名、base/AU-M/AU-A 或全功能。
+
+### Removed
+
+- **退役 Maplebirch basehead fallback 本地补丁**。这不是把修法从“硬编码压缩名”换成“动态解析
+  压缩名”，而是完整删除该兼容面：`lyra/build.py` 不再改写 `basehead.srcfn`，
+  `lyra/compatibility.py` 不再注册它，专属测试与夹具依赖一并删除。理由来自同一 AU-F 0810 APK
+  制作的单变量 A/B 包：两包只在内嵌 Maplebirch 的一条 `basehead.srcfn` 表达式上不同，使用同一
+  本地签名、同一份已校验恢复的 48,619,488 字节 WebView profile，在 MuMu 12 上各做两轮冷启动。
+  - **未补丁组 2/2**：首次点击真实“角色创建 *”按钮时，会短暂请求
+    `img/face/default/base-head.png`；`Renderer.ImageErrors` 分别在约 **0.84 秒**与 **1.64 秒**
+    捕获一次后自动清除。桌宠最终分别在约 **1.81 秒**与 **4.05 秒**达到 17587/17588 个不透明
+    像素，整个过程无可见错误红框。热状态逐个点击八个真实脸型链接时，8/8 都回退到
+    `img/body/base-head.png`，没有 basehead 错误或可见 reporter，画布稳定在 17587–17626 像素；
+    部分合法脸型路径仍有独立的 eyes/mouth ImageErrors，不属于本补丁退役结论。
+  - **补丁组 2/2**：没有错误请求，但首次打开角色创建面板后 **17 秒内桌宠都未挂载**；末帧截图
+    只有侧边栏小图，没有浮动桌宠。与此同时此前那个硬编码 `aP` 的 4.1.14 补丁曾在真实开局
+    40 步制造 **81 条** `Error evaluating layer basehead property src`。动态解析版虽修掉当次改名，
+    仍保留对第三方压缩局部结构的耦合，维护成本与失败面高于其避免的短暂自愈请求。
+  - **结论边界**：0805 的 v4.1.13 用户录像仍是有效历史证据，本次 v4.1.14 A/B 不能反向否定它；
+    但在当前待发布栈上，补丁没有证明净收益，因此选择最小改动：恢复上游行为、不另做独立 mod，
+    也不把这个短暂且自愈的内部请求升级成玩家已知问题。新增负向回归断言，确保构建继续保留
+    上游 `aO([候选, 回退])`，不再把脸型 base-head 候选改写成直接 `.has()` 判断。
 
 ### Fixed
 
-- **修复 basehead 补丁在 4.1.14 上每次渲染必抛异常（升级引入的回归，真机发现）**：
-  这是本次升级最重要的一条。我们的 basehead 补丁把上游 `aO([候选, 回退])` 改写成
-  `aP.has(候选)?候选:回退`，其中 `aP` 是**硬编码的压缩变量名**。上游在 4.1.14 里把那个
-  Set 改名为 `aI`，并把 `aP` 让给了一个毫无关系的变身等级调节表：
+- （证据归类修正，无运行逻辑变化）**AU 换脸的玩家可见故障主要出现在桌宠，但根因仍是共享的
+  `facestyle/facevariant` 非法组合，不是桌宠没有收到刷新**。MuMu 12 上对当前 AU-F 候选做了
+  调用链追踪与单变量 APK A/B：八个真实脸型入口都会执行
+  `updatesidebarimg -> pet.sync -> requestAnimationFrame -> pet.render`，且 `pet.sync()` 开始前
+  sidebar cache 已经提交新脸型；去掉且只去掉 AU variant runtime IIFE、保留 pet remount 后，
+  七个 AU 脸型全部形成 `style/default`。角色预览因 fallback 仍可能显示一个新脸或传统脸，桌宠则
+  可能闭眼、缺眼或整张空白，所以玩家观察到“侧边栏变了，桌宠没变”是合理的表象。恢复合法仪态后，
+  八个桌宠画布均非空且哈希随脸型变化。结论：保留当前状态选择补丁，不新增第二条桌宠同步路径。
+  同轮也纠正了验证边界：0810 basehead 报告中仍有合法路径的 `eyes.png` / `mouth-smile.png`
+  ImageErrors；它们不是 basehead 错误、未形成可见 reporter，但不能再概括成“零图片缓存错误”。
 
-  ```js
-  // 4.1.13：aP 就是那个 Set，补丁正确
-  let aP=new Set; function aO(e){let t=e.find(e=>aP.has(e)); ...}
-
-  // 4.1.14：Set 改名 aI，aP 变成别的东西
-  let aI=new Set; function aO(e){let t=e.find(e=>aI.has(e)); ...}
-  aP={wolf:e=>V.wolfbuild=..., cat:..., cow:..., bird:...}
-  ```
-
-  于是补丁产出的 `srcfn` 对着那张表调 `.has()`，**每次调用都抛
-  `TypeError: aP.has is not a function`**。MuMu 12 实测：八种脸型加空参数逐个直接探测全部
-  抛错；走完整开局流程 40 步渲染共记录 **81 条** `Error evaluating layer basehead property src`。
-  - **已发布的 0808 不受影响**：它用 4.1.13，那一版 `aP` 确实就是该 Set。
-  - **修法**：`lyra/build.py` 不再硬编码，改为用 `MAPLEBIRCH_FACE_INDEX_PATTERN` 从资产里
-    动态解析——正则锚定在 `aO()` 辅助函数自身的结构上（`let X=new Set;function aO(e){...X.has(e)...}`），
-    解析不出来就 fail-closed 返回 `face_index_identifier_unresolved` 拒绝构建，绝不猜名字。
-  - **实物验证**：对两个真实官方资产各跑一次，4.1.13 解析出 `aP`、4.1.14 解析出 `aI`，
-    各只产出 1 处替换、旧定位串归零、成员清单不变。
-  - **补上测试缺口**：原来 274 项测试放过了这个 bug，因为夹具把载荷伪造成
-    `const faceImagePaths=new Set();const aP=faceImagePaths;`——一个手写别名，让任何硬编码
-    `aP` 都天然成立。三个 maplebirch 夹具现在都内嵌上游真实的 `aO()` 辅助函数，并新增三项
-    回归测试：跨两种命名的标识符解析、对 `aI` 改名载荷打补丁后断言不残留 `aP.has`、
-    以及解析失败时 fail-closed。本机 277 passed。
+- **修复 AU 源输入与产物门禁把 CRLF HTML 误判为 Passage 漂移**：当前汉化 Release 的 APK
+  `index.html` 使用 CRLF，而四段精确上下文常量使用 LF；旧实现直接按原始字节/字符串计数，导致
+  真实内容完全一致时仍报 `legacy_switch_contexts=[0,0,0]` 并拒绝构建，独立 AU 产物审计也会
+  对成功构建的同一 APK 二次误报。构建门禁和审计器现在只在**比较副本**中把 CRLF/CR 规范为 LF，
+  原 HTML 不写回、不改字节，随后仍要求三处切脸上下文各恰好 1 次、迁移上下文恰好 1 次、旧预
+  汉化补丁为 0。新增构建门禁与 APK 审计两项 CRLF 回归；非 UTF-8 前后缀无损和真实漂移
+  fail-closed 测试继续通过。
 
 - （无代码改动，仅记录真机验证结论）**AU-F 真机验证：另两个补丁在 4.1.14 上运行时生效**。
   用 CI run `31296592461` 产出的 AU-F APK（132345566 字节，正式签名证书
@@ -85,8 +97,9 @@
     而不是无效的 style/default 组合。
   - **存档通路可用**：走游戏自己的 IndexedDB 层完成 存档 → 读档 往返，
     `idb.saveState` 返回 true、`getSaveDetails` 列出已写槽位、`idb.loadState` 完成，零抛错。
-  - **注意范围**：以上都是在**带着坏 basehead 补丁**的那个 APK 上测的。修好后的包尚未构建、
-    也未上机，所以锁文件状态保持 `static-validated-pending-runtime`。
+  - **后续状态**：上述 2026-08-09 结论保留为中间回归证据。2026-08-10 已完整退役 basehead
+    补丁，并从当前源代码构建新的 AU-F 本地测试签名候选；该候选通过产物审计、冷首开、八脸真实
+    点击与 Start → Start2 桌宠重挂，当前准确状态为 `runtime-smoke-passed`。
   - **未能验证的部分（如实记录）**：原定"加载已有 0808 存档"这一项**没有素材**——
     这台设备的 `degrees-of-lewdity` 存档库 `saves` / `details` 两个 store 计数都是 0，
     即 0808 那次安装从未存过档（配置类数据恢复正常，可确认不是恢复失败）。
@@ -141,12 +154,13 @@
 
 ### Fixed
 
-- **修复 AU 换脸后仪态不同步、未再选择仪态时眼睛消失，并迁移已保存的非法组合**：
+- **修复 AU 换脸后桌宠与角色预览表现不一致、桌宠闭眼或空白，并迁移已保存的非法组合**：
   DoL 0.5.10.12 约定每个脸型的首个仪态代码值必须是 `default`，角色创建、镜子和作弊页三个
   交互入口在切换脸型后都把 `$facevariant` 硬设为 `default`。AU model 脸型实际注册值则是
   “大眼鼠鼠”“猫猫脸”“Q萌一号”等真实图片目录名，没有非传统脸型的 `default` 目录；因此只点
-  脸型会形成无效的 `facestyle/default` 组合，模型不立即同步，并可能请求不存在的 eyes、sclera、
-  iris、eyelids、lashes 等图片，直到玩家再点一个仪态。AU 三码现在复用 Maplebirch 已有的
+  脸型会形成无效的 `facestyle/default` 组合。框架仍会刷新角色预览和桌宠，但两条渲染路径的
+  fallback 不同：预览可能看似已经换脸，桌宠则可能显示另一张退化脸、闭眼或空白，直到玩家再点
+  一个仪态。AU 三码现在复用 Maplebirch 已有的
   `modifyFaceStyle()` owner，在 `ModI18N` 完成翻译后修改最终 Passage：角色创建、镜子和作弊页
   三个入口从 `setup.faceVariantOptions[$facestyle]` 选择第一个注册值，并沿用原入口自身的
   `<<updatesidebarimg>>` 刷新。`backComp` 每次加载都会额外检查当前组合：只有当前脸型存在注册仪态
