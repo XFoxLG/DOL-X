@@ -24,7 +24,6 @@ from .compatibility import (
     AU_FACE_VARIANT_SELECTION_KEY,
     MORE_LOVE_DRAG_PATCH_KEY,
     DOLI_FLOAT_ICON_PATCH_KEY,
-    MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY,
     MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
     compatibility_source_errors,
     compatibility_surface_by_key,
@@ -212,43 +211,6 @@ def patch_doli_float_icon_path(
 
 
 MAPLEBIRCH_CACHE_NAME = "maplebirch"
-MAPLEBIRCH_BASEHEAD_MEMBER = "dist/inject_early.js"
-MAPLEBIRCH_BASEHEAD_OLD = (
-    'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
-    'aO([`img/face/${e.facestyle}/base-head.png`,"img/body/base-head.png"])}'
-)
-
-# The replacement has to call .has() on the Set that Maplebirch's own aO() helper
-# consults.  That Set's minified name is NOT stable across upstream builds: it was
-# aP in v4.1.13 and aI in v4.1.14, where aP became an unrelated transformation
-# table.  Hardcoding the name shipped a patch whose every call threw
-# "TypeError: aP.has is not a function", so resolve the real identifier out of the
-# asset instead and fail closed when it cannot be proven.
-MAPLEBIRCH_FACE_INDEX_PATTERN = re.compile(
-    r"let\s+(?P<identifier>[A-Za-z_$][\w$]*)\s*=\s*new Set;\s*"
-    r"function\s+aO\s*\(\s*e\s*\)\s*\{\s*let\s+t\s*=\s*e\.find\(\s*e\s*=>\s*(?P=identifier)\.has\(\s*e\s*\)\s*\)"
-)
-
-
-def _maplebirch_basehead_replacement(face_index_identifier: str) -> str:
-    """Build the basehead replacement bound to the resolved face-index Set."""
-    candidate = "`img/face/${e.facestyle}/base-head.png`"
-    return (
-        'basehead:{srcfn:e=>e.mannequin?"img/body/mannequin/base-head.png":'
-        f"{face_index_identifier}.has({candidate})?"
-        f'{candidate}:"img/body/base-head.png"}}'
-    )
-
-
-def resolve_maplebirch_face_index_identifier(script: str) -> str | None:
-    """Return the minified name of the Set that Maplebirch's aO() helper reads.
-
-    Returns None when the surrounding helper does not match, which the caller must
-    treat as a fail-closed condition rather than guessing an identifier.
-    """
-    match = MAPLEBIRCH_FACE_INDEX_PATTERN.search(script)
-    return match.group("identifier") if match else None
-
 
 # SugarCube rebuilds StoryFooter on every passage render, so the
 # <div id="maplebirch-character-pet"> container the framework mounted its canvas
@@ -289,9 +251,13 @@ MAPLEBIRCH_PET_REMOUNT_MARKER = "dolxPetRemountAfterPassageDisplay"
 # DoL assumes every face style has a variant whose code value is "default".
 # Third-party AU face styles instead register their real image-directory names,
 # so DoL's three face-style UIs create an invalid style/default pair until the
-# player also picks a demeanour. These replacements must run after ModI18N: a
-# build-time edit to the original passage shifts ModI18N's position-indexed
-# rules and leaves the whole character-creation settings passage in English.
+# player also picks a demeanour. Maplebirch still refreshes both the sidebar
+# cache and desktop pet, but they render that invalid state differently: the
+# preview may fall back to a plausible face while the pet loses its eyes or
+# becomes blank. Fix the shared state owner rather than adding another pet sync.
+# These replacements must run after ModI18N: a build-time edit to the original
+# passage shifts ModI18N's position-indexed rules and leaves the whole
+# character-creation settings passage in English.
 AU_FACE_VARIANT_FALLBACK_EXPRESSION = (
     '<<run $facevariant = '
     'Object.values(setup.faceVariantOptions[$facestyle] || {})[0] || "default">>'
@@ -465,74 +431,6 @@ def patch_maplebirch_au_face_variant_selection(
                 for member in source_zip.infolist():
                     data = source_zip.read(member)
                     if member.filename == MAPLEBIRCH_AU_FACE_VARIANT_MEMBER:
-                        data = patched_script.encode("utf-8")
-                    target_zip.writestr(member, data)
-    except zipfile.BadZipFile as exc:
-        result["status"] = "not_zip"
-        result["error"] = str(exc)
-        return result
-
-    result["applied"] = True
-    result["status"] = "patched"
-    return result
-
-
-def patch_maplebirch_basehead_fallback(
-    source_path: Path,
-    target_path: Path,
-) -> dict[str, object]:
-    """Use Maplebirch's completed face index for basehead fallback selection."""
-    result: dict[str, object] = {
-        "applied": False,
-        "member": MAPLEBIRCH_BASEHEAD_MEMBER,
-        "source": str(source_path),
-        "target": str(target_path),
-    }
-
-    try:
-        with zipfile.ZipFile(source_path, "r") as source_zip:
-            if MAPLEBIRCH_BASEHEAD_MEMBER not in source_zip.namelist():
-                result["status"] = "missing_patch_member"
-                return result
-
-            original_script = source_zip.read(MAPLEBIRCH_BASEHEAD_MEMBER).decode(
-                "utf-8",
-                errors="replace",
-            )
-            face_index_identifier = resolve_maplebirch_face_index_identifier(
-                original_script
-            )
-            if MAPLEBIRCH_BASEHEAD_OLD not in original_script:
-                already_patched = bool(
-                    face_index_identifier
-                    and _maplebirch_basehead_replacement(face_index_identifier)
-                    in original_script
-                )
-                result["status"] = (
-                    "already_patched" if already_patched else "patch_needle_not_found"
-                )
-                return result
-
-            # Fail closed: without a proven face-index Set the replacement would
-            # emit a .has() call against whatever that name happens to mean in this
-            # build, which is exactly how the aP -> aI rename shipped a basehead
-            # srcfn that threw on every render.
-            if not face_index_identifier:
-                result["status"] = "face_index_identifier_unresolved"
-                return result
-
-            result["face_index_identifier"] = face_index_identifier
-            patched_script = original_script.replace(
-                MAPLEBIRCH_BASEHEAD_OLD,
-                _maplebirch_basehead_replacement(face_index_identifier),
-                1,
-            )
-
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(target_path, "w") as target_zip:
-                for member in source_zip.infolist():
-                    data = source_zip.read(member)
-                    if member.filename == MAPLEBIRCH_BASEHEAD_MEMBER:
                         data = patched_script.encode("utf-8")
                     target_zip.writestr(member, data)
     except zipfile.BadZipFile as exc:
@@ -881,19 +779,20 @@ class PackageBuilder(ABC):
             )
 
         content = self.html_path.read_bytes()
+        normalized_content = content.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
         expected_switch_count = len(AU_FACE_VARIANT_HTML_SWITCH_NEEDLES)
         old_switch_context_counts = [
-            content.count(old_text.encode("utf-8"))
+            normalized_content.count(old_text.encode("utf-8"))
             for old_text, _new_text in AU_FACE_VARIANT_HTML_SWITCH_NEEDLES
         ]
         new_switch_context_counts = [
-            content.count(new_text.encode("utf-8"))
+            normalized_content.count(new_text.encode("utf-8"))
             for _old_text, new_text in AU_FACE_VARIANT_HTML_SWITCH_NEEDLES
         ]
-        migration_old_count = content.count(
+        migration_old_count = normalized_content.count(
             AU_FACE_VARIANT_HTML_MIGRATION_OLD.encode("utf-8")
         )
-        migration_new_count = content.count(
+        migration_new_count = normalized_content.count(
             AU_FACE_VARIANT_HTML_MIGRATION_NEW.encode("utf-8")
         )
         source_is_unmodified = (
@@ -972,32 +871,8 @@ class PackageBuilder(ABC):
         raise RuntimeError(f"DOLI float icon compatibility patch failed: {status}")
 
     def _patch_maplebirch_payload(self, mod_config, mod_path: Path) -> Path:
-        """Make Maplebirch choose the indexed basehead fallback synchronously."""
-        patch_surface = compatibility_surface_by_key(
-            MAPLEBIRCH_BASEHEAD_FALLBACK_PATCH_KEY
-        )
-        source_errors = compatibility_source_errors(patch_surface, mod_config)
-        if source_errors:
-            raise RuntimeError(
-                "Maplebirch basehead compatibility patch source mismatch: "
-                + "; ".join(source_errors)
-            )
-
-        patched_path = (
-            self.paths.temp_dir
-            / f"{MAPLEBIRCH_CACHE_NAME}-{self.pack_type}-{self.task.code_str}.patched.mod.zip"
-        )
-        patch_result = patch_maplebirch_basehead_fallback(mod_path, patched_path)
-        status = str(patch_result.get("status") or "unknown")
-        if status == "patched":
-            logger.info("Maplebirch basehead compatibility patch applied")
-            return self._patch_maplebirch_pet_remount(mod_config, patched_path)
-        if is_patch_success_status(status):
-            logger.info("Maplebirch basehead compatibility patch already present")
-            return self._patch_maplebirch_pet_remount(mod_config, mod_path)
-        raise RuntimeError(
-            f"Maplebirch basehead compatibility patch failed: {status}"
-        )
+        """Apply the Maplebirch compatibility patches that remain justified."""
+        return self._patch_maplebirch_pet_remount(mod_config, mod_path)
 
     def _patch_maplebirch_pet_remount(self, mod_config, mod_path: Path) -> Path:
         """Re-sync the desktop pet after a passage rebuilds the footer container."""

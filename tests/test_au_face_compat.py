@@ -19,7 +19,6 @@ from lyra.build import (
     MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW,
     MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD,
     MAPLEBIRCH_AU_FACE_VARIANT_MARKER,
-    MAPLEBIRCH_BASEHEAD_OLD,
     MAPLEBIRCH_PET_REMOUNT_OLD,
     ZipBuilder,
     patch_maplebirch_au_face_variant_selection,
@@ -136,6 +135,21 @@ def test_au_face_source_validation_preserves_modi18n_input(tmp_path):
     assert result["status"] == "validated"
     assert result["applied"] is False
     assert builder.html_path.read_bytes() == original_html
+
+
+@pytest.mark.config
+def test_au_face_source_validation_accepts_crlf_without_rewriting(tmp_path):
+    """Prepared APK HTML may use CRLF while runtime passages normalize to LF."""
+    builder = _zip_builder(tmp_path, 15705344)
+    _write_face_style_widgets(builder.html_path)
+    crlf_html = builder.html_path.read_bytes().replace(b"\n", b"\r\n")
+    builder.html_path.write_bytes(crlf_html)
+
+    result = builder._validate_au_face_variant_source()
+
+    assert result["status"] == "validated"
+    assert result["applied"] is False
+    assert builder.html_path.read_bytes() == crlf_html
 
 
 @pytest.mark.config
@@ -429,17 +443,7 @@ def _maplebirch_face_patch_script(*, include_chained_needles: bool = False) -> s
     )
     if not include_chained_needles:
         return script
-    return (
-        # The basehead patch resolves the face-index Set from the payload, so the
-        # fixture must contain Maplebirch's real aO() helper, not an alias.
-        "let aP=new Set;"
-        "function aO(e){let t=e.find(e=>aP.has(e));if(t)return t;"
-        'let n="";for(let t of e){let e=no(t);if(e===t||!0===e)return t;'
-        "!1===e||n||(n=t)}return n||e[0]}"
-        f"const layers={{{MAPLEBIRCH_BASEHEAD_OLD}}};"
-        f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD}}}"
-        + script
-    )
+    return f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD}}}" + script
 
 
 def _write_maplebirch_face_patch_payload(
@@ -614,11 +618,18 @@ def _write_zip_with_embedded_mod(path, embedded_names: list[str]) -> None:
         zf.writestr("Degrees of Lewdity.html", html)
 
 
-def _write_apk(path, *, include_face_patch: bool) -> None:
+def _write_apk(
+    path,
+    *,
+    include_face_patch: bool,
+    use_crlf_html: bool = False,
+) -> None:
     html_content = _source_face_html(
         include_face_patch=include_face_patch,
         variant=_variant_from_test_artifact_path(path),
     )
+    if use_crlf_html:
+        html_content = html_content.replace("\r\n", "\n").replace("\n", "\r\n")
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("assets/www/index.html", html_content)
         for index in range(1, 6):
@@ -1020,6 +1031,19 @@ def test_au_artifact_check_accepts_patched_apk(tmp_path):
     assert result.face_variant_switch_marker_count == 3
     assert result.face_variant_migration_marker_count == 1
     assert result.nested_blush_count == 5
+
+
+@pytest.mark.config
+def test_au_artifact_check_accepts_patched_crlf_apk(tmp_path):
+    apk_path = tmp_path / "DoL-au-f-ucb-more-love-custom-spellbook.apk"
+    _write_apk(apk_path, include_face_patch=True, use_crlf_html=True)
+
+    result = audit_apk_artifact(apk_path)
+
+    assert result.success is True
+    assert result.face_variant_switch_marker_count == 3
+    assert result.face_variant_migration_marker_count == 1
+    assert result.errors == []
 
 
 @pytest.mark.config
