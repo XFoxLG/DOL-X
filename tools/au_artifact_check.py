@@ -342,6 +342,9 @@ def _record_face_variant_markers(
             f"context count {obsolete_owner_context_count}"
         )
 
+    normalized_html_content = html_content.replace("\r\n", "\n").replace(
+        "\r", "\n"
+    )
     escaped_legacy_switch_contexts = [
         html.escape(context, quote=False)
         for context in LEGACY_FACE_VARIANT_SWITCH_CONTEXTS
@@ -350,15 +353,17 @@ def _record_face_variant_markers(
         html.escape(context, quote=False) for context in FACE_VARIANT_SWITCH_CONTEXTS
     ]
     source_switch_context_counts = [
-        html_content.count(context) for context in escaped_legacy_switch_contexts
+        normalized_html_content.count(context)
+        for context in escaped_legacy_switch_contexts
     ]
     obsolete_switch_context_counts = [
-        html_content.count(context) for context in escaped_patched_switch_contexts
+        normalized_html_content.count(context)
+        for context in escaped_patched_switch_contexts
     ]
-    source_migration_context_count = html_content.count(
+    source_migration_context_count = normalized_html_content.count(
         html.escape(LEGACY_FACE_VARIANT_MIGRATION_CONTEXT, quote=False)
     )
-    obsolete_migration_context_count = html_content.count(
+    obsolete_migration_context_count = normalized_html_content.count(
         html.escape(FACE_VARIANT_MIGRATION_CONTEXT, quote=False)
     )
     if source_switch_context_counts != [1] * EXPECTED_FACE_VARIANT_SWITCH_MARKERS:
