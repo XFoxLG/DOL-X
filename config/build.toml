@@ -196,6 +196,23 @@ asset_pattern = "maplebirch-0.5.10.12-v4.1.14.mod.zip"
 release_tag = "maplebirch-release-v4.1.14"
 download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.14/maplebirch-0.5.10.12-v4.1.14.mod.zip"
 track_upstream = true  # 构建与更新检查以作者官方仓库为准；XFoxLG 镜像只作官方资产消失时的人工灾备
+# DOL-X route-B REVERT (2026-09-28, branch vega-0511-prep): maplebirch v4.2.9 -> v4.1.14.
+# WHY 回退: 三轮离线浏览器冒烟实测（tools/browser_smoke_test.py，profile
+#   ucb-cheat-extended-maplebirch）证明 4.2.9 带三条真回归，4.1.14 全部归零：
+#     - faceStyleSrcFn is not a function  : 4.2.9=3 次, 4.1.14=0 次
+#     - whenSC2PassageEnd 递归栈溢出        : 4.2.9=2 次, 4.1.14=0 次
+#     - UIBar is not defined               : 4.2.9=24 次, 4.1.14=0 次
+#   AU Face 的真实逻辑在运行时解密的 crypt 载荷里，静态审计看不到调用点，
+#   只有运行时冒烟能抓住；这是三个 AU 静态审计全 PASS 却仍然漏检的原因。
+# 本体兼容性: 0.5.11.9（0915）与 0.5.10.12（0810）的游戏侧宿主锚点计数逐一相同
+#   （updatesidebarimg / Renderer / CanvasModels / npcPregnancyCycle / recordSperm /
+#   pregnancyDaysEta / getChildDays / V.facestyle / V.facevariant 全部一致），
+#   实测把 4.1.14 换进 0.5.11.9 本体后上述三条回归归零、桌宠补丁照常生效。
+# 资产来源: 4.1.14 只发布了 0.5.10.12 变体（maplebirch-0.5.10.12-v4.1.14.mod.zip,
+#   186903 bytes, sha256 e44c9aed…），boot.json 声明 GameVersion >=0.5.10.12，
+#   0.5.11.9 满足该下限，故可直接复用；这是上游唯一一条同时具备
+#   faceStyleSrcFn 导出与已验补丁锚点的 4.x 载荷。
+# SOURCE: maplebirch-release-v4.1.14, asset maplebirch-0.5.10.12-v4.1.14.mod.zip
 # DOL-X next-4 experiment (2026-07-28): maplebirch v3.2.5 -> v4.1.13 (upstream 正式 release).
 # WHY 升到 4.x（推翻了上一轮"v3.2.5 是唯一解"的结论）:
 #   - 上一轮把栈锁在 v3.2.5 的唯一理由是"保住扩展包 maplebirchEx v1.2.4"，但真机
@@ -210,8 +227,12 @@ track_upstream = true  # 构建与更新检查以作者官方仓库为准；XFox
 #   - cheat_extended v1.20 运行时门控要求框架 >= 3.2.5；4.1.13 >= 3.2.5，门照过。
 # SOURCE: MaplebirchLeaf/SCML-DOL-maplebirchFramework release maplebirch-release-v4.1.13
 #   (2026-07-01, 正式版, asset maplebirch-0.5.10.12-v4.1.13.mod.zip, 186010 bytes)。
-# MIRROR: XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.13，仅作人工灾备，
-#   不作为日常下载源，否则更新检查只能看到自己的镜像、无法发现作者新版本。
+# MIRROR: XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.14（2026-09-28 建立），
+#   资产 maplebirch-0.5.10.12-v4.1.14.mod.zip，186903 bytes，
+#   sha256 e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4，
+#   与官方资产逐字节相同（MIT 许可，允许再分发）。仅在官方资产消失或被原位换包时
+#   人工切换，不作为日常下载源，否则更新检查只能看到自己的镜像、无法发现作者新版本。
+#   历史注释里的 maplebirch-framework-mirror-v4.1.13 从未真正创建过（远端查无此 tag）。
 # RISK (experiment target): 跨大版本（3->4）升级，整套 mod 需真机复测；扩展包完整
 #   继任者枯木逢春尚未出包，本轮先用拆出的 LongerCombat/Yanling 两个独立功能包。
 

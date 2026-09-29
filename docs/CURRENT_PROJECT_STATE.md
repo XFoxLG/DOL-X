@@ -1,6 +1,6 @@
 # DOL-X 当前项目状态
 
-**核验日期**：2026-08-08
+**核验日期**：2026-08-12
 
 **事实基线**：`vega` 的 4.x 公开主线 + `vega-archive-0713` 历史稳定归档
 
@@ -24,7 +24,9 @@
 
 当前 `vega` 使用 DoL `0.5.10.12` / 汉化 `1.0.8a`，框架与功能 mod 为：
 
-- maplebirch Framework `4.1.13`（作者官方 Release）。
+- maplebirch Framework `4.1.14`（作者官方 Release；已于 2026-08-10 升级并在 MuMu 12 通过
+  AU-F 冒烟，状态 `runtime-smoke-passed`，见 `config/mods.lock.json` 与 CHANGELOG Unreleased）。
+  未正式发版（`v4.1.14` 仍是 Unreleased），真机遍历尚未全量完成。
 - Cheat Extended `1.20(dev260719)`（作者官方 Pre-release）。
 - LongerCombat `1.0.1` 与 YanlingCheatCollection `1.0.1`（作者官方独立继任包）。
 - Legacy-Art-Mods-Compat `1.0.3-plusV1.1`（社区二改，原作者 README 明确允许二改二传）。
@@ -34,15 +36,59 @@
 功能可用。LongerCombat 与 Yanling 已挂载，但没有逐功能遍历，因此状态是“运行时挂载通过”，不是
 “全功能通过”。
 
-### 上游版本核对（2026-08-04）
+### 框架版本决策：钉死 v4.1.14，不追 4.2+ / 5.x（2026-09-28）
 
-当前主动跟踪的五个上游中，LongerCombat `1.0.1`、YanlingCheatCollection `1.0.1`、
-Cheat Extended `1.20(dev260719)` 与 DOLI Release `v0.2.3` 没有变化。maplebirch 已于
-2026-08-02 发布 `4.1.14`；当前主线仍锁定已通过真机基础栈验证的 `4.1.13`。
+`vega-0511-prep` 这轮实验把框架临时升到 4.2.9 以配对 0.5.11.9 本体，离线浏览器冒烟
+（`tools/browser_smoke_test.py --profile ucb-cheat-extended-maplebirch`，同一份 0915 AU-F
+产物只替换 maplebirch 载荷）实测出三条真回归，换回 4.1.14 后全部归零：
+
+| 信号 | v4.2.9 | v4.1.14 |
+|---|---|---|
+| `TypeError: faceStyleSrcFn is not a function` | 3 | 0 |
+| `whenSC2PassageEnd` 递归栈溢出 | 2 | 0 |
+| `ReferenceError: UIBar is not defined` | 24 | 0 |
+| high 级别发现总数 | 26 | 18–19 |
+
+根因：4.2.0 删除了 `FaceStyleOptions` / `FaceStyleNameFn` / `FaceStyleName` / `faceStyleSrcFn`
+四个公开导出，4.2.1 恢复了 faceStyle 渲染但没有恢复该导出；AU Face 的调用方打包在运行时解密的
+`【AUsDoL】facial expansion.zip.crypt` 里，**静态审计看不到调用点**，所以三个 AU 审计全 PASS
+仍然漏检。4.2.9 另外引入了一个自递归的 `EventEmitter.error(e){return this.error(e)}`，
+4.1.14 与 5.0.4 都没有。
+
+被删除的版本已经全部找回并逐版核验（GitHub Actions artifacts 仍保留 31 件）：
+4.1.2、4.2.0–4.2.8、4.3.1/4.3.3/4.3.4/4.3.5、4.4.0/4.4.1、5.0.0–5.0.4。
+结论是**没有一个比 4.1.14 更适合**：4.2.0–4.3.4 全部缺 `faceStyleSrcFn`；
+4.3.5/4.4.0 要求本体 ≥0.5.12.11、4.4.1 要求 ≥0.5.12.13，而汉化仓库没有 0.5.12.x 发行；
+5.x 重构移除了 `ModuleSystem` / `LanguageManager`，LongerCombat / Yanling / DOLI 的
+`addonPlugin` 声明都不覆盖 5.x。
+
+跨本体可行性已实测：0.5.10.12 与 0.5.11.9 的游戏侧宿主锚点计数逐一相同
+（`updatesidebarimg`、`Renderer`、`CanvasModels`、`npcPregnancyCycle`、`recordSperm`、
+`pregnancyDaysEta`、`getChildDays`、`V.facestyle`、`V.facevariant`），4.1.14 的 boot.json
+声明 `GameVersion >=0.5.10.12`，0.5.11.9 满足该下限，因此
+**0.5.11.9 本体 + 4.1.14 框架可以直接使用上游现有的 0.5.10.12 命名资产**，
+不需要自建框架补丁。
+
+灾备镜像已建立：`XFoxLG/DOL-X` release tag `maplebirch-framework-mirror-v4.1.14`，
+资产 `maplebirch-0.5.10.12-v4.1.14.mod.zip`（186903 B，
+sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，与官方逐字节相同；
+MIT 许可允许再分发）。默认仍走官方源，镜像只在官方资产消失或被换包时人工启用。
+
+`lyra/warmup.py` 的 fail-closed digest 名单已把 `maplebirch` 一并纳入
+（原先只覆盖 `au_f`/`au_m`/`au_a`/`au_face`），堵住"陈旧缓存静默产出未测框架组合"的缺口。
+
+### 上游版本核对（2026-08-12）
+
+五个 `track_upstream=true` 的上游在 2026-08-12 用已登录 GitHub API 逐一复核（tag + asset
+digest），与 `config/mods.lock.json` 全部逐字节一致，无更新：maplebirch `4.1.14`、
+Cheat Extended `1.20(dev260719)`、LongerCombat `1.0.1`、YanlingCheatCollection `1.0.1`、
+DOLI Release `v0.2.3`。`maplebirch` 已于 2026-08-02 发布 `4.1.14` 并被本工作区升级（见上），
+其余四个无变化。
 
 `4.1.14` 不只包含 0.5.11.x 怪兽服遮罩路径兼容，还恢复 NPC 怀孕扩展、每日周期、受孕和
-分娩流程，行为面大于本轮 More Love 修复。它已被更新检查器正确报告，但不临发版前混入；另案
-评估、构建和真机验证后再决定升级。这里的“发现新版本”不等于“当前候选已过时不可发布”。
+分娩流程，行为面大于本轮 More Love 修复。它在本工作区已通过 `runtime-smoke-passed`
+（MuMu 12 实测冷启动、八人脸型、桌宠；详见 `config/mods.lock.json`），但尚未作为正式版本
+发布、全功能遍历也未完成。升级不能等同于发版。
 
 More Love Interests Mod 已升级 `v0.1.6.0` → `v0.1.7.0`，详见下一节。
 
