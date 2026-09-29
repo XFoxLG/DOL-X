@@ -228,6 +228,15 @@ MAPLEBIRCH_CACHE_NAME = "maplebirch"
 # macro to call pet.sync() after rendering the sidebar, so reusing it keeps the
 # pet's appearance identical to upstream behaviour.
 MAPLEBIRCH_PET_REMOUNT_MEMBER = "dist/inject_early.js"
+# Needle reverted to the v4.1.14 shape (2026-09-28). The framework is pinned back to
+# 4.1.14 after three offline browser-smoke runs showed 4.2.9 carried three real
+# regressions (faceStyleSrcFn missing, whenSC2PassageEnd recursion, UIBar undefined)
+# while 4.1.14 scored zero on all three. v4.1.14's Character.preInit() opens with a
+# bare `e.once(":storyready", ...)`; 4.2.9 had inserted an `e.on(":language", ...)`
+# subscription in front of it. Verified against the official
+# maplebirch-0.5.10.12-v4.1.14.mod.zip payload: this exact OLD string hits once.
+# The patch remains guarded: it acts only when the pet is enabled AND the live
+# container is empty, so it cannot fight upstream's own sync wiring.
 MAPLEBIRCH_PET_REMOUNT_OLD = (
     'preInit(){let{core:e,pet:t}=this;e.once(":storyready",()=>{'
     'let n=e.SugarCube.Macro.get("updatesidebarimg");'

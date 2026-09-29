@@ -27,6 +27,10 @@ TODO
 output/
 pairs/
 
+# Downloaded CI artifacts and device save backups used for real-device testing.
+# These hold multi-hundred-MB APKs and profile archives.
+downloads/
+
 # Workspace directory (contains all temporary files)
 workspace/
 workspace
