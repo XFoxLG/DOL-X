@@ -1,0 +1,93 @@
+{
+  "success": true,
+  "success_count": 2,
+  "fail_count": 0,
+  "pack_types": [
+    "zip"
+  ],
+  "requested_codes": [
+    "15704320",
+    "15705344"
+  ],
+  "default_build_codes": [
+    "15704320",
+    "15705344",
+    "15706368",
+    "15708416"
+  ],
+  "default_matrix_mutated": false,
+  "validation": [
+    {
+      "raw": "15704320",
+      "code": 15704320,
+      "code_str": "15704320",
+      "is_polyfill": false,
+      "valid": true,
+      "findings": []
+    },
+    {
+      "raw": "15705344",
+      "code": 15705344,
+      "code_str": "15705344",
+      "is_polyfill": false,
+      "valid": true,
+      "findings": []
+    }
+  ],
+  "artifacts": [
+    {
+      "pack_type": "zip",
+      "code": "15704320",
+      "success": true,
+      "output_path": "output\\DoL-0.5.11.9-XFox-1.0.0a-base-0915.zip",
+      "output_name": "DoL-0.5.11.9-XFox-1.0.0a-base-0915.zip",
+      "error": null,
+      "applied_mods": [
+        "UCB",
+        "AU face compatibility aliases",
+        "更多恋人",
+        "maplebirch",
+        "cheatExtended",
+        "自定义染发",
+        "NPC侧边栏头像",
+        "更长遭遇战",
+        "言灵作弊集",
+        "控制NPC嘴部",
+        "NeoUI Patch",
+        "NPC社交栏头像",
+        "D.O.L.I",
+        "旧版图片名称适配"
+      ],
+      "relative_path": "output/DoL-0.5.11.9-XFox-1.0.0a-base-0915.zip",
+      "sha256": "47b371931880d089506a5b1d7be2b36af1fce0bc81aba18c9d9b5816da947350"
+    },
+    {
+      "pack_type": "zip",
+      "code": "15705344",
+      "success": true,
+      "output_path": "output\\DoL-0.5.11.9-XFox-1.0.0a-au-f-0915.zip",
+      "output_name": "DoL-0.5.11.9-XFox-1.0.0a-au-f-0915.zip",
+      "error": null,
+      "applied_mods": [
+        "UCB",
+        "AU face compatibility aliases",
+        "AU-F",
+        "AU面部扩展",
+        "更多恋人",
+        "maplebirch",
+        "cheatExtended",
+        "自定义染发",
+        "NPC侧边栏头像",
+        "更长遭遇战",
+        "言灵作弊集",
+        "控制NPC嘴部",
+        "NeoUI Patch",
+        "NPC社交栏头像",
+        "D.O.L.I",
+        "旧版图片名称适配"
+      ],
+      "relative_path": "output/DoL-0.5.11.9-XFox-1.0.0a-au-f-0915.zip",
+      "sha256": "3b00c98f921ec81446e6b769070ccd0191f777bfe3905c33d5c4afb9fa4354aa"
+    }
+  ]
+}
