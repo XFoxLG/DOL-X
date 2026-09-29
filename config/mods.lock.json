@@ -1,9 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-08-10T14:10:00Z",
-  "sandbox_note": "B1 sandbox (branch vega-0511-prep, 2026-09-14): maplebirch 4.2.9 and cheat_extended dev260903 entries below point at untested candidate digests. Status values are provisional until B2 device acceptance passes; the stable vega matrix still pins maplebirch-release-v4.1.14 and cheat_extended digest 7aa8ab4c.",
-  "mods": {
+  "last_updated": "2026-09-30T00:00:00Z",  "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchFramework",
@@ -108,13 +106,13 @@
       "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
       "asset_pattern": "cheat_extended.mod.zip",
       "release_tag": "Pre-release",
-      "last_tested_version": "v1.20(dev260903) betaTest",
-      "last_tested_sha256": "f0bcbdafab951605a25e8610359756e5db8e08a5de59e53a77b4b84885fe8614",
+      "last_tested_version": "v1.20(dev260928) betaTest",
+      "last_tested_sha256": "170a4e808bf0d3674aa4dd5752f4d9d2c5bed2d39d9b5656e57a3e6ac99f2c18",
       "last_tested_dol_version": "0.5.11.9",
-      "last_tested_date": "2026-09-14",
-      "status": "sandbox-candidate",
+      "last_tested_date": "2026-09-30",
+      "status": "untested-digest-pin",
       "notes": [
-        "B1 SANDBOX PIN 2026-09-14 (route B, branch vega-0511-prep): digest updated to the official Pre-release asset updated 2026-09-03 (350866 bytes, sha256 f0bcbdaf...). B0 verified this build declares GameVersion >=0.5.11.9 in boot.json, ships scriptEarly/CE_environmentGuard.js (DolPlus/Disable checks), and keeps the maplebirch 3.2.5 runtime gate in framework_detector.js that 4.2.9 satisfies. Status is sandbox-candidate until B2 device acceptance; v1.18 mirror remains the rollback archive.",
+        "REPINNED 2026-09-30 to dev260928 (598987 bytes, sha256 170a4e80..., official Pre-release asset updated 2026-09-28T14:38:36Z). The previously pinned dev260903 (350866 bytes, f0bcbdaf...) no longer exists upstream because the author replaced the Pre-release asset in place again; the old copy survives only in local caches and is preserved at workspace/temp/cheat_extended.mod.zip until this digest is runtime-verified. Static diff dev260903 -> dev260928: 9 scripts added (safehouse/manor/farm/forest-shop/hopeless-cycle features), CE_farmCheat.twee and pack.ps1 removed, boot.json dependenceInfo unchanged (still >=0.5.11.9, addonPlugin count unchanged), CE_environmentGuard.js unchanged in behaviour (DoLP-only guard, DOL-X unaffected), changeLog documents menu rework, localStorage-based tab persistence, Avery/Gwylan assistants and farm auto-management. Status is untested-digest-pin until a built artifact passes the AU smoke test on MuMu 12; v1.18 mirror remains the rollback archive. Do not trust the Pre-release tag: always compare the asset digest.",
         "DOL-X vega 4.x: v1.20 betaTest is paired with the official maplebirch v4.1.13 release; the >=3.2.5 runtime gate passes",
         "RUNTIME SOFT-GATE (read from the mod's own JS, NOT boot.json): boot.json declares only ModLoader>=2.17.0 / ImageLoaderHook / TweeReplacer / ReplacePatcher / SweetAlert2Mod / GameVersion>=0.5.5.9 -- there is NO maplebirch entry. The framework requirement lives in scriptEarly/framework_detector.js (SweetAlert2 popup if maplebirch mod version < 3.2.5) and scriptEarly/CERegist.js (compareVersions gate; on failure only logger.error runs and all 7 addTo() registrations are skipped, so CE loads as a shell with no UI entry points)",
         "USER VERIFIED 2026-07-28: the Cheat Extended interface opens and one or two sampled functions work; the same run reports 0 error / 0 warning / 340 info",
