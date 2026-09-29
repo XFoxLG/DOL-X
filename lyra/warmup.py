@@ -7,7 +7,9 @@
 import hashlib
 import json
 import logging
+import re
 import shutil
+import zipfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -27,7 +29,37 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-LOCKED_AU_PAYLOAD_CACHE_NAMES = frozenset({"au_f", "au_m", "au_a", "au_face"})
+# Payloads that must match the digest recorded in config/mods.lock.json before a
+# build is allowed to use them. maplebirch joined the list on 2026-09-28: it is
+# the framework every AU/CE artifact depends on, its release tag is version-pinned
+# (maplebirch-release-v4.1.14) for a specific game body, and a stale cache entry is
+# exactly the failure mode that nearly shipped an untested framework pairing on
+# 2026-09-15. The AU payloads above already had this guard; the framework did not.
+# track_upstream stays true so the weekly update check still surfaces new releases,
+# but the digest lock means a swapped or stale local file is rejected outright
+# instead of being silently repackaged.
+LOCKED_AU_PAYLOAD_CACHE_NAMES = frozenset(
+    {"au_f", "au_m", "au_a", "au_face", "maplebirch"}
+)
+
+# A cached payload was previously reused on the sole evidence that the file
+# existed, without checking it was the version the current config asks for.
+# On 2026-09-15 that let a stale maplebirch 4.1.14 (186903 bytes) survive a
+# config upgrade to 4.2.9 (180036 bytes): the build would have shipped an
+# untested "0.5.11.9 body + 4.1.14 framework" pairing and still reported
+# success. Only au_f/au_m/au_a/au_face carry a fail-closed digest lock, so
+# maplebirch had no guard at all.
+#
+# The guard below deliberately does not extend the digest lock to every mod.
+# Most entries are track_upstream=true, where a legitimate upstream release
+# must be allowed to differ from the recorded digest; hard-locking them would
+# break builds whenever upstream moves. Instead a cache hit is only trusted
+# when the payload's own boot.json version matches the version pinned by the
+# config's release tag or asset pattern. A mismatch discards the cache and
+# re-downloads rather than failing the build, because a stale local file is a
+# cache problem, not a supply-chain problem.
+MOD_BOOT_JSON_MEMBER = "boot.json"
+PINNED_VERSION_PATTERN = re.compile(r"v?(\d+(?:\.\d+){1,3})")
 
 
 class ResourceWarmer:
@@ -390,11 +422,26 @@ class ResourceWarmer:
 
         dest_path = self.paths.get_mod_cache_path(mod_config.cache_name)
 
-        # 检查是否已存在
+        # 检查是否已存在。缓存命中还必须证明它就是配置钉定的那个版本，
+        # 否则上一轮遗留的旧载荷会被静默复用（见文件头 PINNED_VERSION_PATTERN 注释）。
         if dest_path.exists():
-            self._validate_locked_au_payload_digest(mod_config, dest_path)
-            logger.debug(f"  {display_name}: 已缓存")
-            return
+            cache_mismatch = self._cached_payload_version_mismatch(
+                mod_config,
+                dest_path,
+            )
+            if cache_mismatch is None:
+                self._validate_locked_au_payload_digest(mod_config, dest_path)
+                logger.debug(f"  {display_name}: 已缓存")
+                return
+
+            expected_version, cached_version = cache_mismatch
+            logger.warning(
+                "  %s: 缓存载荷版本为 %s，配置钉定 %s，丢弃缓存并重新下载",
+                display_name,
+                cached_version,
+                expected_version,
+            )
+            safe_remove(dest_path)
 
         if mod_config.download_url:
             filename = mod_config.asset_pattern or f"{mod_config.cache_name}.zip"
@@ -436,6 +483,86 @@ class ResourceWarmer:
         download_file(asset.url, dest_path, quiet=True)
         self._validate_locked_au_payload_digest(mod_config, dest_path)
         logger.info(f"  {display_name}: 下载完成 ({asset.version})")
+
+    @staticmethod
+    def _pinned_version_from_release_tag(release_tag: str) -> tuple[int, ...] | None:
+        """Return the version a release tag pins, or None when it pins none.
+
+        Only the release tag is used. Asset patterns such as
+        ``maplebirch-0.5.11.9-v4.2.9.mod.zip`` carry both a game version and a
+        mod version, so they cannot identify the mod version unambiguously.
+        Fixed non-version tags ("mod", "facemod", "Pre-release", "latest")
+        return None and leave the cache trusted; the AU payloads among those
+        are already covered by the fail-closed digest lock.
+        """
+        found_versions = PINNED_VERSION_PATTERN.findall(release_tag or "")
+        if len(found_versions) != 1:
+            return None
+        return tuple(int(part) for part in found_versions[0].split("."))
+
+    @staticmethod
+    def _payload_boot_version(payload_path: Path) -> tuple[str, tuple[int, ...]] | None:
+        """Return one cached payload's declared boot.json version.
+
+        Returns None when the version cannot be read for any reason: a
+        malformed archive, a missing boot.json, or a non-numeric version such
+        as cheat_extended's "1.20(dev260903)". An unreadable version must not
+        by itself invalidate a cache entry, because that would re-download
+        healthy payloads on every warmup.
+        """
+        try:
+            with zipfile.ZipFile(payload_path, "r") as payload_zip:
+                if MOD_BOOT_JSON_MEMBER not in payload_zip.namelist():
+                    return None
+                raw_boot_json = payload_zip.read(MOD_BOOT_JSON_MEMBER).decode(
+                    "utf-8-sig",
+                    errors="replace",
+                )
+        except (zipfile.BadZipFile, OSError, KeyError):
+            return None
+
+        declared_version = ""
+        version_match = re.search(r'"version"\s*:\s*"([^"]*)"', raw_boot_json)
+        if version_match:
+            declared_version = version_match.group(1)
+        if not declared_version:
+            return None
+
+        parsed_versions = PINNED_VERSION_PATTERN.findall(declared_version)
+        if len(parsed_versions) != 1:
+            return None
+        return declared_version, tuple(
+            int(part) for part in parsed_versions[0].split(".")
+        )
+
+    def _cached_payload_version_mismatch(
+        self,
+        mod_config: ModloaderModConfig,
+        payload_path: Path,
+    ) -> tuple[str, str] | None:
+        """Return (expected, cached) when a cache entry is the wrong version.
+
+        Returns None when the cache is trustworthy, which includes every case
+        where either side's version is unknown. Comparison uses only as many
+        version components as the pinned tag declares, so a tag of v1.0.1
+        accepts a payload declaring 1.0.1.0.
+        """
+        expected_version = self._pinned_version_from_release_tag(
+            mod_config.release_tag
+        )
+        if expected_version is None:
+            return None
+
+        cached_boot_version = self._payload_boot_version(payload_path)
+        if cached_boot_version is None:
+            return None
+
+        cached_version_text, cached_version = cached_boot_version
+        compared_length = min(len(expected_version), len(cached_version))
+        if expected_version[:compared_length] == cached_version[:compared_length]:
+            return None
+
+        return mod_config.release_tag, cached_version_text
 
     def _validate_locked_au_payload_digest(
         self,
