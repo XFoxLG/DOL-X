@@ -59,7 +59,7 @@
         "旧版图片名称适配"
       ],
       "relative_path": "output/DoL-0.5.11.9-XFox-1.0.0a-base-0915.zip",
-      "sha256": "47b371931880d089506a5b1d7be2b36af1fce0bc81aba18c9d9b5816da947350"
+      "sha256": "b60b4cb4f00c9c90f20cc92135829e24f39ca5bfe660a579328e8003589b1538"
     },
     {
       "pack_type": "zip",
@@ -87,7 +87,7 @@
         "旧版图片名称适配"
       ],
       "relative_path": "output/DoL-0.5.11.9-XFox-1.0.0a-au-f-0915.zip",
-      "sha256": "3b00c98f921ec81446e6b769070ccd0191f777bfe3905c33d5c4afb9fa4354aa"
+      "sha256": "c5ca5b68825f22fc56c454cfda2bde0b2500b3b483b6c01e6379a33e9f2f3a4c"
     }
   ]
 }
