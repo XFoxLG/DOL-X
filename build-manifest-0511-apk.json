@@ -59,7 +59,7 @@
         "旧版图片名称适配"
       ],
       "relative_path": "output/DoL-0.5.11.9-XFox-1.0.0a-base-0915.apk",
-      "sha256": "c5ae6d43c99f4bbfe57b8dac10b93fb8729cd3c7ee6bcb3dee081cb32757af96"
+      "sha256": "d8120674a8738a8cc29a10b238999593170364480229924fbd461a0e4334af72"
     },
     {
       "pack_type": "apk",
@@ -87,7 +87,7 @@
         "旧版图片名称适配"
       ],
       "relative_path": "output/DoL-0.5.11.9-XFox-1.0.0a-au-f-0915.apk",
-      "sha256": "58ca2ab9b8a3f6268d40e6209774a30d92f8647705124f091a06b1d1e5b1d399"
+      "sha256": "56dd6491ec0eabe32a4bad366bcda19b4009c4c6fc871c4327f7787e179d6e3f"
     }
   ]
 }
