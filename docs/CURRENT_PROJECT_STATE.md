@@ -38,6 +38,18 @@
 
 ### 框架版本决策：钉死 v4.1.14，不追 4.2+ / 5.x（2026-09-28）
 
+**2026-10-01 追加定案：DOL-X 只跟随 DoL-Lyra/Lyra，不自行追框架大版本。**
+
+Lyra `vega` 停在 `e61352e`（2026-05-18），DOL-X 领先 230、落后 0，当前没有可跟的上游提交。
+因此 maplebirch 5.x 不迁移——判定依据是 Lyra 有没有新动作，不是框架作者发了多少版。框架升级只在
+Lyra 自己升级游戏本体或汉化、从而必须重新对齐时才处理。这条原则写进了
+[UPSTREAM_FRIENDLY_STRATEGY.md](UPSTREAM_FRIENDLY_STRATEGY.md) 第 1 节「被动跟随原则」。
+
+同时，2026-09-30 的真机 A/B 给出了 5.x 若将来必须迁移时的硬约束：桌宠 remount 补丁仍然必需，
+needle 要迁到 `e.host.sugarcube.require().Macro` 形态，且**不能**改用直接 `pet.sync()`——
+直接同步渲染的是裸模（16316 px），只有宏路径才是带服装的 17587 px。详见
+[docs/SESSION_STATUS_2026-09-30.md](docs/SESSION_STATUS_2026-09-30.md)。
+
 `vega-0511-prep` 这轮实验把框架临时升到 4.2.9 以配对 0.5.11.9 本体，离线浏览器冒烟
 （`tools/browser_smoke_test.py --profile ucb-cheat-extended-maplebirch`，同一份 0915 AU-F
 产物只替换 maplebirch 载荷）实测出三条真回归，换回 4.1.14 后全部归零：
