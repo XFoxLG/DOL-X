@@ -15,6 +15,29 @@
 
 ### Changed
 
+- **Cheat Extended 换通道并纳入 digest 锁（2026-10-02）**：作者的
+  `chris81605/Degrees-of-Lewdity_Cheat_Extended` 删除了可变 `Pre-release` tag，DOL-X 原
+  `releases/download/Pre-release/cheat_extended.mod.zip` 开始返回 404。作者把同一开发线提升为
+  正式 release `V1.20Beta`（`prerelease=false`，2026-10-01T15:19:17Z），资产
+  `cheat_extended.mod.zip`，599033 字节，sha256
+  `1a89383f1ae8dfe1a88ed84729bcf04f63c0545dc95d074cf80416779bb275ec`（与 GitHub digest 一致），
+  `boot.json` 声明 `1.20(dev2601001)`、`GameVersion >=0.5.11.9`。
+  - **静态差异（dev260928 -> dev2601001）只有三个成员**：`boot.json`（版本串）、
+    `game/CE_Wardrobe.twee`（简繁标签）、`scripts/CE_safehouseCheat.js`（安全屋助手在解锁
+    巨鹰飘窗前先初始化 `V.bird.materials` 与 `V.loftIngredients`，并加显式提前解锁警告——
+    即反馈中的爆红修复）。`CE_environmentGuard.js` 行为字节不变：只把匹配 `/\bDoLP\b/i`
+    的版本判为 DolPlus，DOL-X 的 `0.5.11.9` 不在其中，不会被自动禁用。
+  - **`cheat_extended` 加入 `LOCKED_AU_PAYLOAD_CACHE_NAMES`**：该通道已被作者原位换包四次，
+    tag 名从来不能标识字节。加入 fail-closed digest 锁后，陈旧缓存或换包资产会在构建前被拒绝
+    并删除，而不是被静默打进产物。验证时该锁按预期先拒绝了本地残留的 dev260928 缓存，随后
+    重新下载成功。
+  - **`release_tag` / `download_url` 重指**到 `V1.20Beta`；`config/mods.lock.json` 的
+    `last_tested_version` / `last_tested_sha256` / `last_tested_date` 同步更新。因资产会原位换包，
+    继续保留 `include_prerelease_updates = true` 让周检比较 asset digest。
+  - **状态边界**：上一个钉住的 dev260928 已于 2026-09-30 通过 B2 真机验收（CE 界面可开、
+    渲染九个分类加言靈集面板）；dev2601001 本轮只做了静态差异核对与摘要锁定，**尚未真机复测**，
+    因此状态记为 `digest-pinned-awaiting-device-recheck`，不计入已验证。
+
 - **maplebirch 框架升级 v4.1.13 -> v4.1.14（尚未发布）**：官方资产
   `maplebirch-0.5.10.12-v4.1.14.mod.zip`，186903 字节，
   sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，

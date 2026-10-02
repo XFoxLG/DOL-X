@@ -5,7 +5,10 @@ import json
 from lyra.config_loader import get_config_loader
 from lyra.config_loader import ModloaderModConfig
 from lyra.paths import BuildPaths
-from lyra.warmup import ResourceWarmer
+from lyra.warmup import (
+    LOCKED_AU_PAYLOAD_CACHE_NAMES,
+    ResourceWarmer,
+)
 from main import cmd_warmup
 
 
@@ -171,3 +174,39 @@ def test_downloaded_au_modloader_payload_must_match_lock_digest(
         assert "AU payload digest mismatch" in str(exc)
     else:
         raise AssertionError("tampered downloaded AU payload must fail closed")
+
+
+def test_cheat_extended_carries_a_fail_closed_digest_lock():
+    """The CE release channel replaces its asset in place, so the tag is not a lock.
+
+    The author deleted the mutable "Pre-release" tag on 2026-10-01 after swapping
+    the asset under it four times, which is exactly the failure mode the digest
+    lock exists to catch: a warmup cache hit or a fresh download must be proven to
+    be the reviewed payload rather than whatever the channel serves today.
+    """
+    assert "cheat_extended" in LOCKED_AU_PAYLOAD_CACHE_NAMES
+
+
+def test_tampered_cached_cheat_extended_payload_fails_closed(tmp_path):
+    resource_warmer = ResourceWarmer(
+        BuildPaths(workspace=tmp_path),
+        codes=[PUBLIC_BASE_CODE],
+    )
+    mod_config = ModloaderModConfig(
+        key="cheat_extended",
+        feature_id="cheat_extended_maplebirch",
+        github_repo="chris81605/Degrees-of-Lewdity_Cheat_Extended",
+        asset_pattern="cheat_extended.mod.zip",
+        release_tag="V1.20Beta",
+    )
+    cache_path = resource_warmer.paths.get_mod_cache_path("cheat_extended")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(b"stale CE payload from a previous channel")
+    _write_au_lock_file(tmp_path, "cheat_extended", b"reviewed CE payload")
+
+    try:
+        resource_warmer._download_modloader_mod(mod_config, get_config_loader())
+    except RuntimeError as exc:
+        assert "AU payload digest mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered cached CE payload must fail closed")
