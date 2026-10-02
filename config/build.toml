@@ -243,10 +243,10 @@ enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
-release_tag = "Pre-release"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/Pre-release/cheat_extended.mod.zip"
+release_tag = "V1.20Beta"
+download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/V1.20Beta/cheat_extended.mod.zip"
 track_upstream = true
-include_prerelease_updates = true  # 官方 v1.20 位于 Pre-release 渠道，周检必须读取预发布并比对 asset digest
+include_prerelease_updates = true  # 作者惯用发布渠道承载开发版并原位换包，周检必须读发布列表并比对 asset digest
 # DOL-X next-4 experiment (2026-07-27): cheat_extended v1.18 -> v1.20 betaTest.
 # WHY v1.20:
 #   - Targets game 0.5.10.12 (our current game body); changelog fixes 虚空创造/
@@ -254,20 +254,32 @@ include_prerelease_updates = true  # 官方 v1.20 位于 Pre-release 渠道，�
 #     0.5.8.10-headwear "变光头" bug on new-naming games).
 # RUNTIME SOFT-GATE (verified from the mod's own JS, not boot.json):
 #   - boot.json declares NO maplebirch dependency (only ModLoader>=2.17.0,
-#     TweeReplacer, ReplacePatcher, ImageLoaderHook, SweetAlert2Mod, GameVersion
-#     >=0.5.5.9). The maplebirch requirement is a RUNTIME check:
+#     ImageLoaderHook, TweeReplacer, ReplacePatcher, SweetAlert2Mod, GameVersion
+#     >=0.5.11.9). The maplebirch requirement is a RUNTIME check:
 #     * scriptEarly/framework_detector.js: if maplebirch mod version < 3.2.5 ->
 #       SweetAlert2 弹窗 "maplebirch框架版本過低".
 #     * scriptEarly/CERegist.js: compareVersions(version,"3.2.5")===1 gate; if
 #       it fails, the else branch only logger.error and NONE of the 7 addTo()
 #       run -> CE features are NOT registered into the game UI.
 #   - Therefore v1.20 REQUIRES maplebirch mod >= 3.2.5. Paired here with
-#     maplebirch v4.1.13; 4.1.13 >= 3.2.5 so the runtime gate passes.
-# SOURCE: chris81605 Pre-release "V1.20 betaTest"，asset cheat_extended.mod.zip
-#   (243765 bytes, sha256 7aa8ab4c…, 资产更新于 2026-07-23)。日常下载与更新检查
-#   使用作者官方源；v1.18 mirror 继续作为回滚档案（v1.18 无框架门控）。
-#   该 tag 名为 "Pre-release" 且 GitHub 标记 prerelease=true，作者用它承载 1.20
-#   开发版；资产会在同一 tag 下原位替换，因此更新检查必须比对 digest 而非 tag 名。
+#     maplebirch v4.1.14; 4.1.14 >= 3.2.5 so the runtime gate passes.
+# SOURCE: chris81605 release "V1.20Beta"，asset cheat_extended.mod.zip
+#   (599033 bytes, sha256 1a89383f…, 发布于 2026-10-01)。
+#   REPOINTED 2026-10-02: the author deleted the old mutable "Pre-release" tag,
+#   so the previous download_url started returning HTTP 404 and the pinned
+#   dev260928 payload only survived in the local cache. The author promoted the
+#   same development line to a normal release named V1.20Beta carrying
+#   dev2601001. Static diff dev260928 -> dev2601001 touches only three members:
+#   boot.json (version string), game/CE_Wardrobe.twee (traditional/simplified
+#   label) and scripts/CE_safehouseCheat.js (safehouse helper now initialises
+#   V.bird.materials and V.loftIngredients before unlocking the great-hawk
+#   loft window, which is the reported red-error fix). CE_environmentGuard.js is
+#   unchanged in behaviour: it still classifies only versions matching
+#   /\bDoLP\b/i as DolPlus, so DOL-X (0.5.11.9) is not auto-disabled.
+#   Because the author has now replaced this asset in place four times, the tag
+#   name alone is not a lock; cheat_extended joined the fail-closed digest list
+#   in lyra/warmup.py so a swapped or stale cache is rejected outright.
+#   v1.18 mirror remains the rollback archive (v1.18 has no framework gate).
 
 [[modloader_mods]]
 key = "custom_hair"
