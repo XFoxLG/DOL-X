@@ -30,16 +30,25 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 # Payloads that must match the digest recorded in config/mods.lock.json before a
-# build is allowed to use them. maplebirch joined the list on 2026-09-28: it is
-# the framework every AU/CE artifact depends on, its release tag is version-pinned
+# build is allowed to use them.
+#
+# maplebirch joined the list on 2026-09-28: it is the framework every AU/CE
+# artifact depends on, its release tag is version-pinned
 # (maplebirch-release-v4.1.14) for a specific game body, and a stale cache entry is
 # exactly the failure mode that nearly shipped an untested framework pairing on
-# 2026-09-15. The AU payloads above already had this guard; the framework did not.
-# track_upstream stays true so the weekly update check still surfaces new releases,
-# but the digest lock means a swapped or stale local file is rejected outright
-# instead of being silently repackaged.
+# 2026-09-15.
+#
+# cheat_extended joined on 2026-10-02. Its release channel carries development
+# builds that the author replaces in place, and the mutable "Pre-release" tag was
+# deleted outright on 2026-10-01, so the tag name never identified the bytes. The
+# author has now swapped this asset four times under one channel. Only a digest
+# lock proves which dev payload a build actually embedded.
+#
+# track_upstream stays true for both so the weekly update check still surfaces new
+# releases, but the digest lock means a swapped or stale local file is rejected
+# outright instead of being silently repackaged.
 LOCKED_AU_PAYLOAD_CACHE_NAMES = frozenset(
-    {"au_f", "au_m", "au_a", "au_face", "maplebirch"}
+    {"au_f", "au_m", "au_a", "au_face", "maplebirch", "cheat_extended"}
 )
 
 # A cached payload was previously reused on the sole evidence that the file
@@ -506,7 +515,7 @@ class ResourceWarmer:
 
         Returns None when the version cannot be read for any reason: a
         malformed archive, a missing boot.json, or a non-numeric version such
-        as cheat_extended's "1.20(dev260903)". An unreadable version must not
+        as cheat_extended's "1.20(dev2601001)". An unreadable version must not
         by itself invalidate a cache entry, because that would re-download
         healthy payloads on every warmup.
         """
@@ -569,7 +578,7 @@ class ResourceWarmer:
         mod_config: ModloaderModConfig,
         payload_path: Path,
     ) -> None:
-        """Fail closed if a fixed-tag AU payload differs from its reviewed lock."""
+        """Fail closed if a digest-locked payload differs from its reviewed lock."""
         cache_name = mod_config.cache_name
         if cache_name not in LOCKED_AU_PAYLOAD_CACHE_NAMES:
             return

@@ -27,7 +27,8 @@
 - maplebirch Framework `4.1.14`（作者官方 Release；已于 2026-08-10 升级并在 MuMu 12 通过
   AU-F 冒烟，状态 `runtime-smoke-passed`，见 `config/mods.lock.json` 与 CHANGELOG Unreleased）。
   未正式发版（`v4.1.14` 仍是 Unreleased），真机遍历尚未全量完成。
-- Cheat Extended `1.20(dev260719)`（作者官方 Pre-release）。
+- Cheat Extended `1.20(dev2601001)`（作者官方 Release `V1.20Beta`，2026-10-01 由原
+  Pre-release 通道转入正式 release；已加入 fail-closed digest 锁）。
 - LongerCombat `1.0.1` 与 YanlingCheatCollection `1.0.1`（作者官方独立继任包）。
 - Legacy-Art-Mods-Compat `1.0.3-plusV1.1`（社区二改，原作者 README 明确允许二改二传）。
 - 旧 maplebirchEx `1.2.4` 与 `maplebirch-v3-layer-compat` 只保留作 3.x 回滚资料，不进入 4.x 产物。
@@ -96,6 +97,24 @@ digest），与 `config/mods.lock.json` 全部逐字节一致，无更新：mapl
 Cheat Extended `1.20(dev260719)`、LongerCombat `1.0.1`、YanlingCheatCollection `1.0.1`、
 DOLI Release `v0.2.3`。`maplebirch` 已于 2026-08-02 发布 `4.1.14` 并被本工作区升级（见上），
 其余四个无变化。
+
+### 上游复核（2026-10-02）：两个仓库被删，CE 通道改名
+
+本轮复核推翻了 2026-08-12 的\"无变化\"结论，三项上游事实已变：
+
+| 上游 | 2026-10-02 状态 | 影响 |
+|---|---|---|
+| `MaplebirchLeaf/LongerCombat` | **仓库已删除**（API 与网页均 404） | `longer_combat` 下载与周检失效 |
+| `MaplebirchLeaf/YanlingCheatCollection` | **仓库已删除**（API 与网页均 404） | `yanling_cheat` 下载与周检失效 |
+| `chris81605/..._Cheat_Extended` | 可变 `Pre-release` tag 已删除，改为正式 release `V1.20Beta` | 旧 `download_url` 返回 404，已重指 |
+
+两个被删的包（LongerCombat 与言灵作弊集）已被作者并入
+[`MaplebirchLeaf/Deadwood-Reblooms`](https://github.com/MaplebirchLeaf/Deadwood-Reblooms)
+（枯木逢春）作为框架模块，模块名为 `LongerCombat` 与 `IncantationCheatCollection`。该仓库已于
+2026-09-30 发布正式版 `v1.1.2`，同时提供 DoL `0.5.11.9` 与 `0.5.12.13` 两套 `.modpack`
+资产，但包内要求 `maplebirch >= 5.1.3`，与当前钉死的 `4.1.14` 冲突。因此本轮**不接入**枯木逢春，
+仅记录为后续迁移候选；本地 `workspace/temp` 中 v1.0.1 的旧缓存仍可支撑构建，但上游已无法再取。
+枯木逢春的 `.modpack` 资产带 `JeremieModLoader` 文件头，不是普通 zip，接入前需要新增格式支持。
 
 `4.1.14` 不只包含 0.5.11.x 怪兽服遮罩路径兼容，还恢复 NPC 怀孕扩展、每日周期、受孕和
 分娩流程，行为面大于本轮 More Love 修复。它在本工作区已通过 `runtime-smoke-passed`
