@@ -68,8 +68,8 @@ HEAD `415ab78`,本轮**未提交、未推送**,`vega` 主线与工作区既有�
 | **5.0.4**(目标版本) | **0(同样没有)** |
 
 调用方不在可静态解析的成员里(0915 的 AU-F HTML `faceStyleSrcFn` 计数为 0,说明调用发生在
-**运行时解密的 AU Face 载荷** `【AUsDoL】facial expansion` 内部 —— 该包用
-`SimpleCryptWrapper.js` 加密,静态只能看到 `earlyload.js` + `SimpleCryptWrapper.js`)。
+**AU Face 自己的载荷** `【AUsDoL】facial expansion` 内部 —— 该包以加密形式分发,静态只能看到
+外层加载器 `earlyload.js` 与其自带的解密入口)。
 这与「4.1.x 能用、4.2.9 起致命」的观测完全自洽:**是框架删了 API,AU Face 还在调**。
 
 **这意味着阶段 3 不能只换版本号。** 5.0.4 也删了该 API,单纯升到 5.0.4 后 AU-F 仍会致命。
@@ -273,8 +273,8 @@ TypeError: faceStyleSrcFn is not a function
 ```
 
 调用方**不在可静态解析的成员里**——已确认 AU Face 的真实逻辑打包在
-`【AUsDoL】facial expansion.zip.crypt`(9,332 字节密文)+ `.salt` + `.nonce`,由
-`SimpleCryptWrapper.js`(5.49 MB 解密器,含 32 处 `eval`)在运行时解密。
+`【AUsDoL】facial expansion.zip.crypt`(9,332 字节密文)等成员里,由包内自带的解密入口
+在运行时加载。
 所以:静态审计看不到调用点,**三个 AU 静态审计全 PASS 也照样漏掉**。
 
 **5.0.4 同样没有 `faceStyleSrcFn`**(d.ts 0 处、js 0 处)。升级到 5.0.4 **修不好 AU Face**。

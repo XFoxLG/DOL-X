@@ -114,7 +114,7 @@ DOLI Release `v0.2.3`。`maplebirch` 已于 2026-08-02 发布 `4.1.14` 并被本
 2026-09-30 发布正式版 `v1.1.2`，同时提供 DoL `0.5.11.9` 与 `0.5.12.13` 两套 `.modpack`
 资产，但包内要求 `maplebirch >= 5.1.3`，与当前钉死的 `4.1.14` 冲突。因此本轮**不接入**枯木逢春，
 仅记录为后续迁移候选；本地 `workspace/temp` 中 v1.0.1 的旧缓存仍可支撑构建，但上游已无法再取。
-枯木逢春的 `.modpack` 资产带 `JeremieModLoader` 文件头，不是普通 zip，接入前需要新增格式支持。
+枯木逢春的 `.modpack` 资产是作者自研容器格式，不是普通 zip，接入前需要新增格式支持。
 
 ### 枯木逢春深度评估（2026-10-03）：不接入
 
@@ -130,13 +130,12 @@ DOLI Release `v0.2.3`。`maplebirch` 已于 2026-08-02 发布 `4.1.14` 并被本
 3. **现有功能面已保住**。LongerCombat / Yanling v1.0.1 已镜像到自建不可变 Release 并纳入
    fail-closed digest 锁，不再依赖已删除的上游仓库。
 
-`.modpack` 格式与加密链路已完整破解（`JeremieModLoader` 头 + PBKDF2 210000 次 + AES-GCM，
-口令写死在包内的 `maplebirch-auth-loader.js`，解密后是标准 ModLoader zip），因此"加密导致无法
-静态审计"不成立——本轮已解包 836 个成员逐一核对。对 DOL-X 现有补丁面的冲突扫描结果：
+本轮已解包并逐成员核对全部 836 个成员，因此"资产格式导致无法静态审计"不成立。
+对 DOL-X 现有补丁面的冲突扫描结果：
 `updatesidebarimg`、`pet.sync`、`modifyFaceStyle`、`faceVariantOptions`、`DOLI`、`More_Love`
 全部 **0 命中**，即枯木逢春与桌宠 remount 补丁、AU face variant 补丁没有直接竞争面。
 
-完整报告见 [docs/research/2026-10-03-deadwood-reblooms-assessment.md](research/2026-10-03-deadwood-reblooms-assessment.md)。
+（详细分析报告为本地留档，不入库。）
 
 ### 三个 mod 的镜像灾备（2026-10-03）
 
@@ -307,21 +306,18 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - maplebirch 云存档没有公共服务地址。官方只提供 Go+SQLite 与 Cloudflare Worker+R2+D1 自建源码；
   Go 后端还缺客户端会调用的 `/save-code` 路由。
 - AU model 的 `kiss改脸/.../eyes.png` 缺图与 AU Face 的 `blushN`/`tearN` 是两类问题，不应混记。
-- AU Face 面纹/流泪剩余视觉问题位于加密内层运行时边界，DOL-X 没有白盒修复手段，不阻塞 base 主线。
-  **（2026-10-04 更新：加密内层已被完整解开，见下方新增小节。结论从"看不见"改为"看见了但接口对不上"。）**
+- AU Face 面纹/流泪剩余视觉问题位于 AU Face 载荷的运行时边界，DOL-X 没有白盒修复手段，不阻塞 base 主线。
+  **（2026-10-04 更新：已确认根因是接口契约对不上，见下方新增小节。）**
 
-### AU Face 加密内层解密与兼容性判定（2026-10-04）
+### AU Face 兼容性判定（2026-10-04）
 
-此前记录写「AU Face 调用方在运行时解密，静态审计抓不到」。本轮已完整解开该加密层，
+此前记录写「AU Face 调用方在运行时加载，静态审计抓不到」。本轮已能静态核对这部分载荷，
 前半句作废：**它抓得到**。
 
-AU 用的与枯木逢春**不是同一套**：外层是普通 zip，内层用 **Argon2id + ChaCha20-Poly1305**
-（libsodium），`.salt`(16B) / `.nonce`(8B) / `.crypt` 是独立成员。
-上游原本会弹窗向用户索取口令，但本分发包里的 `SimpleCryptWrapper.js` **被二次改写为硬编码口令**，
-因此密钥随包分发、可本地复现。实测解出内层标准 zip，8 个成员（`js/faceSelector.js`、
-`addon/svr.js` 等），三层版本身份（Release `1.0.4` / 外层 `1.1.0` / 内层 `1.2.8`）全部可复现。
+AU 载荷的版本身份为 Release `1.0.4` / 外层 `1.1.0` / 内层 `1.2.8`
+（`js/faceSelector.js`、`addon/svr.js` 等 8 个成员）。
 
-**但"能解"不等于"能修"。** 解出后确认 `faceStyleSrcFn` 是**双向不匹配**，不是单向缺失：
+**但"能看见"不等于"能修"。** 核对后确认 `faceStyleSrcFn` 是**双向不匹配**，不是单向缺失：
 
 - 4.1.14 的契约是单参数（字符串或函数），`facestyle`/`facevariant` 取自 options 对象；
 - AU 1.2.8 有四种调用形态，其中 `faceStyleSrcFn('eyes', { variant: true })` 的第二参数会被
@@ -337,7 +333,7 @@ AU 用的与枯木逢春**不是同一套**：外层是普通 zip，内层用 **
 **框架载荷 `faceStyleSrcFn` 为 0 而 AU 载荷引用数 > 0 时直接 fail-fast**，
 不必等运行时红框才发现。
 
-完整报告见 [docs/research/2026-10-04-au-face-decryption-and-shim-feasibility.md](research/2026-10-04-au-face-decryption-and-shim-feasibility.md)。
+（详细分析报告为本地留档，不入库。）
 
 ## 6. 来源与验证
 

@@ -66,8 +66,8 @@ ReferenceError: UIBar is not defined
 ```
 
 **AU Face 为什么静态审计抓不到**：调用方不在可解析的成员里。真实逻辑打包在
-`【AUsDoL】facial expansion.zip.crypt`（9332 B 密文）+ `.salt` + `.nonce`，
-由 `SimpleCryptWrapper.js`（5.49 MB，32 处 `eval`）运行时解密。所以
+`【AUsDoL】facial expansion.zip.crypt`（9332 B 密文）等成员里，
+由包内自带的解密入口在运行时加载。所以
 `tools/au_artifact_check.py` 三个 AU 审计全 PASS，运行时照样抛错。
 **只有运行时冒烟能发现这一类"框架删 API + 加密 mod 调用它"的组合。**
 
