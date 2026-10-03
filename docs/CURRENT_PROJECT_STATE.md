@@ -116,6 +116,28 @@ DOLI Release `v0.2.3`。`maplebirch` 已于 2026-08-02 发布 `4.1.14` 并被本
 仅记录为后续迁移候选；本地 `workspace/temp` 中 v1.0.1 的旧缓存仍可支撑构建，但上游已无法再取。
 枯木逢春的 `.modpack` 资产带 `JeremieModLoader` 文件头，不是普通 zip，接入前需要新增格式支持。
 
+### 枯木逢春深度评估（2026-10-03）：不接入
+
+对上述候选做了一轮完整实测（Release API 实况 + 两个 `.modpack` 逐字节下载 + 文件头解析 +
+加载器解密 + 内层 zip 解包），结论是**不接入**，三条理由：
+
+1. **上游已放弃 0.5.11.9 线**。v1.1.2 是最后一个带 0.5.11.9 资产的版本；v1.2.0 起只发 0.5.12.13，
+   且 `.github/workflows/release.yml` 硬校验 `GameVersion == ">=0.5.12.13"`，不满足即拒绝发布。
+   配套 maplebirch 的 0.5.11.9 资产也停在 v5.1.3（5.2.x 只出 0.5.12.13）。
+2. **硬阻塞在框架版本**。0.5.11.9 线的最后一个版本 v1.1.2 也要求 `maplebirch >= 5.1.3`，
+   与 DOL-X 钉死的 `4.1.14`（沙盒 4.2.9）不兼容。ModLoader 在加载前校验 `dependenceInfo`，
+   不满足会被直接拒绝加载。接入前提是一次完整 5.x 迁移，而不是加一个 mod。
+3. **现有功能面已保住**。LongerCombat / Yanling v1.0.1 已镜像到自建不可变 Release 并纳入
+   fail-closed digest 锁，不再依赖已删除的上游仓库。
+
+`.modpack` 格式与加密链路已完整破解（`JeremieModLoader` 头 + PBKDF2 210000 次 + AES-GCM，
+口令写死在包内的 `maplebirch-auth-loader.js`，解密后是标准 ModLoader zip），因此"加密导致无法
+静态审计"不成立——本轮已解包 836 个成员逐一核对。对 DOL-X 现有补丁面的冲突扫描结果：
+`updatesidebarimg`、`pet.sync`、`modifyFaceStyle`、`faceVariantOptions`、`DOLI`、`More_Love`
+全部 **0 命中**，即枯木逢春与桌宠 remount 补丁、AU face variant 补丁没有直接竞争面。
+
+完整报告见 [docs/research/2026-10-03-deadwood-reblooms-assessment.md](research/2026-10-03-deadwood-reblooms-assessment.md)。
+
 ### 三个 mod 的镜像灾备（2026-10-03）
 
 上面两个被删仓库，加上持续原位换包的 Cheat Extended，三者都已不再是可信的构建输入。DOL-X 把
