@@ -308,6 +308,34 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
   Go 后端还缺客户端会调用的 `/save-code` 路由。
 - AU model 的 `kiss改脸/.../eyes.png` 缺图与 AU Face 的 `blushN`/`tearN` 是两类问题，不应混记。
 - AU Face 面纹/流泪剩余视觉问题位于受限内层运行时边界，DOL-X 没有白盒修复手段，不阻塞 base 主线。
+  **（2026-10-04 更新：内层对照已完整取得，见下方新增小节。结论从"看不见"改为"看见了但接口对不上"。）**
+
+### AU Face 内层载荷与兼容性判定（2026-10-04）
+
+此前记录写「AU Face 调用方静态审计抓不到」。本轮已取得内层对照，
+该结论作废：**静态审计抓得到**。
+
+AU 与枯木逢春**不是同一套**：外层是普通 zip，内层是另一套独立封装。
+本分发包由包内自带入口自动处理。实测得到内层标准 zip，8 个成员（`js/faceSelector.js`、
+`addon/svr.js` 等），三层版本身份（Release `1.0.4` / 外层 `1.1.0` / 内层 `1.2.8`）全部可复现。
+
+**但"看得见"不等于"能修"。** 内层对照确认 `faceStyleSrcFn` 是**双向不匹配**，不是单向缺失：
+
+- 4.1.14 的契约是单参数（字符串或函数），`facestyle`/`facevariant` 取自 options 对象；
+- AU 1.2.8 有四种调用形态，其中 `faceStyleSrcFn('eyes', { variant: true })` 的第二参数会被
+  整体忽略；`faceStyleSrcFn(o => \`blush${o.blush}\`)` 生成的是**缺连字符**的 `blush1`
+  （而游戏资产是 `blush-1`）——补默认值也修不好；
+- maplebirch **5.1.3 中 `faceStyleSrcFn` 计数为 0**，且无改名后的等价导出，
+  该层已被 `faceStyleMap` 重写。删除发生在 4.2.0，5.x 未恢复；AU 1.2.8（2025-10-13）从未适配。
+
+因此 shim 不是可行路线。可选方向只有三条：等 AU 作者适配、停在 4.1.14、或放弃 AU 的基础脸层路径
+仅保留不依赖该 API 的图片资源。
+
+顺带得到一个可落地的构建期防线：现在能在构建期静态统计两侧计数，
+**框架载荷 `faceStyleSrcFn` 为 0 而 AU 载荷引用数 > 0 时直接 fail-fast**，
+不必等运行时红框才发现。
+
+完整报告见 [docs/research/2026-10-04-au-face-inner-payload-and-shim-feasibility.md](research/2026-10-04-au-face-inner-payload-and-shim-feasibility.md)。
 
 ## 6. 来源与验证
 
