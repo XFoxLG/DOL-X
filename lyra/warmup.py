@@ -44,11 +44,29 @@ logger = logging.getLogger(__name__)
 # author has now swapped this asset four times under one channel. Only a digest
 # lock proves which dev payload a build actually embedded.
 #
-# track_upstream stays true for both so the weekly update check still surfaces new
-# releases, but the digest lock means a swapped or stale local file is rejected
-# outright instead of being silently repackaged.
+# longer_combat and yanling_cheat joined on 2026-10-02 for a different reason:
+# their upstream repositories (MaplebirchLeaf/LongerCombat and
+# MaplebirchLeaf/YanlingCheatCollection) were deleted outright, so the official
+# download URLs now 404 and DOL-X published the last 4.x-compatible builds as its
+# own immutable mirror releases. A self-hosted mirror is only as trustworthy as
+# its digest, so those two are digest-locked as well.
+#
+# track_upstream stays true for maplebirch and cheat_extended so the weekly update
+# check still surfaces new releases; longer_combat and yanling_cheat are
+# track_upstream=false because their upstream repos are gone. Either way the
+# digest lock means a swapped or stale local file is rejected outright instead of
+# being silently repackaged.
 LOCKED_AU_PAYLOAD_CACHE_NAMES = frozenset(
-    {"au_f", "au_m", "au_a", "au_face", "maplebirch", "cheat_extended"}
+    {
+        "au_f",
+        "au_m",
+        "au_a",
+        "au_face",
+        "maplebirch",
+        "cheat_extended",
+        "longer_combat",
+        "yanling_cheat",
+    }
 )
 
 # A cached payload was previously reused on the sole evidence that the file

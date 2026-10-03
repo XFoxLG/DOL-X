@@ -116,6 +116,38 @@ DOLI Release `v0.2.3`。`maplebirch` 已于 2026-08-02 发布 `4.1.14` 并被本
 仅记录为后续迁移候选；本地 `workspace/temp` 中 v1.0.1 的旧缓存仍可支撑构建，但上游已无法再取。
 枯木逢春的 `.modpack` 资产带 `JeremieModLoader` 文件头，不是普通 zip，接入前需要新增格式支持。
 
+### 三个 mod 的镜像灾备（2026-10-03）
+
+上面两个被删仓库，加上持续原位换包的 Cheat Extended，三者都已不再是可信的构建输入。DOL-X 把
+经过核对的构建上传为自建不可变 Release，`download_url` 全部改指镜像，digest 纳入
+`LOCKED_AU_PAYLOAD_CACHE_NAMES` 的 fail-closed 校验：
+
+| mod | 原上游 | 现状 | 自建镜像 tag | sha256 |
+|---|---|---|---|---|
+| `longer_combat` | `MaplebirchLeaf/LongerCombat` | 仓库已删除（404） | `longer-combat-mirror-v1.0.1` | `be1421c8…` |
+| `yanling_cheat` | `MaplebirchLeaf/YanlingCheatCollection` | 仓库已删除（404） | `yanling-cheat-mirror-v1.0.1` | `50e2341e…` |
+| `cheat_extended` | `chris81605/Degrees-of-Lewdity_Cheat_Extended` | 仍在，但 `V1.20Beta` 通道已原位换包 5 次 | `cheat-extended-mirror-v1.20` | `9d318e81…` |
+
+LongerCombat 与 Yanling 的上游仓库已被作者删除，功能并入枯木逢春，官方资产不复存在，因此
+`track_upstream=false`（已无可追对象），`github_repo` 保留上游值仅作来源标注。
+
+Cheat Extended 的 `V1.20Beta` 资产在 2026-10-02T18:46Z 被第 5 次原位替换：`boot.json` 版本号从
+`1.20(dev2601001)` 变为纯 `1.20`，新增 `scripts/CE_customerHairColor.js`（发色自定义：头发／
+眉毛／私处毛可分别染色），并改动 `changeLog.md`、`readme.md`、`css/CE_CSS.css`、
+`CE_customerEyesColor.js`、`CE_customerSkinColor.js`、`CE_sideBarIcon.js` 共 7 个成员；
+`dependenceInfo` 与 `addonPlugin` 条目数不变，`GameVersion` 门槛仍为 `>=0.5.11.9`，
+`CE_environmentGuard.js` 逐字节不变，仍只把匹配 `/\bDoLP\b/i` 的版本判为 DolPlus，
+DOL-X 的 `0.5.11.9` 不会被自动禁用。CE 的 `track_upstream` 保持 true，只为让周检继续发现新版本。
+
+**周检语义**：镜像化之后，周检对 `cheat_extended` 会持续报 `asset digest changed`（medium）。
+这是"上游又换包了"的预警，不是构建失败信号；构建走镜像，不再受上游漂移影响。
+
+**验证**：291 passed；`quick_check` 13/13 恢复全绿（此前因两个仓库删除掉到 11/13）；三个镜像
+逐一实测下载且 sha256 与 `config/mods.lock.json` 逐字节一致；`warmup` 实测从镜像下载成功；
+`build zip` 2/2 成功；两个 1003 产物内嵌的 CE 载荷 sha256 实测等于 `9d318e81…`；
+`au_artifact_check` 对两个产物 `success=true, errors=[]`。**边界**：这两个新 CE 版本尚未真机复测，
+以上一个通过 B2 的 `dev260928` 结果不追溯套用。
+
 `4.1.14` 不只包含 0.5.11.x 怪兽服遮罩路径兼容，还恢复 NPC 怀孕扩展、每日周期、受孕和
 分娩流程，行为面大于本轮 More Love 修复。它在本工作区已通过 `runtime-smoke-passed`
 （MuMu 12 实测冷启动、八人脸型、桌宠；详见 `config/mods.lock.json`），但尚未作为正式版本
