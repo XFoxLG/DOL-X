@@ -188,25 +188,83 @@ def test_cheat_extended_carries_a_fail_closed_digest_lock():
 
 
 def test_tampered_cached_cheat_extended_payload_fails_closed(tmp_path):
-    resource_warmer = ResourceWarmer(
-        BuildPaths(workspace=tmp_path),
-        codes=[PUBLIC_BASE_CODE],
-    )
-    mod_config = ModloaderModConfig(
+    _assert_tampered_cached_payload_fails_closed(
+        tmp_path,
         key="cheat_extended",
         feature_id="cheat_extended_maplebirch",
         github_repo="chris81605/Degrees-of-Lewdity_Cheat_Extended",
         asset_pattern="cheat_extended.mod.zip",
         release_tag="V1.20Beta",
+        label="CE",
     )
-    cache_path = resource_warmer.paths.get_mod_cache_path("cheat_extended")
+
+
+def test_deleted_upstream_mirrors_carry_a_fail_closed_digest_lock():
+    """The Self-hosted mirrors are only trustworthy because of the digest lock.
+
+    MaplebirchLeaf/LongerCombat and MaplebirchLeaf/YanlingCheatCollection were
+    deleted on 2026-10-02, so DOL-X republished their last 4.x-compatible builds
+    as its own immutable releases. A mirror without a digest lock would let a
+    swapped or stale local file be silently repackaged into a build.
+    """
+    assert "longer_combat" in LOCKED_AU_PAYLOAD_CACHE_NAMES
+    assert "yanling_cheat" in LOCKED_AU_PAYLOAD_CACHE_NAMES
+
+
+def test_tampered_cached_longer_combat_mirror_fails_closed(tmp_path):
+    _assert_tampered_cached_payload_fails_closed(
+        tmp_path,
+        key="longer_combat",
+        feature_id="maplebirch_expansion",
+        github_repo="MaplebirchLeaf/LongerCombat",
+        asset_pattern="longer-combat-0.5.10.12-v1.0.1.mod.zip",
+        release_tag="v1.0.1",
+        label="LongerCombat mirror",
+    )
+
+
+def test_tampered_cached_yanling_mirror_fails_closed(tmp_path):
+    _assert_tampered_cached_payload_fails_closed(
+        tmp_path,
+        key="yanling_cheat",
+        feature_id="maplebirch_expansion",
+        github_repo="MaplebirchLeaf/YanlingCheatCollection",
+        asset_pattern="yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip",
+        release_tag="v1.0.1",
+        label="Yanling mirror",
+    )
+
+
+def _assert_tampered_cached_payload_fails_closed(
+    tmp_path,
+    *,
+    key: str,
+    feature_id: str,
+    github_repo: str,
+    asset_pattern: str,
+    release_tag: str,
+    label: str,
+):
+    """Shared body: a stale cache entry for a digest-locked mod must be rejected."""
+    resource_warmer = ResourceWarmer(
+        BuildPaths(workspace=tmp_path),
+        codes=[PUBLIC_BASE_CODE],
+    )
+    mod_config = ModloaderModConfig(
+        key=key,
+        feature_id=feature_id,
+        github_repo=github_repo,
+        asset_pattern=asset_pattern,
+        release_tag=release_tag,
+    )
+    cache_path = resource_warmer.paths.get_mod_cache_path(key)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_bytes(b"stale CE payload from a previous channel")
-    _write_au_lock_file(tmp_path, "cheat_extended", b"reviewed CE payload")
+    cache_path.write_bytes(b"stale payload from a previous source")
+    _write_au_lock_file(tmp_path, key, b"reviewed payload")
 
     try:
         resource_warmer._download_modloader_mod(mod_config, get_config_loader())
     except RuntimeError as exc:
         assert "AU payload digest mismatch" in str(exc)
     else:
-        raise AssertionError("tampered cached CE payload must fail closed")
+        raise AssertionError(f"tampered cached {label} payload must fail closed")

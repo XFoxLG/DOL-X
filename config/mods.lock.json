@@ -61,13 +61,14 @@
       "last_tested_version": "v1.0.1",
       "last_tested_sha256": "be1421c876f9111371f80548f9061b59135362e5c936f32e4cee0aecd1e2a0d9",
       "last_tested_dol_version": "0.5.10.12",
-      "last_tested_date": "2026-07-28",
-      "status": "runtime-mounted",
+      "last_tested_date": "2026-10-02",
+      "status": "runtime-mounted-mirror-only",
       "notes": [
+        "UPSTREAM DELETED 2026-10-02: MaplebirchLeaf/LongerCombat returns 404 on both the API and the web UI, and its v1.0.1 release asset is gone. The author folded this feature into MaplebirchLeaf/Deadwood-Reblooms as the LongerCombat module. DOL-X therefore repointed download_url at its own immutable mirror release XFoxLG/DOL-X longer-combat-mirror-v1.0.1 (asset longer-combat-0.5.10.12-v1.0.1.mod.zip, 13764 bytes, sha256 be1421c876f9111371f80548f9061b59135362e5c936f32e4cee0aecd1e2a0d9, byte-identical to this lock entry and to the pre-deletion GitHub asset) and set track_upstream=false because there is no upstream left to track. The digest is now enforced fail-closed through LOCKED_AU_PAYLOAD_CACHE_NAMES, because a self-hosted mirror is only as trustworthy as the digest attached to it. Local cache only; nothing new has been runtime-tested for this repoint, but the payload bytes are unchanged, so the earlier runtime-mounted evidence still applies to this exact file.",
         "Official standalone successor for the legacy expansion LongerCombat feature",
         "addonPlugin requires maplebirch ^4.1.0",
         "User runtime log shows dist/script.js mounted with 0 total errors and 0 total warnings; individual combat multiplier behavior still needs focused gameplay testing",
-        "XFoxLG mirror longer-combat-mirror-v1.0.1 is archive-only manual disaster recovery"
+        "XFoxLG mirror longer-combat-mirror-v1.0.1 is NOW THE PRIMARY SOURCE (upstream deleted); previously archive-only manual disaster recovery"
       ]
     },
     "yanling_cheat": {
@@ -78,13 +79,14 @@
       "last_tested_version": "v1.0.1",
       "last_tested_sha256": "50e2341ecd6594d354653baa2c797631047de8fb0f443b7d9174728b448e0886",
       "last_tested_dol_version": "0.5.10.12",
-      "last_tested_date": "2026-07-28",
-      "status": "runtime-mounted",
+      "last_tested_date": "2026-10-02",
+      "status": "runtime-mounted-mirror-only",
       "notes": [
+        "UPSTREAM DELETED 2026-10-02: MaplebirchLeaf/YanlingCheatCollection returns 404 on both the API and the web UI, and its v1.0.1 release asset is gone. The author folded this feature into MaplebirchLeaf/Deadwood-Reblooms as the IncantationCheatCollection module. DOL-X therefore repointed download_url at its own immutable mirror release XFoxLG/DOL-X yanling-cheat-mirror-v1.0.1 (asset yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip, 16302 bytes, sha256 50e2341ecd6594d354653baa2c797631047de8fb0f443b7d9174728b448e0886, byte-identical to this lock entry and to the pre-deletion GitHub asset) and set track_upstream=false because there is no upstream left to track. The digest is now enforced fail-closed through LOCKED_AU_PAYLOAD_CACHE_NAMES. Local cache only; the payload bytes are unchanged, so the earlier runtime-mounted evidence still applies to this exact file.",
         "Official standalone successor for the legacy expansion Yanling feature",
         "addonPlugin requires maplebirch ^4.1.0",
         "User runtime log shows yanlingCheat exposed and dist/script.js mounted with 0 total errors and 0 total warnings; individual command coverage remains partial",
-        "XFoxLG mirror yanling-cheat-mirror-v1.0.1 is archive-only manual disaster recovery"
+        "XFoxLG mirror yanling-cheat-mirror-v1.0.1 is NOW THE PRIMARY SOURCE (upstream deleted); previously archive-only manual disaster recovery"
       ]
     },
     "custom_hair": {
@@ -108,13 +110,14 @@
       "name": "Cheat Extended",
       "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
       "asset_pattern": "cheat_extended.mod.zip",
-      "release_tag": "V1.20Beta",
-      "last_tested_version": "v1.20(dev2601001) V1.20Beta",
-      "last_tested_sha256": "1a89383f1ae8dfe1a88ed84729bcf04f63c0545dc95d074cf80416779bb275ec",
+      "release_tag": "cheat-extended-mirror-v1.20",
+      "last_tested_version": "v1.20 (upstream V1.20Beta asset of 2026-10-02T18:46Z)",
+      "last_tested_sha256": "9d318e813c24038586b9a50dd30e59f5fd608e886e93b6eceeccbb08eed2ce71",
       "last_tested_dol_version": "0.5.11.9",
-      "last_tested_date": "2026-10-02",
-      "status": "digest-pinned-awaiting-device-recheck",
+      "last_tested_date": "2026-10-03",
+      "status": "digest-pinned-mirror-awaiting-device-recheck",
       "notes": [
+        "MIRRORED 2026-10-03 after a FIFTH in-place swap: the author replaced the V1.20Beta asset again on 2026-10-02T18:46:19Z, this time from dev2601001 (599033 B, 1a89383f...) to a build whose boot.json version is the plain string 1.20 (606561 B, sha256 9d318e813c24038586b9a50dd30e59f5fd608e886e93b6eceeccbb08eed2ce71, GitHub-reported digest matches). Because that channel is mutable, a cold build (CI, another machine, cleared cache) would fail-closed the moment the author swaps again, so DOL-X published this reviewed build as its own immutable mirror release XFoxLG/DOL-X cheat-extended-mirror-v1.20 (asset cheat_extended.mod.zip) and repointed download_url at it. track_upstream stays true so the weekly check still surfaces newer upstream builds; that check will keep reporting 'asset digest changed' for V1.20Beta, which is the intended early-warning signal and NOT a build failure. Static diff dev2601001 -> 1.20: one script added (scripts/CE_customerHairColor.js, hair/eyebrow/pubic hair colour customisation), and seven members changed (boot.json, changeLog.md, readme.md, css/CE_CSS.css, scripts/CE_customerEyesColor.js, scripts/CE_customerSkinColor.js, scripts/CE_sideBarIcon.js). dependenceInfo and addonPlugin entry counts are unchanged; GameVersion floor is still >=0.5.11.9. CE_environmentGuard.js is byte-identical, so the DoLP-only guard still leaves DOL-X (StartConfig.version 0.5.11.9) alone. STATUS: the previous pin dev260928 had B2 device acceptance on 2026-09-30; dev2601001 and this 1.20 build have NOT been device-tested, so runtime confirmation is still owed.",
         "REPOINTED 2026-10-02 to the new immutable channel: the author deleted the old mutable Pre-release tag, so releases/download/Pre-release/cheat_extended.mod.zip began returning HTTP 404. The same development line was promoted to a normal release named V1.20Beta (published 2026-10-01T15:19:17Z, GitHub prerelease=false) carrying asset cheat_extended.mod.zip, 599033 bytes, sha256 1a89383f1ae8dfe1a88ed84729bcf04f63c0545dc95d074cf80416779bb275ec, matching GitHub's own reported digest. boot.json declares version 1.20(dev2601001) and dependenceInfo GameVersion >=0.5.11.9 (unchanged floor; addonPlugin still 2 entries). Static diff dev260928 -> dev2601001 touches only three members: boot.json (version string), game/CE_Wardrobe.twee (traditional/simplified label), and scripts/CE_safehouseCheat.js, where the safehouse helper now initialises V.bird.materials and V.loftIngredients before unlocking the great-hawk loft window and prints an explicit early-unlock warning - this is the reported red-error fix for the loft window. CE_environmentGuard.js is byte-unchanged in behaviour: it still classifies only versions matching /\\bDoLP\\b/i as DolPlus and auto-disables only in that branch, so DOL-X (StartConfig.version 0.5.11.9) is not affected. cheat_extended also joined LOCKED_AU_PAYLOAD_CACHE_NAMES in lyra/warmup.py on the same date, so a swapped or stale cached payload now fails the build closed instead of being silently repackaged; the tag name alone was never a lock because the author has replaced this asset in place four times. STATUS deltas from the previous pin: the prior dev260928 entry was device-accepted on 2026-09-30 (B2, CE UI opened and rendered nine categories plus the yanling panel). dev2601001 has NOT been device-tested yet - its three-member static diff is small and the environment guard is unchanged, but runtime confirmation is still owed before this counts as verified.",
         "REPINNED 2026-09-30 to dev260928 (598987 bytes, sha256 170a4e80..., official Pre-release asset updated 2026-09-28T14:38:36Z). The previously pinned dev260903 (350866 bytes, f0bcbdaf...) no longer exists upstream because the author replaced the Pre-release asset in place again; the old copy survives only in local caches and is preserved at workspace/temp/cheat_extended.mod.zip until this digest is runtime-verified. Static diff dev260903 -> dev260928: 9 scripts added (safehouse/manor/farm/forest-shop/hopeless-cycle features), CE_farmCheat.twee and pack.ps1 removed, boot.json dependenceInfo unchanged (still >=0.5.11.9, addonPlugin count unchanged), CE_environmentGuard.js unchanged in behaviour (DoLP-only guard, DOL-X unaffected), changeLog documents menu rework, localStorage-based tab persistence, Avery/Gwylan assistants and farm auto-management. Status is untested-digest-pin until a built artifact passes the AU smoke test on MuMu 12; v1.18 mirror remains the rollback archive. Do not trust the Pre-release tag: always compare the asset digest.",
         "DOL-X vega 4.x: v1.20 betaTest is paired with the official maplebirch v4.1.13 release; the >=3.2.5 runtime gate passes",
