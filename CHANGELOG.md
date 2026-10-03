@@ -15,6 +15,38 @@
 
 ### Changed
 
+- **三个 mod 改走自建不可变镜像（2026-10-03）**：两个上游仓库被作者删除、一个上游通道
+  持续原位换包，三者都无法再作为可信的构建输入。DOL-X 把这最后一份 4.x 兼容构建上传为
+  自建不可变 Release，`download_url` 改指镜像，并把 digest 纳入 fail-closed 名单。
+
+  | mod | 原上游 | 现状 | 自建镜像 tag | sha256 |
+  |---|---|---|---|---|
+  | longer_combat | MaplebirchLeaf/LongerCombat | 仓库已删除（404） | `longer-combat-mirror-v1.0.1` | `be1421c8…` |
+  | yanling_cheat | MaplebirchLeaf/YanlingCheatCollection | 仓库已删除（404） | `yanling-cheat-mirror-v1.0.1` | `50e2341e…` |
+  | cheat_extended | chris81605/..._Cheat_Extended | 仍在，但 V1.20Beta 通道已原位换包 5 次 | `cheat-extended-mirror-v1.20` | `9d318e81…` |
+
+  - **LongerCombat / Yanling**：作者删库，功能并入枯木逢春（Deadwood-Reblooms）作为
+    `LongerCombat` / `IncantationCheatCollection` 模块。官方资产不复存在，故
+    `track_upstream` 关闭（已无可追对象），`github_repo` 保留上游值仅作来源标注。
+  - **Cheat Extended 第 5 次换包**：V1.20Beta 资产在 2026-10-02T18:46Z 又被替换，
+    从 dev2601001（599033 B, `1a89383f…`）变为 `boot.json` 版本号为纯 `1.20` 的新构建
+    （606561 B, `9d318e81…`），新增 `scripts/CE_customerHairColor.js`（发色自定义）并改动
+    7 个成员；`dependenceInfo` 与 `addonPlugin` 条目数不变，`GameVersion` 门槛仍为
+    `>=0.5.11.9`，`CE_environmentGuard.js` 逐字节不变（仍只对 `/\bDoLP\b/i` 生效，
+    DOL-X 0.5.11.9 不受影响）。因该通道不可信，DOL-X 钉住这一版并改走镜像；
+    `track_upstream` 保留为 true，只为让周检继续发现新版本。
+  - **周检语义说明**：镜像化之后，周检对 cheat_extended 会持续报
+    `asset digest changed`（medium）。那是"上游又换包了"的预警信号，不是构建失败；
+    构建走镜像，不再受上游漂移影响。
+  - **验证**：291 passed；`quick_check` 13/13 恢复全绿（此前因两个仓库删除掉到 11/13）；
+    三个镜像逐一实测下载且 sha256 与 `config/mods.lock.json` 逐字节一致；
+    `warmup` 实测从镜像下载成功（并先按设计拒绝了本地残留的旧 CE 缓存）；
+    `build zip` 2/2 成功；两个 1003 产物内嵌的 CE 载荷 sha256 实测等于 `9d318e81…`；
+    `au_artifact_check` 对两个产物 `success=true, errors=[]`。
+  - **状态边界**：三个镜像的载荷字节与换包前/删库前一致或已静态核对，但
+    `dev2601001` 与 `1.20` 这两版 **尚未真机复测**；上一个通过 B2 的
+    `dev260928` 结果不被追溯套用。
+
 - **Cheat Extended 换通道并纳入 digest 锁（2026-10-02）**：作者的
   `chris81605/Degrees-of-Lewdity_Cheat_Extended` 删除了可变 `Pre-release` tag，DOL-X 原
   `releases/download/Pre-release/cheat_extended.mod.zip` 开始返回 404。作者把同一开发线提升为
