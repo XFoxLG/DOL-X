@@ -176,7 +176,7 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - maplebirch 云存档没有公共服务地址。官方只提供 Go+SQLite 与 Cloudflare Worker+R2+D1 自建源码；
   Go 后端还缺客户端会调用的 `/save-code` 路由。
 - AU model 的 `kiss改脸/.../eyes.png` 缺图与 AU Face 的 `blushN`/`tearN` 是两类问题，不应混记。
-- AU Face 面纹/流泪剩余视觉问题位于加密内层运行时边界，DOL-X 没有白盒修复手段，不阻塞 base 主线。
+- AU Face 面纹/流泪剩余视觉问题位于 AU Face 载荷的运行时边界，DOL-X 没有白盒修复手段，不阻塞 base 主线。
 
 ## 6. 来源与验证
 

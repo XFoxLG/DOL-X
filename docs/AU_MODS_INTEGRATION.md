@@ -107,9 +107,8 @@ enabled = true
 
 ## 加密 Mods 说明
 
-部分 AU mods（包括 AU Face）使用密码加密分发：
-- 文件格式：`.crypt` + `.salt` + `.nonce`（libsodium chacha20poly1305 AEAD 加密）
-- 密钥派生：用户输入密码 → Argon2 pwhash → 解密密钥
+部分 AU mods（包括 AU Face）使用作者自带的加密分发格式，需要口令才能加载：
+- 资产由密文与配套的密钥派生参数文件组成
 - **重要**：加密内容受作者版权保护，不得未经授权分发解密后的明文
 
 **DOL-X 处理策略**：
