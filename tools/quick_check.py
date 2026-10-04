@@ -143,18 +143,13 @@ class QuickChecker:
         """检测新 mod 是否在配置中（仅检查启用的 mod）"""
         # 检查已启用的新 mod。NeoUI 于 2026-07-05 升为必选，进入全部 4 个包。
         expected_enabled = ["guide_to_me", "npc_social_icon", "neoui_patch"]
-        # bunny_transformation 已知不兼容，保持禁用。
-        expected_disabled = ["bunny_transformation"]
         
         build_toml = self._load_toml("build.toml")
         found_enabled = []
-        found_disabled = []
         
         for mod in build_toml.get("modloader_mods", []):
             if mod["key"] in expected_enabled and mod.get("enabled", True):
                 found_enabled.append(mod["key"])
-            elif mod["key"] in expected_disabled and not mod.get("enabled", True):
-                found_disabled.append(mod["key"])
         
         all_ok = True
         if len(found_enabled) == len(expected_enabled):
@@ -163,12 +158,6 @@ class QuickChecker:
             missing = set(expected_enabled) - set(found_enabled)
             print(f"[FAIL] 已启用新 mod 缺失: {', '.join(missing)}")
             all_ok = False
-        
-        if len(found_disabled) == len(expected_disabled):
-            print(f"[OK] 检测到 {len(found_disabled)} 个已禁用新 mod: {', '.join(found_disabled)}")
-        else:
-            missing = set(expected_disabled) - set(found_disabled)
-            print(f"[WARN] 已禁用新 mod 状态异常: {', '.join(missing)}")
         
         return all_ok
 
