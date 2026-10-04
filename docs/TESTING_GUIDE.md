@@ -126,7 +126,7 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
 - GitHub Actions run ID
 - artifact 名称与 APK 文件名
 - build code：Base `15704320`、AU-F `15705344`、AU-M `15706368`、AU-A `15708416`
-- ModLoader 已加载列表中的 AU、NeoUI、Mae's Picvary、NPC Avatars、Lyra 条目（BunnyTransformation 已禁用，不应出现）
+- ModLoader 已加载列表中的 AU、NeoUI、Mae's Picvary、NPC Avatars、Lyra 条目
 - 侧边栏展开/收起截图
 - 战斗是否能正常开始
 
@@ -156,7 +156,6 @@ AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前
    - More Love Interests Mod v0.1.7.0
    - 当前启用的新 mod（guide_to_me, npc_social_icon）
    - NeoUI Patch 应出现（2026-07-05 升为必选，全部包内置）
-   - BunnyTransformation 不应出现（已禁用，若出现说明测试包不是当前配置）
    - AU model（根据构建）
 3. 加载日志无 error
 
