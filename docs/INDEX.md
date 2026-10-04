@@ -1,6 +1,6 @@
 # DOL-X 文档索引
 
-**最后更新**: 2026-08-05
+**最后更新**: 2026-10-04
 
 ---
 
@@ -28,6 +28,7 @@
 ### 技术参考
 - [DOCUMENTATION_GUIDE](DOCUMENTATION_GUIDE.md) - CHANGELOG、Release 正文与状态文档写作规范
 - [TESTING_GUIDE](TESTING_GUIDE.md) - 当前测试流程与验证边界
+- [AUTOMATED_PASSAGE_SWEEP](AUTOMATED_PASSAGE_SWEEP.md) - 全自动 passage 扫描与关键功能流断言（Engine A）
 - [COMMUNITY_TOOLS](COMMUNITY_TOOLS.md) - 社区工具评估
 - [AU_MODS_INTEGRATION](AU_MODS_INTEGRATION.md) - AU Mod 集成说明
 - [MODLOADER_TROUBLESHOOTING](MODLOADER_TROUBLESHOOTING.md) - ModLoader 排障
