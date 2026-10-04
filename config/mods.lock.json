@@ -261,24 +261,6 @@
         "DIGEST BACKFILLED (2026-08-02): this entry previously had a null sha256, so an in-place upstream asset swap under the same tag would not have been detectable. GitHub reports no digest for this asset because the upload predates that feature, so the recorded value was computed locally from the pinned asset and establishes a baseline for future comparison rather than confirming the author's original bytes."
       ]
     },
-    "bunny_transformation": {
-      "name": "变身兔兔",
-      "github_repo": "sylphiet/Bunny-TransformationCN",
-      "asset_pattern": "*.mod.zip",
-      "release_tag": "v0.3.1β",
-      "last_tested_version": "v0.3.1β",
-      "last_tested_sha256": null,
-      "last_tested_dol_version": "0.5.8.10",
-      "last_tested_date": "2026-06-24",
-      "status": "disabled",
-      "notes": [
-        "DOL-X: Disabled (2026-06-24)",
-        "Reason: v0.3.1β incompatible - 16 TweeReplacer errors, combat crash",
-        "Missing dependency: fox transformation system (not in DoL v0.5.8.10)",
-        "Breaks angel/fallenAngel/harpy wing rendering",
-        "Will re-evaluate when v0.3.2+ releases or fox system is added"
-      ]
-    },
     "neoui_patch": {
       "name": "NeoUI Patch",
       "github_repo": "RyaraSUKI/dol-neoui-patch",

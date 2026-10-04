@@ -99,7 +99,6 @@ class BuildDownloader:
 - [x] 完整 pytest 通过（以对应 Actions run 的 Run test suite 步骤为准）
 - [x] ZIP AU 面部别名审计通过（以 Audit ZIP artifacts 步骤为准）
 - [x] 包含当前启用的新 mod：guide_to_me, npc_social_icon, neoui_patch
-- [x] 已知不兼容 mod 预期禁用：bunny_transformation
 
 ---
 
@@ -126,7 +125,6 @@ class BuildDownloader:
   - [ ] **guide_to_me v1.1.0**
   - [ ] **NeoUI-Patch**（2026-07-05 升为必选，应出现在全部包）
   - [ ] **npc_social_icon v1.4.1**
-  - [ ] **不应出现 BunnyTransformation**（已禁用，若出现说明测试包不是当前配置）
   - [ ] {au_model_expectations.get(build_code, "按构建码核对 AU model")}
 - [ ] 加载日志无 error（0 error, X warning, X info）
 

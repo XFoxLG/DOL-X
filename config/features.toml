@@ -177,17 +177,6 @@ depends_on = []
 conflicts_with = []
 
 [[features]]
-id = "bunny_transformation"
-name = "变身兔兔"
-bit = 1048576
-required = false
-skip = true
-depends_on = []
-conflicts_with = []
-# DOL-X: Disabled (2026-06-24)
-# v0.3.1β incompatible - 16 TweeReplacer errors, combat crash
-
-[[features]]
 id = "neoui_patch"
 name = "NeoUI Patch"
 bit = 2097152
