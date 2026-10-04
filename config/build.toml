@@ -196,6 +196,23 @@ asset_pattern = "maplebirch-0.5.10.12-v4.1.14.mod.zip"
 release_tag = "maplebirch-release-v4.1.14"
 download_url = "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/download/maplebirch-release-v4.1.14/maplebirch-0.5.10.12-v4.1.14.mod.zip"
 track_upstream = true  # 构建与更新检查以作者官方仓库为准；XFoxLG 镜像只作官方资产消失时的人工灾备
+# DOL-X route-B REVERT (2026-09-28, branch vega-0511-prep): maplebirch v4.2.9 -> v4.1.14.
+# WHY 回退: 三轮离线浏览器冒烟实测（tools/browser_smoke_test.py，profile
+#   ucb-cheat-extended-maplebirch）证明 4.2.9 带三条真回归，4.1.14 全部归零：
+#     - faceStyleSrcFn is not a function  : 4.2.9=3 次, 4.1.14=0 次
+#     - whenSC2PassageEnd 递归栈溢出        : 4.2.9=2 次, 4.1.14=0 次
+#     - UIBar is not defined               : 4.2.9=24 次, 4.1.14=0 次
+#   AU Face 的真实逻辑在运行时解密的 crypt 载荷里，静态审计看不到调用点，
+#   只有运行时冒烟能抓住；这是三个 AU 静态审计全 PASS 却仍然漏检的原因。
+# 本体兼容性: 0.5.11.9（0915）与 0.5.10.12（0810）的游戏侧宿主锚点计数逐一相同
+#   （updatesidebarimg / Renderer / CanvasModels / npcPregnancyCycle / recordSperm /
+#   pregnancyDaysEta / getChildDays / V.facestyle / V.facevariant 全部一致），
+#   实测把 4.1.14 换进 0.5.11.9 本体后上述三条回归归零、桌宠补丁照常生效。
+# 资产来源: 4.1.14 只发布了 0.5.10.12 变体（maplebirch-0.5.10.12-v4.1.14.mod.zip,
+#   186903 bytes, sha256 e44c9aed…），boot.json 声明 GameVersion >=0.5.10.12，
+#   0.5.11.9 满足该下限，故可直接复用；这是上游唯一一条同时具备
+#   faceStyleSrcFn 导出与已验补丁锚点的 4.x 载荷。
+# SOURCE: maplebirch-release-v4.1.14, asset maplebirch-0.5.10.12-v4.1.14.mod.zip
 # DOL-X next-4 experiment (2026-07-28): maplebirch v3.2.5 -> v4.1.13 (upstream 正式 release).
 # WHY 升到 4.x（推翻了上一轮"v3.2.5 是唯一解"的结论）:
 #   - 上一轮把栈锁在 v3.2.5 的唯一理由是"保住扩展包 maplebirchEx v1.2.4"，但真机
@@ -210,8 +227,12 @@ track_upstream = true  # 构建与更新检查以作者官方仓库为准；XFox
 #   - cheat_extended v1.20 运行时门控要求框架 >= 3.2.5；4.1.13 >= 3.2.5，门照过。
 # SOURCE: MaplebirchLeaf/SCML-DOL-maplebirchFramework release maplebirch-release-v4.1.13
 #   (2026-07-01, 正式版, asset maplebirch-0.5.10.12-v4.1.13.mod.zip, 186010 bytes)。
-# MIRROR: XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.13，仅作人工灾备，
-#   不作为日常下载源，否则更新检查只能看到自己的镜像、无法发现作者新版本。
+# MIRROR: XFoxLG/DOL-X tag maplebirch-framework-mirror-v4.1.14（2026-09-28 建立），
+#   资产 maplebirch-0.5.10.12-v4.1.14.mod.zip，186903 bytes，
+#   sha256 e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4，
+#   与官方资产逐字节相同（MIT 许可，允许再分发）。仅在官方资产消失或被原位换包时
+#   人工切换，不作为日常下载源，否则更新检查只能看到自己的镜像、无法发现作者新版本。
+#   历史注释里的 maplebirch-framework-mirror-v4.1.13 从未真正创建过（远端查无此 tag）。
 # RISK (experiment target): 跨大版本（3->4）升级，整套 mod 需真机复测；扩展包完整
 #   继任者枯木逢春尚未出包，本轮先用拆出的 LongerCombat/Yanling 两个独立功能包。
 
@@ -222,10 +243,17 @@ enabled = true
 feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
-release_tag = "Pre-release"
-download_url = "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/download/Pre-release/cheat_extended.mod.zip"
+release_tag = "cheat-extended-mirror-v1.20"
+download_url = "https://github.com/XFoxLG/DOL-X/releases/download/cheat-extended-mirror-v1.20/cheat_extended.mod.zip"
+# MIRRORED 2026-10-03: 上游 V1.20Beta 是可变通道，作者已原位换包五次（最近一次
+# 2026-10-02T18:46Z，dev2601001 -> 1.20 正式号并新增发色自定义）。继续直连上游会让
+# 任何冷启动构建（CI / 换机器 / 清缓存）在换包后 fail-closed 失败。DOL-X 把经过
+# 静态核对的那一版上传为自建不可变镜像并改指镜像，钉死 digest。
+# 上游仓库仍在，故保留 track_upstream=true 只用于周检发现新版本（例如后续 1.21）。
+# 注意：周检会持续报 "asset digest changed"，那是预期行为——它是在提醒上游又换包了，
+# 不是构建失败信号；构建走镜像，不受影响。
 track_upstream = true
-include_prerelease_updates = true  # 官方 v1.20 位于 Pre-release 渠道，周检必须读取预发布并比对 asset digest
+include_prerelease_updates = true  # 作者惯用发布渠道承载开发版并原位换包，周检必须读发布列表并比对 asset digest
 # DOL-X next-4 experiment (2026-07-27): cheat_extended v1.18 -> v1.20 betaTest.
 # WHY v1.20:
 #   - Targets game 0.5.10.12 (our current game body); changelog fixes 虚空创造/
@@ -233,20 +261,29 @@ include_prerelease_updates = true  # 官方 v1.20 位于 Pre-release 渠道，�
 #     0.5.8.10-headwear "变光头" bug on new-naming games).
 # RUNTIME SOFT-GATE (verified from the mod's own JS, not boot.json):
 #   - boot.json declares NO maplebirch dependency (only ModLoader>=2.17.0,
-#     TweeReplacer, ReplacePatcher, ImageLoaderHook, SweetAlert2Mod, GameVersion
-#     >=0.5.5.9). The maplebirch requirement is a RUNTIME check:
+#     ImageLoaderHook, TweeReplacer, ReplacePatcher, SweetAlert2Mod, GameVersion
+#     >=0.5.11.9). The maplebirch requirement is a RUNTIME check:
 #     * scriptEarly/framework_detector.js: if maplebirch mod version < 3.2.5 ->
 #       SweetAlert2 弹窗 "maplebirch框架版本過低".
 #     * scriptEarly/CERegist.js: compareVersions(version,"3.2.5")===1 gate; if
 #       it fails, the else branch only logger.error and NONE of the 7 addTo()
 #       run -> CE features are NOT registered into the game UI.
 #   - Therefore v1.20 REQUIRES maplebirch mod >= 3.2.5. Paired here with
-#     maplebirch v4.1.13; 4.1.13 >= 3.2.5 so the runtime gate passes.
-# SOURCE: chris81605 Pre-release "V1.20 betaTest"，asset cheat_extended.mod.zip
-#   (243765 bytes, sha256 7aa8ab4c…, 资产更新于 2026-07-23)。日常下载与更新检查
-#   使用作者官方源；v1.18 mirror 继续作为回滚档案（v1.18 无框架门控）。
-#   该 tag 名为 "Pre-release" 且 GitHub 标记 prerelease=true，作者用它承载 1.20
-#   开发版；资产会在同一 tag 下原位替换，因此更新检查必须比对 digest 而非 tag 名。
+#     maplebirch v4.1.14; 4.1.14 >= 3.2.5 so the runtime gate passes.
+# SOURCE: chris81605 release "V1.20Beta"（原 asset cheat_extended.mod.zip）。
+#   2026-10-02 曾重指到 V1.20Beta（dev2601001, 599033 B, 1a89383f…），因为作者
+#   删掉了旧的 Pre-release tag 导致原下载地址 404。
+#   2026-10-03 再次复核发现作者又在同一 tag 下换了包（第 5 次原位替换，
+#   2026-10-02T18:46Z）：新 asset 606561 B, sha256 9d318e81…, boot.json version
+#   从 "1.20(dev2601001)" 变为正式的 "1.20"，新增 scripts/CE_customerHairColor.js
+#   （发色自定义：头发/眉毛/私处毛可分别染色），并改动 boot.json / changeLog.md /
+#   readme.md / CE_CSS.css / CE_customerEyesColor.js / CE_customerSkinColor.js /
+#   CE_sideBarIcon.js；dependenceInfo 与 addonPlugin 条目数均未变
+#   （GameVersion >=0.5.11.9，门槛不变）。CE_environmentGuard.js 逐字节不变，
+#   仍只把 /\bDoLP\b/i 判为 DolPlus，DOL-X 0.5.11.9 不会被自动禁用。
+#   因该通道不可信，已上传自建不可变镜像 XFoxLG/DOL-X cheat-extended-mirror-v1.20
+#   并改指镜像；digest 已进 lyra/warmup.py 的 fail-closed 名单。
+#   v1.18 mirror 继续作为回滚档案（v1.18 无框架门控）。
 
 [[modloader_mods]]
 key = "custom_hair"
@@ -273,32 +310,40 @@ track_upstream = false  # 锁定固定 tag DOL，download_url 钉死 1.3.2 asset
 # DOL-X next-4 experiment (2026-07-28): 旧扩展包 maplebirchEx v1.2.4 已被拆分替代。
 # 作者删库废弃 v1.2.4，把功能拆成独立包。这里用拆出的两个独立功能包替代整包，
 # 都要求框架 ^4.1.0（addonPlugin），面向游戏 0.5.10.12。
-# 扩展包完整继任者 Deadwood-Reblooms（枯木逢春）尚未出包，出包后再评估接入。
+#
+# MIRRORED 2026-10-02: 作者把这两个仓库也整个删除了（MaplebirchLeaf/LongerCombat、
+# MaplebirchLeaf/YanlingCheatCollection，API 与网页均 404），功能并入枯木逢春
+# （Deadwood-Reblooms）作为 LongerCombat / IncantationCheatCollection 模块。
+# 上游因此不再有任何可下载来源，官方源会 404。DOL-X 把这最后一份 4.x 兼容构建
+# 上传为自建不可变镜像，download_url 改指镜像，track_upstream 关掉（已无可追对象），
+# 并把两者加入 fail-closed digest 名单。github_repo 保留上游值仅作来源标注。
 [[modloader_mods]]
 key = "longer_combat"
 name = "更长遭遇战"
 enabled = true
 feature_id = "maplebirch_expansion"
-github_repo = "MaplebirchLeaf/LongerCombat"
+github_repo = "MaplebirchLeaf/LongerCombat"  # 上游已删库，仅保留来源标注
 asset_pattern = "longer-combat-0.5.10.12-v1.0.1.mod.zip"
 release_tag = "v1.0.1"
-download_url = "https://github.com/MaplebirchLeaf/LongerCombat/releases/download/v1.0.1/longer-combat-0.5.10.12-v1.0.1.mod.zip"
-track_upstream = true  # 官方源优先并纳入每周更新检查；XFoxLG 镜像仅作人工灾备
+download_url = "https://github.com/XFoxLG/DOL-X/releases/download/longer-combat-mirror-v1.0.1/longer-combat-0.5.10.12-v1.0.1.mod.zip"
+track_upstream = false  # 上游仓库已删除，无可追对象
 # MaplebirchLeaf/LongerCombat v1.0.1 (2026-07-25)，旧扩展包 LongerCombat 功能的独立继任者。
 # addonPlugin 声明 maplebirch ^4.1.0；boot.json dependenceInfo 只要 ModLoader>=2.0 + GameVersion>=0.5.10.12。
+# 镜像 digest 与 config/mods.lock.json 逐字节一致（13764 B, sha256 be1421c8…）。
 
 [[modloader_mods]]
 key = "yanling_cheat"
 name = "言灵作弊集"
 enabled = true
 feature_id = "maplebirch_expansion"
-github_repo = "MaplebirchLeaf/YanlingCheatCollection"
+github_repo = "MaplebirchLeaf/YanlingCheatCollection"  # 上游已删库，仅保留来源标注
 asset_pattern = "yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
 release_tag = "v1.0.1"
-download_url = "https://github.com/MaplebirchLeaf/YanlingCheatCollection/releases/download/v1.0.1/yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
-track_upstream = true  # 官方源优先并纳入每周更新检查；XFoxLG 镜像仅作人工灾备
+download_url = "https://github.com/XFoxLG/DOL-X/releases/download/yanling-cheat-mirror-v1.0.1/yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
+track_upstream = false  # 上游仓库已删除，无可追对象
 # MaplebirchLeaf/YanlingCheatCollection v1.0.1 (2026-07-25)，旧扩展包言灵功能的独立继任者。
 # addonPlugin 声明 maplebirch ^4.1.0；boot.json dependenceInfo 只要 ModLoader>=2.0 + GameVersion>=0.5.10.12。
+# 镜像 digest 与 config/mods.lock.json 逐字节一致（16302 B, sha256 50e2341e…）。
 
 [[modloader_mods]]
 key = "guide_to_me"

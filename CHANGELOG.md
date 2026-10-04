@@ -15,6 +15,61 @@
 
 ### Changed
 
+- **三个 mod 改走自建不可变镜像（2026-10-03）**：两个上游仓库被作者删除、一个上游通道
+  持续原位换包，三者都无法再作为可信的构建输入。DOL-X 把这最后一份 4.x 兼容构建上传为
+  自建不可变 Release，`download_url` 改指镜像，并把 digest 纳入 fail-closed 名单。
+
+  | mod | 原上游 | 现状 | 自建镜像 tag | sha256 |
+  |---|---|---|---|---|
+  | longer_combat | MaplebirchLeaf/LongerCombat | 仓库已删除（404） | `longer-combat-mirror-v1.0.1` | `be1421c8…` |
+  | yanling_cheat | MaplebirchLeaf/YanlingCheatCollection | 仓库已删除（404） | `yanling-cheat-mirror-v1.0.1` | `50e2341e…` |
+  | cheat_extended | chris81605/..._Cheat_Extended | 仍在，但 V1.20Beta 通道已原位换包 5 次 | `cheat-extended-mirror-v1.20` | `9d318e81…` |
+
+  - **LongerCombat / Yanling**：作者删库，功能并入枯木逢春（Deadwood-Reblooms）作为
+    `LongerCombat` / `IncantationCheatCollection` 模块。官方资产不复存在，故
+    `track_upstream` 关闭（已无可追对象），`github_repo` 保留上游值仅作来源标注。
+  - **Cheat Extended 第 5 次换包**：V1.20Beta 资产在 2026-10-02T18:46Z 又被替换，
+    从 dev2601001（599033 B, `1a89383f…`）变为 `boot.json` 版本号为纯 `1.20` 的新构建
+    （606561 B, `9d318e81…`），新增 `scripts/CE_customerHairColor.js`（发色自定义）并改动
+    7 个成员；`dependenceInfo` 与 `addonPlugin` 条目数不变，`GameVersion` 门槛仍为
+    `>=0.5.11.9`，`CE_environmentGuard.js` 逐字节不变（仍只对 `/\bDoLP\b/i` 生效，
+    DOL-X 0.5.11.9 不受影响）。因该通道不可信，DOL-X 钉住这一版并改走镜像；
+    `track_upstream` 保留为 true，只为让周检继续发现新版本。
+  - **周检语义说明**：镜像化之后，周检对 cheat_extended 会持续报
+    `asset digest changed`（medium）。那是"上游又换包了"的预警信号，不是构建失败；
+    构建走镜像，不再受上游漂移影响。
+  - **验证**：291 passed；`quick_check` 13/13 恢复全绿（此前因两个仓库删除掉到 11/13）；
+    三个镜像逐一实测下载且 sha256 与 `config/mods.lock.json` 逐字节一致；
+    `warmup` 实测从镜像下载成功（并先按设计拒绝了本地残留的旧 CE 缓存）；
+    `build zip` 2/2 成功；两个 1003 产物内嵌的 CE 载荷 sha256 实测等于 `9d318e81…`；
+    `au_artifact_check` 对两个产物 `success=true, errors=[]`。
+  - **状态边界**：三个镜像的载荷字节与换包前/删库前一致或已静态核对，但
+    `dev2601001` 与 `1.20` 这两版 **尚未真机复测**；上一个通过 B2 的
+    `dev260928` 结果不被追溯套用。
+
+- **Cheat Extended 换通道并纳入 digest 锁（2026-10-02）**：作者的
+  `chris81605/Degrees-of-Lewdity_Cheat_Extended` 删除了可变 `Pre-release` tag，DOL-X 原
+  `releases/download/Pre-release/cheat_extended.mod.zip` 开始返回 404。作者把同一开发线提升为
+  正式 release `V1.20Beta`（`prerelease=false`，2026-10-01T15:19:17Z），资产
+  `cheat_extended.mod.zip`，599033 字节，sha256
+  `1a89383f1ae8dfe1a88ed84729bcf04f63c0545dc95d074cf80416779bb275ec`（与 GitHub digest 一致），
+  `boot.json` 声明 `1.20(dev2601001)`、`GameVersion >=0.5.11.9`。
+  - **静态差异（dev260928 -> dev2601001）只有三个成员**：`boot.json`（版本串）、
+    `game/CE_Wardrobe.twee`（简繁标签）、`scripts/CE_safehouseCheat.js`（安全屋助手在解锁
+    巨鹰飘窗前先初始化 `V.bird.materials` 与 `V.loftIngredients`，并加显式提前解锁警告——
+    即反馈中的爆红修复）。`CE_environmentGuard.js` 行为字节不变：只把匹配 `/\bDoLP\b/i`
+    的版本判为 DolPlus，DOL-X 的 `0.5.11.9` 不在其中，不会被自动禁用。
+  - **`cheat_extended` 加入 `LOCKED_AU_PAYLOAD_CACHE_NAMES`**：该通道已被作者原位换包四次，
+    tag 名从来不能标识字节。加入 fail-closed digest 锁后，陈旧缓存或换包资产会在构建前被拒绝
+    并删除，而不是被静默打进产物。验证时该锁按预期先拒绝了本地残留的 dev260928 缓存，随后
+    重新下载成功。
+  - **`release_tag` / `download_url` 重指**到 `V1.20Beta`；`config/mods.lock.json` 的
+    `last_tested_version` / `last_tested_sha256` / `last_tested_date` 同步更新。因资产会原位换包，
+    继续保留 `include_prerelease_updates = true` 让周检比较 asset digest。
+  - **状态边界**：上一个钉住的 dev260928 已于 2026-09-30 通过 B2 真机验收（CE 界面可开、
+    渲染九个分类加言靈集面板）；dev2601001 本轮只做了静态差异核对与摘要锁定，**尚未真机复测**，
+    因此状态记为 `digest-pinned-awaiting-device-recheck`，不计入已验证。
+
 - **maplebirch 框架升级 v4.1.13 -> v4.1.14（尚未发布）**：官方资产
   `maplebirch-0.5.10.12-v4.1.14.mod.zip`，186903 字节，
   sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，

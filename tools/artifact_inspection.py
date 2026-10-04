@@ -54,6 +54,44 @@ def decode_base64_payload(encoded: str) -> bytes:
     return base64.b64decode(payload, validate=True)
 
 
+# ModLoader parses every mod's boot.json with json5.parse() (confirmed in the
+# bundled loader source: `json5__WEBPACK_IMPORTED_MODULE_7___default().parse`).
+# json5 tolerates trailing commas and comments, so auditing with strict
+# json.loads() is stricter than the runtime and rejects payloads the game loads
+# fine. cheat_extended 1.20(dev260903) ships a trailing comma in its
+# scriptFileList, which failed the AU artifact audit while loading correctly in
+# game. Mirror the runtime parser rather than out-strict it.
+TRAILING_COMMA_BEFORE_CLOSER_PATTERN = re.compile(r",(\s*[}\]])")
+
+
+def parse_boot_json(raw_boot_json: str) -> Any:
+    """Parse one mod boot.json using the same leniency as ModLoader's json5."""
+    text = raw_boot_json.lstrip("\ufeff")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # A later assignment wins at runtime, so more than one list makes the
+    # audited payload set differ from the one the game actually loads.
+    if len(matches) > 1:
+        return ModDataValueZipListParse(
+            error_kind="duplicate_assignment",
+            error=(
+                "HTML assigns modDataValueZipList "
+                f"{len(matches)} times; the runtime payload set is ambiguous"
+            ),
+        )
+
+    try:
+        import json5
+    except ImportError:
+        # Narrow fallback for the only non-strict form observed in shipped mods.
+        return json.loads(TRAILING_COMMA_BEFORE_CLOSER_PATTERN.sub(r"\1", text))
+
+    return json5.loads(text)
+
+
 def parse_mod_data_value_zip_list(content: str) -> ModDataValueZipListParse:
     """Parse the generated ModLoader payload list from raw HTML content."""
     matches = MOD_DATA_VALUE_ZIP_LIST_PATTERN.findall(content)
