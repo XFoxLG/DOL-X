@@ -1,9 +1,17 @@
-# 自动化全 passage 扫描（Engine A）
+# DOL-X 自动化测试套件（Engine A 总说明）
 
-**创建**: 2026-10-04
+**创建**: 2026-10-04（全 passage 扫描）／**扩写**: 2026-10-05（剧情·战斗·环境 第二期）
 **适用版本**: 0.5.11.9-XFox 1.0.0a 及之后
-**相关工具**: `tools/passage_sweep.py`、`tools/sweep_flow_assertions.py`
-**相关测试**: `tests/test_passage_sweep.py`
+**相关工具**: `tools/passage_sweep.py`、`tools/scenario_sweep.py`、`tools/combat_sweep.py`、
+`tools/env_matrix.py`、`tools/fixture_ladder.py`、`tools/save_safety_guard.py`、
+`tools/report_sanitize.py`、`tools/sweep_flow_assertions.py`
+**相关测试**: `tests/test_passage_sweep.py`、`tests/test_scenario_sweep.py`、
+`tests/test_combat_sweep.py`、`tests/test_env_matrix.py`、`tests/test_fixture_ladder.py`、
+`tests/test_save_safety_guard.py`、`tests/test_report_sanitize.py`
+
+> 本文是 Engine A 测试套件的总说明。§1-§2 是设计理由，§3 起是第二期新增的
+> 三轴（剧情/战斗/环境）、夹具阶梯、两层跑分与 CI 工作流；passage 轴原有的
+> 实测数据保留在 §8。
 
 ---
 
@@ -72,7 +80,7 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
 
 ---
 
-## 4. 判定分层（报告里的 4 个 verdict）
+## 4. 判定分层（五档，所有轴统一）
 
 | verdict | 含义 | 处理方式 |
 | --- | --- | --- |
@@ -80,6 +88,7 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
 | `soft_fail` | 渲染了但超时未完成 / 空内容 | 观察项；稳定复现可封为新基线 |
 | `hard_fail` | 未捕获异常 / 引擎抛错 / 没有 passage 节点 | 真问题，需要人看 |
 | `fixture_insufficient` | 报错属于"前置状态不足"（is not defined / cannot read properties…） | **不算 bug**：这条 passage 需要更深的存档状态 |
+| `not_applicable` | 该检查在此产物/环境不适用（如非 AU 产物跑 au-face） | 如实记录原因，不算通过也不算失败 |
 
 夹具（fixture）来源：真实点过启动门后的新游戏快照（约 780 个变量、118KB JSON），
 每条 passage 渲染前用 `structuredClone` 还原，保证互不污染、可重复
@@ -88,6 +97,89 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
 为什么"进不去的 passage"不算 bug：DoL 有大量 passage 只在特定剧情/战斗/遭遇状态
 下才可达；用新游戏快照强行 `Engine.play` 进去时，报"读不到某状态"属于夹具边界，
 不是游戏坏了。这些条目会稳定留在基线里，不会淹没新回归。
+
+### 4.1 测试轴总览（第二期）
+
+| 轴 | 工具 | 规模 | 日常档 | 发版档 |
+| --- | --- | --- | --- | --- |
+| passage 渲染 | `tools/passage_sweep.py` | 全量 15,627 条 | 300 抽样 | 全量 + 夹具/上下文 |
+| 剧情场景 | `tools/scenario_sweep.py` | 363 行 = 331 可点击 + 32 分隔标题 | 全部 | 全部 + 基线封存 |
+| 日循环 | `tools/scenario_sweep.py --suite dayloop` | 1 条真实游玩流程 | 跑 | 跑 |
+| 战斗 | `tools/combat_sweep.py` | 原型矩阵 ~25-30 × 4 路径 + 4 控制模式；全量入口 1,570 | 原型矩阵 | `--tier initiators` |
+| 环境 | `tools/env_matrix.py` | 环境敏感 passage × 8 上下文；全量 × 4 上下文 | daily | full |
+| 关键功能流 | `tools/sweep_flow_assertions.py` | 5 条流（mods/saveload/ce-panel/au-face/morelove） | 跑 | 跑 |
+
+### 4.2 两层跑分（时间预算）
+
+| 档位 | 覆盖面 | 时间预算 | 载体 |
+| --- | --- | --- | --- |
+| **日常档** | 300 passage 抽样 + 331 场景 + 日循环 + 战斗原型矩阵 + 4 控制模式 + 环境日常档 + 5 条功能流 | ≤ 60 分钟 | 本机 |
+| **发版档** | 全量 passage + 363 场景 + 1,570 战斗入口 + 环境全矩阵 | 本地 3-4 小时 | 本机 |
+| **CI 档** | `full` 与 `combat-full` 两次手动触发，各 < 3.5 小时（单 job 上限 210 分钟） | GitHub Actions |
+
+发版门槛：三轴 0 `hard_fail` 且无新增回归；战斗 `fixture_insufficient` 列表与基线一致或更少；
+日循环为 `ok` 或如实的 `not_applicable`。
+
+### 4.3 夹具阶梯与存档安全
+
+`tools/fixture_ladder.py` 提供 `capture`（合成快照）/ `from-save`（导入可丢弃的 `.save`，
+真实存档必须 `--allow-real`）/ `sanitize`（剥离姓名、路径）/ `verify`（格式与必需键校验）/
+`list`（打印清单）。夹具统一放 `.local/fixtures/`（gitignore，永不入库），
+`index.json` 记录来源、日期、游戏版本、字节数与 sha256。
+
+当前本地夹具：
+
+| 文件 | 键数 | 字节 | 说明 |
+| --- | --- | --- | --- |
+| `base-1004.json` | 780 | 211,352 | 2026-10-04 合成基线（file sha256 `7d2406b9…`） |
+| `base-1004-fix8.json` | 782 | 174,170 | §8.2 的 fix8 合并版（file sha256 `d59e8b8d…`，payload sha256 `249d05e4…`） |
+| `selftest-roundtrip.json` | 780 | 207,880 | `from-save` 回环自测产物（已脱敏） |
+
+`tools/save_safety_guard.py` 对仓库做 fail-closed 检查：跟踪文件里出现 `*.save`、
+`.local/` 之外的夹具载荷、LZString 存档块或本机绝对路径（仓库根目录、用户目录的
+具体前缀）即失败；本地实测扫描 162 个仓库文件全部通过，另有 16 条 pytest 覆盖守卫逻辑
+（含"故意放一个假 `*.save` 必须失败"的取证测试）。
+
+### 4.4 各轴用法（第二期）
+
+```powershell
+$FIX = ".local/fixtures/base-1004-fix8.json"
+$HTML = "workspace/prepare_package/zip/Degrees of Lewdity.html"
+
+# 剧情场景（331 个可点击行）+ 日循环
+python tools\scenario_sweep.py $HTML --fixture $FIX --suite scenarios --out .local/sweep/scenarios
+python tools\scenario_sweep.py $HTML --fixture $FIX --suite dayloop   --out .local/sweep/dayloop
+
+# 战斗：日常原型矩阵（含 4 控制模式）/ 发版全量入口（可 --resume）
+python tools\combat_sweep.py $HTML --fixture $FIX --tier archetypes  --out .local/sweep/combat
+python tools\combat_sweep.py $HTML --fixture $FIX --tier initiators --resume --out .local/sweep/combat-full
+
+# 环境矩阵：先 dry-plan 看展开数字，再真跑
+python tools\env_matrix.py --target $HTML --tier daily --dry-plan
+python tools\env_matrix.py --target $HTML --fixture $FIX --tier daily --out .local/sweep/env-daily
+python tools\env_matrix.py --target $HTML --fixture $FIX --tier full  --out .local/sweep/env-full
+```
+
+要点：
+
+- 场景清单运行时读 `setup.debugMenu.eventList`，与静态 HTML 交叉核对，生成
+  `.local/sweep/scenario-manifest.json`；游戏更新导致增删时报告差异而不是静默跳过。
+- 战斗自动驱动在 `#listContainer` 选 `input.macro-radiobutton` → Enter 确认 → 比对状态增量；
+  连续 3 回合无状态变化记 `soft_fail`（卡死）；4 种控制模式（Radio / Radio(c) / Lists / List(w)）
+  各打 ≥3 回合的真实 DOM 操作测试。
+- 环境 daily 的 8 个上下文：春晨晴 / 夏午雷暴 / 秋昏雨 / 冬夜雪 / 万圣节夜 / 圣诞晨 / 血月夜 /
+  上课日；full 的 4 个：白天晴 / 夜雨 / 冬雪 / 血月夜。用游戏自己的
+  `Time.timeTravel` / `Weather.set` / `Weather.setTemperature` / `V.halloween` / `V.christmas` /
+  `V.moonstate` 注入，**读回校验后才开跑**；读回不一致按设计记 `hard_fail`，绝不带错误环境继续。
+- passage 轴第二期新增 `--fixture` / `--fixture-patch` / `--context` / `--only-file` 四个参数，
+  基线在有夹具/上下文时按 `{fixture}__{context}` 分组封存副本（`.local/sweep/baselines/`）。
+
+### 4.5 报告脱敏（离开本机前）
+
+`tools/report_sanitize.py` 把仓库/家目录路径替换为 `<repo>` / `<home>`、其它绝对路径替换为
+`<abs-path>`、LZString/长 base64 替换为 `<redacted-save>`、大夹具 dump 替换为
+`{"__redacted__": true, "keys": N}`；`--check` 模式在仍发现脏数据时 exit 1。
+CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 
 ---
 
@@ -132,6 +224,23 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
    尾段速度一度从 ~20 条/s 掉到 ~7 条/s（整轮 28 分钟，未中断）。跑全量前先关掉
    其它吃内存的程序，扫描更稳。
 6. 报告里 `console.error` 会被记录但不单独判失败（很多是游戏自带的天气/画布噪声）。
+7. **日循环尚未走满一天**：当前 DOM 点击序列走到"出门"就停，时间只推进 0.03h，
+   已被如实标记为 `soft_fail`；把"上学→放学→回家→睡觉"接上属于后续工作。
+8. **环境矩阵的节日上下文**：`timeTravel` 不会触发游戏的跨日钩子，所以万圣节/圣诞
+   是显式设置对应标志位（等价于"当天自然到达"的状态），并在读回校验里验证；
+   血月是硬校验，上游若改名/去掉 bloodMoon orbital 会整条 `hard_fail` 而不是静默降级。
+9. **战斗入口清单与备忘值差 19 条**：实测 `.local/sweep/combat-initiators.json` 为
+   1,570，第二期调研备忘为 1,603；以实测清单为准，已知 5 个 `maninit` 原型因 base
+   夹具缺 NPC bedsheet 数据落在 `fixture_insufficient`。
+10. **环境矩阵口径比调研更宽**：daily 的"环境敏感 passage"实测 1,378（备忘 886），
+   差 +492 来自 time_clock / day_state 的更宽口径，原因记录在代码注释与报告 meta 里。
+11. **场景增量快照只到两层**：`widgets produced no observable state delta`（82/331）里
+    有一部分是"改了嵌套对象内部字段、快照看不到"（如 `worn.under_upper.integrity`），
+    不是没生效；这类行稳定停在 `soft_fail`，升级为 `hard_fail` 时基线 diff 仍会报回归。
+12. **debug 菜单自身的缺陷按 `soft_fail` 上报**：0.5.11.9 的
+    `<<parasiteProgressDay>>`（Pregnancy Progress Day/Week 两行）只定义了同名 JS 函数、
+    没有注册宏；工具用 `upstream debug-menu defect (unregistered macro)` 如实标注，
+    既不隐瞒也不当作渲染失败。
 
 ---
 
@@ -161,29 +270,133 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
   之后每次构建只对比新增回归：
   `python tools\passage_sweep.py "workspace/prepare_package/zip/Degrees of Lewdity.html" --out .local\sweep\run --baseline .local\sweep\full-1004\passage-sweep-baseline.json`
 
+### 8.2 fix8：8 条历史 `fixture_insufficient` 已用夹具补丁修到 `ok`（2026-10-05）
+
+8 条 = `TimeTest` + `Skyscraper {Ruin, Fire, Party 6, Ascend, Fall, Foundation, Structure}`。
+根因从真实报错栈定位（不是猜测）：
+
+- `TimeTest`：`$timeDistortion` 未定义 → undefined 算术 → `Time.set()` 内
+  `new DateTime(V.startDate + time)` 得到 NaN，读 `.name` 崩溃；
+- 7 条 `Skyscraper *`：美术 `condition` 读 `V.avery_tower.progress`，而新游戏夹具里
+  还没有这个对象（游戏自己的初始化是 `$avery_tower to {}` + `progress 0`）。
+
+补丁 `.local/patches/patch-fix8-0511.json`：
+
+```json
+{
+  "timeDistortion": 0,
+  "timeStamp": 0,
+  "avery_tower": {"progress": 0, "effects": [], "stage": 0, "intro": 0}
+}
+```
+
+实测（同一份 82MB 真实载荷、`--only-file` 指定这 8 条）：
+
+- 用 `--fixture base-1004.json --fixture-patch patch-fix8-0511.json`：`verdicts={'ok': 8}`；
+- 用合并后的 `--fixture base-1004-fix8.json`（不带 patch）：`verdicts={'ok': 8}`。
+
+### 8.3 剧情场景与日循环（2026-10-05）
+
+- manifest：**363 行 = 331 可点击 + 32 分隔标题**，与静态 HTML 交叉核对一致；
+- `--limit 12` 冒烟：12/12 `ok`；
+- 全量 331 行（2026-10-05 修复后）：`ok=239 / soft_fail=82 / hard_fail=0 /
+  fixture_insufficient=9 / not_applicable=1`；静态交叉核对报 1 条索引漂移
+  （`Events#96`：静态 `Livestock Job Pig Rape` vs 运行时 `Forest Boar Rape`，
+  计数一致、按索引比对时的错位），已如实写进报告；
+- 修复前的 18 条 `hard_fail` 全部定位并归类：9 条"写未定义状态"→ 扩展
+  `FIXTURE_MARKERS` 后归 `fixture_insufficient`；1 条年号范围写错（DoL 用虚构历法，
+  游戏内年份是 361）→ 修检查；6 条 debug 作弊故意越界（`$awareness -= 200`、
+  `Damage Chastity` 等）→ 改为"该行自己写入的越界值"备注；2 条上游 debug 菜单宏缺失
+  （`<<parasiteProgressDay>>`）→ `soft_fail` 并标注 `upstream debug-menu defect`；
+- dayloop（修掉早期假通过之后）如实结果：`ok=3`（起床/洗漱/出门）、`not_applicable=6`、
+  fallback 0、stalled 0，存档往返 PASS；时间只推进 0.03h → 如实判 `soft_fail`
+  （"走一天"的水龙头还没接上，没有被伪装成通过）。
+
+### 8.4 战斗（2026-10-05）
+
+- 4 种控制模式（Radio / Radio(c) / Lists / List(w)）真机全 PASS：逐回合 `enemyhealth` 下降、
+  默认模式自动还原；
+- 静态清单 `.local/sweep/combat-initiators.json`：`total=1570`
+  （第二期方案里的备忘值 1,603 与之差 19 条，按实测清单为准，drift 已记录）；
+- 已知限制：base 夹具缺 NPC bedsheet 数据，5 个 `maninit` 原型目前落在
+  `fixture_insufficient`（不算 bug，基线记录在案）。
+
+### 8.5 环境矩阵（2026-10-05）
+
+- `--tier daily --dry-plan`（真实产物）：`passages=15627 env_sensitive=1378 contexts=8 executions=11024`；
+  口径命中：time_clock 943 / weather 481 / day_state 435 / holiday 270 / season 116 …；
+  与第二期备忘的"886 条"差 +492，原因（更宽的时间/日夜口径）已写进代码注释与
+  `meta.env_sensitive_rule.drift_note`，没有为了凑数收窄；
+- `--tier full --dry-plan`：`15627 passages × 4 contexts = 62508 executions`；
+- 小样本真机：`--tier daily --limit 8` → 8/8 `ok`；`--limit 32 --seed 5` 覆盖全部 8 个
+  上下文，8 个上下文 `verified=True`、`reads_failed=0`，32/32 `ok`。
+
+### 8.6 单测
+
+`python -m pytest -q`：**504 passed**（原 310 + 第二期新增；含 scenario 68、
+combat 43、env_matrix 27、fixture_ladder 20、save_safety_guard 16、
+report_sanitize 11、passage_sweep 28 等）。
+
+---
+
+## 8.7 CI 手动工作流
+
+`.github/workflows/sweep.yaml`，仅 `workflow_dispatch`，输入 `tier`：
+
+| tier | 内容 |
+| --- | --- |
+| `daily` | 300 passage 抽样 + 全部场景 + 日循环 + 战斗原型矩阵 + 环境日常档 |
+| `full` | 全量 passage + 全部场景 + 环境全矩阵 |
+| `combat-full` | 全部战斗入口逐条打到终局 |
+| `env-full` | 环境全矩阵单独重跑 |
+
+流程：`checkout` → pytest → `prepare` 产出 HTML → **现场 capture 合成夹具** →
+按档位跑工具 → `report_sanitize` 脱敏并 `--check` 复核 → 上传 Artifact。
+单 job `timeout-minutes: 210`，`concurrency` 与 Build 分开排队；
+**真实存档与个人路径永不进入 CI**。发版验收 = `full` + `combat-full` 两次手动触发。
+
 ---
 
 ## 9. 一键复现清单（发版前）
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
+$FIX  = ".local\fixtures\base-1004-fix8.json"
+$HTML = "workspace\prepare_package\zip\Degrees of Lewdity.html"
+
 python tools\quick_check.py                                   # 网络/依赖 13/13
-python -m pytest -q                                           # 全量单元测试
+python -m pytest -q                                           # 全量单元测试（504）
+python tools\save_safety_guard.py                             # 仓库存档安全守卫
 python tools\au_artifact_check.py output\*.zip                # AU 产物审计
-python tools\passage_sweep.py "workspace\prepare_package\zip\Degrees of Lewdity.html" --sample 300 --out .local\sweep\out-smoke
+
+# 日常档五轴
+python tools\passage_sweep.py $HTML --fixture $FIX --sample 300 --out .local\sweep\out-smoke
+python tools\scenario_sweep.py $HTML --fixture $FIX --suite all --out .local\sweep\scenarios
+python tools\combat_sweep.py $HTML --fixture $FIX --tier archetypes --out .local\sweep\combat
+python tools\env_matrix.py --target $HTML --fixture $FIX --tier daily --out .local\sweep\env-daily
 python tools\sweep_flow_assertions.py output\DoL-...-au-f-1003.zip --flow all --out .local\sweep\flows
+
 # 发版级：全量扫描 + 与上一份基线对比
-python tools\passage_sweep.py "workspace\prepare_package\zip\Degrees of Lewdity.html" --out .local\sweep\full --baseline .local\sweep\full-1004\passage-sweep-baseline.json
+python tools\passage_sweep.py $HTML --out .local\sweep\full --baseline .local\sweep\full-1004\passage-sweep-baseline.json
+
+# 报告离开本机前先脱敏
+python tools\report_sanitize.py .local\sweep
+python tools\report_sanitize.py --check .local\sweep
 ```
 
 ---
 
 ## 10. 产物目录
 
-`--out` 目录里：
+每个 `--out` 目录里至少一对 `*-report.json` / `*.md`（工具名可能是 `passage-sweep.*`、
+`scenario-*`、`combat-*`、`env-*`、`flow-assertions.*`），内含逐条结果
+（verdict / reason / 耗时 / 缺失变量 / 上下文）与五档计数：
 
-- `passage-sweep.json`：机器可读全量结果（每条 passage 的 verdict / errors / text_len / 耗时 / 落点）
-- `passage-sweep.md`：人读报告（verdict 计数 + 明细 + 基线对比）
-- `passage-sweep-baseline.json`：`--save-baseline` 时封存的基线
+- passage：`passage-sweep.json`（机器可读全量结果）+ `passage-sweep.md`（人读报告）；
+- 场景/日循环：`scenario-sweep.json` + `scenario-manifest.json`（清单跨会话复现）；
+- 战斗：`combat-sweep.json` + `combat-initiators.json`（入口清单，`--resume` 依据）；
+- 环境：`env-<tier>-report.json` + `env-<tier>-report.md`（含 8/4 个上下文的读回状态）；
+- `--save-baseline` 时另写一份基线到 `.local/sweep/baselines/`（passage 轴按
+  `{fixture}__{context}` 分组）；功能流断言目录里是 `flow-assertions.json` / `.md`。
 
-功能流断言目录里：`flow-assertions.json` / `flow-assertions.md`，含每条流的证据 JSON。
+所有报告在离开本机前必须过 `tools/report_sanitize.py`。

@@ -119,8 +119,38 @@ downloads/test_builds/20260624-e0b1a4b/
 └── (手动下载的 APK 放这里)
 ```
 
-### AU 诊断测试证据
+### Engine A 自动化测试套件（2026-10-05 第二期）
 
+五轴全自动测试，全部运行时注入、不改构建、不进发行包；日常档 ≤60 分钟，发版档 3-4 小时：
+
+| 轴 | 工具 | 日常档 | 发版档 |
+| --- | --- | --- | --- |
+| passage 渲染 | `tools/passage_sweep.py` | 300 抽样 | 全量 15,627 + 夹具/上下文 |
+| 剧情场景 | `tools/scenario_sweep.py --suite scenarios` | 全部 331 个可点击场景 | 全部 + 基线 |
+| 日循环 | `tools/scenario_sweep.py --suite dayloop` | 跑 | 跑 |
+| 战斗 | `tools/combat_sweep.py` | 原型矩阵 + 4 控制模式 | `--tier initiators` 全量入口 |
+| 环境 | `tools/env_matrix.py` | `--tier daily`（8 上下文） | `--tier full`（4 上下文） |
+
+配套设施：`tools/fixture_ladder.py`（夹具阶梯，`.local/fixtures/` 永不入库）、
+`tools/save_safety_guard.py`（fail-closed 存档/路径守卫）、
+`tools/report_sanitize.py`（报告离开本机前脱敏）。
+CI 手动入口：`.github/workflows/sweep.yaml`（`workflow_dispatch`，tier =
+daily / full / combat-full / env-full，单 job 上限 210 分钟，报告脱敏后才上传）。
+
+判定统一五档：`ok / soft_fail / hard_fail / fixture_insufficient / not_applicable`；
+基线只报新增回归。完整说明与实测数据见 `docs/AUTOMATED_PASSAGE_SWEEP.md`。
+
+```powershell
+$FIX  = ".local\fixtures\base-1004-fix8.json"
+$HTML = "workspace\prepare_package\zip\Degrees of Lewdity.html"
+python tools\passage_sweep.py $HTML --fixture $FIX --sample 300 --out .local\sweep\out-smoke
+python tools\scenario_sweep.py $HTML --fixture $FIX --suite all --out .local\sweep\scenarios
+python tools\combat_sweep.py $HTML --fixture $FIX --tier archetypes --out .local\sweep\combat
+python tools\env_matrix.py --target $HTML --fixture $FIX --tier daily --out .local\sweep\env-daily
+python tools\report_sanitize.py .local\sweep        # 报告离开本机前必须脱敏
+```
+
+### AU 诊断测试证据
 AU 相关问题必须绑定到具体构建，避免把旧 APK 日志当成当前配置结论。每次 AU 手测至少记录：
 
 - GitHub Actions run ID
