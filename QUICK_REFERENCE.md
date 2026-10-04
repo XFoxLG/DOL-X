@@ -50,8 +50,8 @@ AU Face 不占独立 bit；任一 AU 体型命中时自动注入，base 明确�
 8388608  doli
 ```
 
-当前四码还都包含 `ucb`（256）与 `more_love`（8192）。`bunny_transformation`（1048576）因已知
-不兼容而禁用；BESC、Hikari、Goose、Susato、WAX、KR/BJ 特写不属于当前公开矩阵。
+当前四码还都包含 `ucb`（256）与 `more_love`（8192）。BESC、Hikari、Goose、Susato、
+WAX、KR/BJ 特写不属于当前公开矩阵。
 
 ---
 

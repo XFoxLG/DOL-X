@@ -7,7 +7,6 @@ Phase 1: 构建矩阵配置测试
 - 基础版 (15704320) 不注入 AU 扩展
 - AU 三版本 (15705344/15706368/15708416) 注入 AU 扩展
 - 所有版本都包含 more_love、cheatExtended+maplebirch、custom_hair、mae_picvary、maplebirch_expansion、guide_to_me、npc_social_icon、neoui_patch、doli
-- BunnyTransformation 不进入当前矩阵
 - NeoUI Patch 已升为必选，进入全部组合
 - 没有在线版相关配置
 """
@@ -32,7 +31,7 @@ class TestBuildMatrix:
         )
 
     def test_build_codes_values(self):
-        """验证构建组合代码正确（NeoUI 必选进入全部包，禁用 BunnyTransformation）"""
+        """验证构建组合代码正确（NeoUI 必选进入全部包）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
@@ -55,7 +54,7 @@ class TestBuildMatrix:
         )
 
     def test_base_code_is_15704320(self):
-        """验证基础版代码为 15704320（含 NeoUI 与 D.O.L.I，禁用 BunnyTransformation）"""
+        """验证基础版代码为 15704320（含 NeoUI 与 D.O.L.I）"""
         config_loader = get_config_loader()
         combinations_config = config_loader.combinations
 
