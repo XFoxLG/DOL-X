@@ -36,6 +36,15 @@
     `timeout-minutes: 210`；报告先脱敏再上传 Artifact）。
   - 验证：`pytest` **504 passed**；夹具/守卫/脱敏取证测试与真机小样本证据见
     `docs/AUTOMATED_PASSAGE_SWEEP.md` §4 与 §8。
+- **战斗原型矩阵入口选择修复（同日第二轮，2026-10-05）**：`beastNEWinit` 无
+  starter 的静态行（如 `Farmland Pigs`）只生成怪物，战斗在后续 passage 才开；
+  原型矩阵最初把它们当可玩入口，实机全部 `not_applicable`。修复：
+  `find_combat_link_target` 支持最多 2 跳的 wiki/`<<link>>` 链接跟随 +
+  `choose_entry` 按 link_depth 重新排序 + 矩阵/控制模式跑前强制 restore +
+  `mode_entry is None` 分支错误；8 个兽类原型（pig/cat/fox/lizard/hawk/bear/
+  boar/snake）改为真实战斗入口。修复后 28 规格全量实测：
+  `ok=28 / soft_fail=14 / hard_fail=0 / fixture_insufficient=46 /
+  not_applicable=16`，4 控制模式 `mode:ok`；`pytest` **510 passed**。
 
 ### Changed
 

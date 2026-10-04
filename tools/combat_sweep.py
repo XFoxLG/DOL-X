@@ -70,6 +70,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Iterable, Sequence
 
 if __package__ in (None, ""):
@@ -241,6 +242,8 @@ ENTRY_FLAG_ATTEMPTS: tuple[tuple[str, ...], ...] = (
 )
 
 MACRO_CALL_RE = re.compile(r"<<([A-Za-z_][A-Za-z0-9_]*)([^>]*)>>")
+WIKI_LINK_RE = re.compile(r"\[\[([^\]|]*)(?:\|([^\]]*))?\]\]")
+LINK_WIDGET_RE = re.compile(r"<<link\s+\[\[([^\]|]*)(?:\|([^\]]*))?\]\][^>]*>>")
 
 
 def parse_beast_token(args: str) -> str:
@@ -260,6 +263,62 @@ def parse_beast_token(args: str) -> str:
 
 def initiator_key(kind: str, token: str | None, passage: str) -> str:
     return f"{kind}:{token or '-'}:{passage}"
+
+
+def rows_passage_bodies(rows: Sequence[dict[str, Any]]) -> dict[str, str]:
+    """Read the ``_passage_bodies`` map injected by ``run`` (tests: empty)."""
+    for row in rows:
+        payload = row.get("_passage_bodies")
+        if isinstance(payload, dict):
+            result = {str(k): str(v) for k, v in payload.items()}
+            return result
+    return {}
+
+
+def find_combat_link_target(
+    row: dict[str, Any],
+    passage_bodies: Mapping[str, str],
+    *,
+    max_depth: int = 2,
+) -> str | None:
+    """Follow one in-passage link from ``row`` to a passage that starts combat.
+
+    Weak static rows (e.g. ``beastNEWinit`` without ``beastCombatInit`` in
+    ``Farmland Pigs``) only generate the beast; the fight starts on the linked
+    passage. Deterministic: first link (document order) whose target passage
+    contains a combat starter macro wins; the original row wins on ties.
+    """
+    source = str(row.get("passage") or "")
+    body = passage_bodies.get(source)
+    if not body:
+        return None
+    def link_targets(body: str) -> list[str]:
+        targets: list[str] = []
+        for pattern in (WIKI_LINK_RE, LINK_WIDGET_RE):
+            for match in pattern.finditer(body):
+                target_name = str(match.group(2) or match.group(1)).strip()
+                if target_name:
+                    targets.append(target_name)
+        return targets
+
+    def walk(current: str, depth: int, seen: frozenset[str]) -> str | None:
+        if depth == 0:
+            return None
+        body = passage_bodies.get(current)
+        if not body:
+            return None
+        for target_name in link_targets(body):
+            if target_name == current or target_name in seen:
+                continue
+            target_body = passage_bodies.get(target_name)
+            if target_body and _combat_starters_for(target_body):
+                return target_name
+            found = walk(target_name, depth - 1, seen | {current})
+            if found:
+                return found
+        return None
+
+    return walk(source, max_depth, frozenset())
 
 
 def _is_named_beast_token(token: str) -> bool:
@@ -407,9 +466,23 @@ ARCHETYPE_SPECS: tuple[ArchetypeSpec, ...] = (
     ArchetypeSpec("beast-hawk", "鹰", "beast", "beastNEWinit", "hawk"),
     ArchetypeSpec("beast-cow", "牛", "beast", "beastNEWinit", "cow"),
     ArchetypeSpec("beast-bear", "熊", "beast", "beastNEWinit", "bear"),
-    ArchetypeSpec("beast-spider", "蜘蛛", "beast", "beastNEWinit", "spider"),
+    ArchetypeSpec(
+        "beast-spider",
+        "蜘蛛",
+        "beast",
+        "beastNEWinit",
+        "spider",
+        passage_keywords=("Catacombs",),
+    ),
     ArchetypeSpec("beast-boar", "野猪", "beast", "beastNEWinit", "boar"),
-    ArchetypeSpec("beast-dolphin", "海豚", "beast", "beastNEWinit", "dolphin"),
+    ArchetypeSpec(
+        "beast-dolphin",
+        "海豚",
+        "beast",
+        "beastNEWinit",
+        "dolphin",
+        passage_keywords=("Widgets Sea", "Beast Train"),
+    ),
     ArchetypeSpec("beast-snake", "蛇", "beast", "beastNEWinit", "snake"),
     ArchetypeSpec("special-tentacle", "触手", "special", "tentacle"),
     ArchetypeSpec("special-swarm", "蜂群", "special", "swarm"),
@@ -435,13 +508,29 @@ def spec_matches(row: dict[str, Any], spec: ArchetypeSpec) -> bool:
     return True
 
 
-def choose_entry(rows: Sequence[dict[str, Any]], spec: ArchetypeSpec) -> dict[str, Any] | None:
+def choose_entry(
+    rows: Sequence[dict[str, Any]],
+    spec: ArchetypeSpec,
+    passage_bodies: Mapping[str, str] | None = None,
+) -> dict[str, Any] | None:
     """Deterministically pick the most enterable row for one archetype spec."""
     pool = [row for row in rows if spec_matches(row, spec)]
     if not pool:
         return None
 
-    def rank(row: dict[str, Any]) -> tuple[int, int, int, int, str]:
+    def link_depth(row: dict[str, Any]) -> int:
+        if not passage_bodies:
+            return 9
+        for depth in (0, 1, 2, 3):
+            if depth == 0:
+                if row.get("combat_starters"):
+                    return depth
+                continue
+            if find_combat_link_target(row, passage_bodies, max_depth=depth):
+                return depth
+        return 9
+
+    def rank(row: dict[str, Any]) -> tuple[int, int, int, int, int, str]:
         # ``Widgets *`` passages are the game's widget libraries: they carry many
         # initiator macros but only render when invoked from a real passage, so
         # ``Engine.play`` on them never flips ``$combat``.
@@ -450,6 +539,7 @@ def choose_entry(rows: Sequence[dict[str, Any]], spec: ArchetypeSpec) -> dict[st
         flags = len(row.get("entry_flags") or [])
         return (
             library,
+            link_depth(row),
             -starters,
             -flags,
             len(str(row.get("passage") or "")),
@@ -465,6 +555,7 @@ def build_archetype_jobs(
     limit: int | None = None,
     sample: int | None = None,
     seed: int = 20261004,
+    passage_bodies: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Expand the archetype matrix into (archetype x path) jobs.
 
@@ -480,11 +571,27 @@ def build_archetype_jobs(
 
     jobs: list[dict[str, Any]] = []
     unresolved: list[dict[str, Any]] = []
+    bodies = passage_bodies if passage_bodies is not None else rows_passage_bodies(rows)
     for spec in specs:
         row = choose_entry(rows, spec)
+        row = choose_entry(rows, spec, bodies)
         if row is None:
             unresolved.append({"archetype": spec.key, "reason": "no static initiator row"})
             continue
+        follow = None
+        if not row.get("combat_starters"):
+            follow = find_combat_link_target(row, bodies)
+            if follow is None:
+                unresolved.append(
+                    {
+                        "archetype": spec.key,
+                        "reason": (
+                            "chosen row has no combat starter and no link to one: "
+                            f"{row.get('passage')}"
+                        ),
+                    }
+                )
+                continue
         for path in ARCHETYPE_PATHS:
             jobs.append(
                 {
@@ -495,10 +602,11 @@ def build_archetype_jobs(
                     "path": path,
                     "kind": row["kind"],
                     "token": row["token"],
-                    "passage": row["passage"],
+                    "passage": follow or row["passage"],
                     "entry_flags": list(row.get("entry_flags") or []),
                     "combat_starters": list(row.get("combat_starters") or []),
                     "initiator_key": row["key"],
+                    **({"link_from": row["passage"]} if follow else {}),
                 }
             )
     return {
@@ -1165,6 +1273,11 @@ def run_archetype_jobs(
     results: list[dict[str, Any]] = []
     for position, job in enumerate(jobs, 1):
         t0 = time.time()
+        # The matrix runs four paths back-to-back; a previous job can leave
+        # ``$combat == 1`` behind (e.g. a submit path that keeps the fight
+        # alive). Force a clean entry so each job measures its own fight.
+        if _state(page).get("combat") == 1:
+            page.evaluate(ps.RESTORE_FIXTURE)
         entry = enter_row(page, job, timeout_ms=timeout_ms)
         if entry.get("ok"):
             drive = drive_combat(
@@ -1629,6 +1742,13 @@ def run(
     t0 = time.time()
     html_text = html_path.read_text(encoding="utf-8", errors="replace")
     manifest = scan_initiators(html_text)
+    # Static archetype rows without a combat starter macro (e.g. ``Farmland
+    # Pigs``) only *generate* the beast; the fight itself starts on a later
+    # passage reached through an in-passage link. Resolve those links here so
+    # the matrix enters real combat instead of reporting not_applicable.
+    passage_bodies: dict[str, str] = {}
+    for passage in ps.extract_passages(html_path)[0]:
+        passage_bodies[passage.name] = passage.body
     scan_ms = int((time.time() - t0) * 1000)
     manifest["scan_ms"] = scan_ms
     if manifest_out is not None:
@@ -1701,7 +1821,11 @@ def run(
     selection: dict[str, Any] = {}
     if tier == "archetypes":
         matrix = build_archetype_jobs(
-            manifest["rows"], limit=limit, sample=sample, seed=seed
+            manifest["rows"],
+            limit=limit,
+            sample=sample,
+            seed=seed,
+            passage_bodies=passage_bodies,
         )
         selection = {
             "archetypes": matrix["archetypes"],
@@ -1821,6 +1945,12 @@ def run(
                             f"on {mode_entry.get('key')}",
                             flush=True,
                         )
+                    if mode_entry is not None:
+                        # A stale fight left over from the matrix (or any
+                        # prior state) poisons the mode check: force a fresh
+                        # entry before running the mode rounds.
+                        if _state(page).get("combat") == 1:
+                            page.evaluate(ps.RESTORE_FIXTURE)
                         report["modes"] = run_control_modes(
                             page,
                             mode_entry,
@@ -1828,9 +1958,13 @@ def run(
                             timeout_ms=timeout_ms,
                         )
                 elif modes_only:
-                    jobs_for_mode = build_archetype_jobs(manifest["rows"], limit=limit, sample=sample, seed=seed)[
-                        "jobs"
-                    ]
+                    jobs_for_mode = build_archetype_jobs(
+                        manifest["rows"],
+                        limit=limit,
+                        sample=sample,
+                        seed=seed,
+                        passage_bodies=passage_bodies,
+                    )["jobs"]
                     mode_entry = pick_mode_entry(jobs_for_mode)
                     report["selection"]["modes_only"] = True
                     if mode_entry is not None:
