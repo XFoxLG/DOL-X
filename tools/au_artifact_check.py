@@ -20,6 +20,7 @@ from tools.artifact_inspection import (
     decode_base64_payload,
     load_html_from_apk,
     load_preferred_html_from_zip,
+    parse_boot_json,
     parse_mod_data_value_zip_list,
 )
 from lyra.build import (
@@ -194,7 +195,7 @@ def _embedded_mod_inventory(
             with zipfile.ZipFile(io.BytesIO(payload), "r") as payload_zip:
                 if "boot.json" not in payload_zip.namelist():
                     continue
-                boot_json = json.loads(
+                boot_json = parse_boot_json(
                     payload_zip.read("boot.json").decode("utf-8-sig")
                 )
                 mod_name = str(boot_json.get("name") or "").lower()
