@@ -320,6 +320,25 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
   （第二期方案里的备忘值 1,603 与之差 19 条，按实测清单为准，drift 已记录）；
 - 已知限制：base 夹具缺 NPC bedsheet 数据，5 个 `maninit` 原型目前落在
   `fixture_insufficient`（不算 bug，基线记录在案）。
+- **入口选择修复（同日第二轮）**：原型矩阵最初把 `beastNEWinit` 无 starter 的行
+  （如 `Farmland Pigs` / `Wolf Bear` / `Widgets Maze`）当成"可玩"入口，实机全部
+  `not_applicable`（只生成怪物，战斗在后续 passage 才开）。修复：
+  `find_combat_link_target` 支持 wiki 链接 + `<<link [[...]]>>` widget 链接、
+  最多 2 跳（`max_depth=2`）找到带战斗 starter 的落点；`choose_entry` 按
+  "link_depth → starters → flags" 重新排序（`beast-pig/cat/fox/lizard/hawk/bear/boar/snake`
+  共 8 个原型由此改为真实战斗入口，6/28 规格解析为真实战斗）；
+  并修复两处状态泄漏（矩阵逐 job 前与控制模式跑前强制 restore）+ 一处
+  `mode_entry is None` 时仍调 `run_control_modes` 的分支错误。
+- **修复后全量原型矩阵实测**（`.local/sweep/combat-archetypes-final/`，28 规格 →
+  104 jobs，5:15-5:45，约 30 分钟）：
+  `ok=28 / soft_fail=14 / hard_fail=0 / fixture_insufficient=46 / not_applicable=16`，
+  4 控制模式 `mode:ok`；`ok` 覆盖 dog/horse/lizard/cow/snake/stalk/plant 共 7 个
+  原型（全部 4 路径），`not_applicable` 收敛到 cat/fox/wraith/possession 4 个
+  （widget 库行与无真实战斗入口的行，如实记录），修复前是 12 个原型 48 条。
+- `fixture_insufficient` 汇总：human/named 4 原型（NPC bedsheet 数据缺失）+
+  beast 4 原型（wolf/pig/hawk/bear/boar，静态行无 link 落点）+ special 4 原型
+  （tentacle/swarm/vore/hypno，action widget 渲染不出），全部为夹具/入口数据
+  问题，不是游戏 bug。
 
 ### 8.5 环境矩阵（2026-10-05）
 
@@ -330,12 +349,16 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 - `--tier full --dry-plan`：`15627 passages × 4 contexts = 62508 executions`；
 - 小样本真机：`--tier daily --limit 8` → 8/8 `ok`；`--limit 32 --seed 5` 覆盖全部 8 个
   上下文，8 个上下文 `verified=True`、`reads_failed=0`，32/32 `ok`。
+- **daily 全量真机**（`.local/sweep/daily-acceptance/env-daily/`，1:03-1:27，
+  约 24 分钟）：11,024 执行 → `ok=11016 / soft_fail=0 / hard_fail=0 /
+  fixture_insufficient=0 / not_applicable=8`；8 个上下文全部 `verified=True`、
+  `reads_failed=0`。
 
 ### 8.6 单测
 
-`python -m pytest -q`：**504 passed**（原 310 + 第二期新增；含 scenario 68、
-combat 43、env_matrix 27、fixture_ladder 20、save_safety_guard 16、
-report_sanitize 11、passage_sweep 28 等）。
+`python -m pytest -q`：**510 passed**（原 310 + 第二期新增 + 战斗入口修复
+第二轮 +6；含 scenario 68、combat 49、env_matrix 27、fixture_ladder 20、
+save_safety_guard 16、report_sanitize 11、passage_sweep 28 等）。
 
 ---
 
