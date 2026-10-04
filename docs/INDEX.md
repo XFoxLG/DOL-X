@@ -28,7 +28,7 @@
 ### 技术参考
 - [DOCUMENTATION_GUIDE](DOCUMENTATION_GUIDE.md) - CHANGELOG、Release 正文与状态文档写作规范
 - [TESTING_GUIDE](TESTING_GUIDE.md) - 当前测试流程与验证边界
-- [AUTOMATED_PASSAGE_SWEEP](AUTOMATED_PASSAGE_SWEEP.md) - 全自动 passage 扫描与关键功能流断言（Engine A）
+- [AUTOMATED_PASSAGE_SWEEP](AUTOMATED_PASSAGE_SWEEP.md) - Engine A 自动化测试套件总说明：全 passage 扫描 + 剧情场景/日循环 + 战斗 + 环境矩阵 + 夹具阶梯与存档安全 + CI 手动工作流
 - [COMMUNITY_TOOLS](COMMUNITY_TOOLS.md) - 社区工具评估
 - [AU_MODS_INTEGRATION](AU_MODS_INTEGRATION.md) - AU Mod 集成说明
 - [MODLOADER_TROUBLESHOOTING](MODLOADER_TROUBLESHOOTING.md) - ModLoader 排障
