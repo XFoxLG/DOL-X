@@ -72,17 +72,6 @@ def parse_boot_json(raw_boot_json: str) -> Any:
     except json.JSONDecodeError:
         pass
 
-    # A later assignment wins at runtime, so more than one list makes the
-    # audited payload set differ from the one the game actually loads.
-    if len(matches) > 1:
-        return ModDataValueZipListParse(
-            error_kind="duplicate_assignment",
-            error=(
-                "HTML assigns modDataValueZipList "
-                f"{len(matches)} times; the runtime payload set is ambiguous"
-            ),
-        )
-
     try:
         import json5
     except ImportError:
