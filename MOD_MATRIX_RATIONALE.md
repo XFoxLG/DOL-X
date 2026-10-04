@@ -53,7 +53,7 @@
 15708416 = 15704320 + 4096 (AU-A)
 ```
 
-`1048576` (BunnyTransformation) is intentionally excluded. v0.3.1β caused 16 TweeReplacer errors and combat crashes in the current DoL 0.5.8.10 stack. `2097152` (NeoUI Patch) is now **required** and ships in every build (promoted 2026-07-05): it is an independent UI beautify mod and the project's standard UI. The 2026-06-30 AU sidebar diagnostic is closed — NeoUI does not cause the sprite misplacement, so no-NeoUI variants are no longer built.
+`2097152` (NeoUI Patch) is now **required** and ships in every build (promoted 2026-07-05): it is an independent UI beautify mod and the project's standard UI. The 2026-06-30 AU sidebar diagnostic is closed — NeoUI does not cause the sprite misplacement, so no-NeoUI variants are no longer built.
 
 ---
 
@@ -390,16 +390,6 @@ DOL-X 的选择：
 - **类型**: ModLoader mod，bit 524288
 - **决策**: 扩展互动玩法，社区评价好，功能稳定
 
-#### 变身兔兔 (Bunny Transformation)
-
-- **功能**: 添加兔子变身系统
-- **来源**: https://github.com/sylphiet/Bunny-TransformationCN
-- **版本**: v0.3.1β
-- **兼容性**: ❌ 已禁用；v0.3.1β 在当前 DoL 0.5.8.10 + maplebirch v3.1.14 栈中触发 16 个 TweeReplacer 错误并导致战斗崩溃
-- **类型**: ModLoader mod，bit 1048576
-- **注意**: 保留配置和 bit 记录用于追踪，但不进入当前稳定 build_codes
-- **决策**: 试集成后回退；除非上游修复依赖/替换问题并重新验证，否则不恢复到稳定矩阵
-
 #### NeoUI Patch
 
 - **功能**: UI 增强补丁，侧边栏动画优化，UI 美化
@@ -458,13 +448,6 @@ DOL-X 的选择：
 - **功能**: 提供更多与 NPC 嘴部互动的选项
 - **兼容性**: ✅ 独立功能，无依赖
 - **添加理由**: 扩展互动玩法，社区评价好
-
-#### 变身兔兔 (WinterPeach&Kotomi)
-
-- **bit**: 1048576
-- **功能**: 添加新的动物转化
-- **兼容性**: ❌ 已拒绝进入当前稳定矩阵；v0.3.1β 战斗崩溃
-- **添加理由**: 仅保留为历史候选和回归测试案例，不再作为默认新增 mod
 
 #### NeoUI Patch (依雅莱)
 

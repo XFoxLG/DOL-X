@@ -161,9 +161,6 @@ gh api repos/MaplebirchLeaf/SCML-DOL-maplebirchframework/releases/latest --jq '.
 3. NeoUI Patch (依雅莱 v1.1.0) - 2026-07-05 升为必选，进入全部 4 个包
 4. D.O.L.I (ArsNativa v0.2.3) - LLM AI 文本增强，maplebirch 插件，玩家自填 API key
 
-**已禁用**:
-- 变身兔兔 (WinterPeach v0.3.1β) - 与当前游戏版本不兼容，16 个 TweeReplacer 错误 + 战斗崩溃
-
 **低优先级**:
 - inuno 犬野美化 - 等主线稳定后评估
 
