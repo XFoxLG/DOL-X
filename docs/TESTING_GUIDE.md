@@ -138,7 +138,9 @@ CI 手动入口：`.github/workflows/sweep.yaml`（`workflow_dispatch`，tier =
 daily / full / combat-full / env-full，单 job 上限 210 分钟，报告脱敏后才上传）。
 
 判定统一五档：`ok / soft_fail / hard_fail / fixture_insufficient / not_applicable`；
-基线只报新增回归。完整说明与实测数据见 `docs/AUTOMATED_PASSAGE_SWEEP.md`。
+基线只报新增回归。战斗原型矩阵会自动跟随 `<<link>>` 链接（最多 2 跳）找到真实
+战斗入口，`beastNEWinit` 无 starter 的行（如 `Farmland Pigs`）不会再被误判为
+`not_applicable`。完整说明与实测数据见 `docs/AUTOMATED_PASSAGE_SWEEP.md`。
 
 ```powershell
 $FIX  = ".local\fixtures\base-1004-fix8.json"
