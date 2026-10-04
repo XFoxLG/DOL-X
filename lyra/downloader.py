@@ -19,6 +19,13 @@ from .utils import download_file, extract_zip
 logger = logging.getLogger(__name__)
 
 
+# 汉化仓库 release 里缺失即无法产出完整构建的资产键。
+# zip/apk 是两种产物的本体；image_pack 提供原版图片；i18n 是必须注入的汉化 mod。
+# polyfill_zip 不在此列：它只在 combinations.toml 启用兼容版时才被请求，
+# 且当前 polyfill.enabled = false，缺失属于正常情况。
+CRITICAL_CHS_ASSET_KEYS = frozenset({"apk", "zip", "image_pack", "i18n"})
+
+
 class Downloader:
     """
     资源下载器
@@ -75,30 +82,39 @@ class Downloader:
         )
         logger.info(f"汉化仓库版本: {release_tag}")
 
-        # 定义需要下载的文件模式
+        # 定义需要下载的文件模式。
+        # 扩展名一律大小写不敏感：汉化仓库历史上用大写 .APK 命名安卓包，但这只是
+        # 上游的命名习惯而非契约，硬编码大小写会在上游改名当天静默漏取资产。
         required_patterns = [
             (
                 "apk",
-                lambda name: name.endswith(".APK") and "polyfill" not in name.lower(),
+                lambda name: name.lower().endswith(".apk")
+                and "polyfill" not in name.lower(),
             ),
             (
                 "zip",
-                lambda name: name.endswith(".zip")
-                and "ModLoader" in name
+                lambda name: name.lower().endswith(".zip")
+                and "modloader" in name.lower()
                 and "polyfill" not in name.lower(),
             ),
             (
                 "image_pack",
-                lambda name: "GameOriginalImagePack" in name and name.endswith(".zip"),
+                lambda name: "gameoriginalimagepack" in name.lower()
+                and name.lower().endswith(".zip"),
             ),
-            ("i18n", lambda name: "ModI18N" in name and name.endswith(".zip")),
+            (
+                "i18n",
+                lambda name: "modi18n" in name.lower()
+                and name.lower().endswith(".zip"),
+            ),
         ]
 
         if combinations_config.polyfill_enabled:
             required_patterns.append(
                 (
                     "polyfill_zip",
-                    lambda name: name.endswith(".zip") and "polyfill" in name.lower(),
+                    lambda name: name.lower().endswith(".zip")
+                    and "polyfill" in name.lower(),
                 )
             )
 
@@ -114,8 +130,23 @@ class Downloader:
                     }
                     break
 
-        # 检查是否找到所有必需文件
+        # 检查是否找到所有必需文件。
+        # CRITICAL_CHS_ASSET_KEYS 缺失必须当场中止：继续走下去只会在 build 阶段
+        # 以“APK目录不存在”之类的次生症状失败，报错点离真因很远，难以诊断。
         missing = [key for key, _ in required_patterns if key not in assets_to_download]
+        missing_critical = [
+            key for key in missing if key in CRITICAL_CHS_ASSET_KEYS
+        ]
+        if missing_critical:
+            available_asset_names = [
+                asset.get("name", "")
+                for asset in release_data.get("assets", [])
+            ]
+            raise RuntimeError(
+                "汉化仓库 release "
+                f"{release_tag} 缺少必需资源: {missing_critical}；"
+                f"实际资产列表: {available_asset_names}"
+            )
         if missing:
             logger.warning(f"未找到以下资源: {missing}")
 
