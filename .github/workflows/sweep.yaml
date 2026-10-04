@@ -1,0 +1,139 @@
+name: Sweep
+
+# 引擎 A 全自动测试（剧情 / 战斗 / 环境）的手动入口。
+# 报告全部落在 runner 的 .local/sweep 下，经 tools/report_sanitize.py 脱敏后
+# 才作为 Artifact 上传；真实存档与个人路径永不进入 CI（CI 只用现场合成的合成夹具）。
+#
+# 档位分工（单 job 上限 210 分钟，GitHub 标准 runner 免费）：
+#   daily       日常档：300 passage 抽样 + 全部 363 场景 + 日循环 + 战斗原型矩阵 + 环境日常档
+#   full        发版档 A：全量 passage + 全部场景 + 环境全矩阵
+#   combat-full 发版档 B：全部 1,603 个战斗入口逐条打到终局
+#   env-full    环境全矩阵单独重跑（full 里已包含，给排查/复测用）
+# 发版验收 = full + combat-full 两次手动触发（各在 3.5 小时内）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "测试档"
+        type: choice
+        default: daily
+        options:
+          - daily
+          - full
+          - combat-full
+          - env-full
+
+permissions:
+  contents: read
+
+# 与 Build 分开排队：同一 ref 上避免两个重型 job 抢带宽/runner。
+concurrency:
+  group: sweep-${{ github.ref }}-${{ inputs.tier }}
+  cancel-in-progress: false
+
+env:
+  # 固定 seed，保证抽样与随机顺序可复现。
+  SWEEP_SEED: "20261005"
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      # 与 Build 工作流一致：prepare 需要用 unrar 解上游资产。
+      - name: Install APT packages
+        run: sudo apt install -y unrar
+
+      # 配置与工具回归测试：先把工具本身的漂移挡在昂贵的扫描之前。
+      - name: Run test suite
+        run: python -m pytest tests -q
+
+      # 与 Build 工作流同一套 prepare：产出 workspace/prepare_package 下的游戏载荷。
+      - name: Prepare game packages
+        run: python main.py prepare --workspace "${{ github.workspace }}" -v
+
+      - name: Locate built HTML
+        run: |
+          set -euo pipefail
+          HTML="$(find workspace/prepare_package -name 'Degrees of Lewdity.html' -print -quit)"
+          if [ -z "${HTML}" ]; then
+            echo "::error::prepare did not produce Degrees of Lewdity.html"
+            find workspace -maxdepth 4 -name '*.html' || true
+            exit 1
+          fi
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
+
+      # CI 没有（也不允许有）本地真实夹具：现场从合成 bootstrap 捕获一份，
+      # 之后所有轴共用，保证与本地 base-1004 同一条管线。
+      - name: Capture synthetic fixture
+        run: |
+          python tools/fixture_ladder.py capture "$HTML_PATH" \
+            --out .local/fixtures/ci-base.json --label ci-base
+          echo "FIXTURE=.local/fixtures/ci-base.json" >> "$GITHUB_ENV"
+
+      - name: Sweep daily
+        if: inputs.tier == 'daily'
+        run: |
+          python tools/passage_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+            --sample 300 --seed "$SWEEP_SEED" --out .local/sweep/daily-passage
+          python tools/scenario_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+            --suite all --seed "$SWEEP_SEED" --out .local/sweep/daily-scenario
+          python tools/combat_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+            --tier archetypes --seed "$SWEEP_SEED" --out .local/sweep/daily-combat
+          python tools/env_matrix.py --target "$HTML_PATH" --fixture "$FIXTURE" \
+            --tier daily --seed "$SWEEP_SEED" --out .local/sweep/daily-env
+
+      - name: Sweep full
+        if: inputs.tier == 'full'
+        run: |
+          python tools/passage_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+            --out .local/sweep/full-passage
+          python tools/scenario_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+            --suite all --seed "$SWEEP_SEED" --out .local/sweep/full-scenario
+          python tools/env_matrix.py --target "$HTML_PATH" --fixture "$FIXTURE" \
+            --tier full --seed "$SWEEP_SEED" --out .local/sweep/full-env
+
+      - name: Sweep combat-full
+        if: inputs.tier == 'combat-full'
+        run: |
+          python tools/combat_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+            --tier initiators --seed "$SWEEP_SEED" --out .local/sweep/combat-full
+
+      - name: Sweep env-full
+        if: inputs.tier == 'env-full'
+        run: |
+          python tools/env_matrix.py --target "$HTML_PATH" --fixture "$FIXTURE" \
+            --tier full --seed "$SWEEP_SEED" --out .local/sweep/env-full
+
+      # 脱敏是不可跳过的上传前置：先就地清洗，再用 --check 复核（仍脏则整步失败）。
+      - name: Sanitize reports
+        if: always()
+        run: |
+          python tools/report_sanitize.py .local/sweep
+          python tools/report_sanitize.py --check .local/sweep
+
+      - name: Upload sweep reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sweep-${{ inputs.tier }}-${{ github.run_id }}
+          path: .local/sweep
+          retention-days: 30
+          if-no-files-found: warn

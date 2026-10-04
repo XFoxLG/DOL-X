@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import collections
+import hashlib
 import html as html_mod
 import json
 import random
@@ -99,6 +100,122 @@ def resolve_html_path(target: Path) -> Path:
     _raw, tmp = _html_payload(target)
     candidates = sorted(tmp.rglob("*.html"), key=lambda p: p.stat().st_size, reverse=True)
     return candidates[0].resolve()
+
+
+# --------------------------------------------------------------------------- #
+# Fixture ladder / overlay patches / only-file targeting
+# --------------------------------------------------------------------------- #
+
+
+def parse_only_file(path: Path) -> list[str]:
+    """Read a newline-separated passage-name list (blank lines and # comments ignored)."""
+    names: list[str] = []
+    seen: set[str] = set()
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        name = line.strip()
+        if not name or name.startswith("#"):
+            continue
+        if name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
+def filter_passages(passages: list[Passage], names: list[str]) -> tuple[list[Passage], list[str]]:
+    """Keep only passages whose name is in ``names`` (document order preserved).
+
+    Returns ``(kept, missing)`` where ``missing`` lists requested names that do
+    not exist in the build, so drift surfaces instead of silently shrinking.
+    """
+    wanted = set(names)
+    kept = [p for p in passages if p.name in wanted]
+    seen = {p.name for p in kept}
+    missing = [n for n in names if n not in seen]
+    return kept, missing
+
+
+def load_fixture_file(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load a fixture JSON (fixture_ladder ``capture`` format or a flat dict).
+
+    Returns ``(variables, meta)``; meta records source path, sha256, format and
+    size so every report can be traced back to an exact fixture revision.
+    """
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        data = json.loads(raw.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"fixture {path} is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit(f"fixture {path} must be a JSON object")
+    if isinstance(data.get("variables"), dict):
+        variables = data["variables"]
+        source_format = "capture"
+    else:
+        variables = data
+        source_format = "flat"
+    if not variables:
+        raise SystemExit(f"fixture {path} carries zero variables")
+    meta = {
+        "source": str(path),
+        "sha256": digest,
+        "format": source_format,
+        "keys": len(variables),
+        "bytes": len(raw),
+    }
+    return variables, meta
+
+
+def apply_fixture_patch(
+    variables: dict[str, Any], patch: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """Apply a ``{"dotted.path": value}`` overlay to a deep copy of ``variables``.
+
+    Numeric segments index lists (e.g. ``worn.upper.0.name``). Missing containers
+    are created; descending into a scalar raises SystemExit (fail-closed) so a
+    mistyped patch can never be silently ignored.
+    """
+    out = json.loads(json.dumps(variables))
+    applied: list[str] = []
+    for dotted, value in patch.items():
+        if not isinstance(dotted, str) or not dotted:
+            raise SystemExit(f"fixture patch key must be a non-empty string: {dotted!r}")
+        parts = dotted.split(".")
+        node: Any = out
+        for i, part in enumerate(parts[:-1]):
+            nxt = parts[i + 1]
+            if isinstance(node, dict):
+                if part not in node or node[part] is None:
+                    node[part] = [] if nxt.isdigit() else {}
+                node = node[part]
+            elif isinstance(node, list):
+                if not part.isdigit():
+                    raise SystemExit(
+                        f"fixture patch {dotted!r}: numeric list index expected at {part!r}"
+                    )
+                idx = int(part)
+                if idx >= len(node):
+                    node.extend([None] * (idx - len(node) + 1))
+                if node[idx] is None:
+                    node[idx] = [] if nxt.isdigit() else {}
+                node = node[idx]
+            else:
+                raise SystemExit(
+                    f"fixture patch {dotted!r}: cannot descend into "
+                    f"{type(node).__name__} at {part!r}"
+                )
+        last = parts[-1]
+        if isinstance(node, dict):
+            node[last] = value
+        elif isinstance(node, list) and last.isdigit():
+            idx = int(last)
+            if idx >= len(node):
+                node.extend([None] * (idx - len(node) + 1))
+            node[idx] = value
+        else:
+            raise SystemExit(f"fixture patch {dotted!r}: container mismatch at final segment")
+        applied.append(dotted)
+    return out, applied
 
 
 # --------------------------------------------------------------------------- #
@@ -439,6 +556,11 @@ FIXTURE_MARKERS = (
     "undefined is not a function",
     "cannot read propert",
     "cannot read properties",
+    # A debug row may *write* into state the fresh fixture does not have yet
+    # (e.g. ``<<set $beast.type to ...>>`` -> "Cannot set properties of
+    # undefined"); same fixture-boundary family as the read case above.
+    "cannot set propert",
+    "cannot set properties",
     "null is not an object",
 )
 
@@ -492,6 +614,9 @@ def sweep(
     per_passage_timeout_ms: int,
     headless: bool,
     bootstrap_settle_ms: int,
+    fixture_vars: dict[str, Any] | None = None,
+    fixture_meta: dict[str, Any] | None = None,
+    context: str = "default",
 ) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
@@ -510,6 +635,8 @@ def sweep(
         "swept": len(selected),
         "sample": sample,
         "seed": seed,
+        "context": context,
+        "fixture": fixture_meta,
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "results": [],
         "bootstrap": {},
@@ -569,23 +696,46 @@ def sweep(
                 "every passage would burn the full timeout"
             )
 
-        snap = json.loads(page.evaluate(FIXTURE_SNAPSHOT))
-        fixture = snap.get("variables") if isinstance(snap.get("variables"), dict) else {}
-        fixture_json = json.dumps(fixture, ensure_ascii=True, separators=(",", ":"))
-        report["bootstrap"] = {
-            "steps": boot["steps"],
-            "passage": boot["passage"],
-            "actions": boot.get("actions"),
-            "snapshot_ok": snap.get("ok"),
-            "snapshot_meta": snap.get("meta"),
-            "fixture_vars": len(fixture),
-        }
-        report["fixture_bytes"] = len(fixture_json)
-        load_ok = page.evaluate(LOAD_FIXTURE, fixture_json)
-        report["bootstrap"]["load_fixture"] = load_ok
-        if not load_ok.get("ok"):
-            raise SystemExit(f"fixture load failed: {load_ok}")
-        report["bootstrap"]["first_restore"] = page.evaluate(RESTORE_FIXTURE)
+        if fixture_vars is not None:
+            # Fixture-file path (tools/fixture_ladder.py capture): reuse the frozen
+            # snapshot instead of re-snapshotting the freshly bootstrapped game.
+            fixture = fixture_vars
+            fixture_json = json.dumps(fixture, ensure_ascii=True, separators=(",", ":"))
+            report["bootstrap"] = {
+                "source": "fixture-file",
+                "steps": boot["steps"],
+                "passage": boot["passage"],
+                "fixture": fixture_meta,
+                "fixture_vars": len(fixture),
+            }
+            report["fixture_bytes"] = len(fixture_json)
+            load_ok = page.evaluate(LOAD_FIXTURE, fixture_json)
+            report["bootstrap"]["load_fixture"] = load_ok
+            if not load_ok.get("ok"):
+                raise SystemExit(f"fixture load failed: {load_ok}")
+            first_restore = page.evaluate(RESTORE_FIXTURE)
+            report["bootstrap"]["first_restore"] = first_restore
+            if not (isinstance(first_restore, dict) and first_restore.get("ok")):
+                raise SystemExit(f"fixture restore failed (fail-closed): {first_restore}")
+        else:
+            snap = json.loads(page.evaluate(FIXTURE_SNAPSHOT))
+            fixture = snap.get("variables") if isinstance(snap.get("variables"), dict) else {}
+            fixture_json = json.dumps(fixture, ensure_ascii=True, separators=(",", ":"))
+            report["bootstrap"] = {
+                "source": "bootstrap-snapshot",
+                "steps": boot["steps"],
+                "passage": boot["passage"],
+                "actions": boot.get("actions"),
+                "snapshot_ok": snap.get("ok"),
+                "snapshot_meta": snap.get("meta"),
+                "fixture_vars": len(fixture),
+            }
+            report["fixture_bytes"] = len(fixture_json)
+            load_ok = page.evaluate(LOAD_FIXTURE, fixture_json)
+            report["bootstrap"]["load_fixture"] = load_ok
+            if not load_ok.get("ok"):
+                raise SystemExit(f"fixture load failed: {load_ok}")
+            report["bootstrap"]["first_restore"] = page.evaluate(RESTORE_FIXTURE)
 
         try:
             for idx, p in enumerate(selected, 1):
@@ -681,6 +831,18 @@ def diff_against_baseline(report: dict[str, Any], baseline: dict[str, Any]) -> d
     }
 
 
+def _fixture_summary(fixture: dict[str, Any] | None) -> str:
+    """Human-readable one-liner for the fixture section of the markdown report."""
+    if not fixture:
+        return "`bootstrap` (snapshot taken in this run)"
+    source = str(fixture.get("source", "?"))
+    digest = str(fixture.get("sha256", ""))[:12]
+    keys = fixture.get("keys", "?")
+    patch = fixture.get("patch")
+    extra = f", patch={patch.get('source')} ({len(patch.get('applied', []))} paths)" if patch else ""
+    return f"`{source}` keys={keys} sha256={digest}{extra}"
+
+
 def write_report(report: dict[str, Any], out_dir: Path, diff: dict[str, Any] | None) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "passage-sweep.json"
@@ -692,6 +854,8 @@ def write_report(report: dict[str, Any], out_dir: Path, diff: dict[str, Any] | N
         "",
         f"- target: `{report['target']}`",
         f"- swept: **{report['swept']}** of {report['total_passages']} passages",
+        f"- context: `{report.get('context', 'default')}`",
+        f"- fixture: {_fixture_summary(report.get('fixture'))}",
         f"- bootstrap: {report.get('bootstrap')}",
         f"- fixture bytes: {report.get('fixture_bytes')}",
         "",
@@ -746,6 +910,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--headful", action="store_true", help="show the browser window")
     p.add_argument("--baseline", type=Path, default=None, help="sealed baseline json to diff against")
     p.add_argument("--save-baseline", action="store_true", help="write this run's json as the new baseline")
+    p.add_argument(
+        "--fixture",
+        type=Path,
+        default=None,
+        help="fixture json captured by tools/fixture_ladder.py (default: in-run bootstrap snapshot)",
+    )
+    p.add_argument(
+        "--fixture-patch",
+        type=Path,
+        default=None,
+        help='JSON {"dotted.path": value} overlay applied to --fixture before restore',
+    )
+    p.add_argument(
+        "--context",
+        type=str,
+        default="default",
+        help="context label recorded in the report and used in the grouped baseline key",
+    )
+    p.add_argument(
+        "--only-file",
+        type=Path,
+        default=None,
+        help="file with passage names to sweep (one per line, # comments ignored)",
+    )
     return p.parse_args(argv)
 
 
@@ -753,7 +941,44 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     passages, _ = extract_passages(args.target)
     html_path = resolve_html_path(args.target)
+
+    only_meta: dict[str, Any] | None = None
+    if args.only_file:
+        if not args.only_file.exists():
+            raise SystemExit(f"--only-file not found: {args.only_file}")
+        names = parse_only_file(args.only_file)
+        passages, missing = filter_passages(passages, names)
+        only_meta = {
+            "source": str(args.only_file),
+            "requested": len(names),
+            "kept": len(passages),
+            "missing": missing,
+        }
+        if missing:
+            print(f"[sweep] WARNING: {len(missing)} requested passage(s) not found: {missing[:8]}")
     print(f"[sweep] target={args.target} passages={len(passages)} html={html_path}")
+
+    fixture_vars: dict[str, Any] | None = None
+    fixture_meta: dict[str, Any] | None = None
+    if args.fixture_patch and not args.fixture:
+        raise SystemExit("--fixture-patch requires --fixture")
+    if args.fixture:
+        if not args.fixture.exists():
+            raise SystemExit(f"fixture not found: {args.fixture}")
+        fixture_vars, fixture_meta = load_fixture_file(args.fixture)
+        fixture_meta["context"] = args.context
+        if args.fixture_patch:
+            if not args.fixture_patch.exists():
+                raise SystemExit(f"fixture patch not found: {args.fixture_patch}")
+            patch_data = json.loads(args.fixture_patch.read_text(encoding="utf-8"))
+            if not isinstance(patch_data, dict):
+                raise SystemExit("fixture patch must be a JSON object of {dotted.path: value}")
+            fixture_vars, applied = apply_fixture_patch(fixture_vars, patch_data)
+            fixture_meta["patch"] = {
+                "source": str(args.fixture_patch),
+                "applied": applied,
+            }
+            print(f"[sweep] fixture patch applied: {len(applied)} path(s) from {args.fixture_patch}")
 
     report = sweep(
         html_path,
@@ -764,7 +989,12 @@ def main(argv: list[str] | None = None) -> int:
         per_passage_timeout_ms=args.timeout_ms,
         headless=not args.headful,
         bootstrap_settle_ms=args.bootstrap_settle_ms,
+        fixture_vars=fixture_vars,
+        fixture_meta=fixture_meta,
+        context=args.context,
     )
+    if only_meta is not None:
+        report["only_file"] = only_meta
 
     diff = None
     if args.baseline and args.baseline.exists():
@@ -776,7 +1006,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.save_baseline:
         baseline_path = args.out / "passage-sweep-baseline.json"
         baseline_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"[sweep] baseline sealed -> {baseline_path}")
+        # Grouped copy so baselines are addressable by fixture x context (plan 2026-10-04).
+        key = f"{args.fixture.stem if args.fixture else 'bootstrap'}__{args.context}"
+        grouped_dir = Path(".local/sweep/baselines")
+        grouped_dir.mkdir(parents=True, exist_ok=True)
+        grouped_path = grouped_dir / f"{key}.json"
+        grouped_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[sweep] baseline sealed -> {baseline_path} ; grouped -> {grouped_path}")
 
     print(f"[sweep] verdicts={report['verdict_counts']}")
     print(f"[sweep] report -> {md}")

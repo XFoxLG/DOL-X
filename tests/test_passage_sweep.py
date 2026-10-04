@@ -143,6 +143,23 @@ def test_classify_fixture_insufficient_for_cannot_read_properties() -> None:
     assert verdict == "fixture_insufficient"
 
 
+def test_classify_fixture_insufficient_for_cannot_set_properties() -> None:
+    probe = _probe(
+        errors=[
+            {
+                "kind": "error",
+                "message": (
+                    "Cannot set properties of undefined (setting 'type')"
+                ),
+            }
+        ]
+    )
+
+    verdict, _ = classify(probe, landed_ok=True)
+
+    assert verdict == "fixture_insufficient"
+
+
 def test_classify_hard_fail_for_real_exception() -> None:
     probe = _probe(
         errors=[{"kind": "engine.play.throw", "message": "unexpected internal explosion"}]
@@ -327,3 +344,133 @@ def test_write_report_without_diff_omits_diff_section(tmp_path: Path) -> None:
 
     md = md_path.read_text(encoding="utf-8")
     assert "## baseline diff" not in md
+
+
+# --------------------------------------------------------------------------- #
+# fixture ladder helpers (--fixture / --fixture-patch / --only-file / --context)
+# --------------------------------------------------------------------------- #
+
+
+def test_parse_only_file_skips_blanks_comments_and_dedupes(tmp_path: Path) -> None:
+    from tools.passage_sweep import parse_only_file
+
+    path = tmp_path / "only.txt"
+    path.write_text(
+        "\ufeff# sealed fix-set\n\nBedroom\n  Kitchen  \nBedroom\n# trailing\n",
+        encoding="utf-8",
+    )
+
+    assert parse_only_file(path) == ["Bedroom", "Kitchen"]
+
+
+def test_filter_passages_reports_missing_names() -> None:
+    from tools.passage_sweep import filter_passages
+
+    passages = [Passage(name="A", body=""), Passage(name="B", body=""), Passage(name="C", body="")]
+
+    kept, missing = filter_passages(passages, ["C", "A", "Nope"])
+
+    # 保留文档顺序，而不是请求顺序
+    assert [p.name for p in kept] == ["A", "C"]
+    assert missing == ["Nope"]
+
+
+def test_load_fixture_file_accepts_capture_format(tmp_path: Path) -> None:
+    from tools.passage_sweep import load_fixture_file
+
+    path = tmp_path / "capture.json"
+    path.write_text(
+        json.dumps({"meta": {"source": "real"}, "variables": {"a": 1}, "stats": {}}),
+        encoding="utf-8",
+    )
+
+    variables, meta = load_fixture_file(path)
+
+    assert variables == {"a": 1}
+    assert meta["format"] == "capture"
+    assert meta["keys"] == 1
+    assert len(meta["sha256"]) == 64
+
+
+def test_load_fixture_file_accepts_flat_dict(tmp_path: Path) -> None:
+    from tools.passage_sweep import load_fixture_file
+
+    path = tmp_path / "flat.json"
+    path.write_text(json.dumps({"timeStamp": 12}), encoding="utf-8")
+
+    variables, meta = load_fixture_file(path)
+
+    assert variables == {"timeStamp": 12}
+    assert meta["format"] == "flat"
+
+
+def test_load_fixture_file_rejects_empty_or_non_object(tmp_path: Path) -> None:
+    import pytest
+
+    from tools.passage_sweep import load_fixture_file
+
+    empty = tmp_path / "empty.json"
+    empty.write_text("{}", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        load_fixture_file(empty)
+
+    scalar = tmp_path / "scalar.json"
+    scalar.write_text("42", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        load_fixture_file(scalar)
+
+
+def test_apply_fixture_patch_creates_nested_paths_and_list_indexes() -> None:
+    from tools.passage_sweep import apply_fixture_patch
+
+    variables = {"worn": {"upper": [{"name": "shirt"}]}}
+
+    patched, applied = apply_fixture_patch(
+        variables,
+        {
+            "timeDistortion": 5,
+            "avery_tower": {"progress": 100, "effects": [], "stage": 3, "intro": 1},
+            "worn.upper.0.name": "coat",
+            "worn.upper.1": {"name": "vest"},
+        },
+    )
+
+    assert patched["timeDistortion"] == 5
+    assert patched["avery_tower"]["progress"] == 100
+    assert patched["worn"]["upper"][0]["name"] == "coat"
+    assert patched["worn"]["upper"][1] == {"name": "vest"}
+    assert len(applied) == 4
+    # 输入不被原地修改（deep copy）
+    assert variables["worn"]["upper"][0]["name"] == "shirt"
+    assert "timeDistortion" not in variables
+
+
+def test_apply_fixture_patch_is_fail_closed_on_scalar_descent() -> None:
+    import pytest
+
+    from tools.passage_sweep import apply_fixture_patch
+
+    with pytest.raises(SystemExit):
+        apply_fixture_patch({"a": 1}, {"a.b": 2})
+    with pytest.raises(SystemExit):
+        apply_fixture_patch({"a": [1, 2]}, {"a.notdigit": 3})
+    with pytest.raises(SystemExit):
+        apply_fixture_patch({}, {"": 1})
+
+
+def test_write_report_records_context_and_fixture_summary(tmp_path: Path) -> None:
+    report = _report_fixture()
+    report["context"] = "spring-morning"
+    report["fixture"] = {
+        "source": "fixtures/base-1004.json",
+        "sha256": "a" * 64,
+        "keys": 780,
+        "patch": {"source": "fix8.json", "applied": ["timeDistortion"]},
+    }
+
+    md = write_report(report, tmp_path, None).read_text(encoding="utf-8")
+
+    assert "context: `spring-morning`" in md
+    assert "fixtures/base-1004.json" in md
+    assert "sha256=aaaaaaaaaaaa" in md
+    assert "patch=fix8.json (1 paths)" in md

@@ -13,6 +13,30 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Engine A 自动化测试第二期：剧情 · 战斗 · 环境（2026-10-05）**：在全 passage 扫描之上
+  新增多轴覆盖，全部运行时注入、不改构建配置、不进发行包；日常档 ≤60 分钟，发版档 3-4 小时。
+  - `tools/scenario_sweep.py`：游戏内置 debug 菜单 363 行（331 可点击 + 32 分隔标题）全部深挖，
+    另加一条真实游玩 `dayloop`（未走满一天的步骤如实记 `not_applicable`/`soft_fail`，不造假）；
+    `tools/combat_sweep.py`：敌人原型矩阵 × 胜/败/逃/屈服四路径 + 4 种战斗控制模式的真实 DOM
+    测试 + 全量战斗入口（实测清单 1,570，可 `--resume`）；
+    `tools/env_matrix.py`：日常 8 个具名时间/天气/节日上下文、发版 4 个，设置后读回校验
+    fail-closed。
+  - `tools/fixture_ladder.py`（夹具阶梯：capture/from-save/sanitize/verify/list，
+    `.local/fixtures/` + index.json，永不入库）、`tools/save_safety_guard.py`（仓库
+    fail-closed 守卫：`*.save` / LZString / 绝对路径 / `.local` 外的夹具载荷）、
+    `tools/report_sanitize.py`（CI 上传前脱敏 + `--check` 复核）；`tools/passage_sweep.py`
+    新增 `--fixture / --fixture-patch / --context / --only-file`，基线按
+    `{fixture}__{context}` 分组封存。
+  - 历史 8 条 `fixture_insufficient`（`TimeTest` + 7 条 `Skyscraper *`）用游戏自身初始化值
+    补丁修到 `ok`；合并夹具 `base-1004-fix8.json` 单独复跑 8/8 通过。
+  - 新增 `.github/workflows/sweep.yaml`（仅 `workflow_dispatch`；tier =
+    daily / full / combat-full / env-full；`concurrency` 与 Build 分开排队；
+    `timeout-minutes: 210`；报告先脱敏再上传 Artifact）。
+  - 验证：`pytest` **504 passed**；夹具/守卫/脱敏取证测试与真机小样本证据见
+    `docs/AUTOMATED_PASSAGE_SWEEP.md` §4 与 §8。
+
 ### Changed
 
 - **三个 mod 改走自建不可变镜像（2026-10-03）**：两个上游仓库被作者删除、一个上游通道
