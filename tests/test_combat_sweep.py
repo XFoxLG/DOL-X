@@ -12,12 +12,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 import html
 import json
 from pathlib import Path
 
 import pytest
 
+from tools import combat_sweep
 from tools.combat_sweep import (
     ARCHETYPE_PATHS,
     ARCHETYPE_SPECS,
@@ -39,6 +41,7 @@ from tools.combat_sweep import (
     classify_outcome,
     detect_stall,
     diff_against_baseline,
+    find_combat_link_target,
     initiator_key,
     parse_args,
     parse_beast_token,
@@ -323,6 +326,120 @@ def test_pick_mode_entry_prefers_beast_over_maninit() -> None:
     ]
 
     assert pick_mode_entry(jobs)["key"] == "b"
+
+
+def test_find_combat_link_target_follows_first_starter_link() -> None:
+    bodies = {
+        "Source": '<<beastNEWinit 1 pig>>\n[[Next|Fight Start]]\n[[Else|Other]]',
+        "Fight Start": "<<beastCombatInit>>",
+        "Other": "<<no combat here>>",
+    }
+    row = {"key": "beastNEWinit:pig:Source", "passage": "Source"}
+
+    assert find_combat_link_target(row, bodies) == "Fight Start"
+
+
+def test_find_combat_link_target_follows_two_links_deep() -> None:
+    bodies = {
+        "Source": '<<beastNEWinit 1 pig>>\n[[Next|Middle]]',
+        "Middle": "[[Continue|Fight Start]]",
+        "Fight Start": "<<beastCombatInit>>",
+    }
+    row = {"key": "beastNEWinit:pig:Source", "passage": "Source"}
+
+    assert find_combat_link_target(row, bodies) == "Fight Start"
+
+
+def test_find_combat_link_target_returns_none_without_starters() -> None:
+    bodies = {
+        "Source": '<<beastNEWinit 1 pig>>\n[[Next|Dead End]]',
+        "Dead End": "<<no combat>>",
+    }
+    row = {"key": "beastNEWinit:pig:Source", "passage": "Source"}
+
+    assert find_combat_link_target(row, bodies) is None
+
+
+def test_build_archetype_jobs_follows_links_for_starterless_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snake_spec = next(s for s in combat_sweep.ARCHETYPE_SPECS if s.key == "beast-pig")
+    monkeypatch.setattr(combat_sweep, "ARCHETYPE_SPECS", (snake_spec,))
+    bodies = {
+        "Farmland Pigs": '<<beastNEWinit 2 pig>>\n[[Next|Farmland Pigs Rape]]',
+        "Farmland Pigs Rape": "<<beastCombatInit>>",
+    }
+    rows = [
+        {
+            "key": "beastNEWinit:pig:Farmland Pigs",
+            "kind": "beastNEWinit",
+            "token": "pig",
+            "passage": "Farmland Pigs",
+            "entry_flags": [],
+            "combat_starters": [],
+            "_passage_bodies": bodies,
+        }
+    ]
+
+    matrix = build_archetype_jobs(rows)
+
+    assert matrix["unresolved"] == []
+    assert {job["passage"] for job in matrix["jobs"]} == {"Farmland Pigs Rape"}
+    assert all(job["link_from"] == "Farmland Pigs" for job in matrix["jobs"])
+
+
+def test_build_archetype_jobs_unresolved_when_no_starter_reachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dolphin_spec = next(
+        s for s in combat_sweep.ARCHETYPE_SPECS if s.key == "beast-dolphin"
+    )
+    unrestricted_spec = dataclasses.replace(dolphin_spec, passage_keywords=())
+    monkeypatch.setattr(combat_sweep, "ARCHETYPE_SPECS", (unrestricted_spec,))
+    bodies = {"Dead": "<<beastNEWinit 1 dolphin>>"}
+    rows = [
+        {
+            "key": "beastNEWinit:dolphin:Dead",
+            "kind": "beastNEWinit",
+            "token": "dolphin",
+            "passage": "Dead",
+            "entry_flags": [],
+            "combat_starters": [],
+            "_passage_bodies": bodies,
+        }
+    ]
+
+    matrix = build_archetype_jobs(rows)
+
+    assert matrix["jobs"] == []
+    assert len(matrix["unresolved"]) == 1
+    assert "no link" in matrix["unresolved"][0]["reason"]
+
+
+def test_build_archetype_jobs_accepts_explicit_passage_bodies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pig_spec = next(s for s in combat_sweep.ARCHETYPE_SPECS if s.key == "beast-pig")
+    monkeypatch.setattr(combat_sweep, "ARCHETYPE_SPECS", (pig_spec,))
+    bodies = {
+        "Brothel Show": '<<beastNEWinit 1 pig>>\n[[Next|Brothel Show Pig]]',
+        "Brothel Show Pig": "<<beastCombatInit>>",
+    }
+    rows = [
+        {
+            "key": "beastNEWinit:pig:Brothel Show",
+            "kind": "beastNEWinit",
+            "token": "pig",
+            "passage": "Brothel Show",
+            "entry_flags": [],
+            "combat_starters": [],
+        }
+    ]
+
+    matrix = build_archetype_jobs(rows, passage_bodies=bodies)
+
+    assert matrix["unresolved"] == []
+    assert {job["passage"] for job in matrix["jobs"]} == {"Brothel Show Pig"}
 
 
 # --------------------------------------------------------------------------- #
