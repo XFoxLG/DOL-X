@@ -17,7 +17,6 @@
 #
 # 计算（包含所有必选mod）：
 # 必选基线: 15704320 = 256 (ucb) + 8192 (more_love) + 32768 (cheat_extended_maplebirch) + 65536 (custom_hair) + 131072 (mae_picvary) + 262144 (maplebirch_expansion) + 524288 (guide_to_me) + 2097152 (neoui_patch) + 4194304 (npc_social_icon) + 8388608 (doli)
-# 已禁用: 1048576 (bunny_transformation) — v0.3.1β 不兼容，导致战斗系统崩溃（16个 TweeReplacer 错误）
 # AU 变体：+ 1024 (au-f) = 15705344, + 2048 (au-m) = 15706368, + 4096 (au-a) = 15708416
 # AU Face 不占独立 bit：由 au-f/au-m/au-a 任一命中时注入，因此只出现在上面三个 AU 码，不进基础码。
 # NeoUI 于 2026-07-05 从可选升为必选，进入全部组合，不再构建无 NeoUI 的包。
