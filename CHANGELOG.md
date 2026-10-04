@@ -163,6 +163,24 @@
 
 ### Added
 
+- **全 passage 自动扫描 + 关键功能流断言（Engine A，2026-10-04）**：新增
+  `tools/passage_sweep.py` 与 `tools/sweep_flow_assertions.py`，把 2026-06
+  `docs/TESTING_DECISION_SUMMARY.md` 的"不建议实施全自动化"结论变为落地流程：
+  对构建产物"每个 passage 真实渲染一遍 + 关键功能流真断言 + 基线对比只报新增回归"。
+  - **首跑实测（0.5.11.9-XFox-1.0.0a 1004 构建）**：15,627/15,627 passage 全部渲染，
+    `ok` 15,619 / `fixture_insufficient` 8 / `hard_fail` 0 / `soft_fail` 0；
+    `landed == requested` 15,627/15,627；p50 80ms、p90 202ms；单页长跑 28 分钟无中断。
+    8 条 `fixture_insufficient`（`TimeTest` + 7 条 `Skyscraper *`）均为新游戏夹具
+    缺深层状态，非游戏缺陷。
+  - **判定分层 + 基线**：`ok` / `soft_fail` / `hard_fail` / `fixture_insufficient`
+    四档；首跑封基线，之后只报新增回归（含"夹具缺口恶化为真 bug"的严重度升级）。
+  - **关键流断言**：mods / saveload / ce-panel / au-face（8 脸型桌宠画布非空且像素互异）
+    / morelove；非 AU 产物如实返回 `not_applicable`，不假通过。
+  - **验证**：`310 passed`（含新增 `tests/test_passage_sweep.py` 19 条）；
+    使用说明、判定规则与已知限制见 `docs/AUTOMATED_PASSAGE_SWEEP.md`。
+  - **边界**：夹具只有新游戏深度；不检查视觉正确性；Engine B（MuMu 真机 CDP 门禁）
+    仍待建。
+
 - **上游解封框架 NPC 怀孕扩展（随 4.1.14 引入，带不可逆存档风险）**：
   `NPCPregnancy` 删除 `disabled = true` 字段与七处守卫，构造函数改为主动注册默认怀孕种族与
   NPC 配置，并在 `:storyready` 时注入 `NPCPregnancyPatch`。
