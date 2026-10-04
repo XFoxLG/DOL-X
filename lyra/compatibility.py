@@ -140,9 +140,13 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
             "model.defaultOptions() (an undressed model) when that cache is not "
             "populated yet. Measured on MuMu 12: direct pet.sync() on a fresh passage "
             "gave 16316 opaque pixels with no sidebar cache, while the macro path gave "
-            "17588 with clothing layers present, matching upstream appearance. Upstream "
-            "v4.1.14 ships a byte-identical Pet.ts and the same sync wiring, so "
-            "upgrading does not remove the need for this patch."
+            "17588 with clothing layers present, matching upstream appearance. The "
+            "framework is pinned back to v4.1.14 on 2026-09-28 after offline browser "
+            "smoke measured three regressions in v4.2.9 (faceStyleSrcFn missing, "
+            "whenSC2PassageEnd recursion and UIBar undefined) that all score zero on "
+            "v4.1.14, so this surface is again the exact payload the MuMu 12 evidence "
+            "was measured against. The needle still hits the official 4.1.14 asset "
+            "exactly once and the fail-closed build gate keeps enforcing that match."
         ),
     ),
     CompatibilitySurface(

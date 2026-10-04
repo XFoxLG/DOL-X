@@ -159,17 +159,21 @@ class TestModConfig:
             )
 
     def test_modern_maplebirch_stack_uses_official_upstreams(self):
-        """验证 4.x 核心栈不把项目镜像伪装成上游。"""
+        """验证 4.x 核心栈的下载来源如实标注。
+
+        maplebirch 与 cheat_extended 仍走作者官方源。longer_combat 与
+        yanling_cheat 的上游仓库已于 2026-10-02 被作者删除（API 与网页均 404），
+        官方资产不复存在，因此这两个改走 DOL-X 自建不可变镜像，并关闭
+        track_upstream；github_repo 保留上游值仅作来源标注，不得被误读为
+        "镜像伪装成上游"。
+        """
         build_config = load_build_config()
         mods_by_key = {mod.key: mod for mod in build_config.modloader_mods}
-        expected_repositories = {
+        official_upstreams = {
             "maplebirch": "MaplebirchLeaf/SCML-DOL-maplebirchFramework",
-            "cheat_extended": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
-            "longer_combat": "MaplebirchLeaf/LongerCombat",
-            "yanling_cheat": "MaplebirchLeaf/YanlingCheatCollection",
         }
 
-        for mod_key, expected_repository in expected_repositories.items():
+        for mod_key, expected_repository in official_upstreams.items():
             mod = mods_by_key[mod_key]
             assert mod.github_repo == expected_repository
             assert mod.download_url.startswith(
@@ -177,7 +181,42 @@ class TestModConfig:
             )
             assert mod.track_upstream is True
 
-        assert mods_by_key["cheat_extended"].include_prerelease_updates is True
+        # cheat_extended：上游仓库仍在、仍保持跟踪（周检用于发现新版本），但下载
+        # 已改走自建不可变镜像，因为上游 V1.20Beta 是可变通道（已原位换包五次），
+        # 冷启动构建会因为换包而 fail-closed。
+        ce = mods_by_key["cheat_extended"]
+        assert ce.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+        assert ce.download_url.startswith(
+            "https://github.com/XFoxLG/DOL-X/releases/download/"
+            "cheat-extended-mirror-v1.20/"
+        ), "cheat_extended 上游为可变通道，下载必须指向自建不可变镜像"
+        assert ce.track_upstream is True
+        assert ce.include_prerelease_updates is True
+
+        # 上游已删除的两个包：来源标注保留、下载改走自建不可变镜像、
+        # 不再做上游跟踪（已无可追对象）。
+        deleted_upstreams = {
+            "longer_combat": (
+                "MaplebirchLeaf/LongerCombat",
+                "longer-combat-mirror-v1.0.1",
+            ),
+            "yanling_cheat": (
+                "MaplebirchLeaf/YanlingCheatCollection",
+                "yanling-cheat-mirror-v1.0.1",
+            ),
+        }
+
+        for mod_key, (provenance, mirror_tag) in deleted_upstreams.items():
+            mod = mods_by_key[mod_key]
+            assert mod.github_repo == provenance, (
+                f"{mod_key} 应保留上游来源标注"
+            )
+            assert mod.download_url.startswith(
+                f"https://github.com/XFoxLG/DOL-X/releases/download/{mirror_tag}/"
+            ), f"{mod_key} 上游已删除，下载必须指向自建镜像"
+            assert mod.track_upstream is False, (
+                f"{mod_key} 上游已删除，不应再声称跟踪上游"
+            )
 
     def test_love_mod_exists(self):
         """验证 more_love mod 使用独立 feature 与直链资源。"""
