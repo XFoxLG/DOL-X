@@ -15,6 +15,22 @@
 
 ### Added
 
+- **剧情轴行分类 + 深度摘要 + 赋值前置检查（2026-10-07 同日第五轮）**：1006 剧情跑分
+  82 条 `soft_fail` 里有 80 条是同一句"widgets produced no observable state delta"——
+  浅层摘要只取一层、数组/对象前 8 个成员，嵌套写入（`<<learn_recipe_all>>` / `<<undress>>` /
+  `<<updateMuseumAntiques>>`）看起来像没生效。`scenario_sweep` 三处升级：
+  `classify_interaction` 把 331 个可点击项分成 `state` 212（`stayOnPassageFn` =
+  `() => V.passage`，游戏源码可验证）/ `scene` 94（字面跳转）/ `display` 24（widget 源
+  全空白，纯渲染页）；`__dolxDeepSnapshot` + `__dolxDeepDelta` 做全变量树深度摘要
+  （节点预算 15 万、深度 12、循环保护）与路径级 diff；`__dolxAssignChecks` 对
+  `<<set $path to <literal>>` 与 `+=/-=` 做最终值比对，非字面 RHS 与 function widget
+  记 `checked: false`（`String(fn)` 假阳性已修并留单测）。判定语义：无 delta 降级为
+  `ok` 的 note（报告新增 "ok rows with notes" 一节）；赋值检查失败 → `soft_fail`。
+  本机全量复跑 331 行：`ok` 239 → 319、`soft_fail` 82 → 2（仅剩两条上游未注册宏缺陷）、
+  `baseline_diff` new_regressions 0 / fixed 80；`pytest` **642 passed**。
+  另：修复前派出的 combat-full run 37542211811（head `05b3b95`）头 4 片全部因
+  `Start` 上 788 步 dismiss 撞 720s 冷启动预算而全 0 结果，佐证上一轮 CI 修复的必要性，
+  其报告不采信、需在修复后的新 run 重跑。
 - **战斗状态引导 status-bootstrap + CI 冷启动预算修复（2026-10-07 同日第四轮）**：
   `combat-personn-1007i` 剩下的 6 条 `fixture_insufficient` 都是**事件链中段**入口
   （Finish 读父事件已建好的状态）。`derive_precursor` 新增 6 条 status-bootstrap

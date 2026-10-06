@@ -643,6 +643,202 @@ SUMMARY_HELPER_JS = r"""
     }
     return { entries: entries, truncated: truncated };
   };
+  // The shallow __dolxSummary above only reaches one nesting level and the
+  // first few members of arrays/objects, so a widget writing into
+  // ``$museumAntiques.paintings.x`` or deep NPC fields looks like "no delta".
+  // __dolxDeepSnapshot walks the whole variable tree (bounded by a node
+  // budget) into a flat ``path -> encoded leaf`` map; the delta between two
+  // snapshots is the full serialization summary plus targeted diff.
+  const __dolxLookupPath = (root, path) => {
+    let node = root;
+    const parts = String(path || "").split(".");
+    for (let i = 0; i < parts.length; i++) {
+      let name = parts[i];
+      while (name.length) {
+        const open = name.indexOf("[");
+        if (open < 0) {
+          node = node == null ? undefined : node[name];
+          break;
+        }
+        const head = name.slice(0, open);
+        if (head) node = node == null ? undefined : node[head];
+        const close = name.indexOf("]", open);
+        if (close < 0) return undefined;
+        node = node == null ? undefined : node[name.slice(open + 1, close)];
+        name = name.slice(close + 1);
+      }
+    }
+    return node;
+  };
+  const __dolxDeepSnapshot = (V, budget) => {
+    const map = {};
+    const seen = new Set();
+    let nodes = 0;
+    let truncated = false;
+    const walk = (value, path, depth) => {
+      if (truncated || nodes >= budget) { truncated = true; return; }
+      nodes++;
+      let leaf = null;
+      try { leaf = __dolxLeaf(value); } catch (e) { map[path] = "unreadable"; return; }
+      if (leaf !== null) { map[path] = leaf; return; }
+      const t = typeof value;
+      if (t === "function") { map[path] = "function"; return; }
+      if (t !== "object") { map[path] = t; return; }
+      if (depth >= 12) {
+        map[path] = Array.isArray(value) ? "array:deep" : "object:deep";
+        return;
+      }
+      let cycle = false;
+      try { cycle = seen.has(value); } catch (e) { cycle = false; }
+      if (cycle) { map[path] = "cycle"; return; }
+      seen.add(value);
+      try {
+        if (Array.isArray(value)) {
+          map[path] = "array:" + value.length;
+          const count = Math.min(value.length, 256);
+          for (let i = 0; i < count && !truncated; i++) {
+            let item;
+            try { item = value[i]; } catch (e) {
+              map[path + "[" + i + "]"] = "unreadable";
+              continue;
+            }
+            walk(item, path + "[" + i + "]", depth + 1);
+          }
+        } else {
+          let keys = [];
+          try { keys = Object.keys(value).sort(); } catch (e) { keys = []; }
+          map[path] = "object:" + keys.length;
+          for (let i = 0; i < keys.length && !truncated; i++) {
+            let item;
+            try { item = value[keys[i]]; } catch (e) {
+              map[path + "." + keys[i]] = "unreadable";
+              continue;
+            }
+            walk(item, path + "." + keys[i], depth + 1);
+          }
+        }
+      } finally {
+        seen.delete(value);
+      }
+    };
+    try { walk(V, "$", 0); } catch (e) { truncated = true; }
+    return { map: map, nodes: nodes, truncated: truncated };
+  };
+  const __dolxDeepDelta = (before, after, limit) => {
+    const entries = [];
+    let truncated = false;
+    const keys = new Set(Object.keys(before.map).concat(Object.keys(after.map)));
+    const sorted = Array.from(keys).sort();
+    for (const k of sorted) {
+      if (before.map[k] === after.map[k]) continue;
+      if (entries.length >= limit) { truncated = true; break; }
+      entries.push({
+        path: k,
+        before: before.map[k] === undefined ? null : before.map[k],
+        after: after.map[k] === undefined ? null : after.map[k],
+      });
+    }
+    return { entries: entries, truncated: truncated };
+  };
+  // Parseable ``<<set $path to <literal>>`` / ``<<set $path += 5>>`` widgets
+  // get their final value checked against the literal (plus the deep snapshot
+  // for compound assignments). Non-literal RHS is reported as unchecked, never
+  // guessed: "cannot verify" must not read as "verified".
+  const __dolxLiteral = (text) => {
+    const s = String(text == null ? "" : text).trim();
+    if (/^-?\d+(?:\.\d+)?$/.test(s)) return { kind: "number", value: Number(s) };
+    if (s === "true") return { kind: "boolean", value: true };
+    if (s === "false") return { kind: "boolean", value: false };
+    if (s === "null") return { kind: "null", value: null };
+    if (s === "[]") return { kind: "array", value: null };
+    if (s === "{}") return { kind: "object", value: null };
+    if (/^`[^`]*`$/.test(s) || /^'[^']*'$/.test(s) || /^"[^"]*"$/.test(s)) {
+      return { kind: "string", value: s.slice(1, -1) };
+    }
+    return null;
+  };
+  const __dolxAssignChecks = (V, widgets, deepBefore, limit) => {
+    const checks = [];
+    const pathRe = /^\$([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[\d+\])*)\s+(to\s+|=|(?:\+|-|\*|\/)=)\s*([\s\S]+)$/;
+    const setRe = /<<\s*set\s+([\s\S]*?)>>/g;
+    for (const widget of widgets || []) {
+      // Function widgets build their markup at call time (``() => `<<set $x
+      // to ` + V.x + `>>` ``). String(fn) is source code, not SugarCube, so
+      // parsing it would invent checks that never ran: report the count and
+      // stay unchecked instead.
+      if (typeof widget === "function") continue;
+      const source = String(widget);
+      let match;
+      setRe.lastIndex = 0;
+      while ((match = setRe.exec(source)) !== null) {
+        const inner = match[1].trim();
+        const parsed = pathRe.exec(inner);
+        if (!parsed) continue;
+        const path = parsed[1];
+        const op = parsed[2].replace(/\s+/g, "");
+        const rhs = parsed[3].trim();
+        const literal = __dolxLiteral(rhs);
+        let actual;
+        try { actual = __dolxLookupPath(V, path); } catch (e) { actual = undefined; }
+        const shown = actual === undefined
+          ? null
+          : (typeof actual === "object" && actual !== null
+            ? (Array.isArray(actual) ? "array" : "object")
+            : actual);
+        if (!literal) {
+          checks.push({
+            path: path, op: op, rhs: rhs.slice(0, 80),
+            checked: false, reason: "non-literal rhs", actual: shown,
+          });
+        } else if (op === "to" || op === "=") {
+          let ok = false;
+          let expected = literal.value;
+          if (literal.kind === "number") ok = actual === literal.value;
+          else if (literal.kind === "string") ok = String(actual) === literal.value;
+          else if (literal.kind === "boolean") ok = actual === literal.value;
+          else if (literal.kind === "null") ok = actual === null || actual === undefined;
+          else if (literal.kind === "array") { ok = Array.isArray(actual); expected = "array"; }
+          else if (literal.kind === "object") {
+            ok = !!actual && typeof actual === "object" && !Array.isArray(actual);
+            expected = "object";
+          }
+          checks.push({
+            path: path, op: "to", rhs: rhs.slice(0, 80),
+            checked: true, ok: ok, expected: expected, actual: shown,
+          });
+        } else if (literal.kind !== "number") {
+          checks.push({
+            path: path, op: op, rhs: rhs.slice(0, 80),
+            checked: false, reason: "non-numeric rhs", actual: shown,
+          });
+        } else {
+          const encoded = deepBefore && deepBefore.map ? deepBefore.map["$." + path] : undefined;
+          const beforeValue = typeof encoded === "string" && encoded.indexOf("number:") === 0
+            ? Number(encoded.slice(7))
+            : NaN;
+          if (isNaN(beforeValue)) {
+            checks.push({
+              path: path, op: op, rhs: rhs.slice(0, 80),
+              checked: false, reason: "no numeric before value", actual: shown,
+            });
+          } else {
+            let expected = beforeValue;
+            if (op === "+=") expected = beforeValue + literal.value;
+            else if (op === "-=") expected = beforeValue - literal.value;
+            else if (op === "*=") expected = beforeValue * literal.value;
+            else if (op === "/=") expected = beforeValue / literal.value;
+            const ok = typeof actual === "number" && Math.abs(actual - expected) < 1e-9;
+            checks.push({
+              path: path, op: op, rhs: rhs.slice(0, 80),
+              checked: true, ok: ok, expected: expected, actual: shown,
+            });
+          }
+        }
+        if (checks.length >= limit) return checks;
+      }
+    }
+    return checks;
+  };
 """
 
 
@@ -662,7 +858,11 @@ SCENARIO_RUN = (
     label_is_function: false, target_is_function: false,
     widgets: 0, widgets_list: [], widgets_error: null,
     delta: [], delta_truncated: false, before_keys: 0, after_keys: 0, fixture_keys: 0,
+    passage_before: null, deep_delta: [], deep_delta_truncated: false,
+    deep_nodes: 0, assignment_checks: [], location_before: null,
+    function_widgets: 0,
   };
+  let widgetsRaw = [];
   try {
     const list = (window.setup && window.setup.debugMenu && window.setup.debugMenu.eventList) || null;
     const row = list && list[payload.section] && list[payload.section][payload.index];
@@ -670,15 +870,16 @@ SCENARIO_RUN = (
     out.label_is_function = typeof row.link[0] === "function";
     out.target_is_function = typeof row.link[1] === "function";
     out.widgets = Array.isArray(row.widgets) ? row.widgets.length : 0;
+    widgetsRaw = Array.isArray(row.widgets) ? row.widgets : [];
     // The widget source text is what the invariant battery uses to tell an
     // intentional debug cheat ("$awareness -= 200") from real corruption.
-    out.widgets_list = Array.isArray(row.widgets)
-      ? row.widgets.slice(0, 24).map((w) => String(w).slice(0, 300))
-      : [];
+    out.widgets_list = widgetsRaw.slice(0, 24).map((w) => String(w).slice(0, 300));
   } catch (e) {
     out.ok = false; out.error = "row probe: " + String(e && e.message ? e.message : e);
     return JSON.stringify(out);
   }
+  try { out.passage_before = String(SC.State.passage || ""); } catch (e) { out.passage_before = null; }
+  try { out.location_before = String(V.passage || ""); } catch (e) { out.location_before = null; }
   try {
     window.getNameAndPassage(payload.section, payload.index);
     out.link_name = String(SC.State.temporary.link_name);
@@ -688,6 +889,8 @@ SCENARIO_RUN = (
     out.target_error = String(e && e.message ? e.message : e).slice(0, 400);
   }
   const before = __dolxSummary(V);
+  let deepBefore = null;
+  try { deepBefore = __dolxDeepSnapshot(V, 150000); } catch (e) { deepBefore = null; }
   try {
     window.runWidgetsInsideLink(payload.section, payload.index);
   } catch (e) {
@@ -699,6 +902,29 @@ SCENARIO_RUN = (
   out.delta_truncated = delta.truncated;
   out.before_keys = Object.keys(before).length;
   out.after_keys = Object.keys(after).length;
+  if (deepBefore) out.deep_nodes = deepBefore.nodes;
+  if (delta.entries.length === 0 && deepBefore && !deepBefore.truncated) {
+    try {
+      const deepAfter = __dolxDeepSnapshot(V, 150000);
+      if (deepAfter.truncated) {
+        out.deep_delta_truncated = true;
+      } else {
+        const deep = __dolxDeepDelta(deepBefore, deepAfter, 40);
+        out.deep_delta = deep.entries;
+        out.deep_delta_truncated = deep.truncated;
+      }
+    } catch (e) {
+      out.deep_delta_truncated = true;
+    }
+  }
+  try {
+    out.assignment_checks = __dolxAssignChecks(V, widgetsRaw, deepBefore, 40);
+  } catch (e) {
+    out.assignment_checks = [];
+  }
+  try {
+    out.function_widgets = widgetsRaw.filter((w) => typeof w === "function").length;
+  } catch (e) { out.function_widgets = 0; }
   try { out.fixture_keys = S.fixtureVars ? Object.keys(S.fixtureVars).length : 0; } catch (e) { out.fixture_keys = 0; }
   return JSON.stringify(out);
 }
@@ -1499,6 +1725,74 @@ def is_unregistered_debug_macro(widget_error: str, widget_list: list[Any]) -> bo
     return any(f"<<{name}" in str(widget) for widget in widget_list)
 
 
+INTERACTIONS = ("scene", "state", "display")
+
+
+def classify_interaction(
+    *,
+    location_before: Any,
+    target: Any,
+    target_is_function: bool = False,
+    widgets_list: Iterable[Any] | None = None,
+) -> str:
+    """Classify one clickable debug row by what the click actually does.
+
+    * ``display`` -- every widget source is blank (or there are none), so the
+      click only navigates/renders (viewer pages such as ``Wardrobe`` /
+      ``NNPC Parade``); no state delta is expected at all.
+    * ``state`` -- the target is a function (in this build every one of the
+      212 dynamic targets is ``stayOnPassageFn``, ``() => V.passage``) and it
+      resolved to the current game location: an in-place operation whose
+      effect, if any, lives in the variable tree.
+    * ``scene`` -- the click navigates to a passage; widget code ran as a
+      pre-jump step and is not required to leave a delta.
+
+    Unknowns stay ``scene`` (the sweep already verifies the landing passage
+    for every row), so a missing signal never silently upgrades a row.
+    """
+    sources = [str(w) for w in (widgets_list or [])]
+    if not sources or all(not s.strip() for s in sources):
+        return "display"
+    location = None if location_before is None else str(location_before)
+    resolved = None if target is None else str(target)
+    if target_is_function and location is not None and resolved == location:
+        return "state"
+    return "scene"
+
+
+def summarize_assignment_checks(
+    checks: Iterable[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Aggregate the JS ``__dolxAssignChecks`` payload for the verdict layer."""
+    items = [c for c in (checks or []) if isinstance(c, dict)]
+    checked = [c for c in items if c.get("checked")]
+    failed = [
+        {
+            "path": str(c.get("path")),
+            "op": str(c.get("op")),
+            "expected": c.get("expected"),
+            "actual": c.get("actual"),
+        }
+        for c in checked
+        if not c.get("ok")
+    ]
+    unchecked = [
+        {
+            "path": str(c.get("path")),
+            "op": str(c.get("op")),
+            "reason": str(c.get("reason") or ""),
+        }
+        for c in items
+        if not c.get("checked")
+    ]
+    return {
+        "total": len(items),
+        "checked": len(checked),
+        "failed": failed,
+        "unchecked": unchecked,
+    }
+
+
 def aggregate_scenario_verdict(
     *,
     probe: dict[str, Any] | None,
@@ -1508,6 +1802,7 @@ def aggregate_scenario_verdict(
     invariant_report: dict[str, Any] | None = None,
     spec_report: dict[str, Any] | None = None,
     not_applicable: str | None = None,
+    interaction: str | None = None,
 ) -> tuple[str, str]:
     """Combine every per-row signal into the five-tier verdict + a detail string.
 
@@ -1538,6 +1833,7 @@ def aggregate_scenario_verdict(
     hard_items: list[str] = []
     soft_items: list[str] = []
     fixture_items: list[str] = []
+    notes: list[str] = []
 
     if row_report.get("target_error"):
         target_error = str(row_report["target_error"])
@@ -1561,7 +1857,36 @@ def aggregate_scenario_verdict(
         else:
             hard_items.append(f"runWidgetsInsideLink threw: {widget_error}")
     elif int(row_report.get("widgets") or 0) > 0 and not (row_report.get("delta") or []):
-        soft_items.append("widgets produced no observable state delta")
+        # The shallow summary misses nested writes; the deep snapshot + targeted
+        # diff is the real evidence layer. Absence of any delta is a note, not a
+        # failure: a debug click is not required to move a variable (RNG
+        # rerolls, idempotent <<set>> writes, viewer pages). Parseable
+        # assignments are still checked against their literal below.
+        deep_delta = list(row_report.get("deep_delta") or [])
+        if deep_delta:
+            notes.append(
+                f"delta visible only in deep snapshot ({len(deep_delta)} nested change(s))"
+            )
+        elif row_report.get("deep_delta_truncated"):
+            notes.append("deep snapshot truncated; delta cannot be fully attributed")
+        elif int(row_report.get("function_widgets") or 0) > 0:
+            notes.append(
+                f"{int(row_report.get('function_widgets'))} function widget(s) are not statically checkable"
+            )
+        elif interaction == "state":
+            notes.append("state operation left no observable variable delta")
+        elif interaction == "display":
+            notes.append("display-only row (no executable widget source)")
+        else:
+            notes.append("pre-jump widgets left no observable variable delta")
+
+    assignment = summarize_assignment_checks(row_report.get("assignment_checks"))
+    for item in assignment["failed"][:4]:
+        soft_items.append(
+            "assignment check failed: ${path} ({op}) expected {expected!r} got {actual!r}".format(
+                path=item["path"], op=item["op"], expected=item["expected"], actual=item["actual"]
+            )
+        )
 
     if invariant_report and not invariant_report.get("ok"):
         hard_items.append(f"invariant battery: {invariant_report.get('detail') or 'failed'}")
@@ -1582,10 +1907,10 @@ def aggregate_scenario_verdict(
         return base_verdict, "; ".join(details)[:600]
 
     if soft_items:
-        return "soft_fail", "; ".join(details + soft_items)[:600]
+        return "soft_fail", "; ".join(details + notes + soft_items)[:600]
     if base_verdict == "soft_fail":
-        return "soft_fail", "; ".join(details)[:600]
-    return "ok", "; ".join(details)[:600]
+        return "soft_fail", "; ".join(details + notes)[:600]
+    return "ok", "; ".join(details + notes)[:600]
 
 
 def diff_scenarios(report: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
@@ -2452,7 +2777,12 @@ def run_scenarios(
                     "verdict": "hard_fail",
                     "detail": f"fixture restore failed: {restore}",
                     "widgets": row.get("widgets"),
+                    "interaction": None,
                     "state_delta": [],
+                    "deep_delta": [],
+                    "deep_delta_truncated": False,
+                    "assignment_checks": [],
+                    "assignment_summary": None,
                     "invariants": None,
                     "spec": None,
                     "landed": None,
@@ -2474,6 +2804,8 @@ def run_scenarios(
 
         timed_out = False
         probe: dict[str, Any] = {}
+        interaction: str | None = None
+        assignment_summary: dict[str, Any] | None = None
         invariant_report: dict[str, Any] | None = None
         spec_report: dict[str, Any] | None = None
         not_applicable: str | None = None
@@ -2498,6 +2830,15 @@ def run_scenarios(
             except Exception:
                 timed_out = True
             probe = page.evaluate(ps.PROBE) or {}
+            interaction = classify_interaction(
+                location_before=row_report.get("location_before"),
+                target=target,
+                target_is_function=bool(row_report.get("target_is_function")),
+                widgets_list=row_report.get("widgets_list"),
+            )
+            assignment_summary = summarize_assignment_checks(
+                row_report.get("assignment_checks")
+            )
             try:
                 invariant_report = json.loads(
                     page.evaluate(
@@ -2539,6 +2880,7 @@ def run_scenarios(
                 invariant_report=invariant_eval,
                 spec_report=spec_report,
                 not_applicable=not_applicable,
+                interaction=interaction,
             )
             invariant_report = {
                 "ok": invariant_eval["ok"],
@@ -2560,8 +2902,14 @@ def run_scenarios(
                 "widgets": int(row_report.get("widgets") or row.get("widgets") or 0),
                 "widgets_error": row_report.get("widgets_error"),
                 "target_is_function": bool(row_report.get("target_is_function")),
+                "interaction": interaction,
+                "location_before": row_report.get("location_before"),
                 "state_delta": row_report.get("delta") or [],
                 "state_delta_truncated": bool(row_report.get("delta_truncated")),
+                "deep_delta": (row_report.get("deep_delta") or [])[:20],
+                "deep_delta_truncated": bool(row_report.get("deep_delta_truncated")),
+                "assignment_checks": (row_report.get("assignment_checks") or [])[:20],
+                "assignment_summary": assignment_summary or None,
                 "invariants": invariant_report,
                 "spec": (
                     {
@@ -2871,6 +3219,40 @@ def write_report(
     ]
     for key in VERDICTS:
         lines.append(f"| {key} | {counts.get(key, 0)} |")
+    interaction_counts: dict[str, int] = {name: 0 for name in INTERACTIONS}
+    interaction_verdicts: dict[str, collections.Counter[str]] = {
+        name: collections.Counter() for name in INTERACTIONS
+    }
+    for item in report.get("results") or []:
+        name = str(item.get("interaction") or "")
+        if name in interaction_counts:
+            interaction_counts[name] += 1
+            interaction_verdicts[name][str(item.get("verdict"))] += 1
+    lines += [
+        "",
+        "## row interactions (scene jump / state op / display-only)",
+        "",
+        "| interaction | count | verdicts |",
+        "| --- | --- | --- |",
+    ]
+    for name in INTERACTIONS:
+        verdict_text = " ".join(
+            f"{key}={value}" for key, value in sorted(interaction_verdicts[name].items())
+        ) or "-"
+        lines.append(f"| {name} | {interaction_counts[name]} | {verdict_text} |")
+    noted = [
+        item
+        for item in report.get("results") or []
+        if item.get("verdict") == "ok" and item.get("detail")
+    ]
+    if noted:
+        lines += ["", f"## ok rows with notes ({len(noted)})", ""]
+        for item in noted[:60]:
+            lines.append(
+                f"- `{item.get('section')}#{item.get('index')}` {item.get('label')} -> "
+                f"`{item.get('resolved_target') or item.get('target')}`: "
+                f"{str(item.get('detail') or '')[:200]}"
+            )
     dayloop = report.get("dayloop")
     if dayloop:
         lines += [
