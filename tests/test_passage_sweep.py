@@ -100,6 +100,85 @@ def test_reach_gameplay_respects_wall_clock_deadline(monkeypatch) -> None:
     assert page.waits == 0
 
 
+class _RepeatingDismissPage(_FakeStartupPage):
+    """A start gate whose modal root keeps returning the same dismissal."""
+
+    def __init__(self, sample: str = "confirm overlay") -> None:
+        super().__init__(passage="Start", clicked=True)
+        self.sample = sample
+        self.skip_keys_log: list[list[str]] = []
+
+    def evaluate(self, script: str, *args):
+        assert script in (self._ready_script, self._interaction_script)
+        self.evaluations += 1
+        if script == self._ready_script:
+            return {"passage": self.passage, "ready": True}
+        options = args[0] if args else None
+        self.skip_keys_log.append(list((options or {}).get("skipKeys") or []))
+        self.actions += 1
+        return {
+            "action": "dismiss_modal",
+            "clicked": True,
+            "button_text": "确定",
+            "root_selector": "div.overlay",
+            "text_sample": self.sample,
+        }
+
+
+def test_startup_budgets_cover_slow_ci_cold_boot() -> None:
+    """run 37536425118：12 分钟 deadline 在 37 mod 冷启动上贴边，必须放宽。"""
+    from tools import passage_sweep as ps
+
+    assert ps.STARTUP_STEPS >= 1500
+    assert ps.STARTUP_DEADLINE_S >= 1140
+
+
+def test_startup_repeat_key_only_for_dismiss_actions() -> None:
+    from tools import passage_sweep as ps
+
+    assert ps._startup_repeat_key({"action": "no_action"}) is None
+    assert (
+        ps._startup_repeat_key({"action": "click_startup_control", "text_sample": "x"})
+        is None
+    )
+    assert ps._startup_repeat_key({"action": "dismiss_modal", "text_sample": "   "}) is None
+    key = ps._startup_repeat_key(
+        {"action": "dismiss_sweetalert", "text_sample": "  confirm overlay  " + "x" * 400}
+    )
+    assert key is not None
+    assert key.startswith("confirm overlay")
+    assert len(key) <= ps.STARTUP_SKIP_SAMPLE_CHARS
+
+
+def test_startup_interaction_script_supports_skip_keys() -> None:
+    from tools import browser_smoke_test as bst
+
+    script = bst._startup_interaction_script()
+    assert "skipKeys" in script
+    assert "skipHit" in script
+    assert "slice(0, 120)" in script
+
+
+def test_reach_gameplay_skips_repeated_dismissal_root() -> None:
+    """同一个 root 连点 25 次无效后，把它加入 skipKeys 并继续尝试其它控件。"""
+    from tools import passage_sweep as ps
+
+    page = _RepeatingDismissPage()
+    info = ps._reach_gameplay(page, steps=30, no_progress_limit=1000, deadline_s=0)
+
+    assert info["steps"] == 30
+    assert info["skip_keys"] == ["confirm overlay"]
+    # 第 25 次点击触发 skip；第 26 次调用才带 skipKeys
+    assert page.skip_keys_log[23] == []
+    assert page.skip_keys_log[24] == []
+    assert page.skip_keys_log[25] == ["confirm overlay"]
+    # actions 保留 root / 按钮文本 / repeat 计数供事后归因
+    assert info["actions"][0]["root"] == "div.overlay"
+    assert info["actions"][0]["text"] == "确定"
+    repeats = [entry.get("repeat") for entry in info["actions"]]
+    assert 25 in repeats
+
+
 SAMPLE_HTML = (
     "<!DOCTYPE html>\n"
     "<html><body>\n"

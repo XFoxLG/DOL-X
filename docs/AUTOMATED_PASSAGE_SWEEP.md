@@ -719,6 +719,50 @@ basis 追加 `|area-bootstrap:<widget>`（没有野兽链时不加，避免假�
 `$bird.hunts.duo`）也一起修复——`combat-bird-1007n` 3/3 ok（2 条 Bird Tower + 1 条
 Bird Hunt Tent Steal Group Fight）。
 
+**第四轮（同日）：status-bootstrap 收口事件链中段入口（`combat-status-1007p`）**
+
+`combat-personn-1007i` 剩下的 6 条 `fixture_insufficient` 有同一个形状：行本身是**事件链中段**
+的战斗入口，Finish 读的是父事件已经建好的状态，而不是某片区域的一次性初始化：
+
+| 入口 | 倒在这里 | 游戏自己的初始化 | basis tag |
+| --- | --- | --- | --- |
+| `Bailey Sheet Fight` | Finish 写 `$pubfame.bailey.fight` | `$pubfame` {seen,tasksDone} @ Pub Fame Intro + accept 流程建 `$pubfame[task]` | `status-bootstrap:pubfame-bailey` |
+| `Farm Assault` | `<<farm_assault_init>>` 读 `$farm.kennel` | Farm Assault Start 自身 `<<set $bus to "yard">><<farm_assault_init>>` | `status-bootstrap:farm_assault_init` |
+| `Hospital Keycard` | Finish 读 `$pubfame.status` | 同上 pubfame accept 流程 | `status-bootstrap:pubfame-hospital` |
+| `Island Wood` | Finish 做 `$island.wood += 3` 后走 `island_explore_end` | `<<island_init>>`（种 `$island`，含 wood） | `status-bootstrap:island_init` |
+| `Street Car` | Finish 用 `$bus.toUpperFirst()` + `$location` 拼离场目标 | 事件从 alley 街道遭遇触发 | `status-bootstrap:street-bus` |
+| `Temple Confess Sydney` | `statusCheck('Sydney')` 只在 `C.npc.Sydney.init=1` 时跑 | 游戏自己的 cheat 场景就是 `<<set C.npc.X.init to 1>>` + `$sydneySeen` [] | `status-bootstrap:sydney-init` |
+
+和第三轮的区域引导同一个原则：**只补 Finish 真正会读的字段**，每条 evidence 注明它在游戏自身
+哪个 widget / 事件里被初始化；`basis` 追加 `|status-bootstrap:<name>` 保持可审计。
+
+**本机复跑（`combat-status-1007p`，6 条 status 行 + 1 条模式载体）**：
+
+| 结果 | 行数 | 说明 |
+| --- | --- | --- |
+| `ok` | 6 | 1007i 的 6 条 `fixture_insufficient` 全部翻正 |
+| `soft_fail` | 1 | `Bailey Sheet Fight`：`$combat` 结束后没有"敌人失败"证据（path=win），实际走进了 `Rent Intro`——这是该事件的失败结局分支，属预期走向而非缺陷 |
+| `fixture_insufficient` / `hard_fail` | 0 | — |
+
+4 种控制模式的载体从 Bailey 换成 `Docks Watch Dog` 后 4/4 ok（Bailey 作为子集载体连挂 4 个是
+载体选择问题，不是模式缺陷）。
+
+**CI 冷启动预算修复（run 37536425118 归因）**
+
+同日 daily 档在云端失败，根因不是游戏卡死：`bootstrap did not reach gameplay; last
+passage='Start' after 789 steps`——789 次点击几乎全是 `dismiss_modal`，撞上 720s deadline；
+而 prepare 同产物在另一 runner 的 capture 花了 12m27s。这是贴边预算，不是真死循环。修复：
+
+- `STARTUP_STEPS` 1000 → 1500、`STARTUP_DEADLINE_S` 720 → 1140（19 分钟）；
+- 新增**重复点击断路器**：同一个 dismiss 目标（按 120 字符文本样本做 key）重复
+  `STARTUP_REPEAT_SKIP_AFTER=25` 次后加入 `skipKeys` 传给浏览器侧，后续步骤不再点它，
+  改用其它控件 / 页面兜底——真死循环不再静默吃掉整个预算；
+- action trail 每条记录 `root` / `sample` / `repeat`，`info` 增加 `skip_keys`，
+  失败可直接归因。
+
+新增单测 6 条（战斗 2 条 + passage 4 条，含重复 dismiss 假页的 skip 时序），另有 3 处旧断言
+随实现更新。`pytest` **636 passed**。
+
 ---
 
 ## 9. 一键复现清单（发版前）

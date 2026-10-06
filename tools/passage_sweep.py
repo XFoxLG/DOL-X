@@ -500,10 +500,36 @@ STARTUP_PASSAGES = {"start", "start2", "loading"}
 # bootstrap - succeeded on the same artifact. The budget is therefore both
 # step- and wall-clock-bounded: 1,000 steps at 900 ms/step (~15 min) with a
 # 12-minute hard deadline so a truly stuck boot still fails in bounded time.
-STARTUP_STEPS = 1000
+# 2026-10-07 (run 37536425118): the daily tier hit the 12-minute deadline on
+# ``Start`` after 789 ``dismiss_modal`` clicks while the prepare job's capture
+# - same 720 s default - booted at 12m27s on another runner. That is a
+# borderline budget, not a stuck boot. Raised to 1,500 steps / 19 minutes, and
+# a per-root repeat breaker now skips a dismissal target after
+# ``STARTUP_REPEAT_SKIP_AFTER`` no-op clicks so a real dismiss-loop cannot eat
+# the whole budget silently.
+STARTUP_STEPS = 1500
 STARTUP_STEP_MS = 900
 STARTUP_NO_PROGRESS_LIMIT = 40
-STARTUP_DEADLINE_S = 720
+STARTUP_DEADLINE_S = 1140
+STARTUP_REPEAT_SKIP_AFTER = 25
+STARTUP_SKIP_SAMPLE_CHARS = 120
+STARTUP_REPEAT_ACTIONS = frozenset(
+    {"dismiss_modal", "dismiss_sweetalert", "fill_custom_spellbook_password"}
+)
+
+
+def _startup_repeat_key(action: dict[str, Any]) -> str | None:
+    """Skip key for dismiss-style startup actions that keep repeating.
+
+    Only dismissal actions qualify: they are the ones that can spin on an
+    always-visible overlay whose confirm button does nothing. The key is the
+    normalized root text (first ``STARTUP_SKIP_SAMPLE_CHARS`` chars), which the
+    browser side compares against the same slice of ``textOf(root)``.
+    """
+    if str(action.get("action") or "") not in STARTUP_REPEAT_ACTIONS:
+        return None
+    sample = str(action.get("text_sample") or "")[:STARTUP_SKIP_SAMPLE_CHARS].strip()
+    return sample or None
 
 
 def _ready_js() -> str:
@@ -534,7 +560,11 @@ def _reach_gameplay(
     stops early instead of burning the whole budget, and the report keeps the
     step/action trail for triage. Repeating modal dismissals do not count as
     progress on their own, so a slow mod load keeps its full wall-clock budget
-    (``deadline_s``) instead of being cut off by the step counter.
+    (``deadline_s``) instead of being cut off by the step counter. A single
+    dismissal target that repeats ``STARTUP_REPEAT_SKIP_AFTER`` times is added
+    to ``skip_keys`` so the browser side stops clicking it and later steps can
+    try other controls; every action trail entry records the root selector,
+    button text and repeat count for post-run triage.
     """
     bst = _bst()
     options = {
@@ -553,6 +583,9 @@ def _reach_gameplay(
         "deadline_hit": False,
     }
     no_progress = 0
+    skip_counts: dict[str, int] = {}
+    skip_keys: list[str] = []
+    info["skip_keys"] = skip_keys
     for _ in range(steps):
         try:
             state = page.evaluate(bst._game_ready_script())
@@ -563,8 +596,11 @@ def _reach_gameplay(
         if passage and str(passage).lower() not in STARTUP_PASSAGES:
             info["elapsed_ms"] = int((time.monotonic() - started) * 1000)
             return info
+        step_options = dict(options)
+        if skip_keys:
+            step_options["skipKeys"] = list(skip_keys)
         try:
-            action = page.evaluate(bst._startup_interaction_script(), options)
+            action = page.evaluate(bst._startup_interaction_script(), step_options)
         except Exception as exc:  # noqa: BLE001
             action = {"action": "error", "error": str(exc)[:200]}
         if isinstance(action, dict):
@@ -572,13 +608,29 @@ def _reach_gameplay(
                 no_progress = 0
             else:
                 no_progress += 1
-            info["actions"].append(
-                {
-                    "action": action.get("action"),
-                    "clicked": action.get("clicked"),
-                    "text": action.get("text") or action.get("label"),
-                }
-            )
+            repeat_key = _startup_repeat_key(action)
+            if repeat_key:
+                count = skip_counts.get(repeat_key, 0) + 1
+                skip_counts[repeat_key] = count
+                if count >= STARTUP_REPEAT_SKIP_AFTER and repeat_key not in skip_keys:
+                    # The same dismissal target keeps returning: stop clicking it
+                    # and let later steps try other controls / the page fallback.
+                    skip_keys.append(repeat_key)
+            entry: dict[str, Any] = {
+                "action": action.get("action"),
+                "clicked": action.get("clicked"),
+                "text": action.get("text")
+                or action.get("label")
+                or action.get("button_text"),
+            }
+            root = action.get("root_selector") or action.get("simple_selector")
+            if root:
+                entry["root"] = str(root)[:120]
+            if repeat_key:
+                entry["sample"] = repeat_key
+                if skip_counts.get(repeat_key, 0) > 1:
+                    entry["repeat"] = skip_counts[repeat_key]
+            info["actions"].append(entry)
             if len(info["actions"]) > 20:
                 del info["actions"][:10]
         else:
