@@ -927,6 +927,8 @@ def classify_result(
         return "not_applicable", "engine/system passage is not a playable scene", [], False
 
     landed = probe.get("passage")
+    if landed is None or not str(landed).strip():
+        return "hard_fail", "actual passage missing from runtime probe", [], False
     status, detail = ps.classify(probe, landed is not None, timed_out=timed_out)
     missing_vars = extract_missing_vars(probe.get("errors") or [])
 
