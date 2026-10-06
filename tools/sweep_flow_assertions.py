@@ -851,7 +851,7 @@ def _session(
                 " C.saves.autosave = false; C.passages.transitionOut = undefined;"
                 " return true; } catch (e) { return false; } })()"
             )
-            boot = ps._reach_gameplay(page, steps=90)
+            boot = ps._reach_gameplay(page, steps=ps.STARTUP_STEPS)
             page.wait_for_timeout(bootstrap_settle_ms)
             page.evaluate(
                 "(() => { const S = window.__DOLX__; if (S) S.hooked = false;"
