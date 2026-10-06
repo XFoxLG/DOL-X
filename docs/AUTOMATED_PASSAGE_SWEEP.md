@@ -362,11 +362,11 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 
 ### 8.6 单测
 
-`python -m pytest -q`：**545 passed**（原 310 + 第二期新增 + 战斗入口修复
-第二轮 +6 + 云端分片设施 +33：`sweep_ledger` 16、`sweep_summary` 6、
-`sweep_workflow` 4 与 combat/env 测试扩写；含 scenario 68、combat 49+、
-env_matrix 27+、fixture_ladder 20、save_safety_guard 16、report_sanitize 11、
-passage_sweep 28 等）。
+`python -m pytest -q`：**566 passed**（原 310 + 第二期新增 + 战斗入口修复
+第二轮 +6 + 云端分片设施 +33 + 战斗前置链 3 + 载体身份守卫 6 + 工作流契约 2：
+`sweep_ledger` 16、`sweep_summary` 6、`target_package_check` 6、`sweep_workflow` 6
+与 combat/env 测试扩写；含 scenario 68、combat 49+、env_matrix 27+、
+fixture_ladder 20、save_safety_guard 16、report_sanitize 11、passage_sweep 28 等）。
 
 ---
 
@@ -383,8 +383,13 @@ passage_sweep 28 等）。
 
 云端四阶段结构：
 
-1. **prepare**（≤60 分钟）：`checkout` → pytest → `prepare` 产出 HTML → **现场 capture
-   合成夹具** → 把 HTML 与夹具作为 Artifact 上传，全部分片共享同一份已核验产物。
+1. **prepare**（≤120 分钟）：`checkout` → pytest → `prepare --tag <锁定 tag>` →
+   `warmup --codes <构建码>` → `build zip --codes <构建码>` 产出**真实整合包** →
+   `tools/target_package_check.py` fail-closed 身份核验（`StartConfig.version` +
+   期望 Mod 名单 + 最少 payload 数）→ 用该产物**现场 capture 合成夹具** →
+   把已核验的构建 ZIP、mods 清单与夹具作为 Artifact 上传，全部分片共享同一份产物。
+   工作流输入：`tier` / `tag`（默认 `v0.5.11.9-1.0.0a-0915`）/ `code`（默认 base
+   `15704320`）/ `expect_mods`。
 2. **分片执行**（每分片 `timeout-minutes: 210`、`fail-fast: false`、`max-parallel: 4`）：
    每个分片下载同一份 HTML/夹具，以 `--shard-index/--shard-count` 运行并写身份台账
    （`tools/sweep_ledger.py`：`html_sha256`/夹具摘要/测试器版本/计划摘要 + 原子检查点；
@@ -400,29 +405,75 @@ passage_sweep 28 等）。
 `concurrency` 与 Build 分开排队；**真实存档与个人路径永不进入 CI**。
 发版验收 = `full` + `combat-full` 两次手动触发；分片数只影响调度，不改变覆盖范围。
 
+### 8.8 载体身份：目标整合包 vs prepare 空壳（2026-10-06 → 2026-10-07）
+
+2026-10-06 的云端 daily（run 37500965698）暴露了"全绿报告测的不是目标产品"这一类
+静默缺陷，两个根因都在 prepare 阶段：
+
+1. 工作流调用 `main.py prepare` **没有传 `--tag`** → 下载上游最新汉化 Release，
+   当时构建出来的是 **0.5.12.13**，而不是仓库锁定的 0.5.11.9；
+2. 只上传了 prepare 产出的 HTML → 分片手里既没有 `img/`（天气画布 `drawImage`
+   全红，战斗原型矩阵 104/104 hard_fail，全部是基础设施伪失败），也**没有 DOL-X
+   的 mod 栈**——prepare HTML 内嵌 24 个 payload（ModLoader 基础件 + ModI18N），
+   而真正 build 出的整合包内嵌 37 个 payload（maplebirch / cheat extended /
+   More Love / CustomHair / longer-combat / yanling / DOLI …）。
+
+因此从 2026-10-07 起：
+
+- 工作流在 prepare 内完成 `prepare --tag` → `warmup --codes` → `build zip --codes`，
+  只上传**已核验的构建产物**；每个浏览器分片在跑测试前重跑
+  `tools/target_package_check.py <zip> --expect "<名单>" --expect-version <版本> --min-mods 30`，
+  版本或 Mod 缺失立即失败（fail-closed，不再产出误导性报告）；
+- 四个 sweep 工具都原生接受 `.zip`（内部解包到临时目录，HTML 与 `img/` 同级），
+  本地复现与 CI 使用同一份载体；
+- 判定口径不变，但**§8.1–§8.5 的历史数字全部是在 prepare 空壳载体（无 mod）上测得的**，
+  它们只代表"基础游戏 + 汉化"的覆盖基线；针对整合包（含 mod 栈）的基线需要在
+  `output/DoL-*-base-*.zip` 上重新封存，不得把两类数字混用。
+
+本地验证证据（2026-10-07）：
+
+```powershell
+# 真实整合包：版本与 mod 名单通过
+python tools\target_package_check.py "output\DoL-0.5.11.9-XFox-1.0.0a-base-1003.zip" `
+  --expect "maplebirch,cheat extended,More Love Interests Mod" --expect-version 0.5.11.9 --min-mods 30
+# -> ok version=0.5.11.9 mods=37
+
+# prepare 空壳：同样命令必须失败（守卫有效）
+python tools\target_package_check.py "workspace\prepare_package\zip\Degrees of Lewdity.html" `
+  --expect "maplebirch" --min-mods 30      # -> exit 1（24 < 30 且缺少 maplebirch）
+
+# 载体冒烟：整合包（含 mod、img 同级）跑 passage 抽样
+python tools\passage_sweep.py "output\DoL-0.5.11.9-XFox-1.0.0a-base-1003.zip" `
+  --fixture .local\fixtures\base-1004-fix8.json --sample 20 --out .local\sweep\carrier-smoke-1007
+# -> verdicts={'ok': 20}
+```
+
 ---
 
 ## 9. 一键复现清单（发版前）
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-$FIX  = ".local\fixtures\base-1004-fix8.json"
-$HTML = "workspace\prepare_package\zip\Degrees of Lewdity.html"
+$FIX = ".local\fixtures\base-1004-fix8.json"
+# 载体必须是 build 出来的整合包（含 mod 栈与 img/），不是 prepare 的 HTML 空壳：
+$PKG = "output\DoL-0.5.11.9-XFox-1.0.0a-base-1004.zip"
 
 python tools\quick_check.py                                   # 网络/依赖 13/13
-python -m pytest -q                                           # 全量单元测试（545）
+python -m pytest -q                                           # 全量单元测试
 python tools\save_safety_guard.py                             # 仓库存档安全守卫
 python tools\au_artifact_check.py output\*.zip                # AU 产物审计
+python tools\target_package_check.py $PKG --expect "maplebirch,cheat extended,More Love Interests Mod" `
+  --expect-version 0.5.11.9 --min-mods 30                     # 载体身份 fail-closed
 
 # 日常档五轴
-python tools\passage_sweep.py $HTML --fixture $FIX --sample 300 --out .local\sweep\out-smoke
-python tools\scenario_sweep.py $HTML --fixture $FIX --suite all --out .local\sweep\scenarios
-python tools\combat_sweep.py $HTML --fixture $FIX --tier archetypes --out .local\sweep\combat
-python tools\env_matrix.py --target $HTML --fixture $FIX --tier daily --out .local\sweep\env-daily
+python tools\passage_sweep.py $PKG --fixture $FIX --sample 300 --out .local\sweep\out-smoke
+python tools\scenario_sweep.py $PKG --fixture $FIX --suite all --out .local\sweep\scenarios
+python tools\combat_sweep.py $PKG --fixture $FIX --tier archetypes --out .local\sweep\combat
+python tools\env_matrix.py --target $PKG --fixture $FIX --tier daily --out .local\sweep\env-daily
 python tools\sweep_flow_assertions.py output\DoL-...-au-f-1003.zip --flow all --out .local\sweep\flows
 
 # 发版级：全量扫描 + 与上一份基线对比
-python tools\passage_sweep.py $HTML --out .local\sweep\full --baseline .local\sweep\full-1004\passage-sweep-baseline.json
+python tools\passage_sweep.py $PKG --out .local\sweep\full --baseline .local\sweep\full-1004\passage-sweep-baseline.json
 
 # 报告离开本机前先脱敏
 python tools\report_sanitize.py .local\sweep

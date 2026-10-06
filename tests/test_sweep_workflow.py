@@ -49,3 +49,27 @@ def test_sweep_workflow_never_uploads_raw_local_sweep_directory() -> None:
     assert "path: .local/sweep" not in text
     assert "path: sweep-reports" in text
     assert "report_sanitize.py --check" in text
+
+
+def test_sweep_workflow_pins_target_tag_and_builds_real_package() -> None:
+    text = _workflow()
+    # 2026-10-06: prepare without --tag built 0.5.12.13 instead of the locked
+    # 0.5.11.9 stack, and the raw prepare HTML carries no DOL-X mods.
+    assert '--tag "$TARGET_TAG"' in text
+    assert 'python main.py warmup' in text
+    assert 'python main.py build zip' in text
+    assert "--codes \"$TARGET_CODE\"" in text
+    assert "v0.5.11.9-1.0.0a-0915" in text
+
+
+def test_sweep_workflow_verifies_package_identity_fail_closed() -> None:
+    text = _workflow()
+    assert "tools/target_package_check.py" in text
+    assert "--expect-version" in text
+    assert "--min-mods 30" in text
+    # every browser job re-checks the exact package before sweeping
+    assert text.count("Verify package identity") == 5
+    # only the verified build artifact (plus its manifest) is uploaded
+    assert "name: sweep-package" in text
+    assert "output/*.zip" in text
+    assert "prepared/mods-manifest.json" in text
