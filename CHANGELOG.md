@@ -24,6 +24,10 @@
   `confidence: low`、`token` 入 info；`combat_ledger` 新增 `deep_predecessor` 分类与
   "Deep (low-confidence) derivations" 清单，候选函数与 sweep 共用。台账复跑：
   `unresolved` 30 → 14、`deep` 16、shape 与 drift（19）不变；`pytest` **626 passed**。
+  本机 16 条 deep 行复跑（`.local/sweep/combat-deep-1007j/`）：`ok` 10（9 条翻正）、
+  `fixture_insufficient` 5（全部卡在 Finish 后置 widget：`setTowerTemp` / `pound_status` /
+  `person1`）、`soft_fail` 1（Forest Wolf 反例）、`hard_fail` 0；失败面从"进不去战斗"
+  推进到"退出时缺状态"，4 种控制模式全 ok。
 - **战斗覆盖台账 `tools/combat_ledger.py`（2026-10-07）**：把 1,570 条战斗 initiator
   逐条落成带源码依据的静态台账（JSON + MD），分 entry shape（`entry` 1300 /
   `entry_via_link` 127 / `widget_definition` 73 / `helper_only` 69 / `unresolved` 1）
