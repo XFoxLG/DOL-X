@@ -682,6 +682,19 @@ python tools/combat_ledger.py "workspace\prepare_package\zip\Degrees of Lewdity.
 - 新增单测 6 条（浅搜索深度边界、widget 链、wraith 跳过、provenance/limit、台账分类
   与 MD 渲染）；`pytest` 626 passed。
 
+**本机复跑（2026-10-07，16 条 deep 行 `--only-keys`，报告 `.local/sweep/combat-deep-1007j/`）**：
+
+| 结果 | 行数 | 说明 |
+| --- | --- | --- |
+| `ok` | 10 | 9 条由 `fixture_insufficient` 翻正，1 条（`Street Monster 2`）保持 ok；胜判据是敌方 arousal 到顶 |
+| `fixture_insufficient` | 5 | 战斗已能打到终局，卡在 **Finish 后置 passage**：`<<setTowerTemp>>`（Bird Tower ×2）、`<<pound_status>>`（Pound ×2）、`<<person1>>`（Prison Spire）——失败面从"进不去战斗"推进到"退出时缺状态" |
+| `soft_fail` | 1 | `Forest Wolf Molestation Resist`（fox 候选与实际不符，path=win 但无敌人失败证据），保留反例 |
+| `hard_fail` | 0 | — |
+
+对比 1006 基线：这 16 条当时是 15 条 `fixture_insufficient`（"combat active but
+#listContainer never rendered"）+ 1 条 ok。本次启动只花 3 步（1000 步预算远未触及），
+4 种控制模式全 ok，`outcome_counts = win 13 / end 1 / unknown 2`。
+
 ---
 
 ## 9. 一键复现清单（发版前）
