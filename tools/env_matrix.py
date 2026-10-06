@@ -1054,7 +1054,7 @@ def sweep(
             " catch (e) { return { error: String(e) }; } })()"
         )
 
-        boot = ps._reach_gameplay(page, steps=60)
+        boot = ps._reach_gameplay(page, steps=ps.STARTUP_STEPS)
         if not boot.get("passage") or str(boot["passage"]).lower() in ps.STARTUP_PASSAGES:
             raise SystemExit(
                 "bootstrap did not reach gameplay; last passage="
