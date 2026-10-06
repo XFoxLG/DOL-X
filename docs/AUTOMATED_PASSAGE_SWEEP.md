@@ -695,6 +695,26 @@ python tools/combat_ledger.py "workspace\prepare_package\zip\Degrees of Lewdity.
 #listContainer never rendered"）+ 1 条 ok。本次启动只花 3 步（1000 步预算远未触及），
 4 种控制模式全 ok，`outcome_counts = win 13 / end 1 / unknown 2`。
 
+**第三轮（同日）：区域引导把剩余 5 条也推进到 `ok`（`combat-deep-1007k/l/m`）**
+
+上表的 5 条 `fixture_insufficient` 全部死在战斗*之后*的出口 passage——入口战斗已经能打到终局：
+
+| 失败点 | 读到的状态 | 游戏自己的初始化 |
+| --- | --- | --- |
+| `<<setTowerTemp>>`（Bird Tower ×2） | `$bird.upgrades.shelter` | `<<bird_init>>` |
+| `<<pound_status>>`（Pound ×2） | `$pound.status` | `<<pound_init>>` |
+| `<<prison_attention>>` + `<<person1>>`（Prison Spire） | `$prison.*`、slot 0 | `<<prison_init>>` + `$prison_intro=1` + 预置 `anxious_guard` 存档 |
+
+`derive_precursor` 现在在命中 `^Bird Tower` / `^Pound` / `^Prison` 的行前面重放对应初始化，
+basis 追加 `|area-bootstrap:<widget>`（没有野兽链时不加，避免假前驱）。Prison 那条要特别处理：
+`generate_anxious_guard` 的 `$prison_intro isnot 1` 分支把 guard 写进 **slot 1**，而所有调用方
+打印的是 `person1`（slot 0）——只有 `$prison_intro=1` 的 `loadNPC` 路径能对上，所以引导里
+同时设 `$prison_intro=1` 并按监狱流程把 slot 0 的 anxious guard 存进 `$per_npc`。
+
+16 条 deep 行最后**一次跑完**（`combat-deep-1007m`）：`ok` **15** / `soft_fail` 1（Forest Wolf
+反例）/ `hard_fail` 0 / `fixture_insufficient` 0；4 种控制模式全 ok，启动 3 步。
+对比 1006 基线的 15 条 `fixture_insufficient` + 1 条 ok，这一档收口。
+
 ---
 
 ## 9. 一键复现清单（发版前）
