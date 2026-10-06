@@ -774,7 +774,7 @@ def person_reference_closure(
     return max(refs, default=0)
 
 
-def derive_precursor(
+def _derive_precursor_core(
     row: Mapping[str, Any],
     *,
     passage_bodies: Mapping[str, str],
@@ -790,6 +790,9 @@ def derive_precursor(
 
     ``confidence`` is only set to ``"low"`` for the deep fallback
     (``deep-predecessor:`` bases); an absent value is the standard derivation.
+
+    ``derive_precursor`` wraps this with the area-state bootstrap; call the
+    wrapper unless the raw chain is what you want.
     """
     kind = str(row.get("kind") or "")
     passage = str(row.get("passage") or "")
@@ -964,6 +967,79 @@ def derive_precursor(
         info["token"] = candidate.get("token")
         return info
     info["reason"] = "no beast token derivable from row, passage body, or predecessor chain"
+    return info
+
+
+# Area state a real playthrough already carries when these passages run. The
+# synthetic rows jump straight into the fight, so the exit passage dies on the
+# area's own state widgets. Measured 2026-10-07 (``combat-deep-1007j``): of the
+# 16 deep rows, the 5 that still failed all died *after* the fight —
+# ``<<setTowerTemp>>`` reads ``$bird.upgrades.shelter``, ``<<pound_status>>``
+# reads ``$pound.status`` and the prison Finish reads ``$prison.attention`` /
+# ``$prison.schedule``. The fix replays the game's own area init widget
+# (``bird_init`` / ``pound_init`` / ``prison_init``) ahead of the beast chain.
+AREA_BOOTSTRAPS: tuple[dict[str, str], ...] = (
+    {
+        "pattern": r"^Bird Tower\b",
+        "widgets": "<<bird_init>>",
+        "tag": "area-bootstrap:bird_init",
+        "evidence": "bird_init sets $bird.upgrades.shelter/pot (Great Hawk tower)",
+    },
+    {
+        "pattern": r"^Pound\b",
+        "widgets": "<<pound_init>>",
+        "tag": "area-bootstrap:pound_init",
+        "evidence": "pound_init sets $pound.status/sneak/progress/tasks",
+    },
+    {
+        "pattern": r"^Prison\b",
+        "widgets": (
+            "<<prison_init>><<set $prison_intro to 1>>"
+            '<<generateRole 0 "anxious" "guard">><<saveNPC 0 "anxious_guard">>'
+        ),
+        "tag": "area-bootstrap:prison_init+anxious_guard",
+        "evidence": (
+            "prison_init sets $prison.*; $prison_intro=1 makes "
+            "generate_anxious_guard load slot 0 (its else-branch writes slot 1)"
+        ),
+    },
+)
+
+
+def area_bootstrap(passage: str) -> dict[str, str] | None:
+    """The area init entry whose passage pattern matches, if any."""
+    for entry in AREA_BOOTSTRAPS:
+        if re.search(entry["pattern"], str(passage or "")):
+            return entry
+    return None
+
+
+def derive_precursor(
+    row: Mapping[str, Any],
+    *,
+    passage_bodies: Mapping[str, str],
+    named_npcs: Sequence[str] = (),
+    widget_bodies: Mapping[str, str] | None = None,
+    max_depth: int = 2,
+) -> dict[str, Any]:
+    """``_derive_precursor_core`` plus the area-state bootstrap prefix.
+
+    Only rows that already produced a beast chain are touched: without a chain
+    the area state alone cannot start the fight. The basis keeps both parts
+    (``<chain basis>|area-bootstrap:<widget>``) so a pass stays auditable.
+    """
+    info = _derive_precursor_core(
+        row,
+        passage_bodies=passage_bodies,
+        named_npcs=named_npcs,
+        widget_bodies=widget_bodies,
+        max_depth=max_depth,
+    )
+    boot = area_bootstrap(str(row.get("passage") or ""))
+    if boot and info.get("widgets"):
+        info["widgets"] = f"{boot['widgets']}{info['widgets']}"
+        if info.get("basis"):
+            info["basis"] = f"{info['basis']}|{boot['tag']}"
     return info
 
 
