@@ -63,78 +63,32 @@ DEFAULT_OUT = Path(".local/sweep/combat-ledger")
 SAVED_NPC_RE = re.compile(r"<<set\s+\$NPCList\[\d+\]\s+to\s+\$([A-Za-z_][\w.]*)\s*>>")
 
 
-def _beast_widget_chains(body: str, widget_bodies: Mapping[str, str]) -> list[tuple[str, dict]]:
-    """``(widget name, chain)`` for every called widget whose body generates a beast."""
-    found: list[tuple[str, dict]] = []
-    for match in cs.MACRO_CALL_RE.finditer(str(body or "")):
-        widget_body = widget_bodies.get(match.group(1))
-        if not widget_body or "beast" not in widget_body:
-            continue
-        chain = cs._beast_chain_from_body(widget_body)
-        if chain:
-            found.append((match.group(1), chain))
-    return found
-
-
 def candidate_precursors(
     passage: str,
     *,
     passage_bodies: Mapping[str, str],
     widget_bodies: Mapping[str, str],
-    max_depth: int = 4,
+    max_depth: int = cs.DEEP_PRECURSOR_DEPTH,
     limit: int = 5,
 ) -> list[dict[str, Any]]:
     """Unverified beast tokens found in the upstream link graph.
 
     A token-less ``<<beastCombatInit>>`` reads whatever ``$beasttype`` the real
     playthrough set earlier, so a token found three or four links back is a
-    *hypothesis*, not the fixture: the sweep must not replay it blindly. The
-    ledger records it (with depth, passage and widget provenance) so the
-    "not covered" rows come with a concrete next experiment instead of a shrug.
+    *hypothesis*: the ledger records it (with depth, passage and widget
+    provenance) so "not covered" rows come with a concrete next experiment.
+    Thin wrapper over ``combat_sweep.deep_beast_precursors`` so the ledger and
+    the sweep always agree on the candidate set.
     """
-    seen: set[str] = {str(passage)}
-    frontier: list[str] = [str(passage)]
-    candidates: list[dict[str, Any]] = []
-    for depth in range(1, max_depth + 1):
-        next_frontier: list[str] = []
-        for current in frontier:
-            for parent in cs._link_predecessors(current, passage_bodies):
-                if parent in seen:
-                    continue
-                seen.add(parent)
-                next_frontier.append(parent)
-                parent_body = str(passage_bodies.get(parent) or "")
-                chain = cs._beast_chain_from_body(parent_body)
-                if chain:
-                    candidates.append(
-                        {
-                            "token": chain.get("token"),
-                            "source": parent,
-                            "via": "body",
-                            "depth": depth,
-                            "widgets": chain.get("widgets"),
-                            "verified": False,
-                        }
-                    )
-                for widget_name, widget_chain in _beast_widget_chains(
-                    parent_body, widget_bodies
-                ):
-                    candidates.append(
-                        {
-                            "token": widget_chain.get("token"),
-                            "source": parent,
-                            "via": f"widget:{widget_name}",
-                            "depth": depth,
-                            "widgets": widget_chain.get("widgets"),
-                            "verified": False,
-                        }
-                    )
-                if len(candidates) >= limit:
-                    return candidates[:limit]
-        frontier = next_frontier
-        if not frontier:
-            break
-    return candidates[:limit]
+    return cs.deep_beast_precursors(
+        passage,
+        passage_bodies=passage_bodies,
+        widget_bodies=widget_bodies,
+        max_depth=max_depth,
+        limit=limit,
+    )
+
+
 ENTRY_SHAPES = (
     "entry",
     "entry_via_link",
@@ -144,6 +98,7 @@ ENTRY_SHAPES = (
 )
 DERIVATION_KINDS = (
     "upstream_predecessor",
+    "deep_predecessor",
     "synthetic_generator",
     "named_npc",
     "named_npc_plus_generator",
@@ -165,6 +120,10 @@ def derivation_kind(basis: str | None, reason: str | None) -> str:
             return "not_needed"
         return "unresolved" if reason else "not_needed"
     head = basis.split("|", 1)[0]
+    if head.startswith("deep-predecessor:"):
+        # Low-confidence: the token was found 3-4 link hops back (or inside a
+        # widget a parent calls), not in the entry's immediate predecessor.
+        return "deep_predecessor"
     if head.startswith("predecessor:"):
         return "upstream_predecessor"
     if head.startswith("debug-menu:"):
@@ -259,7 +218,7 @@ def classify_row(
     else:
         shape = "unresolved"
     candidates: list[dict[str, Any]] = []
-    if kind_state == "unresolved":
+    if kind_state in ("unresolved", "deep_predecessor"):
         candidates = candidate_precursors(
             passage, passage_bodies=passage_bodies, widget_bodies=widget_bodies
         )
@@ -389,6 +348,13 @@ def not_covered(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     return todo
 
 
+def deep_derivations(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows whose fixture comes from the low-confidence deep fallback."""
+    todo = [row for row in rows if row["derivation_kind"] == "deep_predecessor"]
+    todo.sort(key=lambda row: (str(row["kind"]), str(row["passage"])))
+    return todo
+
+
 def render_markdown(ledger: Mapping[str, Any], *, limit: int = 120) -> str:
     lines: list[str] = []
     lines.append("# Combat coverage ledger (static)")
@@ -481,6 +447,35 @@ def render_markdown(ledger: Mapping[str, Any], *, limit: int = 120) -> str:
     else:
         lines.append("(none)")
     lines.append("")
+    deep = ledger.get("deep_derivations") or []
+    lines.append(
+        f"## Deep (low-confidence) derivations: {len(deep)}"
+    )
+    lines.append("")
+    if deep:
+        lines.append(
+            "Token-less beast rows whose `$beasttype` source sits 3-4 link hops back "
+            "(or inside a widget a parent calls). The sweep replays this chain and "
+            "tags the result `confidence: low`; the candidate list below is the "
+            "audit trail."
+        )
+        lines.append("")
+        lines.append("| key | basis | token | candidates |")
+        lines.append("| --- | --- | --- | --- |")
+        for row in deep:
+            basis = str(row.get("precursor_basis") or "").replace("|", "\\|")
+            candidates = ", ".join(
+                f"`{item.get('token')}` @ `{item.get('source')}`"
+                f"(d{item.get('depth')}/{item.get('via')})"
+                for item in row.get("candidate_precursors") or []
+            )
+            lines.append(
+                f"| `{row['key']}` | {basis} | "
+                f"`{row.get('token') or '-'}` | {candidates or '-'} |"
+            )
+    else:
+        lines.append("(none)")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -523,7 +518,9 @@ def build_ledger(
     summary = summarise(classified)
     summary["work_total"] = len(work_list(classified, limit=len(classified) or 1))
     uncovered = not_covered(classified)
+    deep = deep_derivations(classified)
     summary["not_covered_total"] = len(uncovered)
+    summary["deep_total"] = len(deep)
     ledger = {
         "tool": TOOL,
         "target": str(target),
@@ -541,6 +538,7 @@ def build_ledger(
         "summary": summary,
         "work_list": work_list(classified),
         "not_covered": uncovered,
+        "deep_derivations": deep,
         "rows": classified,
     }
     return ledger
@@ -612,6 +610,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"[ledger] rows={summary['total']} "
         f"unresolved={summary['entry_shapes'].get('unresolved', 0)} "
+        f"deep={summary.get('deep_total', 0)} "
         f"work_list={summary['work_total']}",
         flush=True,
     )

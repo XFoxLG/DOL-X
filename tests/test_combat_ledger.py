@@ -68,6 +68,14 @@ def test_derivation_kind_maps_every_basis_family() -> None:
         == "not_needed"
     )
     assert (
+        derivation_kind("deep-predecessor:Far:body:depth2", None)
+        == "deep_predecessor"
+    )
+    assert (
+        derivation_kind("deep-predecessor:Parent:widget:callDog:depth1", None)
+        == "deep_predecessor"
+    )
+    assert (
         derivation_kind("predecessor:Intro:slots2(person2)|link-body:Intro", None)
         == "upstream_predecessor"
     )
@@ -88,6 +96,7 @@ def test_derivation_kind_maps_every_basis_family() -> None:
     # 每个分支都必须落在受审计的枚举里
     for basis in (
         None,
+        "deep-predecessor:Far:body:depth2",
         "predecessor:X:depth1",
         "debug-menu:generate1+person1",
         "title-npc:A",
@@ -265,6 +274,58 @@ def test_candidate_precursors_respects_limit() -> None:
     )
     assert len(candidates) == 2
     assert all(item["verified"] is False for item in candidates)
+
+
+def test_deep_derivations_split_from_not_covered_and_render() -> None:
+    from tools import combat_sweep as cs
+    from tools.combat_ledger import deep_derivations
+
+    bodies = {
+        "Entry": "<<beastCombatInit>>",
+        "Near": "[[Next|Entry]]",
+        "Mid": "[[Next|Near]]",
+        "Far": "<<beastNEWinit 1 dog>>\n[[Next|Mid]]",
+    }
+    row = dict(
+        cs.scan_initiators(_synthetic_html([("Entry", "<<beastCombatInit>>")]))["rows"][0]
+    )
+    classified = [
+        classify_row(row, passage_bodies=bodies, widget_bodies={}, named_npcs=[])
+    ]
+
+    assert classified[0]["derivation_kind"] == "deep_predecessor"
+    assert classified[0]["precursor_basis"].startswith("deep-predecessor:Far:body:depth3")
+    assert classified[0]["candidate_precursors"]
+    # 深度推导有依据，不再算“未覆盖”；它单独进低置信清单
+    assert not_covered(classified) == []
+    assert [item["key"] for item in deep_derivations(classified)] == [row["key"]]
+
+    md = render_markdown(
+        {
+            "tool": "combat_ledger",
+            "target": "t",
+            "html_path": "h",
+            "html_sha256": "0" * 64,
+            "generated_at": "now",
+            "drift": {"ok": True, "count": 0},
+            "runtime_join": {"report": None},
+            "summary": {
+                "total": 1,
+                "entry_shapes": {item: 0 for item in ENTRY_SHAPES},
+                "derivation_kinds": {item: 0 for item in DERIVATION_KINDS},
+                "work_total": 0,
+                "not_covered_total": 0,
+                "deep_total": 1,
+                "verdict_by_derivation": {},
+            },
+            "work_list": [],
+            "not_covered": [],
+            "deep_derivations": deep_derivations(classified),
+        }
+    )
+    assert "Deep (low-confidence) derivations: 1" in md
+    assert "deep-predecessor:Far:body:depth3" in md
+    assert "`dog` @ `Far`(d3/body)" in md
 
 
 def test_summarise_and_work_list_order_stable() -> None:

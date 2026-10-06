@@ -1458,6 +1458,72 @@ def test_derive_precursor_beast_unresolved_records_reason() -> None:
     assert "no beast token" in str(info["reason"])
 
 
+def test_derive_precursor_deep_fallback_marks_low_confidence() -> None:
+    """3 跳之外的 `$beasttype` 来源也要能重放，但必须标记为低置信。"""
+    row = {"kind": "beastCombatInit", "passage": "Entry", "token": "unknown"}
+    # 浅搜索（max_depth=2）只覆盖 Near/Mid；Far 在 depth3，只有 deep fallback 能看到。
+    bodies = {
+        "Entry": "<<beastCombatInit>>",
+        "Near": "[[Next|Entry]]",
+        "Mid": "[[Next|Near]]",
+        "Far": "<<beastNEWinit 1 dog>>\n[[Next|Mid]]",
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == "<<beastNEWinit 1 dog>>"
+    assert info["basis"].startswith("deep-predecessor:Far:body:depth3")
+    assert info["confidence"] == "low"
+    assert info["token"] == "dog"
+
+
+def test_derive_precursor_deep_fallback_finds_widget_chain() -> None:
+    row = {"kind": "beastCombatInit", "passage": "Entry", "token": "unknown"}
+    bodies = {"Entry": "<<beastCombatInit>>", "Parent": "<<callDog>>\n[[Next|Entry]]"}
+    widgets = {"callDog": "<<beastNEWinit 1 wolf>>"}
+
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies=bodies, widget_bodies=widgets
+    )
+
+    assert info["widgets"] == "<<beastNEWinit 1 wolf>>"
+    assert info["basis"].startswith("deep-predecessor:Parent:widget:callDog:depth1")
+    assert info["confidence"] == "low"
+
+
+def test_derive_precursor_deep_fallback_skips_npc_free_kinds() -> None:
+    row = {"kind": "wraith", "passage": "Wraith Intro", "token": ""}
+    bodies = {
+        "Wraith Intro": "<<initWraith>>",
+        "Far": "<<beastNEWinit 1 dog>>\n[[Next|Wraith Intro]]",
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["basis"] is None
+    assert info["widgets"] is None
+    assert "no NPC hand/frontarm dependency" in str(info["reason"])
+    assert info.get("confidence") is None
+
+
+def test_deep_beast_precursors_returns_provenance_and_limit() -> None:
+    bodies = {
+        "Entry": "<<beastCombatInit>>",
+        "Mid": "[[Next|Entry]]",
+        "Far": "<<beastNEWinit 1 dog>>\n[[Next|Mid]]",
+        "Other": "<<beastNEWinit 1 wolf>>\n[[Next|Entry]]",
+    }
+    candidates = combat_sweep.deep_beast_precursors(
+        "Entry", passage_bodies=bodies, widget_bodies={}, limit=1
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0]["verified"] is False
+    assert candidates[0]["via"] == "body"
+    assert candidates[0]["depth"] == 1
+    assert candidates[0]["source"] in ("Mid", "Other") or candidates[0]["source"] == "Far"
+    assert candidates[0]["token"] in ("dog", "wolf")
+
+
 def test_resolve_only_keys_accepts_file_and_csv(tmp_path: Path) -> None:
     key_file = tmp_path / "keys.json"
     key_file.write_text(json.dumps(["a", "b"]), encoding="utf-8")
