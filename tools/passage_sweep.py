@@ -493,9 +493,17 @@ STARTUP_PASSAGES = {"start", "start2", "loading"}
 # prepare-only carrier (measured on CI run 37513170382: 60 steps were not
 # enough, while the 90-step capture path booted fine). Keep a generous budget
 # and bail out early once nothing clickable appears for a while.
-STARTUP_STEPS = 240
+# 2026-10-07 (run 37532832848): the CI-built integration package needs ~4-5
+# minutes to leave ``Start`` on a shared runner (37 mods, Playwright Chromium,
+# no GPU). The earlier 240-step budget died inches short of gameplay while the
+# prepare job's ``fixture_ladder capture`` - which keeps going after a failed
+# bootstrap - succeeded on the same artifact. The budget is therefore both
+# step- and wall-clock-bounded: 1,000 steps at 900 ms/step (~15 min) with a
+# 12-minute hard deadline so a truly stuck boot still fails in bounded time.
+STARTUP_STEPS = 1000
 STARTUP_STEP_MS = 900
 STARTUP_NO_PROGRESS_LIMIT = 40
+STARTUP_DEADLINE_S = 720
 
 
 def _ready_js() -> str:
@@ -517,13 +525,16 @@ def _reach_gameplay(
     *,
     steps: int = STARTUP_STEPS,
     no_progress_limit: int = STARTUP_NO_PROGRESS_LIMIT,
+    deadline_s: float = STARTUP_DEADLINE_S,
 ) -> dict[str, Any]:
     """Click through the age/consent/mod notices until gameplay renders.
 
     Progress is measured in *clicked* startup actions: once
     ``no_progress_limit`` consecutive steps find nothing to click the loop
     stops early instead of burning the whole budget, and the report keeps the
-    step/action trail for triage.
+    step/action trail for triage. Repeating modal dismissals do not count as
+    progress on their own, so a slow mod load keeps its full wall-clock budget
+    (``deadline_s``) instead of being cut off by the step counter.
     """
     bst = _bst()
     options = {
@@ -532,12 +543,14 @@ def _reach_gameplay(
         "confirmLabels": list(bst.STARTUP_CONFIRM_LABELS),
         "consentLabels": list(bst.STARTUP_CONSENT_LABELS),
     }
-    started = time.time()
+    started = time.monotonic()
     info: dict[str, Any] = {
         "steps": 0,
         "passage": None,
         "actions": [],
         "no_progress_steps": 0,
+        "deadline_s": deadline_s,
+        "deadline_hit": False,
     }
     no_progress = 0
     for _ in range(steps):
@@ -548,7 +561,7 @@ def _reach_gameplay(
         passage = state.get("passage") if isinstance(state, dict) else None
         info["passage"] = passage
         if passage and str(passage).lower() not in STARTUP_PASSAGES:
-            info["elapsed_ms"] = int((time.time() - started) * 1000)
+            info["elapsed_ms"] = int((time.monotonic() - started) * 1000)
             return info
         try:
             action = page.evaluate(bst._startup_interaction_script(), options)
@@ -573,9 +586,12 @@ def _reach_gameplay(
         info["no_progress_steps"] = no_progress
         if no_progress >= no_progress_limit:
             break
+        if deadline_s and time.monotonic() - started >= deadline_s:
+            info["deadline_hit"] = True
+            break
         page.wait_for_timeout(STARTUP_STEP_MS)
         info["steps"] += 1
-    info["elapsed_ms"] = int((time.time() - started) * 1000)
+    info["elapsed_ms"] = int((time.monotonic() - started) * 1000)
     return info
 
 
