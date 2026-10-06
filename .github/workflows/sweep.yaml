@@ -1,15 +1,9 @@
 name: Sweep
 
-# 引擎 A 全自动测试（剧情 / 战斗 / 环境）的手动入口。
-# 报告全部落在 runner 的 .local/sweep 下，经 tools/report_sanitize.py 脱敏后
-# 才作为 Artifact 上传；真实存档与个人路径永不进入 CI（CI 只用现场合成的合成夹具）。
-#
-# 档位分工（单 job 上限 210 分钟，GitHub 标准 runner 免费）：
-#   daily       日常档：300 passage 抽样 + 全部 363 场景 + 日循环 + 战斗原型矩阵 + 环境日常档
-#   full        发版档 A：全量 passage + 全部场景 + 环境全矩阵
-#   combat-full 发版档 B：全部 1,603 个战斗入口逐条打到终局
-#   env-full    环境全矩阵单独重跑（full 里已包含，给排查/复测用）
-# 发版验收 = full + combat-full 两次手动触发（各在 3.5 小时内）。
+# 引擎 A（剧情 / 战斗 / 环境）的云端测试入口。
+# 目标产物只准备一次，各分片下载同一份 HTML 与合成夹具；每个分片带
+# 身份台账和完整性块，最后 summary job 对缺分片、重复结果、身份漂移做
+# fail-closed 汇总。报告先经过 report_sanitize 白名单导出后才上传。
 
 on:
   workflow_dispatch:
@@ -27,19 +21,17 @@ on:
 permissions:
   contents: read
 
-# 与 Build 分开排队：同一 ref 上避免两个重型 job 抢带宽/runner。
 concurrency:
   group: sweep-${{ github.ref }}-${{ inputs.tier }}
   cancel-in-progress: false
 
 env:
-  # 固定 seed，保证抽样与随机顺序可复现。
   SWEEP_SEED: "20261005"
 
 jobs:
-  sweep:
+  prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 210
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
 
@@ -57,15 +49,12 @@ jobs:
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
 
-      # 与 Build 工作流一致：prepare 需要用 unrar 解上游资产。
       - name: Install APT packages
         run: sudo apt install -y unrar
 
-      # 配置与工具回归测试：先把工具本身的漂移挡在昂贵的扫描之前。
       - name: Run test suite
         run: python -m pytest tests -q
 
-      # 与 Build 工作流同一套 prepare：产出 workspace/prepare_package 下的游戏载荷。
       - name: Prepare game packages
         run: python main.py prepare --workspace "${{ github.workspace }}" -v
 
@@ -75,70 +64,340 @@ jobs:
           HTML="$(find workspace/prepare_package -name 'Degrees of Lewdity.html' -print -quit)"
           if [ -z "${HTML}" ]; then
             echo "::error::prepare did not produce Degrees of Lewdity.html"
-            find workspace -maxdepth 4 -name '*.html' || true
             exit 1
           fi
           echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
 
-      # CI 没有（也不允许有）本地真实夹具：现场从合成 bootstrap 捕获一份，
-      # 之后所有轴共用，保证与本地 base-1004 同一条管线。
       - name: Capture synthetic fixture
         run: |
+          set -euo pipefail
           python tools/fixture_ladder.py capture "$HTML_PATH" \
             --out .local/fixtures/ci-base.json --label ci-base
-          echo "FIXTURE=.local/fixtures/ci-base.json" >> "$GITHUB_ENV"
+          test -s .local/fixtures/ci-base.json
 
-      - name: Sweep daily
-        if: inputs.tier == 'daily'
+      - name: Upload prepared HTML
+        uses: actions/upload-artifact@v6
+        with:
+          name: sweep-html
+          path: ${{ env.HTML_PATH }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload synthetic fixture
+        uses: actions/upload-artifact@v6
+        with:
+          name: sweep-fixture
+          path: .local/fixtures/ci-base.json
+          if-no-files-found: error
+          retention-days: 7
+
+  daily:
+    needs: prepare
+    if: inputs.tier == 'daily'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-html
+          path: prepared/html
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Run daily tier
         run: |
-          python tools/passage_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+          set -euo pipefail
+          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          test -n "${HTML}"
+          test -n "${FIXTURE}"
+          python tools/passage_sweep.py "$HTML" --fixture "$FIXTURE" \
             --sample 300 --seed "$SWEEP_SEED" --out .local/sweep/daily-passage
-          python tools/scenario_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+          python tools/scenario_sweep.py "$HTML" --fixture "$FIXTURE" \
             --suite all --seed "$SWEEP_SEED" --out .local/sweep/daily-scenario
-          python tools/combat_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
+          python tools/combat_sweep.py "$HTML" --fixture "$FIXTURE" \
             --tier archetypes --seed "$SWEEP_SEED" --out .local/sweep/daily-combat
-          python tools/env_matrix.py --target "$HTML_PATH" --fixture "$FIXTURE" \
+          python tools/env_matrix.py --target "$HTML" --fixture "$FIXTURE" \
             --tier daily --seed "$SWEEP_SEED" --out .local/sweep/daily-env
-
-      - name: Sweep full
-        if: inputs.tier == 'full'
-        run: |
-          python tools/passage_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
-            --out .local/sweep/full-passage
-          python tools/scenario_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
-            --suite all --seed "$SWEEP_SEED" --out .local/sweep/full-scenario
-          python tools/env_matrix.py --target "$HTML_PATH" --fixture "$FIXTURE" \
-            --tier full --seed "$SWEEP_SEED" --out .local/sweep/full-env
-
-      - name: Sweep combat-full
-        if: inputs.tier == 'combat-full'
-        run: |
-          python tools/combat_sweep.py "$HTML_PATH" --fixture "$FIXTURE" \
-            --tier initiators --seed "$SWEEP_SEED" --out .local/sweep/combat-full
-
-      - name: Sweep env-full
-        if: inputs.tier == 'env-full'
-        run: |
-          python tools/env_matrix.py --target "$HTML_PATH" --fixture "$FIXTURE" \
-            --tier full --seed "$SWEEP_SEED" --out .local/sweep/env-full
-
-      # 脱敏是不可跳过的上传前置：先就地清洗，再用 --check 复核（仍脏则整步失败）。
-      - name: Sanitize reports
-        id: sanitize
+      - name: Export sanitized reports
+        id: export
         if: always()
         run: |
           set -euo pipefail
           mkdir -p sweep-reports
-          (cd .local/sweep && find . -type f \( -name '*-sweep.json' -o -name '*-sweep.md' -o -name '*-report.json' -o -name '*-report.md' \) -exec cp --parents {} ../../sweep-reports/ \;)
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
           python tools/report_sanitize.py sweep-reports
           python tools/report_sanitize.py --check sweep-reports
           test -n "$(find sweep-reports -type f -print -quit)"
-
-      - name: Upload sweep reports
-        if: always() && steps.sanitize.outcome == 'success'
-        uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v6
+        if: always() && steps.export.outcome == 'success'
         with:
-          name: sweep-${{ inputs.tier }}-${{ github.run_id }}
+          name: sweep-daily
           path: sweep-reports
-          retention-days: 30
           if-no-files-found: error
+          retention-days: 30
+
+  passage-shards:
+    needs: prepare
+    if: inputs.tier == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-html
+          path: prepared/html
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Run passage shard
+        run: |
+          set -euo pipefail
+          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          python tools/passage_sweep.py "$HTML" --fixture "$FIXTURE" \
+            --shard-index "${{ matrix.shard }}" --shard-count 4 \
+            --out ".local/sweep/passage-shard-${{ matrix.shard }}"
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-passage-shard-${{ matrix.shard }}
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  scenario:
+    needs: prepare
+    if: inputs.tier == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-html
+          path: prepared/html
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Run scenario suite
+        run: |
+          set -euo pipefail
+          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          python tools/scenario_sweep.py "$HTML" --fixture "$FIXTURE" \
+            --suite all --seed "$SWEEP_SEED" --out .local/sweep/full-scenario
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-scenario
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  env-shards:
+    needs: prepare
+    if: inputs.tier == 'full' || inputs.tier == 'env-full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-html
+          path: prepared/html
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Run environment shard
+        run: |
+          set -euo pipefail
+          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          python tools/env_matrix.py --target "$HTML" --fixture "$FIXTURE" \
+            --tier full --shard-index "${{ matrix.shard }}" --shard-count 8 \
+            --seed "$SWEEP_SEED" --out ".local/sweep/env-shard-${{ matrix.shard }}"
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-env-shard-${{ matrix.shard }}
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  combat-shards:
+    needs: prepare
+    if: inputs.tier == 'combat-full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-html
+          path: prepared/html
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Run combat shard
+        run: |
+          set -euo pipefail
+          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          python tools/combat_sweep.py "$HTML" --fixture "$FIXTURE" \
+            --tier initiators --shard-index "${{ matrix.shard }}" --shard-count 8 \
+            --seed "$SWEEP_SEED" --out ".local/sweep/combat-shard-${{ matrix.shard }}"
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-combat-shard-${{ matrix.shard }}
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  summary:
+    needs:
+      - prepare
+      - daily
+      - passage-shards
+      - scenario
+      - env-shards
+      - combat-shards
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: sweep-*
+          path: shard-artifacts
+          merge-multiple: true
+      - name: Aggregate shards
+        run: |
+          set -euo pipefail
+          case "${{ inputs.tier }}" in
+            daily) EXPECTED=4 ;;
+            full) EXPECTED=13 ;;
+            combat-full) EXPECTED=8 ;;
+            env-full) EXPECTED=8 ;;
+            *) echo "unknown tier"; exit 2 ;;
+          esac
+          REPORTS="$(find shard-artifacts -type f \( -name '*-sweep.json' -o -name '*-report.json' \) | sort)"
+          if [ -z "${REPORTS}" ]; then
+            echo "::error::no sanitized shard reports downloaded"
+            exit 1
+          fi
+          python tools/sweep_summary.py ${REPORTS} \
+            --expected-shards "${EXPECTED}" --out sweep-summary
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-summary-${{ github.run_id }}
+          path: sweep-summary
+          if-no-files-found: warn
+          retention-days: 30

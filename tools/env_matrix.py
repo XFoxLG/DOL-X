@@ -101,12 +101,14 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools import passage_sweep as ps  # noqa: E402
+from tools import sweep_ledger as sl  # noqa: E402
 
 
 TOOL = "env_matrix"
 DEFAULT_OUT_ROOT = Path(".local/sweep")
 DEFAULT_BASELINE_DIR = Path(".local/sweep/baselines")
 DEFAULT_FIXTURE = Path(".local/fixtures/base-1004.json")
+DEFAULT_LEDGER_NAME = "env-sweep-ledger.json"
 DEFAULT_SEED = 20261004
 TIERS = ("daily", "full")
 
@@ -617,6 +619,20 @@ def expand_matrix(
     return [Execution(name=name, context=ctx) for ctx, name in rows]
 
 
+def execution_key(execution: Execution) -> str:
+    return f"{execution.context}#{execution.name}"
+
+
+def shard_executions(
+    executions: Sequence[Execution], *, shard_index: int = 0, shard_count: int = 1
+) -> list[Execution]:
+    if shard_count < 1:
+        raise ValueError("shard_count must be >= 1")
+    if not 0 <= shard_index < shard_count:
+        raise ValueError("shard_index must satisfy 0 <= shard_index < shard_count")
+    return list(executions[shard_index::shard_count])
+
+
 def plan_summary(
     *,
     tier: str,
@@ -963,6 +979,11 @@ def sweep(
     bootstrap_settle_ms: int,
     fixture_vars: dict[str, Any] | None = None,
     fixture_meta: dict[str, Any] | None = None,
+    ledger_path: Path | None = None,
+    ledger_identity: dict[str, Any] | None = None,
+    planned_keys: Sequence[str] | None = None,
+    resume_results: Sequence[dict[str, Any]] | None = None,
+    checkpoint_every: int = 500,
 ) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
@@ -982,11 +1003,22 @@ def sweep(
     }
 
     started = time.strftime("%Y-%m-%dT%H:%M:%S")
+    planned_key_list = [str(key) for key in (planned_keys or [])]
+    resumed = list(resume_results or [])
+    resumed_keys = {_result_key(item) for item in resumed}
+    ledger_state: dict[str, Any] = {
+        "status": "running",
+        "identity": ledger_identity,
+        "plan_digest": (ledger_identity or {}).get("plan_digest"),
+        "planned_keys": planned_key_list,
+        "results": list(resumed),
+        "completed": [key for key in planned_key_list if key in resumed_keys],
+    }
     report: dict[str, Any] = {
         "tool": TOOL,
         "tier": tier,
         "started_at": started,
-        "results": [],
+        "results": list(resumed),
         "contexts": [],
         "bootstrap": {},
         "fixture_bytes": 0,
@@ -1081,6 +1113,9 @@ def sweep(
 
         try:
             for idx, execution in enumerate(executions, 1):
+                planned_key = execution_key(execution)
+                if planned_key in resumed_keys:
+                    continue
                 spec = by_key[execution.context]
                 t0 = time.time()
                 result: dict[str, Any] = {
@@ -1167,9 +1202,14 @@ def sweep(
                     result["reason"] = f"{type(exc).__name__}: {exc}"[:400]
                 finally:
                     result["duration_ms"] = int((time.time() - t0) * 1000)
+                result["key"] = planned_key
                 report["results"].append(result)
+                if ledger_path is not None:
+                    sl.merge_result(ledger_state, planned_key_list, result)
                 if idx % 25 == 0:
                     print(f"  ... {idx}/{len(executions)}", flush=True)
+                if ledger_path is not None and idx % max(1, checkpoint_every) == 0:
+                    sl.save_ledger(ledger_path, ledger_state)
         except Exception as exc:  # noqa: BLE001 - keep the partial report
             report["fatal_error"] = f"{type(exc).__name__}: {exc}"[:500]
             print(
@@ -1181,6 +1221,9 @@ def sweep(
         report["console_tail"] = console[-500:]
         browser.close()
 
+    if ledger_path is not None:
+        sl.save_ledger(ledger_path, ledger_state)
+
     counts = collections.Counter(str(r["status"]) for r in report["results"])
     report["verdict_counts"] = {verdict: counts.get(verdict, 0) for verdict in VERDICTS}
     report["contexts"] = [context_state[ctx.key] for ctx in contexts]
@@ -1189,8 +1232,206 @@ def sweep(
         "verdict_counts": dict(report["verdict_counts"]),
         "total_ms": int((time.time() - t_start) * 1000),
     }
+    if planned_key_list:
+        order = {key: index for index, key in enumerate(planned_key_list)}
+        report["results"].sort(key=lambda item: order.get(_result_key(item), len(order)))
+        complete, diagnostics, completeness = sl.validate_complete(
+            planned_key_list, report["results"]
+        )
+        report["completeness"] = {
+            "ok": complete,
+            "diagnostics": diagnostics,
+            "summary": completeness,
+            "expected_keys": len(planned_key_list),
+            "actual_results": len(report["results"]),
+        }
+        if ledger_path is not None:
+            ledger_state["results"] = list(report["results"])
+            ledger_state["completed"] = [
+                str(item.get("key")) for item in report["results"] if item.get("key")
+            ]
+            ledger_state["status"] = "complete" if complete else "incomplete"
+            sl.save_ledger(ledger_path, ledger_state)
+    else:
+        report["completeness"] = {"ok": True, "diagnostics": [], "summary": {}}
     report["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     return report
+
+
+def run_sweep_sessions(
+    html_path: Path,
+    executions: Sequence[Execution],
+    *,
+    contexts: Sequence[ContextSpec],
+    tier: str,
+    per_passage_timeout_ms: int,
+    headless: bool,
+    bootstrap_settle_ms: int,
+    fixture_vars: dict[str, Any] | None = None,
+    fixture_meta: dict[str, Any] | None = None,
+    ledger_path: Path | None = None,
+    ledger_identity: dict[str, Any] | None = None,
+    planned_keys: Sequence[str] | None = None,
+    resume_results: Sequence[dict[str, Any]] | None = None,
+    session_results: int = 500,
+    checkpoint_every: int = 50,
+    max_restarts: int = 2,
+) -> dict[str, Any]:
+    """Run one browser session per ``session_results`` executions.
+
+    A crashed session is retried from the identity-matched ledger.  Once the
+    restart budget is exhausted, the returned report keeps the unfinished state
+    instead of pretending the matrix completed.
+    """
+    if session_results < 1:
+        raise ValueError("session_results must be >= 1")
+    if max_restarts < 0:
+        raise ValueError("max_restarts must be >= 0")
+    key_order = [str(key) for key in (planned_keys or [execution_key(execution) for execution in executions])]
+    by_key: dict[str, dict[str, Any]] = {}
+    for result in resume_results or []:
+        key = _result_key(result)
+        if key:
+            by_key[key] = result
+    pending = [execution for execution in executions if execution_key(execution) not in by_key]
+    reports: list[dict[str, Any]] = []
+    session_errors: list[dict[str, Any]] = []
+    restart_count = 0
+
+    while pending:
+        batch = pending[:session_results]
+        completed_before = len(by_key)
+        try:
+            report = sweep(
+                html_path,
+                batch,
+                contexts=contexts,
+                tier=tier,
+                per_passage_timeout_ms=per_passage_timeout_ms,
+                headless=headless,
+                bootstrap_settle_ms=bootstrap_settle_ms,
+                fixture_vars=fixture_vars,
+                fixture_meta=fixture_meta,
+                ledger_path=ledger_path,
+                ledger_identity=ledger_identity,
+                planned_keys=key_order,
+                resume_results=list(by_key.values()),
+                checkpoint_every=max(1, checkpoint_every),
+            )
+        except (Exception, SystemExit) as exc:  # noqa: BLE001 - recover from browser death
+            session_errors.append(
+                {
+                    "kind": "session_error",
+                    "error": f"{type(exc).__name__}: {exc}"[:500],
+                    "completed_before_error": len(by_key),
+                }
+            )
+            restart_count += 1
+            if ledger_path is None or ledger_identity is None:
+                raise
+            loaded = sl.load_ledger(ledger_path)
+            usable, diagnostics, recovered = sl.validate_resume(
+                ledger_identity,
+                str(ledger_identity.get("plan_digest") or ""),
+                key_order,
+                loaded,
+            )
+            if not usable:
+                raise RuntimeError(
+                    "browser session failed and checkpoint was not resumable: "
+                    + "; ".join(diagnostics[:4])
+                ) from exc
+            by_key = {
+                str(_result_key(result)): result
+                for result in recovered
+                if _result_key(result)
+            }
+            pending = [
+                execution
+                for execution in executions
+                if execution_key(execution) not in by_key
+            ]
+            if restart_count > max_restarts:
+                break
+            continue
+        restart_count = 0
+        reports.append(report)
+        by_key = {
+            str(_result_key(result)): result
+            for result in report.get("results") or []
+            if _result_key(result)
+        }
+        pending = [
+            execution
+            for execution in executions
+            if execution_key(execution) not in by_key
+        ]
+        if len(by_key) <= completed_before:
+            session_errors.append(
+                {
+                    "kind": "no_progress",
+                    "error": "browser session returned no new results",
+                    "completed_before_error": completed_before,
+                }
+            )
+            break
+
+    if reports:
+        final = dict(reports[-1])
+    else:
+        final = {
+            "tool": TOOL,
+            "tier": tier,
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "results": [],
+            "contexts": [],
+            "bootstrap": {},
+            "console_tail": [],
+            "fatal_error": None,
+        }
+    results = [by_key[key] for key in key_order if key in by_key]
+    counts = collections.Counter(str(item.get("status") or item.get("verdict")) for item in results)
+    complete, diagnostics, completeness = sl.validate_complete(key_order, results)
+    final["results"] = results
+    final["verdict_counts"] = {
+        verdict: counts.get(verdict, 0) for verdict in VERDICTS
+    }
+    final["summary"] = {
+        "executed": len(results),
+        "verdict_counts": dict(final["verdict_counts"]),
+        "total_ms": sum(int(item.get("duration_ms") or 0) for item in results),
+    }
+    final["completeness"] = {
+        "ok": complete,
+        "diagnostics": diagnostics,
+        "summary": completeness,
+        "expected_keys": len(key_order),
+        "actual_results": len(results),
+    }
+    final["sessions"] = {
+        "count": len(reports),
+        "results_per_session": session_results,
+        "max_restarts": max_restarts,
+        "errors": session_errors,
+    }
+    final["fatal_error"] = final.get("fatal_error")
+    if pending and not final["completeness"]["ok"]:
+        final["fatal_error"] = (
+            f"{final['fatal_error'] or ''}unfinished after {len(reports)} session(s): "
+            f"{len(pending)} result(s) missing"
+        ).strip()
+    final["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    if ledger_path is not None and ledger_identity is not None:
+        checkpoint = {
+            "status": "complete" if final["completeness"]["ok"] else "incomplete",
+            "identity": ledger_identity,
+            "plan_digest": ledger_identity.get("plan_digest"),
+            "planned_keys": list(key_order),
+            "results": results,
+            "completed": [key for key in key_order if key in by_key],
+        }
+        sl.save_ledger(ledger_path, checkpoint)
+    return final
 
 
 # --------------------------------------------------------------------------- #
@@ -1199,6 +1440,9 @@ def sweep(
 
 
 def _result_key(result: dict[str, Any]) -> str:
+    value = result.get("key")
+    if value is not None and str(value):
+        return str(value)
     return f"{result.get('context')}#{result.get('name')}"
 
 
@@ -1361,6 +1605,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=None, help="report dir (default .local/sweep/env-<MMDD>)")
     parser.add_argument("--baseline", type=Path, default=None, help="baseline json to diff")
     parser.add_argument("--save-baseline", action="store_true", help="seal this run as .local/sweep/baselines/env-<tier>.json")
+    parser.add_argument("--resume", action="store_true", help="reuse the identity-matched ledger")
+    parser.add_argument("--shard-index", type=int, default=0, help="zero-based shard index")
+    parser.add_argument("--shard-count", type=int, default=1, help="total shard count")
+    parser.add_argument("--checkpoint-every", type=int, default=500, help="results between atomic checkpoint writes")
+    parser.add_argument("--session-results", type=int, default=500, help="results before rebuilding the browser")
+    parser.add_argument("--max-restarts", type=int, default=2, help="browser restart attempts after a session error")
     parser.add_argument("--dry-plan", action="store_true", help="print the expanded matrix and exit (no browser)")
     parser.add_argument(
         "--headless",
@@ -1393,9 +1643,18 @@ def main(argv: list[str] | None = None) -> int:
     contexts = contexts_for_tier(args.tier)
     planning_passages = env_passages if args.tier == "daily" else passages
     executions = expand_matrix(planning_passages, contexts, limit=args.limit, seed=args.seed)
+    try:
+        executions = shard_executions(
+            executions, shard_index=args.shard_index, shard_count=args.shard_count
+        )
+    except ValueError as exc:
+        print(f"[env-matrix] invalid shard: {exc}")
+        return 2
+    expected_keys = [execution_key(execution) for execution in executions]
     plan = plan_summary(
         tier=args.tier, passages=planning_passages, contexts=contexts, executions=executions
     )
+    plan["shard"] = {"index": args.shard_index, "count": args.shard_count}
     rule = rule_meta(env_stats)
 
     print(
@@ -1442,7 +1701,42 @@ def main(argv: list[str] | None = None) -> int:
 
     html_path = ps.resolve_html_path(target)
     out_dir: Path = args.out or default_out_dir(args.tier)
-    report = sweep(
+    ledger_path = out_dir / DEFAULT_LEDGER_NAME
+    strategy = {
+        "tier": args.tier,
+        "limit": args.limit,
+        "seed": args.seed,
+        "shard_index": args.shard_index,
+        "shard_count": args.shard_count,
+    }
+    fixture_digest = (
+        sl.sha256_text(sl.canonical_json(fixture_vars))
+        if fixture_vars
+        else str((fixture_meta or {}).get("sha256") or "bootstrap")
+    )
+    identity = sl.run_identity(
+        TOOL,
+        html_sha256=target_sha256(html_path),
+        fixture_digest=fixture_digest,
+        tool_version="env-matrix-v2",
+        plan_digest=sl.plan_digest(expected_keys, strategy),
+        strategy=strategy,
+    )
+    resume_results: list[dict[str, Any]] = []
+    resume_diagnostics: list[str] = []
+    if args.resume:
+        checkpoint = sl.load_ledger(ledger_path)
+        usable, resume_diagnostics, resume_results = sl.validate_resume(
+            identity, identity["plan_digest"], expected_keys, checkpoint
+        )
+        if not usable:
+            resume_results = []
+            print(
+                "[env-matrix] resume rejected: "
+                + "; ".join(resume_diagnostics[:4]),
+                flush=True,
+            )
+    report = run_sweep_sessions(
         html_path,
         executions,
         contexts=contexts,
@@ -1452,6 +1746,13 @@ def main(argv: list[str] | None = None) -> int:
         bootstrap_settle_ms=args.bootstrap_settle_ms,
         fixture_vars=fixture_vars,
         fixture_meta=fixture_meta,
+        ledger_path=ledger_path,
+        ledger_identity=identity,
+        planned_keys=expected_keys,
+        resume_results=resume_results,
+        checkpoint_every=max(1, args.checkpoint_every),
+        session_results=max(1, args.session_results),
+        max_restarts=max(0, args.max_restarts),
     )
     report["meta"] = {
         "tool": TOOL,
@@ -1471,6 +1772,16 @@ def main(argv: list[str] | None = None) -> int:
         "seed": args.seed,
         "jobs_requested": jobs_requested,
         "jobs_used": 1,
+        "shard": {"index": args.shard_index, "count": args.shard_count},
+        "ledger": {
+            "path": str(ledger_path),
+            "identity": identity,
+            "resume": bool(args.resume),
+            "resume_results": len(resume_results),
+            "resume_diagnostics": resume_diagnostics,
+        },
+        "completeness": report.get("completeness"),
+        "sessions": report.get("sessions"),
     }
     report["fixture"] = fixture_meta or {"source": "bootstrap-snapshot"}
     report["target"] = str(target)
@@ -1498,6 +1809,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"[env-matrix] verdicts={report['verdict_counts']}")
     print(f"[env-matrix] report -> {md}")
+    if report.get("fatal_error"):
+        return 1
+    if not (report.get("completeness") or {}).get("ok", True):
+        print(f"[env-matrix] incomplete: {report['completeness'].get('diagnostics')}")
+        return 1
     return 0
 
 

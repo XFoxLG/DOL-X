@@ -16,8 +16,11 @@ from pathlib import Path
 
 import pytest
 
+from tools import env_matrix as env_mod
+from tools import sweep_ledger as ledger_mod
 from tools.env_matrix import (
     BLOOD_MOON_NIGHT,
+    Execution,
     SPRING_CLEAR,
     VERDICTS,
     apply_context,
@@ -29,11 +32,14 @@ from tools.env_matrix import (
     diff_against_baseline,
     dry_plan_lines,
     evaluate_checks,
+    execution_key,
     expand_matrix,
     extract_missing_vars,
     plan_summary,
     read_context,
+    run_sweep_sessions,
     scan_env_sensitive,
+    shard_executions,
     write_report,
 )
 from tools.passage_sweep import Passage
@@ -246,6 +252,148 @@ def test_plan_summary_and_dry_plan_lines_report_matrix_stats() -> None:
     assert "2 passages x 8 contexts = 16 executions" in text
     assert "env-sensitive=2" in text
     assert "limit=6 seed=1 -> 6 executions" in text
+
+
+def test_shard_executions_are_disjoint_and_reassemble_matrix() -> None:
+    contexts = contexts_for_tier("full")
+    executions = expand_matrix(SAMPLE_PASSAGES, contexts)
+    shards = [shard_executions(executions, shard_index=index, shard_count=3) for index in range(3)]
+    keys = [execution_key(execution) for shard in shards for execution in shard]
+    assert sorted(keys) == sorted(execution_key(execution) for execution in executions)
+    assert len(keys) == len(set(keys))
+    assert [execution_key(execution) for execution in shards[0]] == [
+        execution_key(execution) for execution in executions[0::3]
+    ]
+
+
+def test_shard_executions_rejects_invalid_configuration() -> None:
+    with pytest.raises(ValueError):
+        shard_executions([], shard_index=0, shard_count=0)
+    with pytest.raises(ValueError):
+        shard_executions([], shard_index=3, shard_count=2)
+
+
+def test_run_sweep_sessions_rebuilds_browser_in_batches(monkeypatch) -> None:
+    executions = [
+        Execution(name=f"Passage {index}", context="ctx") for index in range(5)
+    ]
+    planned = [execution_key(execution) for execution in executions]
+    calls: list[int] = []
+
+    def fake_sweep(html_path, batch, **kwargs):
+        calls.append(len(batch))
+        results = list(kwargs.get("resume_results") or [])
+        results.extend(
+            {
+                "key": execution_key(execution),
+                "status": "ok",
+                "duration_ms": 1,
+            }
+            for execution in batch
+        )
+        return {"tool": "env_matrix", "tier": "full", "results": results}
+
+    monkeypatch.setattr(env_mod, "sweep", fake_sweep)
+    report = run_sweep_sessions(
+        Path("artifact.html"),
+        executions,
+        contexts=[],
+        tier="full",
+        per_passage_timeout_ms=1,
+        headless=True,
+        bootstrap_settle_ms=1,
+        planned_keys=planned,
+        session_results=2,
+    )
+    assert calls == [2, 2, 1]
+    assert len(report["results"]) == 5
+    assert report["completeness"]["ok"] is True
+    assert report["sessions"]["count"] == 3
+
+
+def test_run_sweep_sessions_recovers_from_checkpoint(monkeypatch, tmp_path) -> None:
+    executions = [
+        Execution(name=f"Passage {index}", context="ctx") for index in range(3)
+    ]
+    planned = [execution_key(execution) for execution in executions]
+    identity = ledger_mod.run_identity(
+        "env_matrix",
+        html_sha256="a" * 64,
+        fixture_digest="b" * 64,
+        tool_version="test",
+        plan_digest=ledger_mod.plan_digest(planned, {"tier": "full"}),
+        strategy={"tier": "full"},
+    )
+    ledger_path = tmp_path / "env-ledger.json"
+    calls = {"count": 0}
+
+    def fake_sweep(html_path, batch, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            ledger_mod.save_ledger(
+                kwargs["ledger_path"],
+                {
+                    "status": "running",
+                    "identity": kwargs["ledger_identity"],
+                    "plan_digest": kwargs["ledger_identity"]["plan_digest"],
+                    "planned_keys": list(kwargs["planned_keys"]),
+                    "results": [
+                        {"key": execution_key(executions[0]), "status": "ok"}
+                    ],
+                    "completed": [execution_key(executions[0])],
+                },
+            )
+            raise RuntimeError("browser died")
+        results = [
+            {"key": execution_key(execution), "status": "ok"}
+            for execution in executions
+        ]
+        return {"tool": "env_matrix", "tier": "full", "results": results}
+
+    monkeypatch.setattr(env_mod, "sweep", fake_sweep)
+    report = run_sweep_sessions(
+        Path("artifact.html"),
+        executions,
+        contexts=[],
+        tier="full",
+        per_passage_timeout_ms=1,
+        headless=True,
+        bootstrap_settle_ms=1,
+        ledger_path=ledger_path,
+        ledger_identity=identity,
+        planned_keys=planned,
+        session_results=3,
+        max_restarts=1,
+    )
+    assert calls["count"] == 2
+    assert report["completeness"]["ok"] is True
+    assert report["sessions"]["errors"][0]["error"].startswith("RuntimeError")
+
+
+def test_run_sweep_sessions_stops_when_a_session_makes_no_progress(monkeypatch) -> None:
+    executions = [Execution(name="Passage", context="ctx")]
+    planned = [execution_key(executions[0])]
+    calls = {"count": 0}
+
+    def fake_sweep(html_path, batch, **kwargs):
+        calls["count"] += 1
+        return {"tool": "env_matrix", "tier": "full", "results": []}
+
+    monkeypatch.setattr(env_mod, "sweep", fake_sweep)
+    report = run_sweep_sessions(
+        Path("artifact.html"),
+        executions,
+        contexts=[],
+        tier="full",
+        per_passage_timeout_ms=1,
+        headless=True,
+        bootstrap_settle_ms=1,
+        planned_keys=planned,
+        session_results=1,
+    )
+    assert calls["count"] == 1
+    assert report["completeness"]["ok"] is False
+    assert report["sessions"]["errors"][0]["kind"] == "no_progress"
 
 
 # --------------------------------------------------------------------------- #
