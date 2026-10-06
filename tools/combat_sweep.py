@@ -179,6 +179,14 @@ PATH_KEYWORDS: dict[str, tuple[str, ...]] = {
     "flee": ("逃跑", "逃离", "离开", "flee", "escape", "leave", "run"),
     "submit": ("顺从", "服从", "屈服", "接受", "submit", "accept", "yield"),
 }
+# Only the unambiguous matrix paths are asserted: a "win" run must actually
+# defeat the enemy, and a "submit" run may win by enemy orgasm (DoL resolves
+# submission scenes through the same arousal-max branch). The lose/flee paths
+# accept any confirmed terminal state and record which ending happened.
+EXPECTED_OUTCOME_ACCEPTS: dict[str, tuple[str, ...]] = {
+    "win": ("win",),
+    "submit": ("submit", "win"),
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -246,6 +254,9 @@ ENTRY_FLAG_ATTEMPTS: tuple[tuple[str, ...], ...] = (
 MACRO_CALL_RE = re.compile(r"<<([A-Za-z_][A-Za-z0-9_]*)([^>]*)>>")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|]*)(?:\|([^\]]*))?\]\]")
 LINK_WIDGET_RE = re.compile(r"<<link\s+\[\[([^\]|]*)(?:\|([^\]]*))?\]\][^>]*>>")
+# ``<<personN>>`` renders ``$NPCList[N-1]`` directly, so a passage that prints
+# ``<<person4>>`` needs four slots even when ``$enemyno`` only covers 2.
+PERSON_INDEX_RE = re.compile(r"<<\s*person\s*(\d+)\s*>>")
 
 # --------------------------------------------------------------------------- #
 # Entry precursors (game-side generation preamble)
@@ -369,11 +380,314 @@ def _beast_chain_from_body(body: str, target: str | None = None) -> dict[str, An
     return None
 
 
+# Human encounters allocate ``$NPCList`` slots with ``<<generateN>>`` and
+# ``<<npc Name N>>``. Some passages then print ``<<personN>>`` for slots beyond
+# their own ``$enemyno`` (Underground Robin Kiss Molestation renders
+# ``<<person4>>`` while ``<<maninit>>`` only makes 2), because upstream reaches
+# them through a predecessor that ran the full chain itself
+# (``Underground Robin Kiss Intro``: ``<<generate1>><<npc Robin 2>><<generate3>><<generate4>>``).
+# Replaying that predecessor run keeps the entry synthetic but game-authored.
+#
+# Measured 2026-10-07: every slot macro takes a 1-based number and fills
+# ``$NPCList[N-1]`` (``<<generate2>>`` -> ``generateNPC 2`` -> index 1,
+# ``<<npc Robin 2>>`` -> ``_npcno = 2 - 1``, ``<<generatePolice 1>>`` ->
+# ``generateNPC 1`` -> index 0, ``<<beastNEWinit 2 wolf>>`` -> slots 1-2).
+# A chain is only usable when it fills *every* slot the passage prints: a
+# ``<<generate2>>``-only chain leaves ``$NPCList[0]`` a fixture shell, and
+# ``combatinit`` then marks that shell ``active``, so ``leftgrabnew`` dies on
+# ``$NPCList[$lefttarget].penis`` (Courtyard/Docks/Home/Soup Kitchen/Street
+# Collar). Chains that do not cover 1..need are rejected in favour of the debug
+# menu's own contiguous ``<<generate1>>...`` preamble.
+MANINIT_SLOT_MACRO_RE = re.compile(
+    r"<<\s*(?P<macro>clearnpc(?:\s+[^>]*?)?"
+    r"|generateRole\s+(?P<role>\d+)(?:\s+[^>]*?)?"
+    r"|generatel(?:\s+[^>]*?)?"
+    r"|generate[A-Za-z_]*\s+(?P<slotarg>\d+)(?:\s+[^>]*?)?"
+    r"|generate[A-Za-z_]*?(?P<glued>\d+)(?:\s+[^>]*?)?"
+    r"|beastNEWinit\s+(?P<beastnew>\d+)(?:\s+[^>]*?)?"
+    r"|npc\s+[^>]+?\s+(?P<npcrow>\d+)(?:\s+[^>]*?)?"
+    r")\s*>>"
+)
+
+
+def _maninit_slot_range(match: re.Match[str]) -> range:
+    """0-based ``$NPCList`` indices one slot macro fills.
+
+    The 1-based/0-based split comes from the widgets themselves (measured
+    2026-10-07 against ``Widgets NPC Generation``): ``generateNPC N`` sets
+    ``_n = N - 1`` and bumps ``$enemyno``, and every wrapper funnels into it --
+    ``<<generateN>>``, glued variants (``<<generatecf1>>``, ``<<generatey3>>``,
+    ``<<generatep2>>``, ``<<generatePlant1>>``), and argument variants
+    (``<<generatePolice N>>``, ``<<generateTemple N>>``, ``<<generateDemon N>>``,
+    ``<<generateBEAST N>>``, ``<<generateNPC N>>``) are therefore 1-based slots.
+    ``<<generateRole N ...>>`` is the exception: its own docs say "Slot one
+    would be 0" and it calls ``generateNPC N + 1``, so it fills index ``N``.
+    ``<<generatel>>`` picks ``$enemyno + 1`` dynamically: it bumps the count but
+    can never prove which slot it filled, so it never satisfies coverage alone.
+    """
+    macro = str(match.group("macro") or "")
+    if macro.startswith("clearnpc") or macro.startswith("generatel"):
+        return range(0)
+    if match.group("role") is not None:
+        value = int(match.group("role"))
+        return range(value, value + 1)
+    if macro.startswith("beastNEWinit"):
+        count = int(match.group("beastnew") or 1)
+        return range(0, max(1, min(6, count)))
+    value = match.group("slotarg") or match.group("glued") or match.group("npcrow")
+    if value:
+        return range(int(value) - 1, int(value))
+    return range(0)
+
+
+def _maninit_run_covers(run: Sequence[re.Match[str]], need: int) -> bool:
+    """A run is usable only when it fills 1..need *and* bumps ``$enemyno``.
+
+    ``<<npc Name N>>`` writes a row but never increments ``$enemyno``, so a
+    chain made only of named calls leaves ``combatinit`` with ``$enemynomax`` 0
+    and the action widgets then read ``$NPCList[undefined]``.
+    """
+    covered: set[int] = set()
+    bumps = False
+    for item in run:
+        covered.update(_maninit_slot_range(item))
+        if not str(item.group("macro") or "").startswith("clearnpc") and not str(
+            item.group("macro") or ""
+        ).startswith("npc"):
+            bumps = True
+    return bumps and set(range(need)) <= covered
+
+
+def _maninit_slot_chain(body: str, target: str | None, need: int) -> dict[str, Any] | None:
+    """Contiguous slot-generation run in ``body`` that fills slots 1..``need``."""
+    text = str(body or "")
+    windows: list[str] = []
+    if target:
+        # Each occurrence of the link gets its own vicinity: event-body records
+        # hold several branches side by side (night ``<<generate2>><<generate3>>``
+        # vs. day ``<<generate1>><<generate2>>`` in ``Widgets Street``), and only
+        # the branch that actually links here should be replayed.
+        for match in re.finditer(LINK_TO_RE_TEMPLATE.format(target=re.escape(str(target))), text):
+            windows.append(text[max(0, match.start() - CHAIN_BEFORE_WINDOW) : match.start()])
+    windows.append(text)
+    for window in windows:
+        matches = list(MANINIT_SLOT_MACRO_RE.finditer(window))
+        if not matches:
+            continue
+        runs: list[list[re.Match[str]]] = []
+        current: list[re.Match[str]] = []
+        previous_end: int | None = None
+        for item in matches:
+            # A clear wipes every slot generated before it, so no chain may
+            # span one: cut the run and drop the clear itself (the fixture is
+            # restored before each row, so there is nothing stale to clear).
+            if str(item.group("macro") or "").startswith("clearnpc"):
+                if current:
+                    runs.append(current)
+                current = []
+                previous_end = None
+                continue
+            if (
+                current
+                and previous_end is not None
+                and window[previous_end : item.start()].strip() != ""
+            ):
+                runs.append(current)
+                current = []
+            current.append(item)
+            previous_end = item.end()
+        if current:
+            runs.append(current)
+        for run in reversed(runs):
+            if _maninit_run_covers(run, need):
+                covered: set[int] = set()
+                for item in run:
+                    covered.update(_maninit_slot_range(item))
+                return {
+                    "widgets": "".join(item.group(0) for item in run),
+                    "slots": max(covered) + 1 if covered else 0,
+                }
+    return None
+
+
+def _maninit_predecessor_chain(
+    passage: str,
+    need: int,
+    passage_bodies: Mapping[str, str],
+    *,
+    max_depth: int = 2,
+) -> dict[str, Any] | None:
+    """Find the predecessor whose own slot chain fills ``need`` NPCs."""
+    frontier = [passage]
+    seen = {passage}
+    for depth in range(1, max_depth + 1):
+        next_frontier: list[str] = []
+        for target in frontier:
+            for parent in _link_predecessors(target, passage_bodies):
+                if parent in seen:
+                    continue
+                seen.add(parent)
+                chain = _maninit_slot_chain(
+                    str(passage_bodies.get(parent) or ""), target, need
+                )
+                if chain is not None:
+                    return {
+                        "widgets": chain["widgets"],
+                        "slots": chain["slots"],
+                        "parent": parent,
+                        "depth": depth,
+                    }
+                next_frontier.append(parent)
+        frontier = next_frontier
+    return None
+
+
+# The game's own click path: event scenes set their start flags inside the
+# ``<<link>>`` body (``<<link [[Fight them both|Courtyard Crush Fight]]>><<set
+# $fightstart to 1>><</link>>``). Measured 2026-10-07: replaying only the slot
+# chain leaves ``$fightstart`` 0, the scene skips ``<<maninit>>``, ``$combat``
+# and ``$enemynomax`` stay 0 and ``leftgrabnew`` then reads
+# ``$NPCList[undefined].penis`` (Courtyard Crush / Docks / Home Intervene /
+# Soup Kitchen / Rent First Robin / Street Bully Orphan Fight). Only the
+# immediate predecessors' link bodies are replayed, and only macros on the
+# allowlist: ``<<endevent>>`` (which clears the freshly generated NPCs) and
+# scene-specific macros are deliberately left out.
+LINK_BODY_RE = re.compile(
+    r"<<link\s+\[\[([^\]|]*)(?:\|([^\]]*))?\]\]\s*>>(.*?)<</link>>", re.S
+)
+LINK_BODY_ALLOWED_MACROS = frozenset(
+    {"set", "def", "sub", "pass", "stress", "npcincr", "wolfDefiant", "generatePolice"}
+)
+
+
+def _maninit_link_candidates(
+    passage: str, passage_bodies: Mapping[str, str]
+) -> list[dict[str, Any]]:
+    """Every game link that leads to ``passage``, with its own start-flag run.
+
+    Each candidate carries the text right before the link (``window``) and the
+    allowlisted macros inside the link body (``widgets``); slot-generation
+    macros are dropped here -- the derivation chain already owns ``$NPCList``
+    and replaying both would generate every NPC twice (``$enemyno`` would count
+    4 for two rows, so ``combatinit`` marks shells active).
+    """
+    candidates: list[dict[str, Any]] = []
+    for parent in _link_predecessors(passage, passage_bodies):
+        body = str(passage_bodies.get(parent) or "")
+        for match in LINK_BODY_RE.finditer(body):
+            target = str(match.group(2) or match.group(1) or "").strip()
+            if target != passage:
+                continue
+            widgets: list[str] = []
+            for macro in MACRO_CALL_RE.finditer(match.group(3)):
+                if macro.group(1) not in LINK_BODY_ALLOWED_MACROS:
+                    continue
+                text = macro.group(0)
+                if MANINIT_SLOT_MACRO_RE.fullmatch(text):
+                    continue
+                if text not in widgets:
+                    widgets.append(text)
+            candidates.append(
+                {
+                    "parent": parent,
+                    "window": body[max(0, match.start() - CHAIN_BEFORE_WINDOW) : match.start()],
+                    "widgets": "".join(widgets),
+                }
+            )
+    return candidates
+
+
+def link_body_precursors(passage: str, passage_bodies: Mapping[str, str]) -> dict[str, Any]:
+    """Start-flag macros the first contributing game link runs for ``passage``.
+
+    A body often holds two branches to the same scene (fight / walk away), and
+    mixing their flags would build a path upstream never takes.
+    """
+    for candidate in _maninit_link_candidates(passage, passage_bodies):
+        if candidate["widgets"]:
+            return {"widgets": str(candidate["widgets"]), "parents": [candidate["parent"]]}
+    return {"widgets": "", "parents": []}
+
+
+# ``<<personN>>`` also hides inside widgets reached from a sequel passage:
+# Balloon Sex renders ``<<balloonRobinHelped>>`` on ``Balloon Sex Finish``,
+# which prints ``<<person2>>`` -- so the entry's own body alone under-counts the
+# slots the scene will need.
+WIDGET_DEF_RE = re.compile(r"<<widget\s+\"([^\"]+)\">>(.*?)<</widget>>", re.S)
+
+
+def build_widget_index(passage_bodies: Mapping[str, str]) -> dict[str, str]:
+    """Map ``<<widget "name">>`` bodies from the artifact's passage store."""
+    index: dict[str, str] = {}
+    for body in passage_bodies.values():
+        text = str(body or "")
+        if "<<widget" not in text:
+            continue
+        for match in WIDGET_DEF_RE.finditer(text):
+            index.setdefault(match.group(1), match.group(2))
+    return index
+
+
+def named_slot_chain(named: str, need: int, reference: int) -> tuple[str, str]:
+    """``<<npc "Name">>`` for the primary slot plus the game's generator for the rest.
+
+    Used when the scene title names an NPC but no real predecessor chain is
+    derivable: the named NPC takes the first slot and every slot the scene (or
+    its sequel) renders beyond ``$enemyno`` is filled by ``<<generateN>>``.
+    Returns ``(widgets, basis)``.
+    """
+    widgets = (
+        f'<<npc "{named}">>'
+        + "".join(f"<<generate{index}>>" for index in range(2, need + 1))
+        + "".join(f"<<person{index}>>" for index in range(1, need + 1))
+    )
+    basis = f"title-npc:{named}"
+    if need > 1:
+        basis += f"+generate2..{need}(person{max(reference, need)})"
+    return widgets, basis
+
+
+def person_reference_closure(
+    passage: str,
+    body: str,
+    passage_bodies: Mapping[str, str],
+    widget_bodies: Mapping[str, str],
+    *,
+    max_successors: int = 8,
+    widget_depth: int = 2,
+) -> int:
+    """Deepest ``<<personN>>`` the entry and its immediate successors render."""
+    successors: list[str] = []
+    for match in WIKI_LINK_RE.finditer(str(body or "")):
+        target = str(match.group(2) or match.group(1) or "").strip()
+        if target and target != passage and target not in successors:
+            successors.append(target)
+        if len(successors) >= max_successors:
+            break
+    bodies = [str(body or "")]
+    bodies.extend(str(passage_bodies.get(name) or "") for name in successors)
+    refs: set[int] = set()
+    frontier = bodies
+    for _ in range(widget_depth + 1):
+        next_frontier: list[str] = []
+        for item in frontier:
+            refs.update(int(value) for value in PERSON_INDEX_RE.findall(item))
+            for macro in MACRO_CALL_RE.finditer(item):
+                widget = widget_bodies.get(macro.group(1))
+                if widget:
+                    next_frontier.append(widget)
+        frontier = next_frontier
+        if not frontier:
+            break
+    return max(refs, default=0)
+
+
 def derive_precursor(
     row: Mapping[str, Any],
     *,
     passage_bodies: Mapping[str, str],
     named_npcs: Sequence[str] = (),
+    widget_bodies: Mapping[str, str] | None = None,
     max_depth: int = 2,
 ) -> dict[str, Any]:
     """Pick the game-side generation preamble for one initiator row.
@@ -399,17 +713,91 @@ def derive_precursor(
         enemy_match = re.search(r"<<\s*set\s+\$enemyno\s+to\s+(\d+)\s*>>", body)
         if enemy_match:
             count = max(1, min(6, int(enemy_match.group(1))))
-        if named:
-            info["widgets"] = f'<<npc "{named}">><<person1>>'
-            info["basis"] = f"title-npc:{named}"
-        elif count > 1:
-            info["widgets"] = "".join(f"<<generate{i}>>" for i in range(1, count + 1)) + "".join(
-                f"<<person{i}>>" for i in range(1, count + 1)
+        slot_refs = [int(item) for item in PERSON_INDEX_RE.findall(body)]
+        reference = max(slot_refs) if slot_refs else 0
+        # The entry passage itself may never print the extra slots; its finish
+        # passage (or a widget it calls) does. ``Underground Robin Stage
+        # Molestation`` only sets ``$enemyno`` to 1, yet its ``… Finish``
+        # renders ``<<person2>>`` in *every* branch, so slot 1 must exist or
+        # the landing passage dies on "Undefined NPC in personselect 1".
+        # Run the closure for named rows too: a title-named NPC alone is not
+        # evidence that the scene needs no generated slot (the named NPC can
+        # be a bystander, as in that stage scene where Robin is on stage while
+        # a generated group is the aggressor).
+        reference = max(
+            reference,
+            person_reference_closure(
+                passage, body, passage_bodies, widget_bodies or {}
+            ),
+        )
+        need = max(1, min(6, max(count, reference)))
+        candidates = _maninit_link_candidates(passage, passage_bodies)
+        # Fallback flags: the first game link that carries any. Used when the
+        # chain has to come from somewhere else (debug menu / target search);
+        # scene start flags such as ``<<set $fightstart to 1>>`` live only in
+        # these link bodies.
+        link_widgets = ""
+        link_parent = None
+        for candidate in candidates:
+            if candidate["widgets"]:
+                link_widgets = str(candidate["widgets"])
+                link_parent = str(candidate["parent"])
+                break
+        if reference > count:
+            # The passage prints ``<<personN>>`` itself, so slot N-1 must exist
+            # even when ``$enemyno`` only covers the aggressors
+            # (``Underground Robin Kiss Molestation`` renders ``<<person4>>``
+            # with ``$enemyno`` 2 and dies on "Undefined NPC in personselect 3").
+            # The game's own predecessor chain wins over the synthetic
+            # title-named NPC: when a scene needs more slots than ``$enemyno``
+            # covers, the real branch that links into it is the faithful
+            # fixture (``Underground Robin Stage Intro`` generates the group
+            # with ``<<generate1>><<generate2>>``; Robin is never in the list).
+            chain: dict[str, Any] | None = None
+            chain_parent: str | None = None
+            for candidate in candidates:
+                # Prefer the chain that sits in the same branch as the link we
+                # emulate: replaying the day ``<<generate1>><<generate2>>`` run
+                # together with the night branch's ``$phase`` mismatch made
+                # Street Collar Molestation clone a fixture shell into row 2.
+                candidate_chain = _maninit_slot_chain(str(candidate["window"]), None, need)
+                if candidate_chain is not None:
+                    chain = candidate_chain
+                    chain_parent = str(candidate["parent"])
+                    link_widgets = str(candidate["widgets"] or "")
+                    link_parent = chain_parent
+                    break
+            if chain is None:
+                chain = _maninit_predecessor_chain(passage, need, passage_bodies)
+                if chain is not None:
+                    chain_parent = str(chain["parent"])
+            if chain is not None:
+                info["widgets"] = chain["widgets"]
+                info["basis"] = (
+                    f"predecessor:{chain_parent}:slots{chain['slots']}(person{reference})"
+                )
+            elif named:
+                # No real chain derivable: keep the named NPC as the primary
+                # slot and fill the remaining slots with the game's generator.
+                info["widgets"], info["basis"] = named_slot_chain(named, need, reference)
+            else:
+                info["widgets"] = "".join(
+                    f"<<generate{i}>>" for i in range(1, need + 1)
+                ) + "".join(f"<<person{i}>>" for i in range(1, need + 1))
+                info["basis"] = f"debug-menu:generate1..{need}+person1..{need}(person{reference})"
+        elif named:
+            info["widgets"], info["basis"] = named_slot_chain(named, need, reference)
+        elif need > 1:
+            info["widgets"] = "".join(f"<<generate{i}>>" for i in range(1, need + 1)) + "".join(
+                f"<<person{i}>>" for i in range(1, need + 1)
             )
-            info["basis"] = f"debug-menu:generate1..{count}+person1..{count}"
+            info["basis"] = f"debug-menu:generate1..{need}+person1..{need}"
         else:
             info["widgets"] = "<<generate1>><<person1>>"
             info["basis"] = "debug-menu:generate1+person1"
+        if link_widgets:
+            info["widgets"] = str(info["widgets"] or "") + link_widgets
+            info["basis"] = f"{info['basis']}|link-body:{link_parent}"
         return info
     if kind not in BEAST_PRECURSOR_KINDS:
         info["reason"] = f"kind {kind!r} has no NPC hand/frontarm dependency"
@@ -860,14 +1248,21 @@ def build_archetype_jobs(
 
 
 def pick_mode_entry(jobs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
-    """Prefer an enemy-health fight (beast/human) for the control-mode checks."""
-    # Beast fights render their action widgets with the base fixture; ``maninit``
-    # NPC fights need NPC bedsheet data the base fixture does not carry, so they
-    # only serve as a last resort here.
+    """Prefer a beast fight for the control-mode checks.
+
+    Beast entries render their action widgets without NPC bedsheet data, so they
+    survive the base fixture most reliably. The win-path preference applies only
+    when the caller supplies paths (archetype matrix); the initiator tier's rows
+    carry no path, so a second pass without that filter keeps the pick usable.
+    """
     preferred_kinds = ("beastCombatInit", "beastNEWinit", "maninit")
-    for kind in preferred_kinds:
-        for job in jobs:
-            if job.get("kind") == kind and job.get("path") == "win":
+    for require_win in (True, False):
+        for kind in preferred_kinds:
+            for job in jobs:
+                if job.get("kind") != kind:
+                    continue
+                if require_win and job.get("path") != "win":
+                    continue
                 return job
     return jobs[0] if jobs else None
 
@@ -931,6 +1326,70 @@ def detect_stall(digests: Sequence[str], threshold: int = STALL_ROUNDS) -> bool:
     return all(item == tail[0] for item in tail)
 
 
+# Upstream ending passages reset ``$enemyarousal`` (the beach dog ``Finish``
+# sets it back to 26.66) and can land on an aftermath passage whose source
+# carries the game's own ``<<endcombat>>``. Both markers are evidence; the
+# passage body may be stored raw or HTML-escaped depending on the extractor.
+ENDCOMBAT_MARKERS = ("<<endcombat>>", "&lt;&lt;endcombat&gt;&gt;")
+
+
+def _enemy_defeat_evidence(snapshot: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Return ``(outcome, detail)`` when a snapshot shows the enemy defeated."""
+    health = snapshot.get("enemyhealth")
+    if isinstance(health, (int, float)) and health <= 0:
+        return "win", f"enemy health reached {health}"
+    arousal = snapshot.get("enemyarousal")
+    arousal_max = snapshot.get("enemyarousalmax")
+    if (
+        isinstance(arousal, (int, float))
+        and isinstance(arousal_max, (int, float))
+        and arousal_max > 0
+        and arousal >= arousal_max
+    ):
+        return "win", f"enemy arousal reached max ({arousal}/{arousal_max})"
+    return None
+
+
+def scripted_end_evidence(
+    last_active: Mapping[str, Any] | None,
+    landing_passage: str | None,
+    passage_bodies: Mapping[str, str] | None,
+    *,
+    window: int = 600,
+) -> str | None:
+    """Return evidence when the combat passage itself routed to ``landing_passage``.
+
+    Some upstream fights end without ``<<endcombat>>``: the combat passage gates
+    its own exit, e.g. ``<<if _combatend or $timer lte 0>>`` -> ``... Finish``.
+    Reading that guard from the *last combat-active* passage proves the scene
+    reached its own terminal branch instead of stopping mid-render.
+    """
+    if not last_active or not landing_passage or not passage_bodies:
+        return None
+    source = str(last_active.get("passage") or "")
+    target = str(landing_passage)
+    if not source or source == target:
+        return None
+    body = str(passage_bodies.get(source) or "")
+    if not body:
+        return None
+    index = -1
+    for marker in (f"|{target}]]", f"[[{target}]]", f'"{target}"'):
+        index = body.find(marker)
+        if index >= 0:
+            break
+    if index < 0:
+        return None
+    head = body[max(0, index - window) : index]
+    guards = re.findall(r"<<if\s+(.+?)>>", head, re.S)
+    if not guards:
+        return None
+    guard = re.sub(r"\s+", " ", str(guards[-1])).strip()
+    if not re.search(r"_combatend|\btimer\b", guard, re.I):
+        return None
+    return f"{source} exits under <<if {guard[:160]}>>"
+
+
 def classify_outcome(
     state: dict[str, Any],
     *,
@@ -938,38 +1397,89 @@ def classify_outcome(
     rounds: int,
     max_rounds: int,
     stalled: bool,
+    last_active: Mapping[str, Any] | None = None,
+    landing_body: str = "",
+    landing_passage: str | None = None,
+    scripted_end: str | None = None,
 ) -> tuple[str, str]:
-    """Map the final state to an honest outcome; never guesses silently."""
+    """Map the final state to an honest outcome; never guesses silently.
+
+    The *last combat-active snapshot* is consulted as well, because ending
+    passages overwrite ``$enemyarousal`` while finishing the scene. When the
+    landing passage's source carries ``<<endcombat>>`` the scene reached a
+    confirmed terminal state even without an enemy defeat; that is recorded as
+    ``end`` (or ``end_player_orgasm`` for a PC climax ending). A scene that ends
+    through its own ``_combatend``/``$timer`` guard is recorded as ``scene_end``;
+    neither is a win, and both keep the undefeated state in the detail.
+    """
     if stalled:
         return "unknown", f"stalled: {STALL_ROUNDS} consecutive rounds without state change"
     if state.get("combat") == 1:
         if rounds >= max_rounds:
             return "unknown", f"round limit {max_rounds} reached while $combat stayed 1"
         return "unknown", "combat still active (driver stopped early)"
-    health = state.get("enemyhealth")
-    arousal = state.get("enemyarousal")
-    arousal_max = state.get("enemyarousalmax")
-    if isinstance(health, (int, float)) and health <= 0:
-        return "win", f"enemy health reached {health}"
-    if (
-        isinstance(arousal, (int, float))
-        and isinstance(arousal_max, (int, float))
-        and arousal_max > 0
-        and arousal >= arousal_max
-    ):
-        if path == "submit":
-            return "submit", f"enemy arousal reached max ({arousal}/{arousal_max}) on submit path"
-        return "win", f"enemy arousal reached max ({arousal}/{arousal_max})"
+    evidence = (
+        last_active
+        if isinstance(last_active, Mapping) and last_active.get("combat") == 1
+        else state
+    )
+    found = _enemy_defeat_evidence(state)
+    if found is None and evidence is not state:
+        found = _enemy_defeat_evidence(evidence)
+        label = " (last combat-active round)"
+    else:
+        label = ""
+    if found is not None:
+        outcome, detail = found
+        if path == "submit" and outcome == "win":
+            return "submit", f"{detail} on submit path{label}"
+        return outcome, f"{detail}{label}"
+    landing = str(landing_passage or state.get("passage") or "")
+    if landing_body and any(marker in landing_body for marker in ENDCOMBAT_MARKERS):
+        health = evidence.get("enemyhealth") if isinstance(evidence, Mapping) else None
+        arousal = evidence.get("enemyarousal") if isinstance(evidence, Mapping) else None
+        arousal_max = (
+            evidence.get("enemyarousalmax") if isinstance(evidence, Mapping) else None
+        )
+        tail = (
+            f"last active: enemyhealth={health}, "
+            f"enemyarousal={arousal}/{arousal_max}"
+        )
+        if "orgasm" in landing.casefold():
+            return (
+                "end_player_orgasm",
+                f"scene ended via PC orgasm at {landing} "
+                f"(source carries <<endcombat>>); {tail}",
+            )
+        return (
+            "end",
+            f"scene ended at {landing} (source carries <<endcombat>>); {tail}",
+        )
+    if scripted_end:
+        health = state.get("enemyhealth")
+        arousal = state.get("enemyarousal")
+        arousal_max = state.get("enemyarousalmax")
+        return (
+            "scene_end",
+            f"scene ended at {landing} through its own exit guard ({scripted_end}); "
+            f"enemy not defeated (enemyhealth={health}, enemyarousal={arousal}/{arousal_max})",
+        )
     return (
         "unknown",
         f"$combat ended without enemy-defeat evidence (path={path}, "
-        f"enemyhealth={health}, enemyarousal={arousal})",
+        f"enemyhealth={state.get('enemyhealth')}, enemyarousal={state.get('enemyarousal')})",
     )
 
 
 _DEFINED_RE = re.compile(r"([A-Za-z_$][A-Za-z0-9_$.]*)\s+is not defined")
 _NULL_READ_RE = re.compile(r"Cannot read propert(?:y|ies) of (?:null|undefined)")
 _READING_RE = re.compile(r"reading '([^']+)'")
+# SugarCube renders the game's own slot guard as
+# ``Undefined NPC in personselect 3.`` (``<<person4>>`` with no ``$NPCList[3]``).
+# ``personselect`` receives the raw array index (its own note: "calls are 0-5
+# corresponding to NPCs 1-6"), so the number in the message is already the
+# ``$NPCList`` index -- ``personselect 0`` is ``$NPCList[0]``.
+_PERSONSELECT_RE = re.compile(r"undefined npc in personselect\s+(\d+)", re.IGNORECASE)
 
 
 def classify_entry_errors(
@@ -981,10 +1491,16 @@ def classify_entry_errors(
     messages = " | ".join(str(err.get("message") or "") for err in errors)
     if not messages.strip():
         return "not_applicable", "passage rendered but $combat stayed 0", []
+    missing = _missing_symbols(messages)
     low = messages.lower()
     fixture_hit = any(marker in low for marker in ps.FIXTURE_MARKERS) or "bad evaluation" in low
     if not fixture_hit:
-        return "hard_fail", messages[:400], []
+        return "hard_fail", messages[:400], missing[:20]
+    return "fixture_insufficient", messages[:400], missing[:20]
+
+
+def _missing_symbols(messages: str) -> list[str]:
+    """Machine-readable symbols a failing render wanted but could not find."""
     missing: list[str] = []
     for name in _DEFINED_RE.findall(messages):
         if name not in missing:
@@ -992,7 +1508,14 @@ def classify_entry_errors(
     if _NULL_READ_RE.search(messages):
         prop = _READING_RE.search(messages)
         missing.append(f"null.{prop.group(1)}" if prop else "null property read")
-    return "fixture_insufficient", messages[:400], missing[:20]
+    for slot in _PERSONSELECT_RE.findall(messages):
+        try:
+            entry = f"NPCList[{int(slot)}]"
+        except ValueError:
+            continue
+        if entry not in missing:
+            missing.append(entry)
+    return missing
 
 
 def classify_round_errors(errors: Sequence[dict[str, Any]]) -> tuple[str, str, list[str]]:
@@ -1075,6 +1598,21 @@ COMBAT_STATE_JS = r"""
       machineHealth = seen ? sum : null;
     }
   } catch (e) { machineHealth = null; }
+  // SugarCube renders widget/macro failures as an inline error view
+  // (``.error-view`` / ``span.error``); the JS error harness never sees them,
+  // so a scene dying on "Undefined NPC in personselect 3" would otherwise look
+  // like a plain stall. Capture the rendered text verbatim.
+  const domErrors = [];
+  try {
+    document.querySelectorAll("#passages .error-view, #passages span.error").forEach((node) => {
+      const text = String(node.innerText || "").trim().replace(/\s+/g, " ");
+      if (text && !domErrors.includes(text)) domErrors.push(text.slice(0, 800));
+    });
+  } catch (e) { /* ignore */ }
+  const harnessErrors = (S.errors || []).slice(-8);
+  const errors = harnessErrors.concat(
+    domErrors.map((message) => ({ kind: "sugarcube.dom", message: message, source: "dom" }))
+  );
   const out = {
     ok: true,
     passage: (() => { try { return SC.State.passage; } catch (e) { return null; } })(),
@@ -1098,8 +1636,9 @@ COMBAT_STATE_JS = r"""
     controlValue: sel ? String(sel.value) : null,
     controlOptions: sel ? [...sel.options].map(o => ({ value: String(o.value), text: String(o.text) })) : [],
     optionsCombatControls: (V.options && V.options.combatControls !== undefined) ? String(V.options.combatControls) : null,
-    errorCount: (S.errors || []).length,
-    errors: (S.errors || []).slice(-8),
+    errorCount: errors.length,
+    errors: errors,
+    domErrors: domErrors,
     done: !!S.done,
     renderSeq: S.renderSeq || 0,
   };
@@ -1204,6 +1743,35 @@ SELECT_RADIO_JS = r"""
   if (!el) return JSON.stringify({ ok: false, error: "radio not found" });
   el.click();
   return JSON.stringify({ ok: true, kind: "radio", id: el.id, checked: !!el.checked });
+}
+"""
+
+# DoL's helpless states (bound arms + pain overwhelmed, suffocation, fade-in
+# sequences) render no action radios on purpose: the intended play is to click
+# the passage's own Next/continue link and let the scene resolve. Prefer the
+# ``#next`` span, then next/continue-labelled links, then the last visible link
+# (DoL appends the continue link at the end of the passage).
+ADVANCE_LINK_JS = r"""
+() => {
+  const visible = (el) => {
+    if (!el) return false;
+    if (el.closest("[hidden]")) return false;
+    const st = window.getComputedStyle(el);
+    if (st.display === "none" || st.visibility === "hidden") return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+  const links = [...document.querySelectorAll("#passages a[data-passage]")].filter(visible);
+  if (!links.length) return JSON.stringify({ ok: false, error: "no visible passage link" });
+  const labelled = links.find((a) => {
+    const t = (a.textContent || "").trim().toLowerCase();
+    return t.includes("next") || t.includes("继续") || t.includes("下一个");
+  });
+  const pick = links.find((a) => a.closest("#next")) || labelled || links[links.length - 1];
+  const target = pick.getAttribute("data-passage") || "";
+  const text = (pick.textContent || "").trim().slice(0, 40);
+  pick.click();
+  return JSON.stringify({ ok: true, target, text });
 }
 """
 
@@ -1416,11 +1984,67 @@ def _press_turn(
     return {"timed_out": timed_out, "state": _state(page)}
 
 
-def drive_combat(page: Any, *, path: str, max_rounds: int, timeout_ms: int) -> dict[str, Any]:
+def _advance_passage(
+    page: Any,
+    *,
+    timeout_ms: int,
+    attempts: int = 8,
+    wait_ms: int = 800,
+) -> dict[str, Any]:
+    """Follow the passage's own continue link when no action controls exist.
+
+    Retries while the link is still hidden (DoL reveals some continue links
+    through ~1.5 s fade-in timeouts) and waits for the render afterwards.
+    """
+    last: dict[str, Any] = {"ok": False, "error": "no visible passage link"}
+    for attempt in range(1, attempts + 1):
+        before_render = begin_turn(page)
+        raw = page.evaluate(ADVANCE_LINK_JS)
+        try:
+            payload = json.loads(raw) if isinstance(raw, str) else (raw or {})
+        except Exception as exc:  # noqa: BLE001
+            payload = {"ok": False, "error": f"advance payload unreadable: {exc}"}
+        if not isinstance(payload, dict):
+            payload = {"ok": False, "error": "advance payload not a dict"}
+        if payload.get("ok"):
+            try:
+                page.wait_for_function(
+                    "(before) => {"
+                    "  const S = window.__DOLX__;"
+                    "  return !!S && (S.done === true || (S.renderSeq || 0) > before);"
+                    "}",
+                    before_render,
+                    timeout=max(1000, min(timeout_ms, TURN_WAIT_MS)),
+                )
+            except Exception:  # noqa: BLE001 - a slow render is recorded, not fatal
+                pass
+            page.wait_for_timeout(DEFAULT_TURN_SETTLE_MS)
+            payload["attempt"] = attempt
+            payload["state"] = _state(page)
+            return payload
+        last = payload
+        page.wait_for_timeout(wait_ms)
+    return {
+        "ok": False,
+        "error": str(last.get("error") or "no visible passage link"),
+        "attempts": attempts,
+    }
+
+
+def drive_combat(
+    page: Any,
+    *,
+    path: str,
+    max_rounds: int,
+    timeout_ms: int,
+    passage_bodies: Mapping[str, str] | None = None,
+    expected_outcome: str | None = None,
+) -> dict[str, Any]:
     """Drive one combat from $combat=1 to an ending (or the round cap)."""
     result: dict[str, Any] = {
         "path": path,
         "rounds": 0,
+        "endure_rounds": 0,
         "actions": [],
         "digests": [],
         "hp_evidence": [],
@@ -1433,13 +2057,46 @@ def drive_combat(page: Any, *, path: str, max_rounds: int, timeout_ms: int) -> d
         "landed": None,
     }
     state = _state(page)
+    last_active: dict[str, Any] | None = state if state.get("combat") == 1 else None
     for round_no in range(1, max_rounds + 1):
         if state.get("combat") != 1:
             break
         actions_probe = _actions(page)
         actions = actions_probe.get("actions") or []
         if not actions:
+            advance = _advance_passage(page, timeout_ms=timeout_ms)
+            if advance.get("ok"):
+                advance_state = advance.get("state") or _state(page)
+                state = advance_state
+                if state.get("combat") == 1:
+                    last_active = state
+                result["endure_rounds"] += 1
+                result["rounds"] += 1
+                result["digests"].append(round_digest(state))
+                result["actions"].append(
+                    {
+                        "round": round_no,
+                        "kind": "advance",
+                        "text": advance.get("text"),
+                        "target": advance.get("target"),
+                        "attempt": advance.get("attempt"),
+                        "fallback": False,
+                    }
+                )
+                if detect_stall(result["digests"]):
+                    result["stalled"] = True
+                    result["verdict"] = "soft_fail"
+                    result["detail"] = (
+                        f"stalled: {STALL_ROUNDS} rounds without state change"
+                    )
+                    break
+                continue
             verdict, detail, missing = classify_no_actions(actions_probe, state)
+            detail = (
+                f"{detail} (no continuation link after "
+                f"{result['endure_rounds']} advance rounds: "
+                f"{str(advance.get('error') or 'unknown')[:120]})"
+            )
             result["verdict"] = verdict
             result["detail"] = detail
             result["errors"].append(
@@ -1453,6 +2110,8 @@ def drive_combat(page: Any, *, path: str, max_rounds: int, timeout_ms: int) -> d
         selection = _select_action(page, action, keyword_path=path, fallback=fallback)
         turn = _press_turn(page, timeout_ms=timeout_ms, before_render=before_render)
         state = turn["state"]
+        if state.get("combat") == 1:
+            last_active = state
         digest = round_digest(state)
         result["digests"].append(digest)
         result["rounds"] += 1
@@ -1503,12 +2162,27 @@ def drive_combat(page: Any, *, path: str, max_rounds: int, timeout_ms: int) -> d
             result["detail"] = "turn render timed out"
             break
     result["landed"] = state.get("passage")
+    landing_body = ""
+    if passage_bodies:
+        landing_body = str(passage_bodies.get(str(result["landed"])) or "")
+    scripted_end = scripted_end_evidence(last_active, result["landed"], passage_bodies)
+    result["landing_evidence"] = {
+        "passage": result["landed"],
+        "source": "static" if landing_body else "none",
+        "length": len(landing_body),
+        "has_endcombat": any(marker in landing_body for marker in ENDCOMBAT_MARKERS),
+        "scripted_end": scripted_end,
+    }
     outcome, outcome_detail = classify_outcome(
         state,
         path=path,
         rounds=result["rounds"],
         max_rounds=max_rounds,
         stalled=result["stalled"],
+        last_active=last_active,
+        landing_body=landing_body,
+        landing_passage=result["landed"],
+        scripted_end=scripted_end,
     )
     result["outcome"] = outcome
     result["outcome_detail"] = outcome_detail
@@ -1518,6 +2192,13 @@ def drive_combat(page: Any, *, path: str, max_rounds: int, timeout_ms: int) -> d
     if result["verdict"] == "ok" and state.get("combat") == 1 and result["rounds"] >= max_rounds:
         result["verdict"] = "soft_fail"
         result["detail"] = f"round limit {max_rounds} reached"
+    if (
+        result["verdict"] == "ok"
+        and expected_outcome
+        and outcome not in EXPECTED_OUTCOME_ACCEPTS.get(expected_outcome, (expected_outcome,))
+    ):
+        result["verdict"] = "soft_fail"
+        result["detail"] = f"{path} path ended as {outcome}: {outcome_detail}"
     result["final_state"] = {
         key: state.get(key)
         for key in (
@@ -1543,6 +2224,7 @@ def run_archetype_jobs(
     max_rounds: int,
     timeout_ms: int,
     progress: Any | None = None,
+    passage_bodies: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for position, job in enumerate(jobs, 1):
@@ -1554,8 +2236,14 @@ def run_archetype_jobs(
             page.evaluate(ps.RESTORE_FIXTURE)
         entry = enter_row(page, job, timeout_ms=timeout_ms)
         if entry.get("ok"):
+            expected = EXPECTED_OUTCOME_ACCEPTS.get(str(job.get("path") or ""))
             drive = drive_combat(
-                page, path=str(job.get("path") or "win"), max_rounds=max_rounds, timeout_ms=timeout_ms
+                page,
+                path=str(job.get("path") or "win"),
+                max_rounds=max_rounds,
+                timeout_ms=timeout_ms,
+                passage_bodies=passage_bodies,
+                expected_outcome=str(job.get("path") or "") if expected else None,
             )
             verdict = drive["verdict"]
             detail = drive.get("detail") or drive.get("outcome_detail") or ""
@@ -1608,9 +2296,19 @@ def run_control_modes(
     rounds: int = DEFAULT_MODE_ROUNDS,
     timeout_ms: int,
     max_reentries: int = 4,
+    precursor: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Exercise every control mode for >= ``rounds`` real DOM rounds each."""
+    """Exercise every control mode for >= ``rounds`` real DOM rounds each.
+
+    Re-entries replay the same game-side generation preamble as the row sweep:
+    entering a fight without its ``<<generate1>><<person1>>`` /
+    ``<<generateBEAST>>`` chain leaves ``$NPCList`` a 5-key shell and the hand
+    renderer raises ``NPC hand action unaccounted for`` — a tool artifact, not a
+    game defect, so the check must not run without it.
+    """
     results: list[dict[str, Any]] = []
+    if precursor is None and isinstance(entry.get("precursor"), Mapping):
+        precursor = entry["precursor"]
     for mode in CONTROL_MODES:
         expected_dom = CONTROL_MODE_DOM[mode]
         record: dict[str, Any] = {
@@ -1628,7 +2326,7 @@ def run_control_modes(
         }
         state = _state(page)
         if state.get("combat") != 1:
-            reentry = enter_row(page, entry, timeout_ms=timeout_ms)
+            reentry = enter_row(page, entry, timeout_ms=timeout_ms, precursor=precursor)
             record["reentries"] += 1
             if not reentry.get("ok"):
                 record["verdict"] = reentry.get("verdict", "soft_fail")
@@ -1650,7 +2348,7 @@ def run_control_modes(
             if state.get("combat") != 1:
                 if record["reentries"] >= max_reentries:
                     break
-                reentry = enter_row(page, entry, timeout_ms=timeout_ms)
+                    reentry = enter_row(page, entry, timeout_ms=timeout_ms, precursor=precursor)
                 record["reentries"] += 1
                 if not reentry.get("ok"):
                     record["errors"].append({"reentry": reentry.get("detail", "")[:200]})
@@ -1773,6 +2471,7 @@ def run_initiator_rows(
     progress: Any | None = None,
     passage_bodies: Mapping[str, str] | None = None,
     named_npcs: Sequence[str] = (),
+    widget_bodies: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for position, row in enumerate(rows, 1):
@@ -1781,6 +2480,7 @@ def run_initiator_rows(
             row,
             passage_bodies=passage_bodies or {},
             named_npcs=named_npcs,
+            widget_bodies=widget_bodies or {},
         )
         entry = enter_row(
             page,
@@ -1789,7 +2489,13 @@ def run_initiator_rows(
             precursor=precursor if precursor.get("widgets") else None,
         )
         if entry.get("ok"):
-            drive = drive_combat(page, path="win", max_rounds=max_rounds, timeout_ms=timeout_ms)
+            drive = drive_combat(
+                page,
+                path="win",
+                max_rounds=max_rounds,
+                timeout_ms=timeout_ms,
+                passage_bodies=passage_bodies,
+            )
             record = {
                 "key": row["key"],
                 "kind": row.get("kind"),
@@ -1917,6 +2623,21 @@ def write_report(report: dict[str, Any], out_dir: Path, diff: dict[str, Any] | N
     ]
     for verdict in VERDICTS:
         lines.append(f"| {verdict} | {counts.get(verdict, 0)} |")
+
+    outcomes = report.get("outcome_counts") or {}
+    if outcomes:
+        lines += ["", "## outcomes", "", "| outcome | count |", "| --- | --- |"]
+        for outcome, count in outcomes.items():
+            lines.append(f"| {outcome} | {count} |")
+
+    modes_entry = report.get("modes_entry") or {}
+    if modes_entry:
+        mode_precursor = modes_entry.get("precursor") or {}
+        lines += [
+            "",
+            f"- control-mode entry: `{modes_entry.get('key')}` (kind {modes_entry.get('kind')}, "
+            f"precursor {mode_precursor.get('basis') or 'none'})",
+        ]
 
     by_kind = manifest.get("by_kind") or {}
     if by_kind:
@@ -2061,6 +2782,7 @@ def run(
     passage_bodies: dict[str, str] = {}
     for passage in ps.extract_passages(html_path)[0]:
         passage_bodies[passage.name] = passage.body
+    widget_bodies = build_widget_index(passage_bodies)
     scan_ms = int((time.time() - t0) * 1000)
     manifest["scan_ms"] = scan_ms
     if manifest_out is not None:
@@ -2294,6 +3016,7 @@ def run(
                         max_rounds=max_rounds,
                         timeout_ms=timeout_ms,
                         progress=_progress,
+                        passage_bodies=passage_bodies,
                     )
                 if tier == "initiators" and selected_jobs:
                     print(
@@ -2322,6 +3045,7 @@ def run(
                             progress=None,
                             passage_bodies=passage_bodies,
                             named_npcs=named_npcs,
+                            widget_bodies=widget_bodies,
                         )
                         result = chunk[0]
                         report["results"].append(result)
@@ -2356,11 +3080,24 @@ def run(
                         # entry before running the mode rounds.
                         if _state(page).get("combat") == 1:
                             page.evaluate(ps.RESTORE_FIXTURE)
+                        mode_precursor = derive_precursor(
+                            mode_entry,
+                            passage_bodies=passage_bodies,
+                            named_npcs=named_npcs,
+                            widget_bodies=widget_bodies,
+                        )
+                        report["modes_entry"] = {
+                            "key": mode_entry.get("key"),
+                            "kind": mode_entry.get("kind"),
+                            "path": mode_entry.get("path"),
+                            "precursor": mode_precursor,
+                        }
                         report["modes"] = run_control_modes(
                             page,
                             mode_entry,
                             rounds=mode_rounds,
                             timeout_ms=timeout_ms,
+                            precursor=mode_precursor if mode_precursor.get("widgets") else None,
                         )
                 elif modes_only:
                     jobs_for_mode = build_archetype_jobs(
@@ -2373,8 +3110,24 @@ def run(
                     mode_entry = pick_mode_entry(jobs_for_mode)
                     report["selection"]["modes_only"] = True
                     if mode_entry is not None:
+                        mode_precursor = derive_precursor(
+                            mode_entry,
+                            passage_bodies=passage_bodies,
+                            named_npcs=named_npcs,
+                            widget_bodies=widget_bodies,
+                        )
+                        report["modes_entry"] = {
+                            "key": mode_entry.get("key"),
+                            "kind": mode_entry.get("kind"),
+                            "path": mode_entry.get("path"),
+                            "precursor": mode_precursor,
+                        }
                         report["modes"] = run_control_modes(
-                            page, mode_entry, rounds=mode_rounds, timeout_ms=timeout_ms
+                            page,
+                            mode_entry,
+                            rounds=mode_rounds,
+                            timeout_ms=timeout_ms,
+                            precursor=mode_precursor if mode_precursor.get("widgets") else None,
                         )
                 report["console_tail"] = console[-120:]
     except Exception as exc:  # noqa: BLE001 - always emit a report
@@ -2439,6 +3192,15 @@ def run(
     report["console_errors"] = {"count": len(console_errors), "sample": console_errors[-10:]}
 
     report["verdict_counts"] = _verdict_counts(report["results"])
+    report["outcome_counts"] = dict(
+        sorted(
+            collections.Counter(
+                str((item.get("combat") or {}).get("outcome"))
+                for item in report["results"]
+                if item.get("combat")
+            ).items()
+        )
+    )
     mode_counts = collections.Counter(
         str(mode.get("verdict")) for mode in report["modes"] or []
     )

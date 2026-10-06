@@ -593,6 +593,108 @@ def test_classify_outcome_covers_win_submit_limit_and_unknown() -> None:
     assert "enemyhealth=40" in detail
 
 
+def test_classify_outcome_uses_last_active_snapshot_after_finish_reset() -> None:
+    # Beach-dog style ending: the Finish passage resets $enemyarousal to 26.66
+    # while the last combat-active round already showed the beast orgasming
+    # (573.66/500). The verdict must follow the evidence, not the reset value.
+    final = {
+        "combat": 0,
+        "passage": "Beach Phallus Dog Handjob Finish",
+        "enemyhealth": 200,
+        "enemyarousal": 26.66,
+        "enemyarousalmax": 500,
+    }
+    last_active = {
+        "combat": 1,
+        "enemyhealth": 200,
+        "enemyarousal": 573.66,
+        "enemyarousalmax": 500,
+    }
+
+    outcome, detail = classify_outcome(
+        final, path="win", rounds=15, max_rounds=80, stalled=False, last_active=last_active
+    )
+
+    assert outcome == "win"
+    assert "last combat-active round" in detail
+
+
+def test_classify_outcome_reads_endcombat_landing_as_terminal_end() -> None:
+    state = {
+        "combat": 0,
+        "passage": "Underground Film Molestation Finish",
+        "enemyhealth": 37.5714285714286,
+        "enemyarousal": 493.66,
+        "enemyarousalmax": 500,
+    }
+
+    outcome, detail = classify_outcome(
+        state,
+        path="win",
+        rounds=24,
+        max_rounds=80,
+        stalled=False,
+        landing_body="<<tearful>> you gather yourself.\n<<endcombat>>\n<<link [[Next|Bog]]>>",
+        landing_passage="Underground Film Molestation Finish",
+    )
+
+    assert outcome == "end"
+    assert "endcombat" in detail
+    assert "Underground Film Molestation Finish" in detail
+
+
+def test_classify_outcome_flags_pc_orgasm_ending() -> None:
+    state = {
+        "combat": 0,
+        "passage": "Beach Exhibit Molestation Orgasm",
+        "enemyhealth": 1069.1428571428573,
+        "enemyarousal": 984.66,
+        "enemyarousalmax": 2500,
+    }
+
+    outcome, detail = classify_outcome(
+        state,
+        path="win",
+        rounds=12,
+        max_rounds=80,
+        stalled=False,
+        last_active={
+            "combat": 1,
+            "enemyhealth": 1069.1428571428573,
+            "enemyarousal": 984.66,
+            "enemyarousalmax": 2500,
+        },
+        landing_body="<<endcombat>>",
+        landing_passage="Beach Exhibit Molestation Orgasm",
+    )
+
+    assert outcome == "end_player_orgasm"
+    assert "PC orgasm" in detail
+
+
+def test_classify_outcome_without_landing_evidence_stays_unknown() -> None:
+    state = {
+        "combat": 0,
+        "passage": "Somewhere",
+        "enemyhealth": 40,
+        "enemyarousal": 1,
+        "enemyarousalmax": 10,
+    }
+
+    outcome, _detail = classify_outcome(
+        state, path="win", rounds=3, max_rounds=80, stalled=False
+    )
+
+    assert outcome == "unknown"
+
+
+def test_expected_outcome_map_only_asserts_unambiguous_paths() -> None:
+    assert combat_sweep.EXPECTED_OUTCOME_ACCEPTS["win"] == ("win",)
+    assert "win" in combat_sweep.EXPECTED_OUTCOME_ACCEPTS["submit"]
+    assert "end" not in combat_sweep.EXPECTED_OUTCOME_ACCEPTS["win"]
+    assert "end_player_orgasm" not in combat_sweep.EXPECTED_OUTCOME_ACCEPTS["win"]
+
+
 # --------------------------------------------------------------------------- #
 # Error classification
 # --------------------------------------------------------------------------- #
@@ -997,6 +1099,271 @@ def test_derive_precursor_maninit_ignores_partial_name_matches() -> None:
     assert info["widgets"] == "<<generate1>><<person1>>"
 
 
+def test_derive_precursor_maninit_named_npc_extends_to_referenced_slots() -> None:
+    row = {"kind": "maninit", "passage": "Rent First Robin Fight", "token": "-"}
+    bodies = {
+        "Rent First Robin Fight": (
+            "<<if $fightstart is 1>><<maninit>><</if>>"
+            "The <<person2>><<person>> and <<person3>><<person>> hold <<person1>><<person>>."
+        )
+    }
+
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies=bodies, named_npcs=["Robin", "Bailey"]
+    )
+
+    assert info["widgets"] == (
+        '<<npc "Robin">><<generate2>><<generate3>>'
+        "<<person1>><<person2>><<person3>>"
+    )
+    assert "title-npc:Robin" in info["basis"]
+    assert "generate2..3" in info["basis"]
+
+
+def test_derive_precursor_named_row_uses_successor_slots_from_named_path() -> None:
+    """A title-named row still needs the slots its *sequel* renders.
+
+    No real predecessor chain exists here, so the named NPC stays in slot 1 and
+    the missing slot comes from the game's own generator.
+    """
+    row = {
+        "kind": "maninit",
+        "passage": "Underground Robin Stage Molestation",
+        "token": "-",
+    }
+    bodies = {
+        "Underground Robin Stage Molestation": (
+            "<<set $enemyno to 1>><<set $enemynomax to 1>><<maninit>>"
+            "<<if _combatend>><<link [[Next|Underground Robin Stage Molestation Finish]]>>"
+            "<</link>><</if>>"
+        ),
+        "Underground Robin Stage Molestation Finish": (
+            "The <<person1>><<person>> tumbles. The <<person2>><<person>> looks over."
+        ),
+    }
+
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies=bodies, named_npcs=["Robin", "Kylar"]
+    )
+
+    assert info["widgets"] == (
+        '<<npc "Robin">><<generate2>><<person1>><<person2>>'
+    )
+    assert info["basis"].startswith("title-npc:Robin")
+    assert "person2" in info["basis"]
+
+
+def test_derive_precursor_named_row_prefers_real_chain_over_named_npc() -> None:
+    """The game's own branch beats the synthetic title-named NPC.
+
+    ``Underground Robin Stage Intro`` generates the aggressor group with
+    ``<<generate1>><<generate2>>`` before linking in; Robin is on stage, not in
+    ``$NPCList``. Replaying only ``<<npc "Robin">>`` left slot 1 undefined and
+    the ``… Finish`` passage died on "Undefined NPC in personselect 1".
+    """
+    row = {
+        "kind": "maninit",
+        "passage": "Underground Robin Stage Molestation",
+        "token": "-",
+    }
+    bodies = {
+        "Underground Robin Stage Intro": (
+            "<<beastNEWinit 1 pig>>"
+            "<<link [[Next|Underground Robin Stage Pig]]>><<set $molestationstart to 1>><</link>>"
+            "<<endevent>><<generate1>><<generate2>>"
+            "There's a <<fullGroup>> already waiting for you. "
+            "<<link [[Next|Underground Robin Stage Molestation]]>><<set $molestationstart to 1>><</link>>"
+        ),
+        "Underground Robin Stage Molestation": (
+            "<<set $enemyno to 1>><<set $enemynomax to 1>><<maninit>>"
+            "<<if _combatend>><<link [[Next|Underground Robin Stage Molestation Finish]]>>"
+            "<</link>><</if>>"
+        ),
+        "Underground Robin Stage Molestation Finish": (
+            "The <<person1>><<person>> recoils. The <<person2>><<person>> startles."
+        ),
+    }
+
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies=bodies, named_npcs=["Robin", "Kylar"]
+    )
+
+    assert info["widgets"] == (
+        "<<generate1>><<generate2>><<set $molestationstart to 1>>"
+    )
+    assert info["basis"].startswith("predecessor:Underground Robin Stage Intro")
+    assert "link-body:Underground Robin Stage Intro" in info["basis"]
+
+
+def test_maninit_slot_chain_reads_generate_role_as_zero_based_slot() -> None:
+    """``generateRole N`` fills ``$NPCList[N]``, not ``$NPCList[N-1]``.
+
+    The widget documents "Slot one would be 0" and calls ``generateNPC N + 1``.
+    """
+    covered = combat_sweep._maninit_slot_chain(
+        '<<generateRole 0 0 "thug">><<generateRole 1 0 "thug">>'
+        '<<generateRole 2 0 "thug">><<generateRole 3 0 "thug">>',
+        None,
+        3,
+    )
+    assert covered is not None
+    assert covered["slots"] == 4
+    assert covered["widgets"].startswith('<<generateRole 0 0 "thug">>')
+
+    # A lone ``<<generateRole 1 …>>`` leaves slot 0 untouched, so it can never
+    # satisfy a one-slot scene on its own.
+    assert combat_sweep._maninit_slot_chain('<<generateRole 1 0 "x">>', None, 1) is None
+
+
+def test_maninit_slot_chain_recognises_glued_generate_variants() -> None:
+    """``generatecf1``/``generatey3``/``generatep2`` all funnel into ``generateNPC N``."""
+    covered = combat_sweep._maninit_slot_chain("<<generatecf1>><<generatey2>>", None, 2)
+    assert covered is not None
+    assert covered["widgets"] == "<<generatecf1>><<generatey2>>"
+    assert covered["slots"] == 2
+
+    # ``<<generatel>>`` picks ``$enemyno + 1`` dynamically: it bumps the count
+    # but can never prove which slot it filled.
+    assert combat_sweep._maninit_slot_chain("<<generatel>>", None, 1) is None
+
+
+def test_maninit_slot_chain_never_spans_a_clear() -> None:
+    """``<<clearnpc>>`` wipes the slots generated before it."""
+    # Rows 0 and 1 are generated on opposite sides of a clear: neither run may
+    # borrow coverage from the other, so this cannot satisfy a two-slot scene.
+    assert (
+        combat_sweep._maninit_slot_chain(
+            "<<generate1>><<clearnpc 0>><<generate2>>", None, 2
+        )
+        is None
+    )
+    # The clear itself is never replayed -- the fixture is restored first, so
+    # there is nothing stale to wipe -- and the run before it stays usable.
+    covered = combat_sweep._maninit_slot_chain(
+        "<<generate1>><<generate2>><<clearnpc 0>><<generate1>>", None, 2
+    )
+    assert covered == {"widgets": "<<generate1>><<generate2>>", "slots": 2}
+
+
+def test_derive_precursor_replays_generate_role_chain() -> None:
+    """The Bailey street ambush generates four ``thug`` slots with ``generateRole``."""
+    row = {"kind": "maninit", "passage": "Bailey Sheet Fight", "token": "-"}
+    bodies = {
+        "Harvest Street": (
+            '<<generateRole 0 0 "thug">><<generateRole 1 0 "thug">>'
+            '<<generateRole 2 0 "thug">><<generateRole 3 0 "thug">>'
+            "A group of <<group>> approaches you. The leader, a <<person1>><<person>>, grins. "
+            "<<link [[Next|Bailey Sheet Fight]]>><<set $fightstart to 1>><</link>>"
+        ),
+        "Bailey Sheet Fight": (
+            "<<if $fightstart is 1>><<maninit>><</if>>"
+            "<<link [[Next|Bailey Sheet Fight Finish]]>><</link>>"
+        ),
+        "Bailey Sheet Fight Finish": "The <<person1>><<person>> staggers. The <<person3>><<person>> runs.",
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == (
+        '<<generateRole 0 0 "thug">><<generateRole 1 0 "thug">>'
+        '<<generateRole 2 0 "thug">><<generateRole 3 0 "thug">>'
+        "<<set $fightstart to 1>>"
+    )
+    assert info["basis"].startswith("predecessor:Harvest Street:slots4")
+    assert "link-body:Harvest Street" in info["basis"]
+
+
+def test_link_body_precursors_replays_start_flags_only() -> None:
+    bodies = {
+        "Courtyard Crush Robin Angry": (
+            "<<link [[Fight them both|Courtyard Crush Fight]]>>"
+            "<<set $fightstart to 1>><<def 1>><</link>>\n"
+            "<<link [[Walk away|Courtyard Crush Fight]]>>"
+            "<<endevent>><<set $molestationstart to 1>><</link>>"
+        ),
+        "Courtyard Crush Fight": "<<set $fightstart to 1>>",
+    }
+
+    info = combat_sweep.link_body_precursors("Courtyard Crush Fight", bodies)
+
+    # Only the first link from a parent is replayed (the walk-away branch would
+    # mix its own flags into the fight path), and ``<<endevent>>`` is never
+    # replayed: it would clear the generated NPCs.
+    assert info["widgets"] == "<<set $fightstart to 1>><<def 1>>"
+    assert info["parents"] == ["Courtyard Crush Robin Angry"]
+
+
+def test_derive_precursor_appends_link_body_start_flags() -> None:
+    row = {"kind": "maninit", "passage": "Courtyard Crush Fight", "token": "-"}
+    bodies = {
+        "Courtyard Crush Robin Angry": (
+            "<<link [[Fight them both|Courtyard Crush Fight]]>>"
+            "<<set $fightstart to 1>><</link>>"
+        ),
+        "Courtyard Crush Fight": (
+            "<<if $fightstart is 1>><<maninit>><</if>>"
+            "You lunge at the <<person1>><<person>>, and the <<person2>><<person>> joins in."
+        ),
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == (
+        "<<generate1>><<generate2>><<person1>><<person2>><<set $fightstart to 1>>"
+    )
+    assert info["basis"].endswith("|link-body:Courtyard Crush Robin Angry")
+
+
+def test_derive_precursor_keeps_chain_and_flags_in_one_branch() -> None:
+    row = {"kind": "maninit", "passage": "Street Collar Molestation", "token": "-"}
+    bodies = {
+        "Widgets Street": (
+            "<<beastNEWinit 1 dog>>\n"
+            "<<if $rng gte 51>><<generate2>><<generate3>>"
+            "<<link [[Refuse|Street Collar Molestation]]>>"
+            "<<set $molestationstart to 1>><<set $phase to 1>><</link>><</if>>\n"
+            "<<else>><<generate1>><<generate2>>"
+            "<<link [[Next|Street Collar Molestation]]>>"
+            "<<set $molestationstart to 1>><<set $phase to 2>><</link>><</if>>"
+        ),
+        "Street Collar Molestation": "<<maninit>>The <<person2>><<person>> grins.",
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    # The night branch fills rows 2-3 only; the day branch fills rows 1-2 and
+    # brings its own ``$phase to 2``. Mixing them re-indexes a fixture shell.
+    assert info["widgets"] == (
+        "<<generate1>><<generate2>><<set $molestationstart to 1>><<set $phase to 2>>"
+    )
+    assert "|link-body:Widgets Street" in info["basis"]
+
+
+def test_build_widget_index_and_person_closure_read_widget_refs() -> None:
+    bodies = {
+        "Widgets Robin": (
+            '<<widget "balloonRobinHelped">>'
+            "Robin blushes. <<person2>> smiles."
+            "<</widget>>"
+        ),
+        "Balloon Sex": (
+            "<<maninit>>You float. <<link [[Continue|Balloon Sex Finish]]>><</link>>"
+        ),
+        "Balloon Sex Finish": "<<balloonRobinHelped>>",
+    }
+
+    widget_bodies = combat_sweep.build_widget_index(bodies)
+    assert "balloonRobinHelped" in widget_bodies
+
+    row = {"kind": "maninit", "passage": "Balloon Sex", "token": "-"}
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies=bodies, widget_bodies=widget_bodies
+    )
+
+    assert info["widgets"] == "<<generate1>><<generate2>><<person1>><<person2>>"
+    assert "person2" in info["basis"]
+
+
 def test_derive_precursor_beast_row_token() -> None:
     row = {"kind": "beastNEWinit", "passage": "Farmland Pigs", "token": "pig"}
     info = combat_sweep.derive_precursor(row, passage_bodies={})
@@ -1100,3 +1467,259 @@ def test_resolve_only_keys_accepts_file_and_csv(tmp_path: Path) -> None:
     assert combat_sweep.resolve_only_keys(str(line_file)) == ["a", "b"]
     assert combat_sweep.resolve_only_keys("a,b") == ["a", "b"]
     assert combat_sweep.resolve_only_keys(None) is None
+
+
+# --------------------------------------------------------------------------- #
+# Control-mode entry fidelity and scripted scene endings
+# --------------------------------------------------------------------------- #
+
+
+def test_pick_mode_entry_falls_back_when_rows_carry_no_path() -> None:
+    """Initiator rows have no path; the beast preference must still win."""
+    jobs = [
+        {"key": "a", "kind": "maninit"},
+        {"key": "b", "kind": "beastCombatInit"},
+    ]
+
+    assert pick_mode_entry(jobs)["key"] == "b"
+    assert pick_mode_entry(jobs[:1])["key"] == "a"
+
+
+def test_run_control_modes_replays_the_entry_precursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without the generation chain the mode check would read a 5-key NPCList."""
+    calls: list[object] = []
+
+    def fake_enter_row(page, row, *, timeout_ms, settle_ms=500, precursor=None):  # noqa: ANN001
+        calls.append(precursor)
+        return {"ok": False, "verdict": "fixture_insufficient", "detail": "stub"}
+
+    monkeypatch.setattr(combat_sweep, "enter_row", fake_enter_row)
+    monkeypatch.setattr(combat_sweep, "_state", lambda page: {"combat": 0})
+    monkeypatch.setattr(combat_sweep, "set_control_mode", lambda page, mode: {"ok": True})
+
+    precursor = {"widgets": "<<generate1>><<person1>>", "basis": "debug-menu:generate1+person1"}
+    entry = {"key": "maninit:-:Balloon Sex", "kind": "maninit", "precursor": precursor}
+    records = combat_sweep.run_control_modes(object(), entry, rounds=3, timeout_ms=1000)
+
+    assert len(records) == len(CONTROL_MODES)
+    assert calls == [precursor] * len(CONTROL_MODES)
+
+
+def test_run_control_modes_prefers_an_explicit_precursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[object] = []
+
+    def fake_enter_row(page, row, *, timeout_ms, settle_ms=500, precursor=None):  # noqa: ANN001
+        calls.append(precursor)
+        return {"ok": False, "verdict": "fixture_insufficient", "detail": "stub"}
+
+    monkeypatch.setattr(combat_sweep, "enter_row", fake_enter_row)
+    monkeypatch.setattr(combat_sweep, "_state", lambda page: {"combat": 0})
+    monkeypatch.setattr(combat_sweep, "set_control_mode", lambda page, mode: {"ok": True})
+
+    entry = {"key": "k", "kind": "maninit", "precursor": {"widgets": "<<generate1>>"}}
+    explicit = {"widgets": "<<beastNEWinit 1 dog>>"}
+    combat_sweep.run_control_modes(
+        object(), entry, rounds=1, timeout_ms=1000, precursor=explicit
+    )
+
+    assert calls == [explicit] * len(CONTROL_MODES)
+
+
+def test_scripted_end_evidence_reads_the_combat_passage_guard() -> None:
+    bodies = {
+        "Underground Film Molestation": (
+            "<<if _combatend or $timer lte 0>>\n"
+            '\t<span id="next"><<link [[Next|Underground Film Molestation Finish]]>><</link>></span>\n'
+            "<<else>>\n"
+            '\t<span id="next"><<link [[Next|Underground Film Molestation]]>><</link>></span>\n'
+            "<</if>>"
+        ),
+    }
+
+    evidence = combat_sweep.scripted_end_evidence(
+        {"combat": 1, "passage": "Underground Film Molestation"},
+        "Underground Film Molestation Finish",
+        bodies,
+    )
+
+    assert evidence is not None
+    assert "_combatend or $timer lte 0" in evidence
+
+
+def test_scripted_end_evidence_ignores_unguarded_and_missing_sources() -> None:
+    bodies = {"A": '<<link [[Next|B]]>><</link>>', "B": "<<endcombat>>"}
+
+    assert combat_sweep.scripted_end_evidence({"combat": 1, "passage": "A"}, "B", bodies) is None
+    assert combat_sweep.scripted_end_evidence({"combat": 1, "passage": "A"}, "B", {}) is None
+    assert combat_sweep.scripted_end_evidence(None, "B", bodies) is None
+    assert combat_sweep.scripted_end_evidence({"combat": 1, "passage": "B"}, "B", bodies) is None
+
+
+def test_classify_outcome_records_scene_end_without_enemy_defeat() -> None:
+    state = {
+        "combat": 0,
+        "passage": "Underground Film Molestation Finish",
+        "enemyhealth": 158.8571428571429,
+        "enemyarousal": 410.66,
+        "enemyarousalmax": 500,
+    }
+
+    outcome, detail = classify_outcome(
+        state,
+        path="win",
+        rounds=24,
+        max_rounds=80,
+        stalled=False,
+        last_active={"combat": 1, "passage": "Underground Film Molestation"},
+        landing_passage="Underground Film Molestation Finish",
+        scripted_end="Underground Film Molestation exits under <<if _combatend or $timer lte 0>>",
+    )
+
+    assert outcome == "scene_end"
+    assert "enemy not defeated" in detail
+    assert "Underground Film Molestation Finish" in detail
+    assert "scene_end" not in combat_sweep.EXPECTED_OUTCOME_ACCEPTS["win"]
+
+
+def test_derive_precursor_replays_the_predecessor_slot_chain() -> None:
+    """Underground Robin Kiss prints <<person4>> with $enemyno 2."""
+    row = {
+        "kind": "maninit",
+        "passage": "Underground Robin Kiss Molestation",
+        "token": "",
+    }
+    bodies = {
+        "Underground Robin Kiss Molestation": (
+            "<<set $enemyno to 2>><<maninit>>\nThe <<person4>><<person>> films you.\n"
+        ),
+        "Underground Robin Kiss Intro": (
+            "<<generate1>><<npc Robin 2>><<generate3>><<generate4>>"
+            "<<link [[Next|Underground Robin Kiss Molestation]]>><</link>>"
+        ),
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == "<<generate1>><<npc Robin 2>><<generate3>><<generate4>>"
+    assert "predecessor:Underground Robin Kiss Intro" in info["basis"]
+    assert "(person4)" in info["basis"]
+
+
+def test_derive_precursor_falls_back_when_no_chain_exists() -> None:
+    row = {"kind": "maninit", "passage": "Lonely Room", "token": ""}
+    bodies = {
+        "Lonely Room": (
+            "<<set $enemyno to 1>><<maninit>>The <<person3>><<person>> watches."
+        )
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == (
+        "<<generate1>><<generate2>><<generate3>>"
+        "<<person1>><<person2>><<person3>>"
+    )
+    assert info["basis"] == "debug-menu:generate1..3+person1..3(person3)"
+
+
+def test_derive_precursor_keeps_single_slot_default_without_person_refs() -> None:
+    row = {"kind": "maninit", "passage": "Plain Fight", "token": ""}
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies={"Plain Fight": "<<maninit>>"}
+    )
+
+    assert info["widgets"] == "<<generate1>><<person1>>"
+    assert info["basis"] == "debug-menu:generate1+person1"
+
+
+def test_maninit_slot_chain_requires_a_contiguous_run() -> None:
+    body = "<<generate1>><<person1>>\nprose in between\n<<generate2>>"
+
+    assert combat_sweep._maninit_slot_chain(body, None, 1) == {
+        "widgets": "<<generate1>>",
+        "slots": 1,
+    }
+    # ``<<generate2>>`` alone fills index 1; index 0 would stay a fixture shell,
+    # and ``combatinit`` marks that shell ``active`` before ``personselect 0``
+    # reads it.
+    assert combat_sweep._maninit_slot_chain("<<generate2>>", None, 2) is None
+    assert combat_sweep._maninit_slot_chain(body, None, 3) is None
+
+
+def test_maninit_slot_chain_reads_npc_name_indices() -> None:
+    body = "<<generate1>><<npc Robin 2>>"
+    assert combat_sweep._maninit_slot_chain(body, None, 2) == {
+        "widgets": "<<generate1>><<npc Robin 2>>",
+        "slots": 2,
+    }
+    # ``<<npc Robin 2>>`` writes row 2 (index 1); on its own row 1 stays a shell.
+    assert combat_sweep._maninit_slot_chain("<<clearnpc>><<npc Robin 2>>", None, 2) is None
+
+
+def test_maninit_slot_chain_counts_beast_and_police_generators() -> None:
+    assert combat_sweep._maninit_slot_chain(
+        "<<beastNEWinit 1 dog>><<generate2>><<generate3>>", None, 3
+    ) == {
+        "widgets": "<<beastNEWinit 1 dog>><<generate2>><<generate3>>",
+        "slots": 3,
+    }
+    assert combat_sweep._maninit_slot_chain(
+        "<<generatePolice 1>><<generatePolice 2>>", None, 2
+    ) == {
+        "widgets": "<<generatePolice 1>><<generatePolice 2>>",
+        "slots": 2,
+    }
+
+
+def test_maninit_slot_chain_prefers_the_contiguous_branch() -> None:
+    body = (
+        "<<beastNEWinit 1 dog>>\n"
+        "<<if $rng gte 51>><<generate2>><<generate3>><<person2>>night<</if>>\n"
+        "<<else>><<generate1>><<generate2>><<person1>>day<</if>>"
+        "<<link [[Next|Street Collar Molestation]]>><</link>>"
+    )
+
+    chain = combat_sweep._maninit_slot_chain(body, "Street Collar Molestation", 2)
+
+    # The night run fills indices 1-2 only; the day run fills 0-1 and wins.
+    assert chain == {"widgets": "<<generate1>><<generate2>>", "slots": 2}
+
+
+def test_classify_entry_errors_names_the_missing_npc_slot() -> None:
+    errors = [
+        {
+            "kind": "sugarcube.dom",
+            "message": (
+                "0.5.11.9 出错 (:: Underground Robin Kiss Molestation): "
+                "<<person4>>: errors within widget code "
+                "(<<personselect>>: errors within widget code "
+                "(Undefined NPC in personselect 3.))"
+            ),
+        }
+    ]
+
+    verdict, detail, missing = classify_entry_errors(errors)
+
+    assert verdict == "hard_fail"
+    assert "Undefined NPC" in detail
+    # ``personselect`` receives the raw ``$NPCList`` index (0-5 for NPCs 1-6),
+    # so ``personselect 3`` is ``$NPCList[3]`` (rendered by ``<<person4>>``).
+    assert "NPCList[3]" in missing
+
+
+def test_classify_entry_errors_maps_personselect_zero_to_first_slot() -> None:
+    errors = [
+        {
+            "kind": "sugarcube.dom",
+            "message": "<<person1>>: Undefined NPC in personselect 0.",
+        }
+    ]
+
+    verdict, _detail, missing = classify_entry_errors(errors)
+
+    assert verdict == "hard_fail"
+    assert "NPCList[0]" in missing
