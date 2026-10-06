@@ -868,12 +868,18 @@ def _session(
 
 def _boot_failed(boot: dict[str, Any]) -> str | None:
     passage = str(boot.get("passage") or "")
+    budget = (
+        f" (elapsed={boot.get('elapsed_ms')}ms deadline_hit={boot.get('deadline_hit')})"
+    )
     if not passage:
-        return f"bootstrap never reported a passage (steps={boot.get('steps')})"
+        return (
+            f"bootstrap never reported a passage (steps={boot.get('steps')}){budget}"
+        )
     if passage.lower() in ps.STARTUP_PASSAGES:
         return (
             f"bootstrap stopped on startup passage {passage!r} after "
-            f"{boot.get('steps')} steps; last actions={boot.get('actions', [])[-4:]}"
+            f"{boot.get('steps')} steps{budget}; "
+            f"last actions={boot.get('actions', [])[-4:]}"
         )
     return None
 

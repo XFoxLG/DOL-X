@@ -21,6 +21,85 @@ from tools.passage_sweep import (
 )
 
 
+class _FakeStartupPage:
+    """Minimal Playwright stand-in for ``_reach_gameplay`` unit tests."""
+
+    def __init__(self, passage: str = "Start", clicked: bool = True) -> None:
+        from tools import browser_smoke_test as bst
+        from tools import passage_sweep as ps
+
+        self._ready_script = bst._game_ready_script()
+        self._interaction_script = bst._startup_interaction_script()
+        self.passage = passage
+        self.clicked = clicked
+        self.actions = 0
+        self.waits = 0
+        self.evaluations = 0
+
+    def evaluate(self, script: str, *_args):
+        assert script in (self._ready_script, self._interaction_script)
+        self.evaluations += 1
+        if script == self._ready_script:
+            return {"passage": self.passage, "ready": True}
+        self.actions += 1
+        return {"action": "dismiss_modal", "clicked": self.clicked, "text": None}
+
+    def wait_for_timeout(self, _ms: int) -> None:
+        self.waits += 1
+
+
+def test_reach_gameplay_returns_as_soon_as_passage_leaves_startup() -> None:
+    from tools import passage_sweep as ps
+
+    page = _FakeStartupPage(passage="Bedroom")
+    info = ps._reach_gameplay(page, steps=50)
+
+    assert info["passage"] == "Bedroom"
+    assert info["steps"] == 0
+    assert info["actions"] == []
+
+
+def test_reach_gameplay_stops_after_no_progress_limit() -> None:
+    from tools import passage_sweep as ps
+
+    page = _FakeStartupPage(passage="Start", clicked=False)
+    info = ps._reach_gameplay(page, steps=500, no_progress_limit=3)
+
+    assert info["no_progress_steps"] == 3
+    assert info["steps"] == 2
+    assert info["deadline_hit"] is False
+    assert page.waits == 2
+
+
+def test_reach_gameplay_repeated_modal_clicks_do_not_end_early() -> None:
+    """CI 2026-10-07: 240 步的 modal 点击被判成"有进度"，预算耗尽而不是早停。"""
+    from tools import passage_sweep as ps
+
+    page = _FakeStartupPage(passage="Start", clicked=True)
+    info = ps._reach_gameplay(page, steps=5, no_progress_limit=2)
+
+    assert info["no_progress_steps"] == 0
+    assert info["steps"] == 5
+    assert len(info["actions"]) == 5
+
+
+def test_reach_gameplay_respects_wall_clock_deadline(monkeypatch) -> None:
+    import itertools
+
+    from tools import passage_sweep as ps
+
+    ticks = itertools.count()
+    monkeypatch.setattr(ps.time, "monotonic", lambda: float(next(ticks)))
+    page = _FakeStartupPage(passage="Start", clicked=True)
+    info = ps._reach_gameplay(page, steps=100000, no_progress_limit=40, deadline_s=1e-6)
+
+    assert info["deadline_hit"] is True
+    assert info["deadline_s"] == 1e-6
+    # 第一轮就跨过 deadline：不再等预算，也不点第二次
+    assert info["steps"] == 0
+    assert page.waits == 0
+
+
 SAMPLE_HTML = (
     "<!DOCTYPE html>\n"
     "<html><body>\n"
