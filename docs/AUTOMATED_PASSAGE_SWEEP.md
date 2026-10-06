@@ -705,7 +705,7 @@ python tools/combat_ledger.py "workspace\prepare_package\zip\Degrees of Lewdity.
 | `<<pound_status>>`（Pound ×2） | `$pound.status` | `<<pound_init>>` |
 | `<<prison_attention>>` + `<<person1>>`（Prison Spire） | `$prison.*`、slot 0 | `<<prison_init>>` + `$prison_intro=1` + 预置 `anxious_guard` 存档 |
 
-`derive_precursor` 现在在命中 `^Bird Tower` / `^Pound` / `^Prison` 的行前面重放对应初始化，
+`derive_precursor` 现在在命中 `^Bird` / `^Pound` / `^Prison` 的行前面重放对应初始化，
 basis 追加 `|area-bootstrap:<widget>`（没有野兽链时不加，避免假前驱）。Prison 那条要特别处理：
 `generate_anxious_guard` 的 `$prison_intro isnot 1` 分支把 guard 写进 **slot 1**，而所有调用方
 打印的是 `person1`（slot 0）——只有 `$prison_intro=1` 的 `loadNPC` 路径能对上，所以引导里
@@ -714,6 +714,10 @@ basis 追加 `|area-bootstrap:<widget>`（没有野兽链时不加，避免假�
 16 条 deep 行最后**一次跑完**（`combat-deep-1007m`）：`ok` **15** / `soft_fail` 1（Forest Wolf
 反例）/ `hard_fail` 0 / `fixture_insufficient` 0；4 种控制模式全 ok，启动 3 步。
 对比 1006 基线的 15 条 `fixture_insufficient` + 1 条 ok，这一档收口。
+
+顺带：把 Bird 模式放宽到 `^Bird` 后，Bird Hunt 系列的 `<<flight_hunt_return>>`（读
+`$bird.hunts.duo`）也一起修复——`combat-bird-1007n` 3/3 ok（2 条 Bird Tower + 1 条
+Bird Hunt Tent Steal Group Fight）。
 
 ---
 

@@ -1552,6 +1552,20 @@ def test_area_bootstrap_prefixes_pound_and_bird_chains() -> None:
     assert info2["widgets"].startswith("<<bird_init>>")
     assert info2["basis"].endswith("|area-bootstrap:bird_init")
 
+    # Bird Hunt 系列同样依赖 $bird.hunts（flight_hunt_return 读 duo）
+    row3 = {
+        "kind": "maninit",
+        "passage": "Bird Hunt Tent Steal Group Fight",
+        "token": "",
+    }
+    bodies3 = {
+        "Bird Hunt Tent Steal Group Fight": "<<maninit>>",
+        "Bird Hunt Tent Steal Run": "<<generate1>><<generate2>><<set $fightstart to 1>>\n[[Next|Bird Hunt Tent Steal Group Fight]]",
+    }
+    info3 = combat_sweep.derive_precursor(row3, passage_bodies=bodies3, named_npcs=[])
+    assert info3["widgets"].startswith("<<bird_init>>")
+    assert info3["basis"].endswith("|area-bootstrap:bird_init")
+
 
 def test_area_bootstrap_prison_seeds_anxious_guard() -> None:
     """Prison 行要带 $prison_intro=1 与 slot 0 的 anxious guard 存档。"""
