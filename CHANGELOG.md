@@ -167,6 +167,25 @@
 
 ### Fixed
 
+- **修复战斗入口缺少游戏自身生成前置链**（2026-10-07）：20 条战斗硬失败逐条归因后确认，
+  全部源于"直接跳入"绕过了上游自己的 `generate1/person1`、`beastNEWinit` 等生成步骤，
+  空壳 `NPCList` 让手部渲染读到 undefined 而抛错（`NPC hand action unaccounted for` /
+  `frontarm property src`）。`tools/combat_sweep.py` 的 `derive_precursor` 现在按源码顺序
+  重放规范链——`$enemyno` 为 N 时生成 `generate1..N + person1..N`；野兽场景重放前驱事件里
+  的完整链（如 Beach Phallus Dog 的作者注释链 `<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>`，
+  先清槽再生成野兽、人类放后面）；每条结果记录 derivation basis。定向复跑 20 条：
+  `hard_fail` 2 → 0，Beach 与 StreetEx4 均进入战斗并产出终局路径证据（随后归入
+  soft_fail 待继续归因，未洗绿）。
+- **修复云端验收载体身份（2026-10-07）**：run 37500965698 暴露两个静默缺陷——
+  `.github/workflows/sweep.yaml` 的 prepare 没有传 `--tag`（构建成上游最新 0.5.12.13，
+  不是仓库锁定的 0.5.11.9），且只上传 prepare 产出的 HTML（既没有 `img/`，导致天气
+  画布 `drawImage` 把战斗原型矩阵打成 104/104 假失败；也没有 DOL-X mod 栈——prepare
+  HTML 内嵌 24 个 payload，真实整合包 37 个）。工作流现在在 prepare 内完成
+  `prepare --tag` → `warmup --codes` → `build zip --codes`，用新增
+  `tools/target_package_check.py`（`StartConfig.version` + 期望 Mod 名单 + 最少 payload
+  数）在 prepare 与每个浏览器分片启动前 fail-closed 复核，只上传已核验构建产物；
+  四个 sweep 工具原生接受 `.zip` 载体。本地证据：整合包 `ok version=0.5.11.9 mods=37`、
+  prepare 空壳同命令 exit 1、整合包 passage 抽样 20/20 ok。
 - （证据归类修正，无运行逻辑变化）**AU 换脸的玩家可见故障主要出现在桌宠，但根因仍是共享的
   `facestyle/facevariant` 非法组合，不是桌宠没有收到刷新**。MuMu 12 上对当前 AU-F 候选做了
   调用链追踪与单变量 APK A/B：八个真实脸型入口都会执行

@@ -1,9 +1,15 @@
 name: Sweep
 
 # 引擎 A（剧情 / 战斗 / 环境）的云端测试入口。
-# 目标产物只准备一次，各分片下载同一份 HTML 与合成夹具；每个分片带
-# 身份台账和完整性块，最后 summary job 对缺分片、重复结果、身份漂移做
+# prepare 阶段先按锁定 tag 构建真实整合包（warmup + build zip），再做 fail-closed
+# 身份核验（StartConfig.version + 期望 Mod 名单），各分片下载同一份产物跑测试；
+# 每个分片带身份台账和完整性块，summary job 对缺分片、重复结果、身份漂移做
 # fail-closed 汇总。报告先经过 report_sanitize 白名单导出后才上传。
+#
+# 2026-10-06 教训（run 37500965698）：不传 --tag 的 prepare 会构建上游最新版本
+# （当时是 0.5.12.13）；只上传 prepare HTML 则测试的是不含 DOL-X mod 的空壳载体。
+# 两者都会让"全绿报告"测的不是目标产品，因此现在默认在 prepare 内完成
+# warmup + build zip，并只上传已核验的构建产物。
 
 on:
   workflow_dispatch:
@@ -17,6 +23,18 @@ on:
           - full
           - combat-full
           - env-full
+      tag:
+        description: "目标 tag（v{本体}-{汉化}-{日期}）"
+        type: string
+        default: "v0.5.11.9-1.0.0a-0915"
+      code:
+        description: "构建码（base 15704320 / AU-F 15705344 / AU-M 15706368 / AU-A 15708416）"
+        type: string
+        default: "15704320"
+      expect_mods:
+        description: "必须嵌入的 mod 名单（逗号分隔，大小写/空格不敏感）"
+        type: string
+        default: "maplebirch,cheat extended,More Love Interests Mod,CustomHair,longer-combat,yanling-cheat-collection,DOLI,ModI18N"
 
 permissions:
   contents: read
@@ -27,11 +45,14 @@ concurrency:
 
 env:
   SWEEP_SEED: "20261005"
+  TARGET_TAG: ${{ inputs.tag }}
+  TARGET_CODE: ${{ inputs.code }}
+  EXPECT_MODS: ${{ inputs.expect_mods }}
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
 
@@ -56,14 +77,39 @@ jobs:
         run: python -m pytest tests -q
 
       - name: Prepare game packages
-        run: python main.py prepare --workspace "${{ github.workspace }}" -v
+        run: python main.py prepare --workspace "${{ github.workspace }}" --tag "$TARGET_TAG" -v
 
-      - name: Locate built HTML
+      - name: Warm up build resources
+        run: python main.py warmup --workspace "${{ github.workspace }}" --codes "$TARGET_CODE" -v
+
+      - name: Build target combination (zip)
+        run: |
+          python main.py build zip --workspace "${{ github.workspace }}" \
+            --tag "$TARGET_TAG" --codes "$TARGET_CODE" \
+            --manifest build-manifest-sweep.json -v
+
+      - name: Package identity gate
         run: |
           set -euo pipefail
-          HTML="$(find workspace/prepare_package -name 'Degrees of Lewdity.html' -print -quit)"
+          ZIP="$(find output -maxdepth 1 -name 'DoL-*.zip' -print -quit)"
+          if [ -z "${ZIP}" ]; then
+            echo "::error::build did not produce a DoL-*.zip under output/"
+            exit 1
+          fi
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30 \
+            --write-manifest prepared/mods-manifest.json
+
+      - name: Extract tested package
+        run: |
+          set -euo pipefail
+          ZIP="$(find output -maxdepth 1 -name 'DoL-*.zip' -print -quit)"
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
           if [ -z "${HTML}" ]; then
-            echo "::error::prepare did not produce Degrees of Lewdity.html"
+            echo "::error::extracted package does not contain Degrees of Lewdity.html"
             exit 1
           fi
           echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
@@ -75,11 +121,13 @@ jobs:
             --out .local/fixtures/ci-base.json --label ci-base
           test -s .local/fixtures/ci-base.json
 
-      - name: Upload prepared HTML
+      - name: Upload target package
         uses: actions/upload-artifact@v6
         with:
-          name: sweep-html
-          path: ${{ env.HTML_PATH }}
+          name: sweep-package
+          path: |
+            output/*.zip
+            prepared/mods-manifest.json
           if-no-files-found: error
           retention-days: 7
 
@@ -106,16 +154,30 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v6
         with:
-          name: sweep-html
-          path: prepared/html
+          name: sweep-package
+          path: prepared/archive
       - uses: actions/download-artifact@v6
         with:
           name: sweep-fixture
           path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
       - name: Run daily tier
         run: |
           set -euo pipefail
-          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          HTML="${HTML_PATH}"
           FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
           test -n "${HTML}"
           test -n "${FIXTURE}"
@@ -168,16 +230,30 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v6
         with:
-          name: sweep-html
-          path: prepared/html
+          name: sweep-package
+          path: prepared/archive
       - uses: actions/download-artifact@v6
         with:
           name: sweep-fixture
           path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
       - name: Run passage shard
         run: |
           set -euo pipefail
-          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          HTML="${HTML_PATH}"
           FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
           python tools/passage_sweep.py "$HTML" --fixture "$FIXTURE" \
             --shard-index "${{ matrix.shard }}" --shard-count 4 \
@@ -216,16 +292,30 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v6
         with:
-          name: sweep-html
-          path: prepared/html
+          name: sweep-package
+          path: prepared/archive
       - uses: actions/download-artifact@v6
         with:
           name: sweep-fixture
           path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
       - name: Run scenario suite
         run: |
           set -euo pipefail
-          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          HTML="${HTML_PATH}"
           FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
           python tools/scenario_sweep.py "$HTML" --fixture "$FIXTURE" \
             --suite all --seed "$SWEEP_SEED" --out .local/sweep/full-scenario
@@ -268,16 +358,30 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v6
         with:
-          name: sweep-html
-          path: prepared/html
+          name: sweep-package
+          path: prepared/archive
       - uses: actions/download-artifact@v6
         with:
           name: sweep-fixture
           path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
       - name: Run environment shard
         run: |
           set -euo pipefail
-          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          HTML="${HTML_PATH}"
           FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
           python tools/env_matrix.py --target "$HTML" --fixture "$FIXTURE" \
             --tier full --shard-index "${{ matrix.shard }}" --shard-count 8 \
@@ -321,16 +425,30 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v6
         with:
-          name: sweep-html
-          path: prepared/html
+          name: sweep-package
+          path: prepared/archive
       - uses: actions/download-artifact@v6
         with:
           name: sweep-fixture
           path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
       - name: Run combat shard
         run: |
           set -euo pipefail
-          HTML="$(find prepared/html -name 'Degrees of Lewdity.html' -print -quit)"
+          HTML="${HTML_PATH}"
           FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
           python tools/combat_sweep.py "$HTML" --fixture "$FIXTURE" \
             --tier initiators --shard-index "${{ matrix.shard }}" --shard-count 8 \
@@ -399,5 +517,5 @@ jobs:
         with:
           name: sweep-summary-${{ github.run_id }}
           path: sweep-summary
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
