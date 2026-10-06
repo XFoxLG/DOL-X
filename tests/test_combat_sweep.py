@@ -1524,6 +1524,73 @@ def test_deep_beast_precursors_returns_provenance_and_limit() -> None:
     assert candidates[0]["token"] in ("dog", "wolf")
 
 
+def test_area_bootstrap_prefixes_pound_and_bird_chains() -> None:
+    """Pound / Bird Tower 的出口 widget 需要区域状态，前驱链要先重放区域 init。"""
+    row = {
+        "kind": "beastCombatInit",
+        "passage": "Pound Assault Rape",
+        "token": "unknown",
+    }
+    bodies = {
+        "Pound Assault Rape": "<<beastCombatInit>>",
+        "Pound": "<<beastNEWinit 1 dog>>\n[[Next|Pound Assault Rape]]",
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"].startswith("<<pound_init>>")
+    assert info["basis"].endswith("|area-bootstrap:pound_init")
+
+    row2 = {
+        "kind": "beastCombatInit",
+        "passage": "Bird Tower Sleep Sex",
+        "token": "unknown",
+    }
+    bodies2 = {
+        "Bird Tower Sleep Sex": "<<beastCombatInit>>",
+        "Bird Tower": "<<beastNEWinit 1 wolf>>\n[[Next|Bird Tower Sleep Sex]]",
+    }
+    info2 = combat_sweep.derive_precursor(row2, passage_bodies=bodies2)
+    assert info2["widgets"].startswith("<<bird_init>>")
+    assert info2["basis"].endswith("|area-bootstrap:bird_init")
+
+
+def test_area_bootstrap_prison_seeds_anxious_guard() -> None:
+    """Prison 行要带 $prison_intro=1 与 slot 0 的 anxious guard 存档。"""
+    row = {
+        "kind": "beastCombatInit",
+        "passage": "Prison Spire Work Fight",
+        "token": "unknown",
+    }
+    bodies = {
+        "Prison Spire Work Fight": "<<beastCombatInit>>",
+        "Prison Spire Work": "<<beastNEWinit 2 hawk>>\n[[Next|Prison Spire Work Fight]]",
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"].startswith("<<prison_init>><<set $prison_intro to 1>>")
+    assert '<<generateRole 0 "anxious" "guard">>' in info["widgets"]
+    assert info["basis"].endswith("|area-bootstrap:prison_init+anxious_guard")
+
+
+def test_area_bootstrap_skips_unmatched_passages() -> None:
+    row = {"kind": "beastCombatInit", "passage": "Docks Watch Dog", "token": "unknown"}
+    bodies = {
+        "Docks Watch Dog": "<<beastCombatInit>>",
+        "Docks": "<<beastNEWinit 1 dog>>\n[[Next|Docks Watch Dog]]",
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"] == "<<beastNEWinit 1 dog>>"
+    assert "area-bootstrap" not in (info["basis"] or "")
+
+
+def test_area_bootstrap_requires_chain() -> None:
+    """没有野兽链时只加区域状态没有意义，不能给出假前驱。"""
+    row = {"kind": "beastCombatInit", "passage": "Pound Mystery", "token": "unknown"}
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies={"Pound Mystery": "<<beastCombatInit>>"}
+    )
+    assert info["widgets"] is None
+    assert info["basis"] is None
+
+
 def test_resolve_only_keys_accepts_file_and_csv(tmp_path: Path) -> None:
     key_file = tmp_path / "keys.json"
     key_file.write_text(json.dumps(["a", "b"]), encoding="utf-8")
