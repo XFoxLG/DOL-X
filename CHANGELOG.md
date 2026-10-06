@@ -15,6 +15,19 @@
 
 ### Added
 
+- **战斗覆盖台账 `tools/combat_ledger.py`（2026-10-07）**：把 1,570 条战斗 initiator
+  逐条落成带源码依据的静态台账（JSON + MD），分 entry shape（`entry` 1300 /
+  `entry_via_link` 127 / `widget_definition` 73 / `helper_only` 69 / `unresolved` 1）
+  与 derivation（`upstream_predecessor` 470 / `synthetic_generator` 392 /
+  `named_npc_plus_generator` 173 / `beast_token` 247 / `named_beast_npc` 26 /
+  `self_generation` 20 / `not_needed` 212 / `unresolved` 30）两个维度；可 `--report`
+  关联一次跑分结果（不凭空造判定），未覆盖条目单列一节并附来源证据：保存兽类 NPC 的
+  变量（`$dock_dog` @ `Docks Watch`）、是否用 `$beasttype`、以及沿链接图最多 4 跳找到的
+  **未验证**候选 token（depth / 来源 passage / 正文或 widget）。`--fail-on-unresolved`
+  作为可选 CI 门；`sweep.yaml` 的 `combat-shards` 新增 "Build static coverage ledger"
+  步骤（`if: always()`，缺 `HTML_PATH` 时明确跳过），台账随报告脱敏上传。验证：
+  `pytest` **621 passed**（台账轴 19 条：分类映射、widget 调用点、五种 shape、
+  前驱证据、候选 token、fail-closed 退出码）。
 - **云端分片验收基础设施（2026-10-07）**：把 Engine A 的完整验收搬到 GitHub Actions
   分片执行，覆盖范围不因分片而缩小。新增 `tools/sweep_ledger.py`（长跑身份台账：
   `html_sha256` / 夹具摘要 / 测试器版本 / 计划摘要 + 原子检查点与完整性校验；旧版只有
@@ -167,6 +180,23 @@
 
 ### Fixed
 
+- **整合包在 CI 上仍然进不了游戏：引导预算第二轮（2026-10-07，run 37532832848）**：
+  240 步（约 240 s）仍然差一口气——四轴全部 `last passage='Start' after 240 steps`，
+  最后 4 个动作都是 `dismiss_modal`（点击成功所以早停不触发）。同一 run 的
+  `prepare` 里 `fixture_ladder capture` 用同一个（同样失败的）`_reach_gameplay` 之后
+  继续 snapshot，却拿到 732 键夹具，证明包没问题、是共享 runner 上 37 个 mod 冷启动
+  真的慢（capture 从启动到成功 250 s）。修复：`STARTUP_STEPS` 240 → **1,000**
+  （约 15 分钟）并新增 **12 分钟墙钟硬上限** `STARTUP_DEADLINE_S`（`time.monotonic()`
+  计量），boot 报告新增 `deadline_hit` / `elapsed_ms`，`_boot_failed` 报错文本带上
+  这两项以便区分"慢"与"卡死"；新增 4 条单测（离开 Start 立即返回、无动作早停、
+  重复 modal 点击不算早停、墙钟 deadline 生效）。
+- **战斗前置保真 v3 全量回归（2026-10-07，`combat-personn-1007i`）**：119 行用最终 v3
+  代码复跑，`ok 110 / soft_fail 2 / hard_fail 0 / fixture_insufficient 7 / mode:ok 4`
+  （1007h 为 72/0/0/9）。两条 `soft_fail` 如实记为待归因：`Island Fight` /
+  `Island Trap Fight` 的 win 路径结束时敌人还活着（`enemyhealth≈320/295`、
+  `enemyarousal≈45`）；7 条 `fixture_insufficient` 全部是落点场景状态不足
+  （`$pubfame.bailey` / farm `teams` / `robin` / `water` / `duo` / `status` /
+  Island Wood 与 Street Car 的落点状态），台账见 `docs/AUTOMATED_PASSAGE_SWEEP.md` §8.11-8.12。
 - **修复战斗前置的槽位不连续、分支串线与起始 flag 丢失（2026-10-07）**：41 条战斗入口复跑
   （`.local/sweep/combat-personn-1007f/`）暴露三个叠加根因，全部属于"合成前置不够像上游真实
   路径"，不改游戏数据、只改前置重放：
