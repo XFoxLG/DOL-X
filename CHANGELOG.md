@@ -15,6 +15,15 @@
 
 ### Added
 
+- **战斗台账深层前驱 fallback（2026-10-07 同日第二轮）**：`candidate-probe-1007.json` 的
+  5 条真机 A/B 证明"深度 3-4 跳 / 父 widget 链"的 `$beasttype` 来源可以重放：4/5 行从
+  `leftActionInit` DOM 错误变为 19-25 回合干净胜利，`Forest Wolf Molestation Resist`
+  的 fox 是反例（仍 `soft_fail`，不修成通过）。`combat_sweep` 的 `PRECURSOR_SCHEMA`
+  升 `combat-precursor-v2`，浅搜索（2 跳）失败后走 `deep_beast_precursors`
+  （BFS 4 跳 + 父节点 widget 链），basis 记 `deep-predecessor:...` 且
+  `confidence: low`、`token` 入 info；`combat_ledger` 新增 `deep_predecessor` 分类与
+  "Deep (low-confidence) derivations" 清单，候选函数与 sweep 共用。台账复跑：
+  `unresolved` 30 → 14、`deep` 16、shape 与 drift（19）不变；`pytest` **626 passed**。
 - **战斗覆盖台账 `tools/combat_ledger.py`（2026-10-07）**：把 1,570 条战斗 initiator
   逐条落成带源码依据的静态台账（JSON + MD），分 entry shape（`entry` 1300 /
   `entry_via_link` 127 / `widget_definition` 73 / `helper_only` 69 / `unresolved` 1）
