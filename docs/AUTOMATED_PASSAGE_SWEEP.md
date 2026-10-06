@@ -654,6 +654,34 @@ python tools/combat_ledger.py "workspace\prepare_package\zip\Degrees of Lewdity.
 `combat-shards` 工作流已加 "Build static coverage ledger" 步骤（`if: always()`，
 `HTML_PATH` 缺失时明确跳过而不是产出假报告），台账随其他报告一并脱敏上传。
 
+### 8.13 深层前驱 fallback：3-4 跳与父 widget 链（2026-10-07 第二轮）
+
+§8.12 的候选清单不能只停在"未验证"：`candidate-probe-1007.json` 用 5 条真机 A/B 检验了
+"把候选链重放一遍"是否真的能救活这些入口（同一夹具，只差一段 precursor 注入）：
+
+| 入口 | 无前驱 | 候选链重放 |
+| --- | --- | --- |
+| `Docks Watch Dog` | `leftActionInit` DOM 错误 | `<<beastNEWinit 1 dog>>` → ok，20 回合胜利 |
+| `Pound Deviant Sex` | 同上 | dog → ok，21 回合胜利 |
+| `Wolf Patrol Sex` | 同上 | wolf → ok，19 回合胜利 |
+| `Street Collar Dog 2` | 同上 | dog → ok，25 回合胜利 |
+| `Forest Wolf Molestation Resist` | `soft_fail` | fox → 仍 `soft_fail`（候选与实际不符） |
+
+4/5 成立。据此把这套搜索从台账的"只给候选"升级成 sweep 的**低置信前驱 fallback**：
+
+- `combat_sweep.PRECURSOR_SCHEMA` 升到 `combat-precursor-v2`；浅搜索（`max_depth=2`）
+  失败后调 `deep_beast_precursors`（BFS 最多 4 跳，每个父节点先自身 body chain、再看它
+  调用的 widget 里有没有 `beastNEWinit` 链），命中则 `basis` 记
+  `deep-predecessor:<source>:<body|widget:name>:depth<N>`，并写 `confidence: low` 与
+  `token`。反例（Forest Wolf）说明这个标记不是形式主义：低置信就是低置信。
+- `combat_ledger` 新增 `deep_predecessor` 分类与 "Deep (low-confidence) derivations"
+  一节；`candidate_precursors` 直接复用 sweep 的搜索函数，台账与运行时候选集永远一致。
+- 台账复跑（同产物、同 1006 报告 join）：`unresolved` 30 → 14，新增 `deep` 16，
+  shape 与 drift（19）不变。16 条包含探针全部 5 行；`Forest Wolf` 的 fox 仍是反例，
+  会以 `soft_fail` 留在报告里而不是被"修成通过"。
+- 新增单测 6 条（浅搜索深度边界、widget 链、wraith 跳过、provenance/limit、台账分类
+  与 MD 渲染）；`pytest` 626 passed。
+
 ---
 
 ## 9. 一键复现清单（发版前）
