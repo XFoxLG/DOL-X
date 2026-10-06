@@ -345,6 +345,9 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
   beast 4 原型（wolf/pig/hawk/bear/boar，静态行无 link 落点）+ special 4 原型
   （tentacle/swarm/vore/hypno，action widget 渲染不出），全部为夹具/入口数据
   问题，不是游戏 bug。
+- **前置保真六根因（2026-10-07）**：连续槽位覆盖、link-body 起始 flag、链与 flag
+  同分支、后继 passage/widget 的 `<<personN>>` 闭包、具名行改用上游真实链、
+  `generateRole` 等槽位宏识别（0-based 槽）——逐条证据与影响面见 §8.11。
 
 ### 8.5 环境矩阵（2026-10-05）
 
@@ -362,11 +365,13 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 
 ### 8.6 单测
 
-`python -m pytest -q`：**566 passed**（原 310 + 第二期新增 + 战斗入口修复
-第二轮 +6 + 云端分片设施 +33 + 战斗前置链 3 + 载体身份守卫 6 + 工作流契约 2：
-`sweep_ledger` 16、`sweep_summary` 6、`target_package_check` 6、`sweep_workflow` 6
-与 combat/env 测试扩写；含 scenario 68、combat 49+、env_matrix 27+、
-fixture_ladder 20、save_safety_guard 16、report_sanitize 11、passage_sweep 28 等）。
+`python -m pytest -q`：**597 passed**（原 310 + 第二期新增 + 战斗入口修复
+第二轮 +6 + 云端分片设施 +33 + 战斗前置链 3 + 载体身份守卫 6 + 工作流契约 2 +
+战斗前置保真 +6（§8.11 的具名行 / `generateRole` / `<<clearnpc>>` 边界回归）：
+`sweep_ledger` 16、`sweep_summary` 6、
+`target_package_check` 6、`sweep_workflow` 6 与 combat/env 测试扩写；
+含 scenario 68、combat 95、env_matrix 27+、fixture_ladder 20、
+save_safety_guard 16、report_sanitize 11、passage_sweep 28 等）。
 
 ---
 
@@ -447,6 +452,139 @@ python tools\passage_sweep.py "output\DoL-0.5.11.9-XFox-1.0.0a-base-1003.zip" `
   --fixture .local\fixtures\base-1004-fix8.json --sample 20 --out .local\sweep\carrier-smoke-1007
 # -> verdicts={'ok': 20}
 ```
+
+### 8.9 CI 引导预算：整合包 60 步不够（2026-10-07，run 37513170382）
+
+同一轮云端 daily 里，`prepare` 全绿（真实整合包构建 + 身份核验 + 现场 capture
+夹具都成功），但 `daily` 分片四轴全部拿不到结果，报
+`bootstrap did not reach gameplay; last passage='Start' after 60 steps`。
+
+根因不是载体：**同一 runner 上 `fixture_ladder capture` 用 90 步引导成功抓住了
+732 键夹具，而 passage_sweep / env_matrix 只给 60 步**。整合包要等 30+ 个 mod
+（ModLoader / maplebirch 通知弹窗、汉化包）加载完才离开 `Start`，CI 冷启动比
+本机慢得多；本机 4 步就能进入 gameplay，所以本地冒烟看不出来。
+
+修复（2026-10-07）：
+
+- `tools/passage_sweep._reach_gameplay` 默认预算统一为 **240 步**（900 ms/步），
+  并新增**早停**：连续 40 步没有任何可点击动作立即退出，把步数、动作轨迹与
+  耗时写进 `bootstrap` 报告，而不是白等满预算；
+- `sweep_flow_assertions._session`（所有分片工具的公共会话）与
+  `env_matrix` 同步使用该预算，五个工具不再各写各的步数。
+
+### 8.10 战斗"无控件"是游戏机制，不是夹具缺陷（2026-10-07）
+
+针对 20 条 hard_fail 归因（`a394e99` 修复生成前置链）后剩余 11 soft_fail + 3
+fixture_insufficient 的逐条现场取证，推翻了两条旧判定：
+
+1. **"no action controls in #listContainer" 是 DoL 的"无力"状态**。实测
+   `Office Security Molest`：双臂 `bound`、`pain=100.5`、`willpowerpain=0`，
+   `#listContainer` 里只剩"手臂阵痛"文本，游戏给出的唯一出路是点击过场
+   "继续"链接（`Man combat suffocated` 的窒息两段式同理，第二段还有
+   1.5 s × N 的淡入动画后才出现 `#next`）。旧驱动在第一条无控件回合就判
+   soft_fail，等于把"玩家只能挨着等剧情推进"误判成测试失败。
+   修复：`drive_combat` 在无控件时调用 `_advance_passage`（优先 `#next`，
+   其次"继续/Next"文案链接，最多 8 次轮询以等出淡入链接），照常推进回合；
+   只有连继续链接都没有时才保留 soft_fail，并在 detail 里写明尝试次数。
+2. **终局判定被终局 passage 的状态重置骗过**。兽交 `Finish` 会把
+   `$enemyarousal` 重置（如 573.66 → 26.66），旧判定只读最终状态因此报
+   "unknown"；而 `<<endcombat>>` 的过场（`… Finish` / `… Escape` /
+   `… Orgasm`）本身就是游戏自己的终局信号。修复：`classify_outcome` 同时看
+   **最后一个战斗活跃回合**的快照与落点 passage 源码里的 `<<endcombat>>`，
+   新增 `end` / `end_player_orgasm` 两个如实的终局结论；原型矩阵的 win 路径
+   仍强制要求 `win`（`end*` 依旧记 soft_fail），不放松口径。
+
+定向复跑 20 条（`.local/sweep/combat-hardfail-attr-1007c/`）与逐条证据见
+§8.4 的后续小节。
+
+### 8.11 战斗前置保真：槽位、分支与具名 NPC（2026-10-07）
+
+41 条与 `<<personN>>` 有关的战斗入口逐轮复跑后，把"合成前置不像上游真实路径"这一类问题
+收敛到六个根因。全部只在测试器侧修（`tools/combat_sweep.py`），不改游戏数据、不改
+`config/`、不进发行包。
+
+| 复跑目录 | 行数 | ok | soft_fail | hard_fail | fixture_insufficient | 控制模式 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `combat-personn-1007e` | 41 | 30 | 0 | 1 | 10 | — |
+| `combat-personn-1007f` | 41 | 38 | 0 | 1 | 2 | — |
+| `combat-personn-1007g` | 41 | 39 | 0 | 1 | 1 | mode:ok 4 |
+| `combat-personn-1007h` | 81 | 72 | 0 | **0** | 9 | mode:ok 4 |
+
+1007h 的 81 行 = 41 条回归集 + 30 条"改用真实前驱链"的行 + 12 条具名行抽样。
+
+1. **链必须连续覆盖槽 1..N（根因 A）**。旧逻辑只看 `max(slot) >= need`，单条
+   `<<generate2>>` 被当成合法前置，槽 0 仍是夹具空壳；`combatinit` 把空壳标 `active` 后
+   `leftgrabnew` 读 `$NPCList[undefined].penis` 抛错（Courtyard Crush / Docks /
+   Home Intervene / Soup Kitchen / Street Collar / Rent First Robin 等）。`_maninit_slot_range`
+   + `_maninit_run_covers` 现在要求生成串**连续覆盖 1..need** 且含递增 `$enemyno` 的宏，
+   纯 `<<npc "Name" 3>>` 串不算（它写槽但不递增）。
+2. **场景起始 flag 只写在 link body 里（根因 B）**。
+   `<<link [[Fight them both|Courtyard Crush Fight]]>><<set $fightstart to 1>><</link>>`
+   的 flag 不在 passage 正文，只重放生成链会让 `maninit` 被 `<<if $fightstart is 1>>` 跳过
+   （`$combat`/`$enemynomax` 停在 0）。`LINK_BODY_RE` + `LINK_BODY_ALLOWED_MACROS` 白名单
+   重放这些 flag，并**排除 `<<endevent>>`**（它会清掉刚生成的 NPC）。
+3. **链与 flag 必须来自同一分支（根因 C）**。`Widgets Street` 的夜分支
+   （`beastNEWinit 1 dog` + `generate2/3`，`$phase 1`）与昼分支（`generate1/2`，`$phase 2`）
+   并存时，1007f 混用两边，`Street Collar Molestation` 的 phase-1 路径执行
+   `saveNPC 0` → `clearsinglenpc 2`，把夹具空壳克隆进槽 1 后崩溃。`_maninit_slot_chain`
+   改为遍历每个 link 出现位置**各自的邻近窗口**，链与该 link 的 flag 取自同一候选；
+   1007g 起 Street Collar 转 ok。
+4. **后继 passage / widget 的 `<<personN>>` 闭包（根因 D）**。`Balloon Sex` 入口正文没有
+   任何 person 引用，落点 `Balloon Sex Finish` 渲染的 `<<balloonRobinHelped>>` widget 内却
+   调用 `<<person2>>`。新增 `build_widget_index`（从 passage store 抽 `<<widget "name">>`
+   正文）+ `person_reference_closure`（入口正文 + 最多 8 个直接后继 + widget 深度 2）。
+   同时修正 `personselect` 索引映射：widget 自述 "calls are 0-5 corresponding to NPCs 1-6"，
+   `<<personselect 3>>` 读 `$NPCList[3]`，旧代码却映射成 `$NPCList[2]`。
+5. **具名行不再豁免闭包（根因 E）**。`Underground Robin Stage Molestation` 正文只
+   `<<set $enemyno to 1>>`，但落点 `… Finish` 的**两个分支**都渲染 `<<person2>>`。
+   1007e / 1007f 的两次"通过"是假通过：`errors` 为空、落点其实什么都没渲染，靠上一个用例
+   残留的 `NPCList[1]` 撑住；1007g 残留消失后暴露 `Undefined NPC in personselect 1`
+   （`missing: NPCList[1]`）。修复：闭包对**所有** maninit 行生效，且在"场景需要多于
+   `$enemyno` 的槽位"时**优先采用上游自己的前驱生成链**——该行的真实路径是
+   `Underground Robin Stage Intro` 的 `<<generate1>><<generate2>>`（Robin 在台上，不在
+   `$NPCList` 里）；只有找不到真实链时才回退 `<<npc "Name">><<generate2..N>>` 保留具名 NPC。
+   1007h 实测该行 ok（敌血打到负值）。静态影响面：闭包对所有 maninit 行生效后，1,570 行中
+   220 行变化（30 行改用真实前驱链、190 行补足槽位），全部是"更接近上游 / 多造空位"方向。
+6. **槽位宏识别补全（根因 F）**。`Widgets NPC Generation` 有 121 个 widget，旧正则只认识
+   `generateN` / `generatePolice N` / `generateBEAST N` / `beastNEWinit N` / `npc Name N`。
+   2026-10-07 逐个体检后补全：
+   - `<<generateRole N …>>` 的 `N` 是 **0-based 槽**（widget 自述 "Slot one would be 0"，
+     内部调用 `generateNPC N+1`）；`<<generateRole 1 0 "x">>` 单独出现**不算**覆盖槽 0。
+   - 数字粘在名字里的变体（`<<generatecf1>>`、`<<generatey3>>`、`<<generatep2>>`、
+     `<<generatePlant1>>`、`<<generateym3>>` …）与首参形式
+     （`<<generatePolice/Temple/Demon/Security/Sailor/Confessor/Cultist/Doctor/SweaterWearer/NPC N …>>`）
+     一律 1-based 槽——它们最终都调用 `generateNPC N`，而 `generateNPC` 内部就是
+     `_n = N - 1` 且 `$enemyno += 1`。
+   - `<<generatel>>` 动态取 `$enemyno + 1`：只计 `$enemyno` 递增，不证明具体槽位。
+   - `<<clearnpc>>`（含带参形式）作为**链边界**：任何链都不得跨过它，且它本身不被重放
+     （每个用例前都恢复夹具，没有陈旧槽要清）。
+   影响面：v2 → v3 有 155 行改用真实链或更贴合的链（96 行 `debug-menu → predecessor`、
+   41 行 `predecessor → predecessor`、18 行 `title-npc → predecessor`）。例：`Bailey Sheet
+   Fight` 由兜底的 `Farm Road Widgets` 链改为上游真实链
+   `<<generateRole 0 0 "thug">>…<<generateRole 3 0 "thug">>`。
+7. `tools/passage_sweep.py` 里还有一处遗留的 `_reach_gameplay(..., steps=60)`（第 754 行）
+   未随其余工具改用 `STARTUP_STEPS`（240），同批修掉——它是 §8.9 引导预算修复的漏网。
+
+**fixture_insufficient 台账（1007h 的 9 条，全部是落点场景状态不足，不是 NPC 槽位问题）**：
+
+| 入口 | 落点报错 | 缺失场景状态 |
+| --- | --- | --- |
+| `Bailey Sheet Fight` / `Farm Assault Fight Bailey` | `<<set>>: … (setting 'bindings')` | `$pubfame.bailey` |
+| `Farm Assault Alex Fight` / `Farm Assault Tower Bailey Fight` | `… (reading 'teams')` | 农场突袭状态（`teams`） |
+| `Farm Assault Alex Fight Bailey` | `… (setting 'bindings')` | 同上（多 NPC 分支） |
+| `Underground Robin Escape Fight` | `… (reading 'water')` | 地下逃亡状态（`water`） |
+| `Underground Robin Hunt Molestation` | `… (reading 'robin')` | `<<undergroundRobinTopic>>` 需要的 Robin 状态 |
+| `Hospital Keycard Seduce Sex` | `… (reading 'status')` | 医院钥匙卡剧情状态（1007e 起既有） |
+| `Bird Hunt Tent Steal Group Fight` | `<<flight_hunt_return>>: … (reading 'duo')` | 猎鸟剧情状态（1007e 起既有） |
+
+这 9 条里 7 条是 1007h 新纳入的前驱改链行：此前根本没被扫到，现在如实记
+`fixture_insufficient`（落点缺场景状态），不再表现为假通过。`missing` 字段对 TypeError
+形状不做猜测（只保留报错宏与落点 passage），补齐方式（`--fixture-patch` 或改用游戏自身
+初始化 widget）列入台账待办。
+
+**验证**：`pytest` **597 passed**（combat 轴 95 条，含 6 条本轮新增的回归测试：
+具名行改用真实链、具名行闭包补槽、`generateRole` 0-based、glued 变体、
+`<<clearnpc>>` 边界、`generateRole` 链重放）。
 
 ---
 
