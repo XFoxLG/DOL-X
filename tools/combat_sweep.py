@@ -247,6 +247,242 @@ MACRO_CALL_RE = re.compile(r"<<([A-Za-z_][A-Za-z0-9_]*)([^>]*)>>")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|]*)(?:\|([^\]]*))?\]\]")
 LINK_WIDGET_RE = re.compile(r"<<link\s+\[\[([^\]|]*)(?:\|([^\]]*))?\]\][^>]*>>")
 
+# --------------------------------------------------------------------------- #
+# Entry precursors (game-side generation preamble)
+# --------------------------------------------------------------------------- #
+#
+# Measured 2026-10-07 against the 1.0.0a build: entering a combat scene with
+# only ``$molestationstart`` / ``$sexstart`` armed leaves ``$NPCList[0]`` as a
+# 5-key shell (``chastity/location/pronouns/skills/traits``), so scenes that
+# upstream only reaches *after* its own ``<<generate1>>`` / ``<<generateBEAST>>``
+# chain crash inside ``hand_section`` ("NPC hand action unaccounted for") or the
+# combat renderer's ``frontarm`` layer. The game's own debug menu
+# (``setup.debugMenu.eventList``) records the canonical preambles, e.g.
+# ``<<endcombat>> <<generate1>> <<person1>> <<set $sexstart to 1>>`` for men and
+# ``<<beastNNPCinit>> <<npc "Black Wolf">>`` for named beasts. The driver
+# replays those game-side widgets before arming the flow flag and records the
+# derivation basis in every result; nothing is silently patched.
+PRECURSOR_SCHEMA = "combat-precursor-v1"
+BEAST_PRECURSOR_KINDS = ("beastCombatInit", "beastNEWinit", "beastNNPCinit")
+BEAST_GEN_RE = re.compile(
+    r"<<\s*(beastNEWinit|generateBEAST)\s+\d+\s+\"?([A-Za-z][A-Za-z ]*?)\"?(?=\s|>>)"
+)
+BEAST_CHAIN_RE = re.compile(
+    r"<<\s*(beastNEWinit|generateBEAST)\s+(\d+)\s+\"?([A-Za-z][A-Za-z ]*?)\"?(?=\s|>>)"
+)
+CHAIN_CLEAR_RE = re.compile(r"<<\s*clearnpc\s*>>")
+CHAIN_TRAILING_RE = re.compile(r"<<\s*(?:generate|generatep|person)(\d+)\s*>>")
+CHAIN_AFTER_WINDOW = 400
+CHAIN_CLEAR_WINDOW = 150
+CHAIN_BEFORE_WINDOW = 1400
+LINK_TO_RE_TEMPLATE = r"\[\[[^\]|]*\|\s*{target}\s*\]\]"
+
+
+def named_npc_in_title(passage: str, named_npcs: Sequence[str]) -> str | None:
+    """Longest ``$NPCNameList`` entry that appears as a whole word in the title."""
+    text = str(passage or "")
+    best: str | None = None
+    for name in named_npcs:
+        token = str(name).strip()
+        if len(token) < 3:
+            continue
+        if re.search(
+            r"(?<![A-Za-z])" + re.escape(token) + r"(?![A-Za-z])", text, flags=re.IGNORECASE
+        ):
+            if best is None or len(token) > len(best):
+                best = token
+    return best
+
+
+def _link_predecessors(target: str, passage_bodies: Mapping[str, str]) -> list[str]:
+    pattern = re.compile(LINK_TO_RE_TEMPLATE.format(target=re.escape(str(target or ""))))
+    return [
+        str(name)
+        for name, body in passage_bodies.items()
+        if str(name) != target and pattern.search(str(body or ""))
+    ]
+
+
+def _beast_token_from_body(body: str, target: str | None = None) -> str | None:
+    """First plausible beast type in ``body`` (preferring the link vicinity)."""
+    text = str(body or "")
+    windows: list[str] = []
+    if target:
+        match = re.search(LINK_TO_RE_TEMPLATE.format(target=re.escape(str(target))), text)
+        if match:
+            windows.append(text[max(0, match.start() - CHAIN_BEFORE_WINDOW) : match.start()])
+    windows.append(text)
+    for window in windows:
+        for match in BEAST_GEN_RE.finditer(window):
+            token = str(match.group(2) or "").strip().lower()
+            if token and token not in {"the", "a", "an"}:
+                return token
+    return None
+
+
+def _beast_chain_from_body(body: str, target: str | None = None) -> dict[str, Any] | None:
+    """Ordered generation chain the game itself runs before ``target``.
+
+    Returns ``{"widgets", "token"}`` or ``None``. The game's own events spell
+    out the canonical preambles, e.g. ``Widgets Events Beach`` documents
+    ``<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>``: ``beastNEWinit``
+    requires no existing NPCs, so the slot reset comes first and any human
+    owner must be generated afterwards. Replaying the ordered chain (instead
+    of only the beast init) keeps ``$NPCList[0]`` as the beast and satisfies
+    both the ``bhim`` index and the ``frontarm`` layer renderer.
+    """
+    text = str(body or "")
+    windows: list[str] = []
+    if target:
+        match = re.search(LINK_TO_RE_TEMPLATE.format(target=re.escape(str(target))), text)
+        if match:
+            windows.append(text[max(0, match.start() - CHAIN_BEFORE_WINDOW) : match.start()])
+    windows.append(text)
+    for window in windows:
+        matches = [
+            item
+            for item in BEAST_CHAIN_RE.finditer(window)
+            if str(item.group(3) or "").strip().lower() not in {"", "the", "a", "an"}
+        ]
+        if not matches:
+            continue
+        last = matches[-1]
+        token = str(last.group(3) or "").strip().lower()
+        prefix = ""
+        clears = list(CHAIN_CLEAR_RE.finditer(window[: last.start()]))
+        if clears and last.start() - clears[-1].end() <= CHAIN_CLEAR_WINDOW:
+            prefix = "<<clearnpc>>"
+        chain = f"{prefix}<<{last.group(1)} {last.group(2)} {token}>>"
+        cursor = last.end()
+        if window.startswith(">>", cursor):
+            cursor += 2
+        end = min(len(window), cursor + CHAIN_AFTER_WINDOW)
+        while cursor < end:
+            gap = re.match(r"\s*", window[cursor:end])
+            cursor += gap.end() if gap else 0
+            trailing = CHAIN_TRAILING_RE.match(window, cursor)
+            if not trailing:
+                break
+            chain += trailing.group(0)
+            cursor = trailing.end()
+        return {"widgets": chain, "token": token}
+    return None
+
+
+def derive_precursor(
+    row: Mapping[str, Any],
+    *,
+    passage_bodies: Mapping[str, str],
+    named_npcs: Sequence[str] = (),
+    max_depth: int = 2,
+) -> dict[str, Any]:
+    """Pick the game-side generation preamble for one initiator row.
+
+    Returns ``{"widgets": str|None, "basis": str|None, "reason": str|None}``;
+    ``widgets`` is the exact wiki markup replayed through
+    ``Wikifier.wikifyEval`` before the flow flags are armed.
+    """
+    kind = str(row.get("kind") or "")
+    passage = str(row.get("passage") or "")
+    token = str(row.get("token") or "")
+    info: dict[str, Any] = {
+        "schema": PRECURSOR_SCHEMA,
+        "kind": kind,
+        "widgets": None,
+        "basis": None,
+        "reason": None,
+    }
+    if kind == "maninit":
+        named = named_npc_in_title(passage, named_npcs)
+        body = str(passage_bodies.get(passage) or "")
+        count = 1
+        enemy_match = re.search(r"<<\s*set\s+\$enemyno\s+to\s+(\d+)\s*>>", body)
+        if enemy_match:
+            count = max(1, min(6, int(enemy_match.group(1))))
+        if named:
+            info["widgets"] = f'<<npc "{named}">><<person1>>'
+            info["basis"] = f"title-npc:{named}"
+        elif count > 1:
+            info["widgets"] = "".join(f"<<generate{i}>>" for i in range(1, count + 1)) + "".join(
+                f"<<person{i}>>" for i in range(1, count + 1)
+            )
+            info["basis"] = f"debug-menu:generate1..{count}+person1..{count}"
+        else:
+            info["widgets"] = "<<generate1>><<person1>>"
+            info["basis"] = "debug-menu:generate1+person1"
+        return info
+    if kind not in BEAST_PRECURSOR_KINDS:
+        info["reason"] = f"kind {kind!r} has no NPC hand/frontarm dependency"
+        return info
+    named = named_npc_in_title(passage, named_npcs)
+    if named:
+        info["widgets"] = f'<<beastNNPCinit>><<npc "{named}">>'
+        info["basis"] = f"title-nnpc:{named}"
+        return info
+    if token and token not in {"unknown", "dynamic"}:
+        if any(token.casefold() == str(item).strip().casefold() for item in named_npcs):
+            info["widgets"] = f'<<beastNNPCinit>><<npc "{token}">>'
+            info["basis"] = f"row-token-nnpc:{token}"
+        else:
+            info["widgets"] = f"<<generateBEAST 1 {token}>>"
+            info["basis"] = f"row-token:{token}"
+        return info
+    body = str(passage_bodies.get(passage) or "")
+    if "$farm_work." in body:
+        # "Farm Pigs Hand" self-generates through ``beastNEWinit 1 pig
+        # $farm_work.pig.gender ...``; the fixture has no ``$farm_work`` yet,
+        # so run the game's own farm generator for the pig slot.
+        info["widgets"] = (
+            "<<set $farm_work to {}>>"
+            "<<set $farm_work.pig to {monster_roll: false}>>"
+            "<<farm_gen pig>>"
+        )
+        info["basis"] = "self-generation:farm_gen(pig)"
+        return info
+    frontier = [passage]
+    seen = {passage}
+    for depth in range(1, max_depth + 1):
+        next_frontier: list[str] = []
+        for target in frontier:
+            for parent in _link_predecessors(target, passage_bodies):
+                if parent in seen:
+                    continue
+                seen.add(parent)
+                parent_body = str(passage_bodies.get(parent) or "")
+                chain = _beast_chain_from_body(parent_body, target)
+                if chain is not None:
+                    info["widgets"] = chain["widgets"]
+                    info["basis"] = f"predecessor:{parent}:depth{depth}"
+                    return info
+                derived = _beast_token_from_body(parent_body, target)
+                if derived:
+                    info["widgets"] = f"<<beastNEWinit 1 {derived}>>"
+                    info["basis"] = f"predecessor:{parent}:depth{depth}"
+                    return info
+                next_frontier.append(parent)
+        frontier = next_frontier
+        if not frontier:
+            break
+    info["reason"] = "no beast token derivable from row, passage body, or predecessor chain"
+    return info
+
+
+def resolve_only_keys(value: str | None) -> list[str] | None:
+    """``--only-keys`` accepts a comma list or a file (one key per line / JSON list)."""
+    if not value:
+        return None
+    candidate = Path(str(value))
+    if candidate.exists():
+        text = candidate.read_text(encoding="utf-8")
+        try:
+            data = json.loads(text)
+        except Exception:  # noqa: BLE001 - plain line list
+            data = None
+        if isinstance(data, list):
+            return [str(item) for item in data if str(item).strip()]
+        return [line.strip() for line in text.splitlines() if line.strip()]
+    return [item.strip() for item in str(value).split(",") if item.strip()]
+
 
 def parse_beast_token(args: str) -> str:
     """Extract the beast type from a ``beastNEWinit`` / ``beastCombatInit`` arg list."""
@@ -932,6 +1168,21 @@ SET_ENTRY_FLAGS_JS = r"""
 }
 """
 
+RUN_WIDGETS_JS = r"""
+(text) => {
+  const SC = window.SugarCube;
+  if (!SC || !SC.Wikifier || typeof SC.Wikifier.wikifyEval !== "function") {
+    return JSON.stringify({ ok: false, error: "wikifyEval unavailable" });
+  }
+  try {
+    SC.Wikifier.wikifyEval(text);
+    return JSON.stringify({ ok: true });
+  } catch (e) {
+    return JSON.stringify({ ok: false, error: String((e && e.message) || e).slice(0, 240) });
+  }
+}
+"""
+
 TURN_RESET_JS = r"""
 () => {
   const S = (window.__DOLX__ = window.__DOLX__ || {});
@@ -1007,8 +1258,15 @@ def play_passage(page: Any, name: str, *, timeout_ms: int) -> tuple[dict[str, An
     return _state(page), timed_out
 
 
-def enter_row(page: Any, row: dict[str, Any], *, timeout_ms: int, settle_ms: int = DEFAULT_ENTRY_SETTLE_MS) -> dict[str, Any]:
-    """Restore the fixture, arm the flow flag, play the initiator passage."""
+def enter_row(
+    page: Any,
+    row: dict[str, Any],
+    *,
+    timeout_ms: int,
+    settle_ms: int = DEFAULT_ENTRY_SETTLE_MS,
+    precursor: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Restore the fixture, replay the game-side precursor, arm the flag, play."""
     order: list[tuple[str, ...]] = []
     if row.get("entry_flags"):
         order.append(tuple(str(flag) for flag in row["entry_flags"]))
@@ -1016,8 +1274,18 @@ def enter_row(page: Any, row: dict[str, Any], *, timeout_ms: int, settle_ms: int
     attempts: list[dict[str, Any]] = []
     last_state: dict[str, Any] = {}
     last_timed_out = False
+    precursor_widgets = str((precursor or {}).get("widgets") or "")
     for flags in order:
         restore = page.evaluate(ps.RESTORE_FIXTURE)
+        precursor_record = None
+        if precursor_widgets:
+            raw_precursor = page.evaluate(RUN_WIDGETS_JS, precursor_widgets)
+            try:
+                precursor_record = (
+                    json.loads(raw_precursor) if isinstance(raw_precursor, str) else (raw_precursor or {})
+                )
+            except Exception as exc:  # noqa: BLE001 - surface a broken precursor payload
+                precursor_record = {"ok": False, "error": f"precursor payload unreadable: {exc}"}
         armed = set_entry_flags(page, flags)
         state, timed_out = play_passage(page, str(row.get("passage") or ""), timeout_ms=timeout_ms)
         if settle_ms:
@@ -1027,6 +1295,7 @@ def enter_row(page: Any, row: dict[str, Any], *, timeout_ms: int, settle_ms: int
             {
                 "flags": list(flags),
                 "restore": restore if isinstance(restore, dict) else str(restore),
+                "precursor": precursor_record,
                 "armed": armed,
                 "combat": state.get("combat"),
                 "passage": state.get("passage"),
@@ -1502,11 +1771,23 @@ def run_initiator_rows(
     max_rounds: int,
     timeout_ms: int,
     progress: Any | None = None,
+    passage_bodies: Mapping[str, str] | None = None,
+    named_npcs: Sequence[str] = (),
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for position, row in enumerate(rows, 1):
         t0 = time.time()
-        entry = enter_row(page, row, timeout_ms=timeout_ms)
+        precursor = derive_precursor(
+            row,
+            passage_bodies=passage_bodies or {},
+            named_npcs=named_npcs,
+        )
+        entry = enter_row(
+            page,
+            row,
+            timeout_ms=timeout_ms,
+            precursor=precursor if precursor.get("widgets") else None,
+        )
         if entry.get("ok"):
             drive = drive_combat(page, path="win", max_rounds=max_rounds, timeout_ms=timeout_ms)
             record = {
@@ -1515,6 +1796,7 @@ def run_initiator_rows(
                 "token": row.get("token"),
                 "passage": row.get("passage"),
                 "macro": row.get("macro"),
+                "precursor": precursor,
                 "verdict": drive["verdict"],
                 "detail": str(drive.get("detail") or drive.get("outcome_detail") or "")[:400],
                 "entry_flag": entry.get("flags"),
@@ -1530,6 +1812,7 @@ def run_initiator_rows(
                 "token": row.get("token"),
                 "passage": row.get("passage"),
                 "macro": row.get("macro"),
+                "precursor": precursor,
                 "verdict": entry.get("verdict", "hard_fail"),
                 "detail": str(entry.get("detail") or "")[:400],
                 "entry_flag": None,
@@ -1760,11 +2043,13 @@ def run(
     save_baseline: bool = False,
     manifest_out: Path | None = DEFAULT_MANIFEST_OUT,
     mode_rounds: int = DEFAULT_MODE_ROUNDS,
+    only_keys: str | None = None,
 ) -> dict[str, Any]:
     started = time.strftime("%Y-%m-%dT%H:%M:%S")
     html_path = ps.resolve_html_path(target)
     fixture, fixture_json = load_fixture_payload(fixture_path)
     variables = fixture.get("variables") or {}
+    named_npcs = [str(item) for item in (variables.get("NPCNameList") or []) if str(item).strip()]
 
     t0 = time.time()
     html_text = html_path.read_text(encoding="utf-8", errors="replace")
@@ -1806,6 +2091,7 @@ def run(
     out = out_dir or default_out_dir(tier)
     ledger_path = out / DEFAULT_LEDGER_NAME
     legacy_resume_path = out / "combat-sweep-resume.json"
+    resolved_only_keys = resolve_only_keys(only_keys)
     strategy = {
         "tier": tier,
         "shard_index": shard_index,
@@ -1817,12 +2103,14 @@ def run(
         "timeout_ms": timeout_ms,
         "run_modes": run_modes,
         "modes_only": modes_only,
+        "only_keys": sorted(resolved_only_keys) if resolved_only_keys else None,
+        "precursor_schema": PRECURSOR_SCHEMA,
     }
     identity = sl.run_identity(
         TOOL,
         html_sha256=file_sha256(html_path),
         fixture_digest=fixture_digest(variables),
-        tool_version="combat-sweep-v2",
+        tool_version="combat-sweep-v3",
         plan_digest="",
         strategy=strategy,
     )
@@ -1850,6 +2138,10 @@ def run(
             "flags": list(ENTRY_FLAGS),
             "attempts": [list(item) for item in ENTRY_FLAG_ATTEMPTS],
             "reason": "upstream guards combat scenes behind $molestationstart/$sexstart; the fixture carries both at 0",
+            "precursor_schema": PRECURSOR_SCHEMA,
+            "precursor_reason": "upstream combat scenes assume their own <<generate1>>/<<generateBEAST>>/<<npc X>>"
+            " chain already ran; direct jumps leave $NPCList[0] as a 5-key shell and crash hand_section"
+            "/frontarm. The driver replays the game's debug-menu generation preambles and records the basis.",
         },
         "selection": None,
         "results": [],
@@ -1912,6 +2204,12 @@ def run(
             shard_index=shard_index,
             shard_count=shard_count,
         )["planned"]
+        if resolved_only_keys:
+            wanted = set(resolved_only_keys)
+            available = {str(row.get("key")) for row in initiator_plan}
+            initiator_plan = [
+                row for row in initiator_plan if str(row.get("key")) in wanted
+            ]
         expected_keys = [str(row.get("key")) for row in initiator_plan]
         plan_hash = sl.plan_digest(expected_keys, strategy)
         identity["plan_digest"] = plan_hash
@@ -1952,6 +2250,9 @@ def run(
         selection["selected_preview"] = [row["key"] for row in selected_rows[:10]]
         selection["planned_preview"] = expected_keys[:10]
         selection["plan_digest"] = plan_hash
+        selection["only_keys"] = list(resolved_only_keys) if resolved_only_keys else None
+        if resolved_only_keys and not expected_keys:
+            selection["error"] = "no initiator row matched --only-keys"
         selected_jobs = selected_rows
         report["resume"]["skipped"] = selection.get("skipped_resume", 0)
         report["results"] = list(resume_results)
@@ -2019,6 +2320,8 @@ def run(
                             max_rounds=max_rounds,
                             timeout_ms=timeout_ms,
                             progress=None,
+                            passage_bodies=passage_bodies,
+                            named_npcs=named_npcs,
                         )
                         result = chunk[0]
                         report["results"].append(result)
@@ -2218,6 +2521,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="run only the four control-mode checks (fast subset for the modes acceptance)",
     )
+    parser.add_argument(
+        "--only-keys",
+        default=None,
+        help="comma-separated initiator keys or a path to a file (one key per line / JSON list)",
+    )
     return parser.parse_args(argv)
 
 
@@ -2253,6 +2561,7 @@ def main(argv: list[str] | None = None) -> int:
         save_baseline=args.save_baseline,
         manifest_out=args.manifest_out,
         mode_rounds=args.mode_rounds,
+        only_keys=args.only_keys,
     )
     print(f"[combat] verdicts={report['verdict_counts']}")
     print(f"[combat] manifest={report['manifest']['total']} rows; drift={report['manifest']['drift']['count']}")
