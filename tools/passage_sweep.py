@@ -488,6 +488,14 @@ PROBE = r"""
 # --------------------------------------------------------------------------- #
 
 STARTUP_PASSAGES = {"start", "start2", "loading"}
+# The integrated build loads 30+ mods before the vanilla intro appears; the
+# ModLoader/maplebirch notices keep the game on ``Start`` far longer than the
+# prepare-only carrier (measured on CI run 37513170382: 60 steps were not
+# enough, while the 90-step capture path booted fine). Keep a generous budget
+# and bail out early once nothing clickable appears for a while.
+STARTUP_STEPS = 240
+STARTUP_STEP_MS = 900
+STARTUP_NO_PROGRESS_LIMIT = 40
 
 
 def _ready_js() -> str:
@@ -504,8 +512,19 @@ def _bst() -> Any:
     return browser_smoke_test
 
 
-def _reach_gameplay(page: Any, *, steps: int = 60) -> dict[str, Any]:
-    """Click through the age/consent gates until a non-startup passage renders."""
+def _reach_gameplay(
+    page: Any,
+    *,
+    steps: int = STARTUP_STEPS,
+    no_progress_limit: int = STARTUP_NO_PROGRESS_LIMIT,
+) -> dict[str, Any]:
+    """Click through the age/consent/mod notices until gameplay renders.
+
+    Progress is measured in *clicked* startup actions: once
+    ``no_progress_limit`` consecutive steps find nothing to click the loop
+    stops early instead of burning the whole budget, and the report keeps the
+    step/action trail for triage.
+    """
     bst = _bst()
     options = {
         "password": None,
@@ -513,7 +532,14 @@ def _reach_gameplay(page: Any, *, steps: int = 60) -> dict[str, Any]:
         "confirmLabels": list(bst.STARTUP_CONFIRM_LABELS),
         "consentLabels": list(bst.STARTUP_CONSENT_LABELS),
     }
-    info: dict[str, Any] = {"steps": 0, "passage": None, "actions": []}
+    started = time.time()
+    info: dict[str, Any] = {
+        "steps": 0,
+        "passage": None,
+        "actions": [],
+        "no_progress_steps": 0,
+    }
+    no_progress = 0
     for _ in range(steps):
         try:
             state = page.evaluate(bst._game_ready_script())
@@ -522,12 +548,17 @@ def _reach_gameplay(page: Any, *, steps: int = 60) -> dict[str, Any]:
         passage = state.get("passage") if isinstance(state, dict) else None
         info["passage"] = passage
         if passage and str(passage).lower() not in STARTUP_PASSAGES:
+            info["elapsed_ms"] = int((time.time() - started) * 1000)
             return info
         try:
             action = page.evaluate(bst._startup_interaction_script(), options)
         except Exception as exc:  # noqa: BLE001
             action = {"action": "error", "error": str(exc)[:200]}
         if isinstance(action, dict):
+            if action.get("clicked"):
+                no_progress = 0
+            else:
+                no_progress += 1
             info["actions"].append(
                 {
                     "action": action.get("action"),
@@ -537,8 +568,14 @@ def _reach_gameplay(page: Any, *, steps: int = 60) -> dict[str, Any]:
             )
             if len(info["actions"]) > 20:
                 del info["actions"][:10]
-        page.wait_for_timeout(900)
+        else:
+            no_progress += 1
+        info["no_progress_steps"] = no_progress
+        if no_progress >= no_progress_limit:
+            break
+        page.wait_for_timeout(STARTUP_STEP_MS)
         info["steps"] += 1
+    info["elapsed_ms"] = int((time.time() - started) * 1000)
     return info
 
 
@@ -714,7 +751,7 @@ def sweep(
         )
 
         # Bootstrap: pass the startup gates, then snapshot a genuinely initialized game.
-        boot = _reach_gameplay(page, steps=60)
+        boot = _reach_gameplay(page, steps=STARTUP_STEPS)
         if not boot.get("passage") or str(boot["passage"]).lower() in STARTUP_PASSAGES:
             raise SystemExit(
                 "bootstrap did not reach gameplay; last passage="
