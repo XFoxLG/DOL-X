@@ -135,7 +135,12 @@ downloads/test_builds/20260624-e0b1a4b/
 `tools/save_safety_guard.py`（fail-closed 存档/路径守卫）、
 `tools/report_sanitize.py`（报告离开本机前脱敏）。
 CI 手动入口：`.github/workflows/sweep.yaml`（`workflow_dispatch`，tier =
-daily / full / combat-full / env-full，单 job 上限 210 分钟，报告脱敏后才上传）。
+daily / full / combat-full / env-full）。云端按四阶段执行：`prepare` 只产出一份
+HTML + 合成夹具 → 分片并行（`full` = 4 passage 分片 + 场景 + 8 环境分片，
+`combat-full` / `env-full` = 8 分片；`fail-fast: false`、`max-parallel: 4`、
+每分片上限 210 分钟）→ 白名单脱敏导出 → `tools/sweep_summary.py` fail-closed 汇总
+（缺分片、重复结果、`html_sha256`/夹具摘要漂移都不通过）。分片带身份台账
+（`tools/sweep_ledger.py`），报告脱敏复核通过后才上传。
 
 判定统一五档：`ok / soft_fail / hard_fail / fixture_insufficient / not_applicable`；
 基线只报新增回归。战斗原型矩阵会自动跟随 `<<link>>` 链接（最多 2 跳）找到真实

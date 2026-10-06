@@ -56,6 +56,7 @@ if __package__ in (None, ""):
 from tools import fixture_ladder as fl  # noqa: E402
 from tools import passage_sweep as ps  # noqa: E402
 from tools import sweep_flow_assertions as sfa  # noqa: E402
+from tools import sweep_ledger as sl  # noqa: E402
 
 
 TOOL = "scenario_sweep"
@@ -2631,6 +2632,25 @@ def run(
         "console_tail": [],
         "fatal_error": None,
     }
+    planned_keys: list[str] = []
+    strategy = {
+        "kind": "scenario_sweep",
+        "suite": suite,
+        "sections": sections,
+        "limit": limit,
+        "sample": sample,
+        "seed": seed,
+        "static_check": static_check,
+    }
+    identity = sl.run_identity(
+        TOOL,
+        html_sha256=ps.file_sha256(html_path),
+        fixture_digest=fixture_digest(variables),
+        tool_version="scenario-sweep-v2",
+        plan_digest=sl.plan_digest(planned_keys, strategy),
+        strategy=strategy,
+    )
+    report["ledger"] = {"identity": identity, "planned_keys": planned_keys, "plan_digest": identity["plan_digest"]}
 
     static_menu: dict[str, Any] | None = None
     if static_check:
@@ -2722,6 +2742,12 @@ def run(
                         sample=sample,
                         seed=seed,
                     )
+                    planned_keys = [
+                        f"{row.get('section')}#{row.get('index')}" for row in selected
+                    ]
+                    identity["plan_digest"] = sl.plan_digest(planned_keys, strategy)
+                    report["ledger"]["planned_keys"] = list(planned_keys)
+                    report["ledger"]["plan_digest"] = identity["plan_digest"]
                     report["selection"] = {
                         "sections": sections,
                         "limit": limit,
@@ -2754,6 +2780,26 @@ def run(
     report["verdict_counts"] = {key: counts.get(key, 0) for key in VERDICTS}
     if report.get("dayloop"):
         report["verdict_counts"]["dayloop:" + report["dayloop"]["verdict"]] = 1
+    complete, completeness_diagnostics, completeness = sl.validate_complete(
+        planned_keys, report["results"]
+    )
+    if suite in ("dayloop", "all"):
+        dayloop = report.get("dayloop")
+        if not isinstance(dayloop, dict):
+            complete = False
+            completeness_diagnostics.append("dayloop result is missing")
+        elif dayloop.get("verdict") != "ok":
+            complete = False
+            completeness_diagnostics.append(
+                f"dayloop verdict is {dayloop.get('verdict')!r}, expected 'ok'"
+            )
+    report["completeness"] = {
+        "ok": complete,
+        "diagnostics": completeness_diagnostics,
+        "summary": {**completeness, "status": "complete" if complete else "incomplete"},
+        "expected_keys": len(planned_keys),
+        "actual_results": len(report["results"]),
+    }
     report["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
 
     if baseline_path_in and baseline_path_in.exists():

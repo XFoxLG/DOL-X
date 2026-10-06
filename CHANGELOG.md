@@ -15,6 +15,18 @@
 
 ### Added
 
+- **云端分片验收基础设施（2026-10-07）**：把 Engine A 的完整验收搬到 GitHub Actions
+  分片执行，覆盖范围不因分片而缩小。新增 `tools/sweep_ledger.py`（长跑身份台账：
+  `html_sha256` / 夹具摘要 / 测试器版本 / 计划摘要 + 原子检查点与完整性校验；旧版只有
+  完成键的检查点被显式拒绝，损坏或不匹配不可恢复）与 `tools/sweep_summary.py`
+  （fail-closed 汇总：预期分片数、逐份 completeness、键重复/缺失、身份一致性，任何异常
+  退出码 1，不允许封存"假完整"基线）；`combat_sweep` / `env_matrix` / `passage_sweep` /
+  `scenario_sweep` 全部支持 `--shard-index/--shard-count` 与完整性块，战斗 `--resume`
+  改为从台账合并历史结果，环境每 500 条重建浏览器、崩溃最多重启 2 次并把基础设施中断
+  与用例结果分开记录。`.github/workflows/sweep.yaml` 重写为四阶段（prepare → 分片 →
+  白名单脱敏导出 → summary）：`full` = 4 passage 分片 + 场景 + 8 环境分片，
+  `combat-full` / `env-full` = 8 分片，`fail-fast: false`、`max-parallel: 4`、
+  每分片上限 210 分钟。验证：`pytest` **545 passed**、`tools/quick_check.py` 13/13。
 - **Engine A 自动化测试第二期：剧情 · 战斗 · 环境（2026-10-05）**：在全 passage 扫描之上
   新增多轴覆盖，全部运行时注入、不改构建配置、不进发行包；日常档 ≤60 分钟，发版档 3-4 小时。
   - `tools/scenario_sweep.py`：游戏内置 debug 菜单 363 行（331 可点击 + 32 分隔标题）全部深挖，
