@@ -273,7 +273,10 @@ PERSON_INDEX_RE = re.compile(r"<<\s*person\s*(\d+)\s*>>")
 # ``<<beastNNPCinit>> <<npc "Black Wolf">>`` for named beasts. The driver
 # replays those game-side widgets before arming the flow flag and records the
 # derivation basis in every result; nothing is silently patched.
-PRECURSOR_SCHEMA = "combat-precursor-v1"
+# v2 (2026-10-07): token-less beast rows may now fall back to a *deep*
+# predecessor/wider-graph chain (``deep-predecessor:`` basis, confidence
+# ``low``); v1 runs never produced those, so run identity must differ.
+PRECURSOR_SCHEMA = "combat-precursor-v2"
 BEAST_PRECURSOR_KINDS = ("beastCombatInit", "beastNEWinit", "beastNNPCinit")
 BEAST_GEN_RE = re.compile(
     r"<<\s*(beastNEWinit|generateBEAST)\s+\d+\s+\"?([A-Za-z][A-Za-z ]*?)\"?(?=\s|>>)"
@@ -378,6 +381,95 @@ def _beast_chain_from_body(body: str, target: str | None = None) -> dict[str, An
             cursor = trailing.end()
         return {"widgets": chain, "token": token}
     return None
+
+
+# Token-less ``<<beastCombatInit>>`` reads ``$beasttype``, which the real
+# playthrough set in an earlier scene. Some entries only reach that scene
+# through 3-4 link hops, or through a widget the parent passage calls.
+# Measured 2026-10-07 (``.local/sweep/candidate-probe-1007.json``): replaying
+# the deep candidate chain took ``Docks Watch Dog`` / ``Pound Deviant Sex`` /
+# ``Wolf Patrol Sex`` / ``Street Collar Dog 2`` from ``leftActionInit`` DOM
+# errors to clean 19-25 round wins, while no precursor kept them broken. The
+# basis is tagged ``deep-predecessor:`` and the record carries
+# ``confidence: low`` so a pass stays auditable.
+DEEP_PRECURSOR_DEPTH = 4
+
+
+def beast_widget_chains(
+    body: str, widget_bodies: Mapping[str, str]
+) -> list[tuple[str, dict[str, Any]]]:
+    """``(widget name, chain)`` for every called widget whose body generates a beast."""
+    found: list[tuple[str, dict[str, Any]]] = []
+    for match in MACRO_CALL_RE.finditer(str(body or "")):
+        widget_body = widget_bodies.get(match.group(1))
+        if not widget_body or "beast" not in widget_body:
+            continue
+        chain = _beast_chain_from_body(widget_body)
+        if chain:
+            found.append((match.group(1), chain))
+    return found
+
+
+def deep_beast_precursors(
+    passage: str,
+    *,
+    passage_bodies: Mapping[str, str],
+    widget_bodies: Mapping[str, str] | None = None,
+    max_depth: int = DEEP_PRECURSOR_DEPTH,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    """Beast generation chains found in the wider upstream link graph.
+
+    Breadth-first over link predecessors (document order per depth). Each
+    parent contributes its own body chain first, then any beast-generating
+    widget it calls. Results are *candidates*: a token found this far from the
+    entry is evidence, not proof, so ``derive_precursor`` tags the chosen one
+    ``deep-predecessor`` and the ledger keeps the full list for audit.
+    """
+    widgets = widget_bodies or {}
+    seen: set[str] = {str(passage)}
+    frontier: list[str] = [str(passage)]
+    candidates: list[dict[str, Any]] = []
+    for depth in range(1, max_depth + 1):
+        next_frontier: list[str] = []
+        for current in frontier:
+            for parent in _link_predecessors(current, passage_bodies):
+                if parent in seen:
+                    continue
+                seen.add(parent)
+                next_frontier.append(parent)
+                parent_body = str(passage_bodies.get(parent) or "")
+                chain = _beast_chain_from_body(parent_body)
+                if chain:
+                    candidates.append(
+                        {
+                            "token": chain.get("token"),
+                            "source": parent,
+                            "via": "body",
+                            "widget_name": None,
+                            "depth": depth,
+                            "widgets": chain.get("widgets"),
+                            "verified": False,
+                        }
+                    )
+                for widget_name, widget_chain in beast_widget_chains(parent_body, widgets):
+                    candidates.append(
+                        {
+                            "token": widget_chain.get("token"),
+                            "source": parent,
+                            "via": f"widget:{widget_name}",
+                            "widget_name": widget_name,
+                            "depth": depth,
+                            "widgets": widget_chain.get("widgets"),
+                            "verified": False,
+                        }
+                    )
+                if len(candidates) >= limit:
+                    return candidates[:limit]
+        frontier = next_frontier
+        if not frontier:
+            break
+    return candidates[:limit]
 
 
 # Human encounters allocate ``$NPCList`` slots with ``<<generateN>>`` and
@@ -695,6 +787,9 @@ def derive_precursor(
     Returns ``{"widgets": str|None, "basis": str|None, "reason": str|None}``;
     ``widgets`` is the exact wiki markup replayed through
     ``Wikifier.wikifyEval`` before the flow flags are armed.
+
+    ``confidence`` is only set to ``"low"`` for the deep fallback
+    (``deep-predecessor:`` bases); an absent value is the standard derivation.
     """
     kind = str(row.get("kind") or "")
     passage = str(row.get("passage") or "")
@@ -851,6 +946,23 @@ def derive_precursor(
         frontier = next_frontier
         if not frontier:
             break
+    deep = deep_beast_precursors(
+        passage,
+        passage_bodies=passage_bodies,
+        widget_bodies=widget_bodies,
+        max_depth=DEEP_PRECURSOR_DEPTH,
+        limit=1,
+    )
+    if deep:
+        candidate = deep[0]
+        info["widgets"] = candidate.get("widgets")
+        via = str(candidate.get("via") or "body")
+        info["basis"] = (
+            f"deep-predecessor:{candidate.get('source')}:{via}:depth{candidate.get('depth')}"
+        )
+        info["confidence"] = "low"
+        info["token"] = candidate.get("token")
+        return info
     info["reason"] = "no beast token derivable from row, passage body, or predecessor chain"
     return info
 
