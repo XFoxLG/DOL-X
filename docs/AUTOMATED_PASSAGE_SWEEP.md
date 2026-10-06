@@ -472,6 +472,23 @@ python tools\passage_sweep.py "output\DoL-0.5.11.9-XFox-1.0.0a-base-1003.zip" `
 - `sweep_flow_assertions._session`（所有分片工具的公共会话）与
   `env_matrix` 同步使用该预算，五个工具不再各写各的步数。
 
+**第二轮（2026-10-07，run 37532832848）：240 步仍然不够。** 四轴全部在引导阶段失败，
+报 `bootstrap did not reach gameplay; last passage='Start' after 240 steps`，
+最后 4 个动作全是 `dismiss_modal`（点击成功 → 早停永远不触发，预算被烧干）。
+同一 run 的 `prepare` 里 `fixture_ladder capture` 用**同样的** `_reach_gameplay`
+（同样失败）之后继续 snapshot，却拿到了 732 键夹具——说明包本身没问题，
+是共享 runner 上 37 个 mod 的冷启动**真的慢**：capture 从启动到成功一共 250 s，
+而 240 步预算约 240 s，正好差一口气。
+
+修复（第二轮）：
+
+- 预算改为 **1,000 步（约 15 分钟）**，并新增 **12 分钟墙钟硬上限**
+  （`STARTUP_DEADLINE_S`），用 `time.monotonic()` 计量；真正卡死的引导仍有界失败；
+- `deadline_hit` / `elapsed_ms` 写进 boot 报告，`sweep_flow_assertions._boot_failed`
+  的报错文本带上这两项，方便下次直接区分"慢"和"卡死"；
+- 单测覆盖：passage 离开 Start 立即返回、无动作早停、**重复 modal 点击不算早停**
+  （正是本次 CI 的场景）、墙钟 deadline 生效（`tests/test_passage_sweep.py`）。
+
 ### 8.10 战斗"无控件"是游戏机制，不是夹具缺陷（2026-10-07）
 
 针对 20 条 hard_fail 归因（`a394e99` 修复生成前置链）后剩余 11 soft_fail + 3
@@ -509,8 +526,13 @@ fixture_insufficient 的逐条现场取证，推翻了两条旧判定：
 | `combat-personn-1007f` | 41 | 38 | 0 | 1 | 2 | — |
 | `combat-personn-1007g` | 41 | 39 | 0 | 1 | 1 | mode:ok 4 |
 | `combat-personn-1007h` | 81 | 72 | 0 | **0** | 9 | mode:ok 4 |
+| `combat-personn-1007i` | 119 | **110** | 2 | **0** | 7 | mode:ok 4 |
 
 1007h 的 81 行 = 41 条回归集 + 30 条"改用真实前驱链"的行 + 12 条具名行抽样。
+1007i 的 119 行 = 1007h 的 81 行 + 20 条静态抽样 + 18 条前驱改链行，用 v3 最终代码跑
+完整回归：`Island Fight` / `Island Trap Fight` 两条如实记 `soft_fail`
+（`$combat` 结束时敌人还活着：`enemyhealth≈320/295`、`enemyarousal≈45`，win 路径没有击杀证据），
+7 条 `fixture_insufficient` 全部是落点场景状态不足（见下表）。
 
 1. **链必须连续覆盖槽 1..N（根因 A）**。旧逻辑只看 `max(slot) >= need`，单条
    `<<generate2>>` 被当成合法前置，槽 0 仍是夹具空壳；`combatinit` 把空壳标 `active` 后
@@ -585,6 +607,52 @@ fixture_insufficient 的逐条现场取证，推翻了两条旧判定：
 **验证**：`pytest` **597 passed**（combat 轴 95 条，含 6 条本轮新增的回归测试：
 具名行改用真实链、具名行闭包补槽、`generateRole` 0-based、glued 变体、
 `<<clearnpc>>` 边界、`generateRole` 链重放）。
+
+### 8.12 战斗覆盖台账（静态，2026-10-07）
+
+`tools/combat_ledger.py` 把 1,570 条 initiator 逐条落成**带源码依据的分类台账**，
+不再只有"跑没跑过"这一个状态。纯静态、无浏览器，输入是产物 HTML（可附一次跑分报告
+做 runtime join），输出 `combat-ledger.json` + `combat-ledger.md`：
+
+```powershell
+python tools/combat_ledger.py "workspace\prepare_package\zip\Degrees of Lewdity.html" `
+  --report .local\sweep\full-1006-combat\combat-sweep.json `
+  --fixture .local\fixtures\base-1004.json `
+  --out .local\sweep\combat-ledger-1007
+```
+
+当前 0.5.11.9 产物的分类（1,570 行）：
+
+| entry shape | 行数 | 含义 |
+| --- | --- | --- |
+| `entry` | 1300 | 该 passage 自己带 combat starter 宏 |
+| `entry_via_link` | 127 | 自己只生成，靠 passage 内链接进战斗 |
+| `widget_definition` | 73 | 宏调用落在 `<<widget>>` 定义体内（扫描口径内的"库函数"，不是入口） |
+| `helper_only` | 69 | 没有 starter / 链接；由别处调用的生成宏 |
+| `unresolved` | **1** | 静态推不出任何前驱（`Beast Parade` 的动态 `$beasttype`） |
+
+同一份数据还给了 derivation 维度（前驱链从哪来）：`upstream_predecessor` 470、
+`synthetic_generator` 392、`named_npc_plus_generator` 173、`beast_token` 247、
+`named_beast_npc` 26、`self_generation` 20、`not_needed` 212（wraith/swarm/stalk/plant
+这类本来就不依赖 `$NPCList` 手部状态，之前被笼统记成"无前驱"）、`unresolved` 30。
+
+**"未覆盖"清单**（30 条 unresolved derivation）单列一节，每条都带：
+
+- `derive_precursor` 的原始 reason；
+- 入口/前驱里保存兽类 NPC 的变量（如 `Docks Watch Dog` → `$dock_dog` @ `Docks Watch`）；
+- 是否渲染 `$beasttype`；
+- **候选 token（标记为未验证）**：沿上游链接图最多 4 跳找到的 `<<beastNEWinit X>>`，
+  记 depth / 来源 passage / 是正文还是被调 widget。
+
+这 30 条 = 29 条 token-less `<<beastCombatInit>>`（读 `$beasttype`，真正的来源往往在
+几跳之前）+ 1 条动态兽潮。台账**不把候选当事实**：`verified: false`，也绝不据此生成
+夹具（深度 3-4 跳的 token 可能是错的，例如 `Bird Tower Mating Ritual Sex` 的候选 fox
+与实际场次不符）。候选只作为下一步真机实验的输入。
+
+`--fail-on-unresolved` 是给 CI 的门：unresolved 非空即退出 1，默认关闭
+（当前有 1 条已知动态入口，不隐藏、也不假装通过）。
+`combat-shards` 工作流已加 "Build static coverage ledger" 步骤（`if: always()`，
+`HTML_PATH` 缺失时明确跳过而不是产出假报告），台账随其他报告一并脱敏上传。
 
 ---
 
