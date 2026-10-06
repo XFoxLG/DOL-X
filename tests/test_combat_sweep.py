@@ -962,3 +962,141 @@ def test_entry_flags_and_control_modes_contract() -> None:
     assert ENTRY_FLAGS == ("molestationstart", "sexstart")
     assert CONTROL_MODES == ("Radio", "Radio (c)", "Lists", "List (w)")
     assert PATH_KEYWORDS["win"] and PATH_KEYWORDS["flee"]
+
+
+# --------------------------------------------------------------------------- #
+# Entry precursors (game-side generation preamble)
+# --------------------------------------------------------------------------- #
+
+
+def test_derive_precursor_maninit_generic() -> None:
+    row = {"kind": "maninit", "passage": "Balloon Sex", "token": "-"}
+    info = combat_sweep.derive_precursor(row, passage_bodies={})
+    assert info["widgets"] == "<<generate1>><<person1>>"
+    assert info["basis"].startswith("debug-menu")
+
+
+def test_derive_precursor_maninit_multi_enemy_counts_npcs() -> None:
+    row = {"kind": "maninit", "passage": "StreetEx4 Rape", "token": "-"}
+    bodies = {"StreetEx4 Rape": "<<set $enemyno to 2>><<set $enemynomax to 2>><<maninit>>"}
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"] == "<<generate1>><<generate2>><<person1>><<person2>>"
+    assert info["basis"] == "debug-menu:generate1..2+person1..2"
+
+
+def test_derive_precursor_maninit_named_npc_in_title() -> None:
+    row = {"kind": "maninit", "passage": "Underground Robin Kiss Molestation", "token": "-"}
+    info = combat_sweep.derive_precursor(row, passage_bodies={}, named_npcs=["Robin", "Kylar"])
+    assert info["widgets"] == '<<npc "Robin">><<person1>>'
+    assert info["basis"] == "title-npc:Robin"
+
+
+def test_derive_precursor_maninit_ignores_partial_name_matches() -> None:
+    row = {"kind": "maninit", "passage": "Robbing the store", "token": "-"}
+    info = combat_sweep.derive_precursor(row, passage_bodies={}, named_npcs=["Rob"])
+    assert info["widgets"] == "<<generate1>><<person1>>"
+
+
+def test_derive_precursor_beast_row_token() -> None:
+    row = {"kind": "beastNEWinit", "passage": "Farmland Pigs", "token": "pig"}
+    info = combat_sweep.derive_precursor(row, passage_bodies={})
+    assert info["widgets"] == "<<generateBEAST 1 pig>>"
+    assert info["basis"] == "row-token:pig"
+
+
+def test_derive_precursor_beast_named_token() -> None:
+    row = {"kind": "beastNNPCinit", "passage": "Cave", "token": "Black Wolf"}
+    info = combat_sweep.derive_precursor(row, passage_bodies={}, named_npcs=["Black Wolf"])
+    assert info["widgets"] == '<<beastNNPCinit>><<npc "Black Wolf">>'
+    assert info["basis"] == "row-token-nnpc:Black Wolf"
+
+
+def test_derive_precursor_beast_farm_self_generation() -> None:
+    row = {"kind": "beastCombatInit", "passage": "Farm Pigs Hand", "token": "unknown"}
+    bodies = {
+        "Farm Pigs Hand": (
+            "<<beastNEWinit 1 pig $farm_work.pig.gender $farm_work.pig.genitals beast>>"
+        )
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert "farm_gen pig" in str(info["widgets"])
+    assert info["basis"] == "self-generation:farm_gen(pig)"
+
+
+def test_derive_precursor_beast_predecessor_chain() -> None:
+    row = {"kind": "beastCombatInit", "passage": "Wolf Cave Accept", "token": "unknown"}
+    bodies = {
+        "Wolf Cave": (
+            "The pack circles you. <<beastNEWinit 1 wolf>>"
+            "<<link [[Accept|Wolf Cave Accept]]>><</link>>"
+        ),
+        "Wolf Cave Accept": "<<beastCombatInit>>",
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"] == "<<beastNEWinit 1 wolf>>"
+    assert "predecessor:Wolf Cave" in info["basis"]
+
+
+def test_beast_chain_from_body_replays_clear_init_and_generate() -> None:
+    # Verbatim shape of ``Widgets Events Beach`` inline event
+    # ``beach_phallus_dog`` (author comment: beastNEWinit requires no existing
+    # NPCs, the human owner must be generated afterwards).
+    body = (
+        "<<addinlineevent \"beach_phallus_dog\">>"
+        "<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>"
+        "You see a <<person2>><<person>> walking <<his>> <<beasttype>> along the beach."
+        "<<link [[Ask to measure <<personpenis>>|Beach Phallus Dog]]>><</link>>"
+        "<</addinlineevent>>"
+    )
+    chain = combat_sweep._beast_chain_from_body(body, "Beach Phallus Dog")
+    assert chain is not None
+    assert chain["widgets"] == "<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>"
+    assert chain["token"] == "dog"
+
+
+def test_beast_chain_from_body_without_clearnpc_keeps_generate_run() -> None:
+    body = "<<beastNEWinit 1 dog>>\n\n<<generate2>><<person2>>"
+    chain = combat_sweep._beast_chain_from_body(body)
+    assert chain is not None
+    assert chain["widgets"] == "<<beastNEWinit 1 dog>><<generate2>><<person2>>"
+
+
+def test_derive_precursor_beast_predecessor_replays_ordered_chain() -> None:
+    row = {
+        "kind": "beastCombatInit",
+        "passage": "Beach Phallus Dog Handjob",
+        "token": "unknown",
+    }
+    bodies = {
+        "Widgets Events Beach": (
+            "<<addinlineevent \"beach_phallus_dog\">>"
+            "<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>"
+            "<<link [[Ask to measure|Beach Phallus Dog]]>><</link>>"
+            "<</addinlineevent>>"
+        ),
+        "Beach Phallus Dog": "<<link [[Do more than just measure|Beach Phallus Dog Handjob]]>><</link>>",
+        "Beach Phallus Dog Handjob": "<<beastCombatInit>>",
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"] == "<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>"
+    assert "predecessor:Widgets Events Beach" in info["basis"]
+
+
+def test_derive_precursor_beast_unresolved_records_reason() -> None:
+    row = {"kind": "beastCombatInit", "passage": "Mystery Scene", "token": "unknown"}
+    info = combat_sweep.derive_precursor(
+        row, passage_bodies={"Mystery Scene": "<<beastCombatInit>>"}
+    )
+    assert info["widgets"] is None
+    assert "no beast token" in str(info["reason"])
+
+
+def test_resolve_only_keys_accepts_file_and_csv(tmp_path: Path) -> None:
+    key_file = tmp_path / "keys.json"
+    key_file.write_text(json.dumps(["a", "b"]), encoding="utf-8")
+    assert combat_sweep.resolve_only_keys(str(key_file)) == ["a", "b"]
+    line_file = tmp_path / "keys.txt"
+    line_file.write_text("a\nb\n", encoding="utf-8")
+    assert combat_sweep.resolve_only_keys(str(line_file)) == ["a", "b"]
+    assert combat_sweep.resolve_only_keys("a,b") == ["a", "b"]
+    assert combat_sweep.resolve_only_keys(None) is None
