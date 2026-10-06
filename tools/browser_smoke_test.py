@@ -1036,7 +1036,8 @@ def _startup_gate_status_script() -> str:
         };
       }
 
-      const swal = Array.from(document.querySelectorAll('.swal2-container, .swal2-popup')).find(visible);
+      const swal = Array.from(document.querySelectorAll('.swal2-container, .swal2-popup'))
+        .find((element) => visible(element) && !skipHit(element));
       if (swal) {
         const text = textOf(swal);
         if (/Custom-Spellbook|Spellbook|密码|password/i.test(text)) {
@@ -1079,6 +1080,13 @@ def _startup_interaction_script() -> str:
       const modalSelectors = options.modalSelectors || [];
       const confirmLabels = (options.confirmLabels || []).map((label) => String(label).trim().toLowerCase());
       const consentLabels = (options.consentLabels || []).map((label) => String(label).trim());
+      // Roots that a caller has seen repeat a no-op dismissal many times
+      // (e.g. an always-visible overlay whose confirm button reopens itself).
+      // Skipping them lets the loop try other controls instead of spinning.
+      const skipKeys = Array.isArray(options.skipKeys) ? options.skipKeys : [];
+      const skipHit = (element) => skipKeys.some(
+        (key) => key && textOf(element).slice(0, 120).trim() === key
+      );
       const visible = (element) => Boolean(
         element &&
         (element.offsetWidth || element.offsetHeight || element.getClientRects().length) &&
@@ -1255,7 +1263,7 @@ def _startup_interaction_script() -> str:
       const seenRoots = new Set();
       for (const selector of modalSelectors) {
         for (const element of Array.from(document.querySelectorAll(selector))) {
-          if (seenRoots.has(element) || !visible(element)) continue;
+          if (seenRoots.has(element) || !visible(element) || skipHit(element)) continue;
           seenRoots.add(element);
           modalRoots.push({ selector, element });
         }

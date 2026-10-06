@@ -15,6 +15,18 @@
 
 ### Added
 
+- **战斗状态引导 status-bootstrap + CI 冷启动预算修复（2026-10-07 同日第四轮）**：
+  `combat-personn-1007i` 剩下的 6 条 `fixture_insufficient` 都是**事件链中段**入口
+  （Finish 读父事件已建好的状态）。`derive_precursor` 新增 6 条 status-bootstrap
+  （`pubfame-bailey` / `farm_assault_init` / `pubfame-hospital` / `island_init` /
+  `street-bus` / `sydney-init`），只补 Finish 真正读的字段，basis 追加
+  `|status-bootstrap:<name>`；本机复跑（`combat-status-1007p`）6 条全部翻正，
+  1 条 `Bailey Sheet Fight` 以 `soft_fail` 记录（实走 `Rent Intro` 失败结局分支，
+  属预期走向而非缺陷），4 控制模式 4/4 ok。同日 CI daily 档（run 37536425118）的失败
+  归因为**贴边预算**而非卡死（`Start` 上 789 步 dismiss 撞 720s deadline；prepare
+  同产物 capture 12m27s）：`STARTUP_STEPS` 1000 → 1500、`STARTUP_DEADLINE_S`
+  720 → 1140，并新增重复点击断路器（同一 dismiss 目标 120 字符文本样本重复 25 次后
+  加入 `skipKeys`，action trail 记录 root/sample/repeat）。`pytest` **636 passed**。
 - **战斗台账深层前驱 fallback（2026-10-07 同日第二轮）**：`candidate-probe-1007.json` 的
   5 条真机 A/B 证明"深度 3-4 跳 / 父 widget 链"的 `$beasttype` 来源可以重放：4/5 行从
   `leftActionInit` DOM 错误变为 19-25 回合干净胜利，`Forest Wolf Molestation Resist`

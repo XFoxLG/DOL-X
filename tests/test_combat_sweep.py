@@ -1265,12 +1265,18 @@ def test_derive_precursor_replays_generate_role_chain() -> None:
     info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
 
     assert info["widgets"] == (
+        "<<set $pubfame to {seen: [], tasksDone: []}>>"
+        '<<set $pubfame.status to "accepted">>'
+        '<<set $pubfame.task to "bailey">>'
+        "<<set $pubfame.bailey to {}>>"
+        '<<set $pubfame.bailey.fight to "ready">>'
         '<<generateRole 0 0 "thug">><<generateRole 1 0 "thug">>'
         '<<generateRole 2 0 "thug">><<generateRole 3 0 "thug">>'
         "<<set $fightstart to 1>>"
     )
     assert info["basis"].startswith("predecessor:Harvest Street:slots4")
     assert "link-body:Harvest Street" in info["basis"]
+    assert info["basis"].endswith("|status-bootstrap:pubfame-bailey")
 
 
 def test_link_body_precursors_replays_start_flags_only() -> None:
@@ -1603,6 +1609,116 @@ def test_area_bootstrap_requires_chain() -> None:
     )
     assert info["widgets"] is None
     assert info["basis"] is None
+
+
+def test_status_bootstrap_replays_event_chain_state() -> None:
+    """1007i 剩余 fi 行：Finish 依赖的事件链状态由游戏自身初始化重放补齐。"""
+    row = {"kind": "maninit", "passage": "Bailey Sheet Fight", "token": ""}
+    bodies = {
+        "Bailey Sheet Fight": "<<maninit>>",
+        "Harvest Street": (
+            '<<generateRole 0 0 "thug">><<set $fightstart to 1>>\n'
+            "[[Next|Bailey Sheet Fight]]"
+        ),
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert info["widgets"].startswith(
+        "<<set $pubfame to {seen: [], tasksDone: []}>>"
+        '<<set $pubfame.status to "accepted">>'
+    )
+    assert "<<set $pubfame.bailey to {}>>" in info["widgets"]
+    assert '<<set $pubfame.bailey.fight to "ready">>' in info["widgets"]
+    assert info["basis"].endswith("|status-bootstrap:pubfame-bailey")
+
+    row2 = {"kind": "maninit", "passage": "Hospital Keycard Seduce Sex", "token": ""}
+    bodies2 = {
+        "Hospital Keycard Seduce Sex": "<<maninit>>",
+        "Hospital Keycard Seduce": (
+            "<<generate1>><<generate2>><<set $sexstart to 1>>\n"
+            "[[Next|Hospital Keycard Seduce Sex]]"
+        ),
+    }
+    info2 = combat_sweep.derive_precursor(row2, passage_bodies=bodies2)
+    assert info2["widgets"].startswith("<<set $pubfame to {seen: [], tasksDone: []}>>")
+    assert '<<set $pubfame.task to "hospital">>' in info2["widgets"]
+    assert "<<set $pubfame.hospital to {}>>" in info2["widgets"]
+    assert info2["basis"].endswith("|status-bootstrap:pubfame-hospital")
+
+    row3 = {"kind": "maninit", "passage": "Farm Assault Fight Bailey", "token": ""}
+    bodies3 = {
+        "Farm Assault Fight Bailey": "<<maninit>>",
+        "Farm Assault Intercept Bailey": (
+            "<<generate1>><<generate2>><<set $fightstart to 1>>\n"
+            "[[Next|Farm Assault Fight Bailey]]"
+        ),
+    }
+    info3 = combat_sweep.derive_precursor(row3, passage_bodies=bodies3)
+    assert info3["widgets"].startswith(
+        '<<set $bus to "yard">><<if $farm is undefined>><<set $farm to {}>><</if>>'
+        "<<farm_assault_init>>"
+    )
+    assert info3["basis"].endswith("|status-bootstrap:farm_assault_init")
+
+    row4 = {"kind": "maninit", "passage": "Island Wood Rape", "token": ""}
+    bodies4 = {
+        "Island Wood Rape": "<<maninit>>",
+        "Widgets Island": (
+            "<<generateRole 0 0 \"islander\">><<set $molestationstart to 1>>\n"
+            "[[Next|Island Wood Rape]]"
+        ),
+    }
+    info4 = combat_sweep.derive_precursor(row4, passage_bodies=bodies4)
+    assert info4["widgets"].startswith(
+        "<<island_init>><<if $island.wood is undefined>><<set $island.wood to 0>><</if>>"
+    )
+    assert info4["basis"].endswith("|status-bootstrap:island_init")
+
+    row5 = {"kind": "maninit", "passage": "Street Car Sex", "token": ""}
+    bodies5 = {
+        "Street Car Sex": "<<maninit>>",
+        "Widgets Street": (
+            "<<generatey1>><<generatey2>><<set $sexstart to 1>>\n"
+            "[[Next|Street Car Sex]]"
+        ),
+    }
+    info5 = combat_sweep.derive_precursor(row5, passage_bodies=bodies5)
+    assert info5["widgets"].startswith(
+        '<<if $bus is undefined>><<set $bus to "commercial">><</if>>'
+    )
+    assert '<<set $location to "alley">>' in info5["widgets"]
+    assert info5["basis"].endswith("|status-bootstrap:street-bus")
+
+    row6 = {"kind": "maninit", "passage": "Temple Confess Sydney Sex", "token": ""}
+    bodies6 = {
+        "Temple Confess Sydney Sex": "<<maninit>>",
+        "Temple Confess": (
+            "<<generatey1>><<generateyp2>><<set $sexstart to 1>>\n"
+            "[[Next|Temple Confess Sydney Sex]]"
+        ),
+    }
+    info6 = combat_sweep.derive_precursor(row6, passage_bodies=bodies6)
+    assert info6["widgets"].startswith(
+        "<<set C.npc.Sydney.init to 1>>"
+        "<<if $sydneySeen is undefined>><<set $sydneySeen to []>><</if>>"
+    )
+    assert info6["basis"].endswith("|status-bootstrap:sydney-init")
+
+
+def test_status_bootstrap_street_car_word_boundary() -> None:
+    """``^Street Car\\b`` 不能误匹配 Street Cardboard Box 系列。"""
+    row = {
+        "kind": "beastCombatInit",
+        "passage": "Street Cardboard Box Cat Sex",
+        "token": "unknown",
+    }
+    bodies = {
+        "Street Cardboard Box Cat Sex": "<<beastCombatInit>>",
+        "Street Cardboard Box": (
+            "<<beastNEWinit 1 cat>>\n[[Next|Street Cardboard Box Cat Sex]]"
+        ),
+    }
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+    assert "status-bootstrap" not in (info["basis"] or "")
 
 
 def test_resolve_only_keys_accepts_file_and_csv(tmp_path: Path) -> None:
