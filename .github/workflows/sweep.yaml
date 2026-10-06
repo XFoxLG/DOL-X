@@ -176,19 +176,24 @@ jobs:
           echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
       - name: Run daily tier
         run: |
-          set -euo pipefail
+          set -uo pipefail
           HTML="${HTML_PATH}"
           FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
           test -n "${HTML}"
           test -n "${FIXTURE}"
+          STATUS=0
           python tools/passage_sweep.py "$HTML" --fixture "$FIXTURE" \
-            --sample 300 --seed "$SWEEP_SEED" --out .local/sweep/daily-passage
+            --sample 300 --seed "$SWEEP_SEED" --out .local/sweep/daily-passage || STATUS=1
           python tools/scenario_sweep.py "$HTML" --fixture "$FIXTURE" \
-            --suite all --seed "$SWEEP_SEED" --out .local/sweep/daily-scenario
+            --suite all --seed "$SWEEP_SEED" --out .local/sweep/daily-scenario || STATUS=1
           python tools/combat_sweep.py "$HTML" --fixture "$FIXTURE" \
-            --tier archetypes --seed "$SWEEP_SEED" --out .local/sweep/daily-combat
+            --tier archetypes --seed "$SWEEP_SEED" --out .local/sweep/daily-combat || STATUS=1
           python tools/env_matrix.py --target "$HTML" --fixture "$FIXTURE" \
-            --tier daily --seed "$SWEEP_SEED" --out .local/sweep/daily-env
+            --tier daily --seed "$SWEEP_SEED" --out .local/sweep/daily-env || STATUS=1
+          if [ "${STATUS}" -ne 0 ]; then
+            echo "::error::daily tier reported failures; all four axes still ran for a complete report set"
+          fi
+          exit "${STATUS}"
       - name: Export sanitized reports
         id: export
         if: always()
