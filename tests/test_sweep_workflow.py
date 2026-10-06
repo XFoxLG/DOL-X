@@ -73,3 +73,13 @@ def test_sweep_workflow_verifies_package_identity_fail_closed() -> None:
     assert "name: sweep-package" in text
     assert "output/*.zip" in text
     assert "prepared/mods-manifest.json" in text
+
+
+def test_sweep_workflow_builds_static_coverage_ledger() -> None:
+    text = _workflow()
+    assert "- name: Build static coverage ledger" in text
+    assert "tools/combat_ledger.py" in text
+    # 台账是静态证据，即使分片跑分失败也要产出，但失败时不产出假报告
+    assert "HTML_PATH not set" in text
+    assert "-o -name 'combat-ledger*.json'" in text
+    assert "-o -name 'combat-ledger*.md'" in text
