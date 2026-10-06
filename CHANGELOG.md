@@ -167,6 +167,79 @@
 
 ### Fixed
 
+- **修复战斗前置的槽位不连续、分支串线与起始 flag 丢失（2026-10-07）**：41 条战斗入口复跑
+  （`.local/sweep/combat-personn-1007f/`）暴露三个叠加根因，全部属于"合成前置不够像上游真实
+  路径"，不改游戏数据、只改前置重放：
+  - **链必须连续覆盖槽 1..N**：旧逻辑只看 `max(slot) >= need`，单条 `<<generate2>>` 被当成
+    合法前置，槽 0 仍是夹具空壳；`combatinit` 把空壳标 `active` 后 `leftgrabnew` 读
+    `$NPCList[undefined].penis` 抛错（Courtyard Crush / Docks / Home Intervene /
+    Soup Kitchen / Street Collar 等）。`_maninit_slot_range` + `_maninit_run_covers` 现在要求
+    生成串**连续覆盖 1..need** 且含递增 `$enemyno` 的宏，纯 `<<npc "Name" 3>>` 串不算。
+  - **场景起始 flag 只写在 link body 里**：`<<link [[Fight them both|Courtyard Crush
+    Fight]]>><<set $fightstart to 1>><</link>>` 的 flag 不在 passage 正文，只重放生成链会让
+    `maninit` 被 `<<if $fightstart is 1>>` 跳过（`$combat`/`$enemynomax` 停在 0）。
+    `LINK_BODY_RE` + `LINK_BODY_ALLOWED_MACROS` 白名单重放这些 flag，并**排除
+    `<<endevent>>`**（它会清掉刚生成的 NPC）。
+  - **链与 flag 必须来自同一分支**：`Widgets Street` 的夜分支（`beastNEWinit` + `generate2/3`，
+    `$phase 1`）与昼分支（`generate1/2`，`$phase 2`）并存时，旧逻辑混用两边，导致
+    `Street Collar Molestation` 的 phase-1 路径把空壳克隆进槽 1。`_maninit_slot_chain` 改为
+    遍历每个 link 出现位置**各自的邻近窗口**，链与该 link 的 flag 取自同一候选。
+  复跑（`.local/sweep/combat-personn-1007f/`）：Street Collar 由 hard_fail 转 ok。
+- **修复 `<<personN>>` 引用闭包漏扫后继 passage 与 widget（2026-10-07）**：`Balloon Sex`
+  入口正文没有任何 `person` 引用，落点 `Balloon Sex Finish` 渲染的
+  `<<balloonRobinHelped>>` widget 内却调用 `<<person2>>`，因此夹具只造 1 个槽位并在落点抛
+  `Undefined NPC in personselect 1`。新增 `build_widget_index`（从 passage store 抽取
+  `<<widget "name">>` 正文）与 `person_reference_closure`（入口正文 + 最多 8 个直接后继 +
+  widget 深度 2），闭包并入 `derive_precursor` 的槽位需求；同时修正 `personselect` 索引映射
+  （widget 自述"calls are 0-5 corresponding to NPCs 1-6"，`<<personselect 3>>` 读的是
+  `$NPCList[3]`，旧代码错映射成 `$NPCList[2]`）。复跑：Balloon Sex 由 hard_fail 转 ok。
+- **修复标题含 NPC 名的战斗行只造一个槽位（2026-10-07）**：`Underground Robin Stage
+  Molestation` 正文只 `<<set $enemyno to 1>>`，落点 `… Finish` 的**两个分支**都渲染
+  `<<person2>>`；旧 `title-npc` 前置只重放 `<<npc "Robin">><<person1>>`，槽 1 是空壳。实测
+  1007e/1007f 两次"通过"是靠上一个用例残留的 `NPCList[1]` 侥幸不留错（落点其实什么都没渲染），
+  1007g 残留消失后暴露真实崩溃。修复：引用闭包对**所有** maninit 行生效（不再因标题含名而
+  跳过），且在"场景需要多于 `$enemyno` 的槽位"时**优先采用上游自己的前驱生成链**
+  （该行真实路径是 `Underground Robin Stage Intro` 的 `<<generate1>><<generate2>>`——
+  Robin 在台上，不在 `$NPCList` 里）；只有找不到真实链时才回退到
+  `<<npc "Name">><<generate2..N>>` 保留具名 NPC。静态影响面 1,570 行中 220 行
+  （30 行改用真实前驱链、190 行补足槽位），全部是"多造槽位/更接近上游"方向；1,570 行
+  重演 0 异常，`pytest` 95 passed（combat 轴）。
+- **补全战斗槽位宏识别（2026-10-07）**：`Widgets NPC Generation` 的 121 个 widget 里，
+  旧正则只认 `generateN` / `generatePolice N` / `generateBEAST N` / `beastNEWinit N` /
+  `npc Name N`。逐个体检后补全：`<<generateRole N …>>` 的 `N` 是 **0-based** 槽
+  （widget 自述 "Slot one would be 0"、内部调用 `generateNPC N+1`，所以
+  `<<generateRole 1 0 "x">>` 单独出现**不算**覆盖槽 0）；数字粘在名字里的变体
+  （`generatecf1` / `generatey3` / `generatep2` / `generatePlant1` / `generateym3`）与首参
+  形式（`generatePolice` / `Temple` / `Demon` / `Security` / `Sailor` / `Confessor` /
+  `Cultist` / `Doctor` / `SweaterWearer` / `NPC N`）一律 1-based 槽——它们最终都调用
+  `generateNPC`，而 `generateNPC` 内部就是 `_n = N - 1` 且 `$enemyno += 1`；
+  `<<generatel>>` 动态取 `$enemyno + 1`，只计递增、不证明槽位；`<<clearnpc>>`（含带参
+  形式）作为**链边界**，任何链都不得跨过它，且它本身不被重放（每个用例前都恢复夹具，
+  没有陈旧槽要清）。静态影响面 v2 → v3 共 155 行改用真实链或更贴合的链（96 行
+  debug-menu → predecessor、41 行 predecessor → predecessor、18 行 title-npc →
+  predecessor），例：`Bailey Sheet Fight` 由兜底的 `Farm Road Widgets` 链改为上游真实链
+  `<<generateRole 0 0 "thug">>…<<generateRole 3 0 "thug">>`。真机复跑 1007h
+  （81 行）：`ok 72 / soft_fail 0 / hard_fail 0 / fixture_insufficient 9 / mode:ok 4`，
+  9 条 `fixture_insufficient` 全部是落点场景状态不足（`$pubfame.bailey` / farm `teams` /
+  `robin` / `water` / `duo` / `status`），逐条台账见 `docs/AUTOMATED_PASSAGE_SWEEP.md` §8.11。
+- **修复整合包在 CI 上无法进入游戏（引导步数不足，2026-10-07）**：run 37513170382 的
+  prepare 全绿（真实整合包 + 身份核验 + 现场 capture 夹具都成功），daily 四轴却全部
+  返回 0 结果，报 `bootstrap did not reach gameplay; last passage='Start' after 60 steps`。
+  同一 runner 上 `fixture_ladder capture` 用 90 步引导成功——整合包要等 30+ 个 mod
+  加载完才离开 `Start`，CI 冷启动远超本机（本机 4 步进入 gameplay）。修复：
+  `tools/passage_sweep._reach_gameplay` 预算 60 → **240 步**并新增早停（连续 40 步
+  无可点击动作立即退出、记录步数/动作轨迹/耗时），`sweep_flow_assertions._session`
+  与 `env_matrix` 同步使用同一预算，五个 sweep 工具不再各写各的步数。
+- **修复战斗"无控件"误判与终局判定被状态重置骗过（2026-10-07）**：11 soft_fail +
+  3 fixture_insufficient 逐条现场取证后确认两条旧判定错误。其一，`#listContainer`
+  无控件是 DoL 的"无力"机制（双臂 bound + `pain≥100` 且 `willpowerpain=0`，或窒息
+  两段式），游戏唯一出路是点击过场"继续"链接；`drive_combat` 现在调用新增
+  `_advance_passage`（优先 `#next`、兼容淡入链接的最多 8 次轮询）照常推进，
+  只有连继续链接都没有才保留 soft_fail。其二，兽交 `Finish` 会重置
+  `$enemyarousal`（573.66 → 26.66），旧判定只看最终状态因此报 unknown；
+  `classify_outcome` 现在同时参考**最后一个战斗活跃回合**快照与落点 passage 源码的
+  `<<endcombat>>`，新增 `end` / `end_player_orgasm` 如实终局；原型矩阵 win 路径仍
+  强制 `win`（`end*` 依旧 soft_fail），口径不放松。
 - **修复战斗入口缺少游戏自身生成前置链**（2026-10-07）：20 条战斗硬失败逐条归因后确认，
   全部源于"直接跳入"绕过了上游自己的 `generate1/person1`、`beastNEWinit` 等生成步骤，
   空壳 `NPCList` 让手部渲染读到 undefined 而抛错（`NPC hand action unaccounted for` /
@@ -176,6 +249,31 @@
   先清槽再生成野兽、人类放后面）；每条结果记录 derivation basis。定向复跑 20 条：
   `hard_fail` 2 → 0，Beach 与 StreetEx4 均进入战斗并产出终局路径证据（随后归入
   soft_fail 待继续归因，未洗绿）。
+- **修复控制模式检查的假 hard_fail 与不可见的 SugarCube 内联报错（2026-10-07）**：归因复跑
+  （`.local/sweep/combat-hardfail-attr-1007c/`）里 4 种控制模式全部 `hard_fail`，报
+  `NPC hand action unaccounted for`；逐条取证后确认是测试器缺陷而非游戏缺陷——`--tier
+  initiators` 下 `pick_mode_entry` 只认 archetype 矩阵才有的 `path=="win"`，退化到第一行，
+  且重进战斗时不重放 `<<generate1>><<person1>>` 前置链，`$NPCList` 只剩 5 key 空壳。
+  修复后复跑：`mode:ok 4`，控制模式入口与 precursor basis 写入报告 `modes_entry`。同一次复核
+  还发现 SugarCube 把 widget 报错渲染成 `#passages .error-view`（`span.error`），JS 错误钩子
+  看不到，于是一个"报错后原地循环"的场景只表现为 `stalled: 3 rounds without state change`；
+  `COMBAT_STATE_JS` 现在采集该内联错误（`kind: sugarcube.dom`）并保留 `domErrors`，
+  `Undefined NPC in personselect N` 会被提取成 `missing: NPCList[N-1]` 写进台账。
+- **新增战斗"场景自身退出口"终局判定（2026-10-07）**：部分场景不写 `<<endcombat>>`，而是在战斗
+  passage 内判断 `<<if _combatend or $timer lte 0>>` 后跳到 `... Finish`（1007c 观测到
+  `Underground Film Molestation` 24 回合 `$timer` 归零）。`classify_outcome` 现在回读最后一个
+  战斗活跃 passage 的源码，命中该守卫时记为 `scene_end` 并在 detail 明确写 "enemy not
+  defeated"，不再报 unknown；原型矩阵 win 路径仍只接受 `win`（`scene_end` 依旧 soft_fail），
+  报告新增 `outcome_counts` 与 `landing_evidence`（落点源码长度 / 是否含 `<<endcombat>>`）。
+- **修复 `<<personN>>` 直接渲染导致的战斗前置不足（2026-10-07）**：`Underground Robin Kiss
+  Molestation` 自身 `<<set $enemyno to 2>>` 却直接渲染 `<<person4>>`，命中游戏自己的
+  `Undefined NPC in personselect 3`（旧版被误记为 stalled）。上游真实路径是前驱
+  `Underground Robin Kiss Intro` 的
+  `<<generate1>><<npc Robin 2>><<generate3>><<generate4>>`。`derive_precursor` 现在对 maninit
+  行先比对该行引用的最大 `<<personN>>` 与 `$enemyno`，不足时在关卡图（深度 ≤2）里寻找前驱
+  自己的连续槽位生成串并原样重放（basis `predecessor:<passage>:slotsN(personN)`），找不到才
+  退化为 `debug-menu:generate1..N+person1..N(personN)`。全量 1,570 行中 26 行命中该分支
+  （12 行前驱串、14 行 debug-menu 兜底），不修改任何全局夹具字段。
 - **修复云端验收载体身份（2026-10-07）**：run 37500965698 暴露两个静默缺陷——
   `.github/workflows/sweep.yaml` 的 prepare 没有传 `--tag`（构建成上游最新 0.5.12.13，
   不是仓库锁定的 0.5.11.9），且只上传 prepare 产出的 HTML（既没有 `img/`，导致天气
