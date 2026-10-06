@@ -980,10 +980,12 @@ def _derive_precursor_core(
 # (``bird_init`` / ``pound_init`` / ``prison_init``) ahead of the beast chain.
 AREA_BOOTSTRAPS: tuple[dict[str, str], ...] = (
     {
-        "pattern": r"^Bird Tower\b",
+        "pattern": r"^Bird\b",
         "widgets": "<<bird_init>>",
         "tag": "area-bootstrap:bird_init",
-        "evidence": "bird_init sets $bird.upgrades.shelter/pot (Great Hawk tower)",
+        "evidence": (
+            "bird_init sets $bird.upgrades + $bird.hunts (tower and hunt scenes)"
+        ),
     },
     {
         "pattern": r"^Pound\b",
