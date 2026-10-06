@@ -28,6 +28,15 @@
   `fixture_insufficient` 5（全部卡在 Finish 后置 widget：`setTowerTemp` / `pound_status` /
   `person1`）、`soft_fail` 1（Forest Wolf 反例）、`hard_fail` 0；失败面从"进不去战斗"
   推进到"退出时缺状态"，4 种控制模式全 ok。
+- **战斗区域引导 area-bootstrap（2026-10-07 同日第三轮）**：深层前驱之后仍卡住的 5 条
+  token-less 兽类行都死在战斗*之后*的出口 passage（`setTowerTemp` 读 `$bird.upgrades.shelter`、
+  `pound_status` 读 `$pound.status`、`prison_attention` 读 `$prison.*`、`person1` 需要 slot 0）。
+  `derive_precursor` 对 `^Bird Tower` / `^Pound` / `^Prison` 的行先重放游戏自己的区域初始化
+  （`bird_init` / `pound_init` / `prison_init`），basis 追加 `|area-bootstrap:<widget>`；
+  Prison 另设 `$prison_intro=1` 并按监狱流程预置 slot 0 的 `anxious_guard` 存档
+  （`generate_anxious_guard` 的 else 分支硬编码 slot 1，只有 `loadNPC` 路径对得上 `person1`）。
+  16 条 deep 行一次跑完（`combat-deep-1007m`）：`ok` 15 / `soft_fail` 1（Forest Wolf 反例）/
+  `hard_fail` 0 / `fixture_insufficient` 0，4 控制模式 ok；`pytest` **630 passed**。
 - **战斗覆盖台账 `tools/combat_ledger.py`（2026-10-07）**：把 1,570 条战斗 initiator
   逐条落成带源码依据的静态台账（JSON + MD），分 entry shape（`entry` 1300 /
   `entry_via_link` 127 / `widget_definition` 73 / `helper_only` 69 / `unresolved` 1）
