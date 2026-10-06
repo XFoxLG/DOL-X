@@ -1241,6 +1241,9 @@ def drive_combat(page: Any, *, path: str, max_rounds: int, timeout_ms: int) -> d
     )
     result["outcome"] = outcome
     result["outcome_detail"] = outcome_detail
+    if result["verdict"] == "ok" and outcome == "unknown" and state.get("combat") != 1:
+        result["verdict"] = "soft_fail"
+        result["detail"] = outcome_detail
     if result["verdict"] == "ok" and state.get("combat") == 1 and result["rounds"] >= max_rounds:
         result["verdict"] = "soft_fail"
         result["detail"] = f"round limit {max_rounds} reached"

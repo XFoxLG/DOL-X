@@ -124,16 +124,21 @@ jobs:
 
       # 脱敏是不可跳过的上传前置：先就地清洗，再用 --check 复核（仍脏则整步失败）。
       - name: Sanitize reports
+        id: sanitize
         if: always()
         run: |
-          python tools/report_sanitize.py .local/sweep
-          python tools/report_sanitize.py --check .local/sweep
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \( -name '*-sweep.json' -o -name '*-sweep.md' -o -name '*-report.json' -o -name '*-report.md' \) -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+          test -n "$(find sweep-reports -type f -print -quit)"
 
       - name: Upload sweep reports
-        if: always()
+        if: always() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: sweep-${{ inputs.tier }}-${{ github.run_id }}
-          path: .local/sweep
+          path: sweep-reports
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
