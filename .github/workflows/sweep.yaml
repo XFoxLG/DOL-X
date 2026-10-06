@@ -458,6 +458,22 @@ jobs:
           python tools/combat_sweep.py "$HTML" --fixture "$FIXTURE" \
             --tier initiators --shard-index "${{ matrix.shard }}" --shard-count 8 \
             --seed "$SWEEP_SEED" --out ".local/sweep/combat-shard-${{ matrix.shard }}"
+      - name: Build static coverage ledger
+        if: always()
+        run: |
+          set -euo pipefail
+          HTML="${HTML_PATH:-}"
+          if [ -z "${HTML}" ]; then
+            echo "HTML_PATH not set (package verify failed earlier); skipping static ledger"
+            exit 0
+          fi
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit || true)"
+          REPORT=".local/sweep/combat-shard-${{ matrix.shard }}/combat-sweep.json"
+          ARGS=()
+          if [ -n "${FIXTURE}" ]; then ARGS+=(--fixture "${FIXTURE}"); fi
+          if [ -f "${REPORT}" ]; then ARGS+=(--report "${REPORT}"); fi
+          python tools/combat_ledger.py "${HTML}" "${ARGS[@]}" \
+            --out ".local/sweep/combat-ledger-${{ matrix.shard }}"
       - name: Export sanitized reports
         if: always()
         run: |
@@ -465,7 +481,8 @@ jobs:
           mkdir -p sweep-reports
           (cd .local/sweep && find . -type f \
             \( -name '*-sweep.json' -o -name '*-sweep.md' \
-               -o -name '*-report.json' -o -name '*-report.md' \) \
+               -o -name '*-report.json' -o -name '*-report.md' \
+               -o -name 'combat-ledger*.json' -o -name 'combat-ledger*.md' \) \
             -exec cp --parents {} ../../sweep-reports/ \;)
           python tools/report_sanitize.py sweep-reports
           python tools/report_sanitize.py --check sweep-reports
