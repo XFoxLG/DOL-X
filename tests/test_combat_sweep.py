@@ -711,6 +711,39 @@ def test_select_initiator_rows_limit_and_seed_stable_sample() -> None:
     assert [row["key"] for row in first["selected"]] != [row["key"] for row in other["selected"]]
 
 
+def test_select_initiator_rows_shards_are_disjoint_and_reassemble_plan() -> None:
+    rows = _initiator_rows(11)
+    shards = [
+        select_initiator_rows(rows, shard_index=index, shard_count=4)["planned"]
+        for index in range(4)
+    ]
+    keys = [row["key"] for shard in shards for row in shard]
+    assert sorted(keys) == sorted(row["key"] for row in rows)
+    assert len(keys) == len(set(keys))
+    assert [row["key"] for row in shards[0]] == [
+        "maninit:-:Passage 0",
+        "maninit:-:Passage 4",
+        "maninit:-:Passage 8",
+    ]
+
+
+def test_select_initiator_rows_keeps_planned_keys_when_resuming() -> None:
+    rows = _initiator_rows(5)
+    selection = select_initiator_rows(
+        rows,
+        resume_keys={"maninit:-:Passage 1", "maninit:-:Passage 3"},
+        shard_index=0,
+        shard_count=1,
+    )
+    assert [row["key"] for row in selection["planned"]] == [row["key"] for row in rows]
+    assert [row["key"] for row in selection["selected"]] == [
+        "maninit:-:Passage 0",
+        "maninit:-:Passage 2",
+        "maninit:-:Passage 4",
+    ]
+    assert selection["skipped_resume"] == 2
+
+
 # --------------------------------------------------------------------------- #
 # Baseline diff + report
 # --------------------------------------------------------------------------- #
@@ -874,6 +907,8 @@ def test_parse_args_defaults() -> None:
     assert args.skip_modes is False
     assert args.modes_only is False
     assert args.headful is False
+    assert args.shard_index == 0
+    assert args.shard_count == 1
 
 
 def test_parse_args_overrides() -> None:
@@ -893,6 +928,10 @@ def test_parse_args_overrides() -> None:
             "--mode-rounds",
             "4",
             "--resume",
+            "--shard-index",
+            "3",
+            "--shard-count",
+            "8",
             "--modes-only",
             "--save-baseline",
             "--out",
@@ -907,6 +946,8 @@ def test_parse_args_overrides() -> None:
     assert args.max_rounds == 12
     assert args.mode_rounds == 4
     assert args.resume is True
+    assert args.shard_index == 3
+    assert args.shard_count == 8
     assert args.modes_only is True
     assert args.save_baseline is True
     assert args.out == Path("reports/combat")
