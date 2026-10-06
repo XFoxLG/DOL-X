@@ -34,6 +34,7 @@ from tools.scenario_sweep import (
     VERDICTS,
     aggregate_scenario_verdict,
     baseline_path,
+    classify_interaction,
     classify_unresolvable,
     cross_check_manifest,
     dayloop_click_status,
@@ -58,6 +59,7 @@ from tools.scenario_sweep import (
     run_dayloop,
     scan_variables,
     select_rows,
+    summarize_assignment_checks,
     write_report,
 )
 
@@ -597,15 +599,167 @@ def test_aggregate_verdict_hard_on_landing_mismatch() -> None:
     assert "landed on 'Somewhere Else'" in detail
 
 
-def test_aggregate_verdict_soft_when_widgets_no_delta() -> None:
+def test_aggregate_verdict_state_op_without_delta_is_ok_with_note() -> None:
+    """A stay-on-passage click is not required to move a variable."""
     verdict, detail = aggregate_scenario_verdict(
         probe=_clean_probe(),
         target="Forest Wolf Molestation",
         row_report={"widgets": 3, "delta": [], "widgets_error": None},
         invariant_report={"ok": True},
+        interaction="state",
+    )
+    assert verdict == "ok"
+    assert "no observable variable delta" in detail
+
+
+def test_aggregate_verdict_deep_delta_is_recorded_as_note() -> None:
+    """Nested writes (museum antiques etc.) are real evidence, not a delta miss."""
+    verdict, detail = aggregate_scenario_verdict(
+        probe=_clean_probe(),
+        target="Forest Wolf Molestation",
+        row_report={
+            "widgets": 2,
+            "delta": [],
+            "deep_delta": [{"path": "$.museumAntiques", "before": "a", "after": "b"}],
+            "widgets_error": None,
+        },
+        invariant_report={"ok": True},
+        interaction="state",
+    )
+    assert verdict == "ok"
+    assert "deep snapshot" in detail
+
+
+def test_aggregate_verdict_soft_on_failed_assignment_check() -> None:
+    """A parseable ``<<set $x to <literal>>`` that did not land stays visible."""
+    verdict, detail = aggregate_scenario_verdict(
+        probe=_clean_probe(),
+        target="Forest Wolf Molestation",
+        row_report={
+            "widgets": 1,
+            "delta": [],
+            "widgets_error": None,
+            "assignment_checks": [
+                {
+                    "path": "sea",
+                    "op": "to",
+                    "checked": True,
+                    "ok": False,
+                    "expected": 0,
+                    "actual": 3,
+                }
+            ],
+        },
+        invariant_report={"ok": True},
+        interaction="state",
     )
     assert verdict == "soft_fail"
-    assert "no observable state delta" in detail
+    assert "assignment check failed: $sea" in detail
+    assert "expected 0" in detail
+
+
+def test_aggregate_verdict_ignores_unchecked_assignments() -> None:
+    """Non-literal RHS is 'cannot verify', never a failure by itself."""
+    verdict, detail = aggregate_scenario_verdict(
+        probe=_clean_probe(),
+        target="Forest Wolf Molestation",
+        row_report={
+            "widgets": 1,
+            "delta": [],
+            "widgets_error": None,
+            "assignment_checks": [
+                {"path": "rng", "op": "to", "checked": False, "reason": "non-literal rhs"}
+            ],
+        },
+        invariant_report={"ok": True},
+        interaction="state",
+    )
+    assert verdict == "ok"
+
+
+def test_aggregate_verdict_function_widgets_are_not_statically_checked() -> None:
+    """String(function) is source code; it must never manufacture a check."""
+    verdict, detail = aggregate_scenario_verdict(
+        probe=_clean_probe(),
+        target="Forest Wolf Molestation",
+        row_report={
+            "widgets": 1,
+            "delta": [],
+            "widgets_error": None,
+            "assignment_checks": [],
+            "function_widgets": 1,
+        },
+        invariant_report={"ok": True},
+        interaction="state",
+    )
+    assert verdict == "ok"
+    assert "not statically checkable" in detail
+
+
+def test_classify_interaction_display_state_scene() -> None:
+    assert (
+        classify_interaction(
+            location_before="Orphanage Intro",
+            target="Wardrobe",
+            target_is_function=False,
+            widgets_list=[""],
+        )
+        == "display"
+    )
+    assert (
+        classify_interaction(
+            location_before="Orphanage Intro",
+            target="Orphanage Intro",
+            target_is_function=True,
+            widgets_list=["<<set $consensual to 0>>"],
+        )
+        == "state"
+    )
+    assert (
+        classify_interaction(
+            location_before="Orphanage Intro",
+            target="Alley Dog",
+            target_is_function=False,
+            widgets_list=["<<endcombat>>"],
+        )
+        == "scene"
+    )
+    # A dynamic target that resolved elsewhere is a real jump, not a stay.
+    assert (
+        classify_interaction(
+            location_before="Orphanage Intro",
+            target="Somewhere Else",
+            target_is_function=True,
+            widgets_list=["<<set $x to 1>>"],
+        )
+        == "scene"
+    )
+    # Missing signals never silently upgrade: the default stays "scene".
+    assert (
+        classify_interaction(
+            location_before=None, target=None, target_is_function=False, widgets_list=["<<set $x to 1>>"]
+        )
+        == "scene"
+    )
+
+
+def test_summarize_assignment_checks_splits_checked_failed_unchecked() -> None:
+    summary = summarize_assignment_checks(
+        [
+            {"path": "a", "op": "to", "checked": True, "ok": True, "expected": 1, "actual": 1},
+            {"path": "b", "op": "to", "checked": True, "ok": False, "expected": 2, "actual": 5},
+            {"path": "c", "op": "to", "checked": False, "reason": "non-literal rhs"},
+            "not-a-dict",
+        ]
+    )
+    assert summary["total"] == 3
+    assert summary["checked"] == 2
+    assert summary["failed"] == [
+        {"path": "b", "op": "to", "expected": 2, "actual": 5}
+    ]
+    assert summary["unchecked"] == [
+        {"path": "c", "op": "to", "reason": "non-literal rhs"}
+    ]
 
 
 def test_aggregate_verdict_hard_on_invariant_violation() -> None:

@@ -763,6 +763,55 @@ passage='Start' after 789 steps`——789 次点击几乎全是 `dismiss_modal`�
 新增单测 6 条（战斗 2 条 + passage 4 条，含重复 dismiss 假页的 skip 时序），另有 3 处旧断言
 随实现更新。`pytest` **636 passed**。
 
+**补充证据（同日）**：修复前派出的 combat-full run 37542211811（head `05b3b95`）头 4 个分片
+全部以同一形态失败——`bootstrap stopped on startup passage 'Start' after 788 steps
+(deadline_hit=True)`，四份报告的 `verdict_counts` 全 0、`completeness` 197/197 缺失。即这批
+失败是冷启动预算问题而非战斗缺陷；修复后的新 run 需重跑，旧报告的作战结论一概不采信。
+
+**第五轮（同日）：剧情项分类 + 深度摘要与赋值前置检查（`scenario-1007t/u`）**
+
+1006 剧情报告里 331 行有 82 条 `soft_fail`，其中 **80 条是同一句话**：
+"widgets produced no observable state delta"。浅层摘要（`__dolxSummary`）只取一层、数组/对象
+前 8 个成员，所以 `<<learn_recipe_all>>`、`<<undress>>`、`<<updateMuseumAntiques>>` 这类写入
+嵌套状态的操作看起来"什么都没做"。三件事一起改：
+
+1. **行分类**（`classify_interaction`，报告新增 `interaction` 字段与 "row interactions" 一节）：
+
+   | 类别 | 判据（来自游戏源码/运行时） | 行数 |
+   | --- | --- | --- |
+   | `state` 状态操作 | 目标是函数（本构建 212 个动态目标全部是 `stayOnPassageFn` = `() => V.passage`）且解析结果等于 `V.passage` | 212 |
+   | `scene` 场景跳转 | 目标是字面 passage，点击后真正导航 | 94 |
+   | `display` 展示项 | widget 源全为空白（`Wardrobe` / `Foodstuff Prop Debug` / `CanvasModel Sample` / `NNPC Parade` 等纯渲染页） | 24 |
+
+   判据静态可验证：`debug-menu.js` 里 `const stayOnPassageFn = function () { return V.passage; };`，
+   且菜单区域内 `stayOnPassageFn` 的引用数（212）等于动态目标数。
+2. **深度摘要 + 定向差异**：新增 `__dolxDeepSnapshot`（遍历全变量树：节点预算 15 万、深度 12、
+   循环保护）与 `__dolxDeepDelta`；浅层 delta 为空时自动做深度对比，报告新增 `deep_delta`
+   （最多 40 条路径级 before/after）。`<<learn_recipe_all>>` 等 5 行由"无 delta"变成 40 条
+   嵌套变化。
+3. **赋值前置检查**：`__dolxAssignChecks` 解析 `<<set $path to <literal>>` 与
+   `+= / -= / *= / /=`（数值运算用深度快照里的 before 值算期望），逐条比对最终值；无法静态
+   判定的 RHS（`random(...)`、`V.x`）与 function widget（`String(fn)` 是源码不是 SugarCube，
+   曾造成 `Main#25` 假阳性，已修并留单测）显式记 `checked: false`，绝不冒充验证。报告新增
+   `assignment_checks` / `assignment_summary`；检查失败 → `soft_fail`（例如 `$sea` 期望 0 实得 3）。
+
+**判定语义**："有没有 delta"不再直接决定失败：没观测到增量时按类别记 note，行仍是 `ok`
+（报告新增 "ok rows with notes" 一节，本次 80 条全部可见）；失败只来自真实证据——赋值检查
+失败、invariant 电池、渲染/落点错误。
+
+**本机全量复跑（同一产物、同一夹具，与 1006 基线 diff）**：
+
+| 结果 | 1006 | 1007u | 变化 |
+| --- | --- | --- | --- |
+| `ok` | 239 | 319 | +80 |
+| `soft_fail` | 82 | 2 | -80，仅剩 2 条上游 `<<parasiteProgressDay>>` 未注册宏缺陷（原样保留） |
+| `hard_fail` | 0 | 0 | — |
+| `fixture_insufficient` | 9 | 9 | 不变（`Events 40 / 103-110`，野兽生成前驱） |
+| `not_applicable` | 1 | 1 | 不变（目标为空的重放行） |
+
+`baseline_diff`：**new_regressions 0 / fixed 80**。新增单测 6 条（分类四分支、赋值汇总、
+function widget 不可静态检查、失败赋值 → soft_fail），`pytest` **642 passed**。
+
 ---
 
 ## 9. 一键复现清单（发版前）
