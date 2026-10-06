@@ -47,6 +47,8 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools import sweep_ledger as sl  # noqa: E402
+
 
 # --------------------------------------------------------------------------- #
 # Passage extraction
@@ -62,6 +64,14 @@ PASSAGE_PATTERN = re.compile(
 class Passage:
     name: str
     body: str
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _html_payload(target: Path) -> tuple[str, Path]:
@@ -617,6 +627,8 @@ def sweep(
     fixture_vars: dict[str, Any] | None = None,
     fixture_meta: dict[str, Any] | None = None,
     context: str = "default",
+    shard_index: int = 0,
+    shard_count: int = 1,
 ) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
@@ -628,7 +640,32 @@ def sweep(
         selected = rng.sample(selected, sample)
     if limit is not None:
         selected = selected[:limit]
+    if shard_count < 1 or not 0 <= shard_index < shard_count:
+        raise ValueError("require shard_count >= 1 and 0 <= shard_index < shard_count")
+    selected = selected[shard_index::shard_count]
+    planned_names = [passage.name for passage in selected]
 
+    strategy = {
+        "kind": "passage_sweep",
+        "context": context,
+        "sample": sample,
+        "seed": seed,
+        "limit": limit,
+        "shard_index": shard_index,
+        "shard_count": shard_count,
+    }
+    identity = sl.run_identity(
+        "passage_sweep",
+        html_sha256=file_sha256(html_path),
+        fixture_digest=(
+            sl.sha256_text(sl.canonical_json(fixture_vars))
+            if fixture_vars
+            else str((fixture_meta or {}).get("sha256") or "bootstrap")
+        ),
+        tool_version="passage-sweep-v2",
+        plan_digest=sl.plan_digest(planned_names, strategy),
+        strategy=strategy,
+    )
     report: dict[str, Any] = {
         "target": str(html_path),
         "total_passages": len(passages),
@@ -636,6 +673,8 @@ def sweep(
         "sample": sample,
         "seed": seed,
         "context": context,
+        "shard": {"index": shard_index, "count": shard_count},
+        "ledger": {"identity": identity, "planned_keys": planned_names},
         "fixture": fixture_meta,
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "results": [],
@@ -790,6 +829,16 @@ def sweep(
 
     counts = collections.Counter(r["verdict"] for r in report["results"])
     report["verdict_counts"] = dict(counts)
+    complete, completeness_diagnostics, completeness = sl.validate_complete(
+        planned_names, report["results"]
+    )
+    report["completeness"] = {
+        "ok": complete,
+        "diagnostics": completeness_diagnostics,
+        "summary": completeness,
+        "expected_keys": len(planned_names),
+        "actual_results": len(report["results"]),
+    }
     report["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     return report
 
@@ -905,6 +954,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--limit", type=int, default=None, help="only sweep the first N passages")
     p.add_argument("--sample", type=int, default=None, help="random sample of N passages")
     p.add_argument("--seed", type=int, default=20261004)
+    p.add_argument("--shard-index", type=int, default=0, help="zero-based shard index")
+    p.add_argument("--shard-count", type=int, default=1, help="total shard count")
     p.add_argument("--timeout-ms", type=int, default=8000, help="per-passage render timeout")
     p.add_argument("--bootstrap-settle-ms", type=int, default=1500)
     p.add_argument("--headful", action="store_true", help="show the browser window")
@@ -992,6 +1043,8 @@ def main(argv: list[str] | None = None) -> int:
         fixture_vars=fixture_vars,
         fixture_meta=fixture_meta,
         context=args.context,
+        shard_index=args.shard_index,
+        shard_count=args.shard_count,
     )
     if only_meta is not None:
         report["only_file"] = only_meta
@@ -1016,6 +1069,11 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"[sweep] verdicts={report['verdict_counts']}")
     print(f"[sweep] report -> {md}")
+    if report.get("fatal_error"):
+        return 1
+    if not (report.get("completeness") or {}).get("ok", True):
+        print(f"[sweep] incomplete: {report['completeness'].get('diagnostics')}")
+        return 1
     return 0
 
 

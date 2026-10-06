@@ -79,6 +79,7 @@ if __package__ in (None, ""):
 from tools import fixture_ladder as fl  # noqa: E402
 from tools import passage_sweep as ps  # noqa: E402
 from tools import sweep_flow_assertions as sfa  # noqa: E402
+from tools import sweep_ledger as sl  # noqa: E402
 
 
 TOOL = "combat_sweep"
@@ -86,6 +87,7 @@ DEFAULT_OUT_ROOT = Path(".local/sweep")
 DEFAULT_BASELINE_DIR = Path(".local/sweep/baselines")
 DEFAULT_FIXTURE = Path(".local/fixtures/base-1004.json")
 DEFAULT_MANIFEST_OUT = Path(".local/sweep/combat-initiators.json")
+DEFAULT_LEDGER_NAME = "combat-sweep-ledger.json"
 DEFAULT_TIER = "archetypes"
 TIERS = ("archetypes", "initiators")
 DEFAULT_MAX_ROUNDS = 80
@@ -1461,16 +1463,36 @@ def select_initiator_rows(
     sample: int | None = None,
     seed: int = 20261004,
     resume_keys: Iterable[str] | None = None,
+    shard_index: int = 0,
+    shard_count: int = 1,
 ) -> dict[str, Any]:
-    done = set(resume_keys or ())
-    pool = [row for row in rows if str(row.get("key")) not in done]
-    skipped = len(rows) - len(pool)
-    if sample is not None and 0 <= sample < len(pool):
-        pool = random.Random(seed).sample(pool, sample)
-        pool.sort(key=lambda row: (KIND_ORDER.index(row["kind"]), row["token"], row["passage"]))
+    if shard_count < 1:
+        raise ValueError("shard_count must be >= 1")
+    if not 0 <= shard_index < shard_count:
+        raise ValueError("shard_index must satisfy 0 <= shard_index < shard_count")
+    planned = list(rows)
+    if sample is not None and 0 <= sample < len(planned):
+        planned = random.Random(seed).sample(planned, sample)
+        planned.sort(key=lambda row: (KIND_ORDER.index(row["kind"]), row["token"], row["passage"]))
     if limit is not None:
-        pool = pool[: max(0, limit)]
-    return {"selected": pool, "skipped_resume": skipped, "pool": len(rows)}
+        planned = planned[: max(0, limit)]
+    planned = planned[shard_index::shard_count]
+    done = set(str(key) for key in (resume_keys or ()))
+    selected = [row for row in planned if str(row.get("key")) not in done]
+    return {
+        "planned": planned,
+        "selected": selected,
+        "skipped_resume": len(planned) - len(selected),
+        "pool": len(rows),
+    }
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def run_initiator_rows(
@@ -1732,6 +1754,8 @@ def run(
     run_modes: bool = True,
     modes_only: bool = False,
     resume: bool = False,
+    shard_index: int = 0,
+    shard_count: int = 1,
     baseline_path_in: Path | None = None,
     save_baseline: bool = False,
     manifest_out: Path | None = DEFAULT_MANIFEST_OUT,
@@ -1780,7 +1804,28 @@ def run(
         manifest["path"] = str(manifest_out)
 
     out = out_dir or default_out_dir(tier)
-    resume_path = out / "combat-sweep-resume.json"
+    ledger_path = out / DEFAULT_LEDGER_NAME
+    legacy_resume_path = out / "combat-sweep-resume.json"
+    strategy = {
+        "tier": tier,
+        "shard_index": shard_index,
+        "shard_count": shard_count,
+        "seed": seed,
+        "limit": limit,
+        "sample": sample,
+        "max_rounds": max_rounds,
+        "timeout_ms": timeout_ms,
+        "run_modes": run_modes,
+        "modes_only": modes_only,
+    }
+    identity = sl.run_identity(
+        TOOL,
+        html_sha256=file_sha256(html_path),
+        fixture_digest=fixture_digest(variables),
+        tool_version="combat-sweep-v2",
+        plan_digest="",
+        strategy=strategy,
+    )
     report: dict[str, Any] = {
         "tool": TOOL,
         "target": str(target),
@@ -1812,7 +1857,20 @@ def run(
         "verdict_counts": {},
         "baseline": {"path": str(baseline_path_in) if baseline_path_in else None},
         "baseline_diff": None,
-        "resume": {"enabled": resume, "path": str(resume_path), "skipped": 0},
+        "resume": {
+            "enabled": resume,
+            "path": str(ledger_path),
+            "legacy_path": str(legacy_resume_path),
+            "skipped": 0,
+            "loaded_results": 0,
+            "diagnostics": [],
+        },
+        "ledger": {
+            "path": str(ledger_path),
+            "identity": identity,
+            "complete": None,
+            "validation": None,
+        },
         "started_at": started,
         "finished_at": None,
         "boot": None,
@@ -1822,6 +1880,9 @@ def run(
 
     selected_jobs: list[dict[str, Any]] = []
     selection: dict[str, Any] = {}
+    initiator_plan: list[dict[str, Any]] = []
+    expected_keys: list[str] = []
+    resume_results: list[dict[str, Any]] = []
     if tier == "archetypes":
         matrix = build_archetype_jobs(
             manifest["rows"],
@@ -1843,25 +1904,57 @@ def run(
         if modes_only:
             selected_jobs = []
     else:
-        resume_keys: set[str] = set()
-        if resume and resume_path.exists():
-            try:
-                payload = json.loads(resume_path.read_text(encoding="utf-8"))
-                resume_keys = set(str(key) for key in payload.get("completed") or [])
-            except Exception as exc:  # noqa: BLE001 - a broken resume file must not kill the run
-                report["resume"]["error"] = f"resume file unreadable: {exc}"[:200]
+        initiator_plan = select_initiator_rows(
+            manifest["rows"],
+            limit=limit,
+            sample=sample,
+            seed=seed,
+            shard_index=shard_index,
+            shard_count=shard_count,
+        )["planned"]
+        expected_keys = [str(row.get("key")) for row in initiator_plan]
+        plan_hash = sl.plan_digest(expected_keys, strategy)
+        identity["plan_digest"] = plan_hash
+        report["ledger"]["identity"] = identity
+        checkpoint = sl.load_ledger(ledger_path)
+        if resume:
+            usable, diagnostics, resume_results = sl.validate_resume(
+                identity, plan_hash, expected_keys, checkpoint
+            )
+            report["resume"]["diagnostics"] = diagnostics
+            report["resume"]["loaded_results"] = len(resume_results) if usable else 0
+            if not usable and checkpoint.get("status") not in {"missing", "corrupt"}:
+                report["resume"]["error"] = "checkpoint rejected: " + "; ".join(diagnostics[:4])
+        elif legacy_resume_path.exists():
+            report["resume"]["legacy_ignored"] = (
+                "legacy completed-only checkpoint is not valid resume evidence"
+            )
+
+        resumed_keys = {str(item.get("key")) for item in resume_results}
+        selected_rows = [
+            row for row in initiator_plan if str(row.get("key")) not in resumed_keys
+        ]
         selection = select_initiator_rows(
-            manifest["rows"], limit=limit, sample=sample, seed=seed, resume_keys=resume_keys
+            initiator_plan,
+            resume_keys=resumed_keys,
+            shard_index=0,
+            shard_count=1,
         )
-        selected_rows = list(selection.pop("selected", []))
+        selection.pop("planned", None)
         selection["limit"] = limit
         selection["sample"] = sample
         selection["seed"] = seed
-        selection["resume_keys"] = len(resume_keys)
+        selection["shard_index"] = shard_index
+        selection["shard_count"] = shard_count
+        selection["planned_count"] = len(initiator_plan)
+        selection["resume_keys"] = len(resumed_keys)
         selection["selected_count"] = len(selected_rows)
         selection["selected_preview"] = [row["key"] for row in selected_rows[:10]]
+        selection["planned_preview"] = expected_keys[:10]
+        selection["plan_digest"] = plan_hash
         selected_jobs = selected_rows
         report["resume"]["skipped"] = selection.get("skipped_resume", 0)
+        report["results"] = list(resume_results)
     report["selection"] = selection
 
     try:
@@ -1904,12 +1997,21 @@ def run(
                 if tier == "initiators" and selected_jobs:
                     print(
                         f"[combat] initiators: sweeping {len(selected_jobs)}/"
-                        f"{selection['pool']} rows (resume skipped {selection['skipped_resume']})",
+                        f"{len(initiator_plan)} rows in shard {shard_index}/{shard_count} "
+                        f"(resume skipped {selection['skipped_resume']})",
                         flush=True,
                     )
-                    completed: list[str] = []
-                    batch: list[dict[str, Any]] = []
                     total_jobs = len(selected_jobs)
+                    checkpoint: dict[str, Any] = {
+                        "status": "running",
+                        "identity": identity,
+                        "plan_digest": plan_hash,
+                        "planned_keys": list(expected_keys),
+                        "results": list(report["results"]),
+                        "completed": [
+                            str(item.get("key")) for item in report["results"] if item.get("key")
+                        ],
+                    }
                     for position, row in enumerate(selected_jobs, 1):
                         chunk = run_initiator_rows(
                             page,
@@ -1920,15 +2022,12 @@ def run(
                         )
                         result = chunk[0]
                         report["results"].append(result)
-                        completed.append(str(row.get("key")))
-                        batch.append(result)
+                        sl.merge_result(checkpoint, expected_keys, result)
                         _progress(result, position, total_jobs)
-                        if resume and len(batch) >= 25:
-                            _save_resume(resume_path, completed)
-                            batch = []
-                    if resume:
-                        _save_resume(resume_path, completed)
-                    report["resume"]["completed"] = len(completed)
+                        if position % 25 == 0:
+                            sl.save_ledger(ledger_path, checkpoint)
+                    sl.save_ledger(ledger_path, checkpoint)
+                    report["resume"]["completed"] = len(checkpoint.get("completed") or [])
 
                 if run_modes and not modes_only:
                     mode_entry = pick_mode_entry(selected_jobs)
@@ -1978,6 +2077,57 @@ def run(
     except Exception as exc:  # noqa: BLE001 - always emit a report
         report["fatal_error"] = f"{type(exc).__name__}: {exc}"[:600]
 
+    mode_failures = [
+        str(mode.get("mode"))
+        for mode in report.get("modes") or []
+        if mode.get("verdict") != "ok"
+    ]
+    if tier == "initiators":
+        order = {key: index for index, key in enumerate(expected_keys)}
+        report["results"].sort(key=lambda item: order.get(str(item.get("key")), len(order)))
+        report["resume"]["completed"] = len(report["results"])
+        complete, completeness_diagnostics, completeness_summary = sl.validate_complete(
+            expected_keys, report["results"]
+        )
+        if mode_failures:
+            complete = False
+            completeness_diagnostics.append(
+                "control mode failures: " + ", ".join(mode_failures)
+            )
+        report["completeness"] = {
+            "ok": complete,
+            "diagnostics": completeness_diagnostics,
+            "summary": completeness_summary,
+            "expected_keys": len(expected_keys),
+            "actual_results": len(report["results"]),
+        }
+        report["ledger"]["complete"] = complete
+        report["ledger"]["validation"] = report["completeness"]
+        merged_checkpoint = {
+            "status": "complete" if complete else "incomplete",
+            "identity": identity,
+            "plan_digest": plan_hash,
+            "planned_keys": list(expected_keys),
+            "results": list(report["results"]),
+            "completed": [
+                str(item.get("key")) for item in report["results"] if item.get("key")
+            ],
+        }
+        try:
+            sl.save_ledger(ledger_path, merged_checkpoint)
+        except Exception as exc:  # noqa: BLE001 - report remains the primary evidence
+            report["ledger"]["save_error"] = f"{type(exc).__name__}: {exc}"[:300]
+    else:
+        report["completeness"] = {
+            "ok": not mode_failures,
+            "diagnostics": (
+                ["control mode failures: " + ", ".join(mode_failures)]
+                if mode_failures
+                else []
+            ),
+            "summary": {"status": "complete" if not mode_failures else "incomplete"},
+        }
+
     console_errors = [
         line
         for line in (report.get("console_tail") or [])
@@ -2010,18 +2160,6 @@ def run(
         )
         print(f"[combat] baseline sealed -> {target_path}", flush=True)
     return report
-
-
-def _save_resume(path: Path, completed: Sequence[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {"tool": TOOL, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "completed": list(completed)},
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
 
 
 # --------------------------------------------------------------------------- #
@@ -2062,6 +2200,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bootstrap-settle-ms", type=int, default=1500)
     parser.add_argument("--headful", action="store_true", help="show the browser window")
     parser.add_argument("--resume", action="store_true", help="skip entry keys already in the resume file")
+    parser.add_argument("--shard-index", type=int, default=0, help="zero-based shard index")
+    parser.add_argument("--shard-count", type=int, default=1, help="total shard count")
     parser.add_argument("--baseline", type=Path, default=None, help="baseline json to diff against")
     parser.add_argument(
         "--save-baseline",
@@ -2089,6 +2229,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.fixture.exists():
         print(f"[combat] fixture does not exist: {args.fixture}")
         return 2
+    if args.shard_count < 1 or not 0 <= args.shard_index < args.shard_count:
+        print("[combat] invalid shard: require count >= 1 and 0 <= index < count")
+        return 2
     report = run(
         args.target,
         tier=args.tier,
@@ -2104,6 +2247,8 @@ def main(argv: list[str] | None = None) -> int:
         run_modes=not args.skip_modes,
         modes_only=args.modes_only,
         resume=args.resume,
+        shard_index=args.shard_index,
+        shard_count=args.shard_count,
         baseline_path_in=args.baseline,
         save_baseline=args.save_baseline,
         manifest_out=args.manifest_out,
@@ -2115,6 +2260,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[combat] report -> {out_dir / 'combat-sweep.md'}")
     hard = int((report.get("verdict_counts") or {}).get("hard_fail") or 0)
     if report.get("fatal_error"):
+        return 1
+    if not (report.get("completeness") or {}).get("ok", True):
         return 1
     return 1 if hard else 0
 

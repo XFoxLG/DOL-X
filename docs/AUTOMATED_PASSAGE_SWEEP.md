@@ -4,10 +4,12 @@
 **适用版本**: 0.5.11.9-XFox 1.0.0a 及之后
 **相关工具**: `tools/passage_sweep.py`、`tools/scenario_sweep.py`、`tools/combat_sweep.py`、
 `tools/env_matrix.py`、`tools/fixture_ladder.py`、`tools/save_safety_guard.py`、
-`tools/report_sanitize.py`、`tools/sweep_flow_assertions.py`
+`tools/report_sanitize.py`、`tools/sweep_flow_assertions.py`、`tools/sweep_ledger.py`、
+`tools/sweep_summary.py`
 **相关测试**: `tests/test_passage_sweep.py`、`tests/test_scenario_sweep.py`、
 `tests/test_combat_sweep.py`、`tests/test_env_matrix.py`、`tests/test_fixture_ladder.py`、
-`tests/test_save_safety_guard.py`、`tests/test_report_sanitize.py`
+`tests/test_save_safety_guard.py`、`tests/test_report_sanitize.py`、`tests/test_sweep_ledger.py`、
+`tests/test_sweep_summary.py`、`tests/test_sweep_workflow.py`
 
 > 本文是 Engine A 测试套件的总说明。§1-§2 是设计理由，§3 起是第二期新增的
 > 三轴（剧情/战斗/环境）、夹具阶梯、两层跑分与 CI 工作流；passage 轴原有的
@@ -115,7 +117,7 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
 | --- | --- | --- | --- |
 | **日常档** | 300 passage 抽样 + 331 场景 + 日循环 + 战斗原型矩阵 + 4 控制模式 + 环境日常档 + 5 条功能流 | ≤ 60 分钟 | 本机 |
 | **发版档** | 全量 passage + 363 场景 + 1,570 战斗入口 + 环境全矩阵 | 本地 3-4 小时 | 本机 |
-| **CI 档** | `full` 与 `combat-full` 两次手动触发，各 < 3.5 小时（单 job 上限 210 分钟） | GitHub Actions |
+| **CI 档** | 手动 `workflow_dispatch`：`daily` 单 job；`full` = 4 passage 分片 + 场景 + 8 环境分片 + 汇总；`combat-full` / `env-full` = 8 分片 + 汇总（每 job 上限 210 分钟） | GitHub Actions |
 
 发版门槛：三轴 0 `hard_fail` 且无新增回归；战斗 `fixture_insufficient` 列表与基线一致或更少；
 日循环为 `ok` 或如实的 `not_applicable`。
@@ -173,6 +175,10 @@ python tools\env_matrix.py --target $HTML --fixture $FIX --tier full  --out .loc
   `V.moonstate` 注入，**读回校验后才开跑**；读回不一致按设计记 `hard_fail`，绝不带错误环境继续。
 - passage 轴第二期新增 `--fixture` / `--fixture-patch` / `--context` / `--only-file` 四个参数，
   基线在有夹具/上下文时按 `{fixture}__{context}` 分组封存副本（`.local/sweep/baselines/`）。
+- 云端分片（第二期收尾）：四套 sweep 工具都支持 `--shard-index/--shard-count`，报告带
+  身份台账（`tools/sweep_ledger.py`）与 `completeness` 块；战斗 `--resume` 从台账合并
+  历史结果（旧版只记完成键的检查点被显式拒绝），环境每会话重建浏览器并可从崩溃恢复；
+  `tools/sweep_summary.py` 对全部分片做 fail-closed 汇总（缺片/重复/身份漂移退出码 1）。
 
 ### 4.5 报告脱敏（离开本机前）
 
@@ -356,9 +362,11 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 
 ### 8.6 单测
 
-`python -m pytest -q`：**510 passed**（原 310 + 第二期新增 + 战斗入口修复
-第二轮 +6；含 scenario 68、combat 49、env_matrix 27、fixture_ladder 20、
-save_safety_guard 16、report_sanitize 11、passage_sweep 28 等）。
+`python -m pytest -q`：**545 passed**（原 310 + 第二期新增 + 战斗入口修复
+第二轮 +6 + 云端分片设施 +33：`sweep_ledger` 16、`sweep_summary` 6、
+`sweep_workflow` 4 与 combat/env 测试扩写；含 scenario 68、combat 49+、
+env_matrix 27+、fixture_ladder 20、save_safety_guard 16、report_sanitize 11、
+passage_sweep 28 等）。
 
 ---
 
@@ -366,17 +374,31 @@ save_safety_guard 16、report_sanitize 11、passage_sweep 28 等）。
 
 `.github/workflows/sweep.yaml`，仅 `workflow_dispatch`，输入 `tier`：
 
-| tier | 内容 |
-| --- | --- |
-| `daily` | 300 passage 抽样 + 全部场景 + 日循环 + 战斗原型矩阵 + 环境日常档 |
-| `full` | 全量 passage + 全部场景 + 环境全矩阵 |
-| `combat-full` | 全部战斗入口逐条打到终局 |
-| `env-full` | 环境全矩阵单独重跑 |
+| tier | 内容 | 分片 |
+| --- | --- | --- |
+| `daily` | 300 passage 抽样 + 全部场景 + 日循环 + 战斗原型矩阵 + 环境日常档 | 单 job |
+| `full` | 全量 passage + 全部场景 + 环境全矩阵 | passage ×4 + 场景 ×1 + 环境 ×8，另加汇总 |
+| `combat-full` | 全部战斗入口逐条打到终局 | 战斗 ×8，另加汇总 |
+| `env-full` | 环境全矩阵单独重跑 | 环境 ×8，另加汇总 |
 
-流程：`checkout` → pytest → `prepare` 产出 HTML → **现场 capture 合成夹具** →
-按档位跑工具 → `report_sanitize` 脱敏并 `--check` 复核 → 上传 Artifact。
-单 job `timeout-minutes: 210`，`concurrency` 与 Build 分开排队；
-**真实存档与个人路径永不进入 CI**。发版验收 = `full` + `combat-full` 两次手动触发。
+云端四阶段结构：
+
+1. **prepare**（≤60 分钟）：`checkout` → pytest → `prepare` 产出 HTML → **现场 capture
+   合成夹具** → 把 HTML 与夹具作为 Artifact 上传，全部分片共享同一份已核验产物。
+2. **分片执行**（每分片 `timeout-minutes: 210`、`fail-fast: false`、`max-parallel: 4`）：
+   每个分片下载同一份 HTML/夹具，以 `--shard-index/--shard-count` 运行并写身份台账
+   （`tools/sweep_ledger.py`：`html_sha256`/夹具摘要/测试器版本/计划摘要 + 原子检查点；
+   旧版只有完成键的检查点显式拒绝）与 `completeness` 块；环境分片每 500 条重建浏览器、
+   崩溃最多重启 2 次，基础设施中断与用例结果分开记录。
+3. **白名单导出**：每个分片先把报告按白名单复制到独立 `sweep-reports/` 目录，再
+   `report_sanitize.py` 脱敏并 `--check` 复核，缺报告即失败；原始夹具与真实存档
+   不进上传目录。
+4. **summary**（≤30 分钟）：`tools/sweep_summary.py` 汇总全部 `sweep-*` Artifact，
+   核对预期分片数、逐份 completeness、键重复/缺失与 `html_sha256`/`fixture_digest`
+   身份一致性，任何异常退出码 1；缺分片、重复结果、身份漂移都不能封存为完整基线。
+
+`concurrency` 与 Build 分开排队；**真实存档与个人路径永不进入 CI**。
+发版验收 = `full` + `combat-full` 两次手动触发；分片数只影响调度，不改变覆盖范围。
 
 ---
 
@@ -388,7 +410,7 @@ $FIX  = ".local\fixtures\base-1004-fix8.json"
 $HTML = "workspace\prepare_package\zip\Degrees of Lewdity.html"
 
 python tools\quick_check.py                                   # 网络/依赖 13/13
-python -m pytest -q                                           # 全量单元测试（504）
+python -m pytest -q                                           # 全量单元测试（545）
 python tools\save_safety_guard.py                             # 仓库存档安全守卫
 python tools\au_artifact_check.py output\*.zip                # AU 产物审计
 
@@ -417,8 +439,11 @@ python tools\report_sanitize.py --check .local\sweep
 
 - passage：`passage-sweep.json`（机器可读全量结果）+ `passage-sweep.md`（人读报告）；
 - 场景/日循环：`scenario-sweep.json` + `scenario-manifest.json`（清单跨会话复现）；
-- 战斗：`combat-sweep.json` + `combat-initiators.json`（入口清单，`--resume` 依据）；
+- 战斗：`combat-sweep.json` + `combat-initiators.json`（入口清单）+
+  `combat-sweep-ledger.json`（身份台账与逐条结果，`--resume` 依据）；
 - 环境：`env-<tier>-report.json` + `env-<tier>-report.md`（含 8/4 个上下文的读回状态）；
+- 环境台账：`env-sweep-ledger.json`（身份 + 逐条结果 + 原子检查点）；分片汇总写在
+  `sweep-summary/sweep-summary.json` / `.md`（缺片/重复/身份漂移时报错）；
 - `--save-baseline` 时另写一份基线到 `.local/sweep/baselines/`（passage 轴按
   `{fixture}__{context}` 分组）；功能流断言目录里是 `flow-assertions.json` / `.md`。
 
