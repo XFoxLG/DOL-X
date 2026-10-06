@@ -970,14 +970,21 @@ def _derive_precursor_core(
     return info
 
 
-# Area state a real playthrough already carries when these passages run. The
+# State a real playthrough already carries when these passages run. The
 # synthetic rows jump straight into the fight, so the exit passage dies on the
-# area's own state widgets. Measured 2026-10-07 (``combat-deep-1007j``): of the
-# 16 deep rows, the 5 that still failed all died *after* the fight —
-# ``<<setTowerTemp>>`` reads ``$bird.upgrades.shelter``, ``<<pound_status>>``
-# reads ``$pound.status`` and the prison Finish reads ``$prison.attention`` /
-# ``$prison.schedule``. The fix replays the game's own area init widget
-# (``bird_init`` / ``pound_init`` / ``prison_init``) ahead of the beast chain.
+# area's (or event chain's) own state reads. Measured 2026-10-07:
+#
+# * ``combat-deep-1007j`` — of the 16 deep rows, the 5 that still failed all
+#   died *after* the fight: ``<<setTowerTemp>>`` reads ``$bird.upgrades.shelter``,
+#   ``<<pound_status>>`` reads ``$pound.status`` and the prison Finish reads
+#   ``$prison.attention`` / ``$prison.schedule``. Fix: replay the game's own
+#   area init widget (``bird_init`` / ``pound_init`` / ``prison_init``) ahead of
+#   the beast chain.
+# * ``combat-personn-1007i`` — the remaining fixture_insufficient rows are
+#   mid-event entries whose Finish reads state the parent event chain had
+#   already built (``$pubfame`` favour tasks, ``$farm_assault``, ``$island``,
+#   ``$bus``, ``C.npc.Sydney.init``). Fix: replay the chain's own initializer or
+#   seed the exact field the Finish writes, and nothing else.
 AREA_BOOTSTRAPS: tuple[dict[str, str], ...] = (
     {
         "pattern": r"^Bird\b",
@@ -1005,6 +1012,88 @@ AREA_BOOTSTRAPS: tuple[dict[str, str], ...] = (
             "generate_anxious_guard load slot 0 (its else-branch writes slot 1)"
         ),
     },
+    {
+        "pattern": r"^Bailey Sheet Fight\b",
+        "widgets": (
+            "<<set $pubfame to {seen: [], tasksDone: []}>>"
+            '<<set $pubfame.status to "accepted">>'
+            '<<set $pubfame.task to "bailey">>'
+            "<<set $pubfame.bailey to {}>>"
+            '<<set $pubfame.bailey.fight to "ready">>'
+        ),
+        "tag": "status-bootstrap:pubfame-bailey",
+        "evidence": (
+            "pubfame favour system seeds {seen, tasksDone} at Pub Fame Intro and "
+            "creates $pubfame[task] on accept; Bailey Sheet Fight Finish writes "
+            "$pubfame.bailey.fight"
+        ),
+    },
+    {
+        "pattern": r"^Farm Assault\b",
+        "widgets": (
+            '<<set $bus to "yard">>'
+            "<<if $farm is undefined>><<set $farm to {}>><</if>>"
+            "<<farm_assault_init>>"
+        ),
+        "tag": "status-bootstrap:farm_assault_init",
+        "evidence": (
+            "Farm Assault Start runs <<set $bus to 'yard'>><<farm_assault_init>>; "
+            "farm_assault_init reads $farm.kennel, so seed $farm first"
+        ),
+    },
+    {
+        "pattern": r"^Hospital Keycard\b",
+        "widgets": (
+            "<<set $pubfame to {seen: [], tasksDone: []}>>"
+            '<<set $pubfame.status to "accepted">>'
+            '<<set $pubfame.task to "hospital">>'
+            "<<set $pubfame.hospital to {}>>"
+        ),
+        "tag": "status-bootstrap:pubfame-hospital",
+        "evidence": (
+            "Hospital Keycard Seduce Sex Finish reads $pubfame.status; the "
+            "hospital favour is created by the pubfame accept flow"
+        ),
+    },
+    {
+        "pattern": r"^Island Wood\b",
+        "widgets": (
+            "<<island_init>>"
+            "<<if $island.wood is undefined>><<set $island.wood to 0>><</if>>"
+        ),
+        "tag": "status-bootstrap:island_init",
+        "evidence": (
+            "Island Wood Rape Finish does $island.wood += 3 and then "
+            "island_explore_end; island_init seeds $island (wood included)"
+        ),
+    },
+    {
+        "pattern": r"^Street Car\b",
+        "widgets": (
+            '<<if $bus is undefined>><<set $bus to "commercial">><</if>>'
+            '<<if $location isnot "alley">><<set $location to "alley">><</if>>'
+        ),
+        "tag": "status-bootstrap:street-bus",
+        "evidence": (
+            "Street Car Sex Finish builds its leave target from "
+            "$bus.toUpperFirst() plus ($location is 'alley' ? ' Alleyways' : "
+            "' Street'); the event triggers from alley street encounters"
+        ),
+    },
+    {
+        "pattern": r"^Temple Confess Sydney\b",
+        "widgets": (
+            "<<set C.npc.Sydney.init to 1>>"
+            "<<if $sydneySeen is undefined>><<set $sydneySeen to []>><</if>>"
+        ),
+        "tag": "status-bootstrap:sydney-init",
+        "evidence": (
+            "statusCheck('Sydney') only runs sydneyStatusCheck (which sets "
+            "_sydneyStatus / _sydneyChastity) when C.npc.Sydney.init is 1; the "
+            "game's own cheat scenes use <<set C.npc.X.init to 1>> and seed "
+            "$sydneySeen to [] (sydneyFinish does $sydneySeen.pushUnique)"
+        ),
+    },
 )
 
 
@@ -1024,11 +1113,12 @@ def derive_precursor(
     widget_bodies: Mapping[str, str] | None = None,
     max_depth: int = 2,
 ) -> dict[str, Any]:
-    """``_derive_precursor_core`` plus the area-state bootstrap prefix.
+    """``_derive_precursor_core`` plus the area/event-state bootstrap prefix.
 
     Only rows that already produced a beast chain are touched: without a chain
-    the area state alone cannot start the fight. The basis keeps both parts
-    (``<chain basis>|area-bootstrap:<widget>``) so a pass stays auditable.
+    the bootstrap state alone cannot start the fight. The basis keeps both
+    parts (``<chain basis>|area-bootstrap:<widget>`` /
+    ``<chain basis>|status-bootstrap:<name>``) so a pass stays auditable.
     """
     info = _derive_precursor_core(
         row,
