@@ -812,6 +812,37 @@ passage='Start' after 789 steps`——789 次点击几乎全是 `dismiss_modal`�
 `baseline_diff`：**new_regressions 0 / fixed 80**。新增单测 6 条（分类四分支、赋值汇总、
 function widget 不可静态检查、失败赋值 → soft_fail），`pytest` **642 passed**。
 
+**第六轮（同日）：Maplebirch 欢迎框 checkbox-gated 死循环（run 37544629870 / 37544640529 / 37546495918）**
+
+三个云端 run 全部红在同一形态：`bootstrap did not reach gameplay; last passage='Start'
+after 1245-1252 steps (deadline_hit=True)`，action trail 清一色
+`{"action": "click_startup_control", "clicked": true, "text": "I Understand"}`。根因不是慢：
+maplebirch 4.1.14 的框架欢迎框是 `<<dialog>>` + `<<checkbox '_maplebirchNoticeVerify'>>`
+（渲染成真实 `input#checkbox--maplebirchnoticeverify`）+ `<<button "I Understand">>`，
+按钮体的 `<<if _maplebirchNoticeVerify>>` 不成立时**只关不掉对话框**。旧逻辑三处缺口叠加：
+英文勾选说明 `I have read and understood the notice above` 不在 `STARTUP_CONSENT_LABELS`
+里（无法走勾选分支）、重复断路器只覆盖 `dismiss_modal/sweetalert`（页面级 confirm 不算
+重复）、`skipKeys` 只比对容器文本（对无 root 的页面级点击无效），于是"点击成功"的假进度
+吃满 19 分钟预算。此前本机没复现（中文标签分支命中情况与冷启动速度都和 runner 不同），
+所以只能从 CI 报告与 mod 源码取证，不能拿本机冒烟当对照。
+
+修复（全部在测试器侧，不碰发行包）：
+
+- `browser_smoke_test._startup_interaction_script` 新增 `accept_framework_notice` 分支：
+  见到 `checkbox--maplebirchnoticeverify` 先勾选再点确认按钮，`checkbox_checked` 记进 trail；
+- 新增通用 `ensureGateCheckboxes`：任何 confirm 候选点击前，自动勾选最近的门控容器内
+  未勾选 checkbox（同类"先勾选后确认"的 mod 门一并覆盖）；`skipTextHit` 让 `skipKeys`
+  同时按候选按钮文本匹配（含 `all_candidates_skipped` 归因）；
+- `STARTUP_CONSENT_LABELS` 补英文/中文两条 maplebirch 勾选说明；`passage_sweep`
+  的重复 key 扩到 `click_startup_control` / `accept_consent_gate` /
+  `accept_framework_notice`，页面级确认按 `button_text` 而非整页文本做 key。
+
+证据：真实产物（base-1003，37 mod，同锁定栈）本机 bootstrap **4 步**到 `Orphanage Intro`
+（`.local/sweep/bootcheck/`，trail = 年龄门 → `accept_framework_notice` 勾选后点击 →
+`(1) 开始游戏！` → `(1) 继续`）；新增 2 条真实 DOM 测试（Chromium 驱动
+`_startup_interaction_script`：Maplebirch 表单一次点掉、skipKeys 生效后不再点击）与 3 条
+passage_sweep 单测；`pytest` **647 passed**。云端复跑仍按 daily → combat-full 顺序验证。
+
 ---
 
 ## 9. 一键复现清单（发版前）
