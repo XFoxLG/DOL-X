@@ -626,6 +626,36 @@ def test_filter_passages_reports_missing_names() -> None:
     assert missing == ["Nope"]
 
 
+def test_apply_only_file_keeps_runtime_only_mod_passages() -> None:
+    """mod passage 只在运行时合并，--allow-runtime-only 时按名字保留。"""
+    from tools.passage_sweep import Passage, apply_only_file
+
+    passages = [Passage(name="A", body=""), Passage(name="B", body="")]
+    names = ["A", "Food Preference"]
+
+    kept, missing, runtime_only = apply_only_file(passages, names)
+    assert [p.name for p in kept] == ["A"]
+    assert missing == ["Food Preference"]
+    assert runtime_only == []
+
+    kept, missing, runtime_only = apply_only_file(passages, names, allow_runtime_only=True)
+    assert [p.name for p in kept] == ["A", "Food Preference"]
+    assert kept[-1].body == ""
+    assert missing == []
+    assert runtime_only == ["Food Preference"]
+
+
+def test_parse_args_accepts_allow_runtime_only() -> None:
+    from tools.passage_sweep import parse_args
+
+    args = parse_args(
+        ["target.html", "--only-file", "mod-passages.txt", "--allow-runtime-only"]
+    )
+
+    assert args.allow_runtime_only is True
+    assert args.only_file is not None
+
+
 def test_load_fixture_file_accepts_capture_format(tmp_path: Path) -> None:
     from tools.passage_sweep import load_fixture_file
 

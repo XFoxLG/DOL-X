@@ -34,6 +34,20 @@
 
 ### Added
 
+- **mod passage 盘点 + `--allow-runtime-only`（2026-10-07 同日第七轮）**：静态
+  `extract_passages` 只能看到 HTML 文件里的 15,627 条 vanilla passage，37 个内嵌 mod 的
+  twee 是 base64 payload、由 ModLoader 在运行时合并——此前"15,627 全通过"不含任何 mod
+  内容。新增 `tools/mod_passage_inventory.py`：一次真实启动后取运行时 DOM passage /
+  `SugarCube.Story.lookup('passages')` / `Macro.has`，按 payload 里的 `:: Name` 与
+  `<<widget "name">>` 反查来源，产出 JSON+MD 与可游玩清单；实测 au-f-1003：静态 15,627、
+  运行时 15,664（+37 mod passage）= 4 条可游玩（`CE_Wardrobe` / `CustomDyeHair` /
+  `CustomHairPassage` / `Food Preference`）+ 33 条 widget 定义（34 个 widget 宏，启动
+  已注册 32）+ 1 个加密不透明 mod（`【AUsDoL】facial expansion`，`.zip.crypt/.salt/.nonce`，
+  按既定策略不解密、只走运行时黑盒）。`passage_sweep` 新增 `--allow-runtime-only`，让
+  `--only-file` 里静态看不到的 mod passage 也进入扫描（本机 4/4 ok，报告记录
+  `only_file.runtime_only`）；daily 云端档接入"盘点 → 扫可游玩 mod passage"，空清单
+  视为覆盖回归。加密 mod 的可测路径 = Engine A `au-face` 流 + Engine B MuMu 真机。
+  新增 13 条单测，`pytest` **660 passed**。
 - **剧情轴行分类 + 深度摘要 + 赋值前置检查（2026-10-07 同日第五轮）**：1006 剧情跑分
   82 条 `soft_fail` 里有 80 条是同一句"widgets produced no observable state delta"——
   浅层摘要只取一层、数组/对象前 8 个成员，嵌套写入（`<<learn_recipe_all>>` / `<<undress>>` /

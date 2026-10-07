@@ -843,6 +843,41 @@ maplebirch 4.1.14 的框架欢迎框是 `<<dialog>>` + `<<checkbox '_maplebirchN
 `_startup_interaction_script`：Maplebirch 表单一次点掉、skipKeys 生效后不再点击）与 3 条
 passage_sweep 单测；`pytest` **647 passed**。云端复跑仍按 daily → combat-full 顺序验证。
 
+**第七轮（同日）：mod passage 盘点 + `--allow-runtime-only`（本机 base-1003 / au-f-1003）**
+
+先纠正一个口径：静态 `extract_passages` 只解析 HTML 文件里的 `<tw-passagedata>`，在锁定栈上
+是 15,627 条 **vanilla** passage。37 个内嵌 mod 的 twee 是 `window.modDataValueZipList` 的
+base64 payload，ModLoader 只在运行时把它们合并进 DOM 与 `SugarCube.Story`——所以此前所有
+"15,627 全通过"的报告**没有覆盖任何 mod passage**。
+
+补的门是 `tools/mod_passage_inventory.py`：启动一次真实载体，取运行时 DOM passage
+（base 15,663 / au-f 15,664）、`SugarCube.Story.lookup('passages')`（15,219，widget 定义的
+passage 不进 Story）与 `Macro.has`，再按 payload 里的 `:: Name`、`<<widget "name">>` 反查
+来源 mod，产出 JSON + MD（工作流里命名为 `*-report.json/md` 以进入脱敏白名单）。
+
+实测（au-f-1003，同一锁定栈）：
+
+| 口径 | 数量 | 说明 |
+| --- | --- | --- |
+| 静态文件 passage | 15,627 | 只有 vanilla |
+| 运行时 DOM passage | 15,664 | +37 条 mod 合并 |
+| 运行时独有 = mod passage | 37 | `CE_*` / CustomHair / More Love / DOLI / NPC Avatars / Yanling / longer-combat / npcpic … |
+| 其中可游玩 passage | 4 | `CE_Wardrobe`、`CustomDyeHair`、`CustomHairPassage`、`Food Preference` |
+| 其中 widget 定义 | 33 | 声明 34 个 widget 宏，启动快照已注册 32（`swich_teleportation` / `swich_yanling` 懒注册） |
+| 加密（不透明）mod | 1 | `【AUsDoL】facial expansion 1.1.0`：`.zip.crypt/.salt/.nonce` |
+
+让 mod passage 真正进入扫描的开关是 `passage_sweep --only-file <清单> --allow-runtime-only`：
+静态解析不到的名单按"运行时独有"保留（不当作漂移丢弃）。本机对 au-f-1003 跑这 4 条 =
+**4/4 ok**（`CE_Wardrobe` 423 字/37 链接、`CustomHairPassage` 632 字/4 链接、`CustomDyeHair`、
+`Food Preference`），并将结果写进 `only_file.runtime_only` 供归因。daily 云端档已接入这条
+链路：先盘点、再扫可游玩 mod passage，清单为空视为覆盖回归（`::error::`）。
+
+**加密 mod 的边界**：静态侧只能识别"这是密文"（payload 内层是 `.crypt/.salt/.nonce`），
+内层 passage / widget **读不到**；按 `UPSTREAM_FRIENDLY_STRATEGY.md`「避免解密、拆包重分发」
+与 `docs/AU_MODS_INTEGRATION.md` 的既定边界，不做白盒解密。可测路径只剩黑盒运行时：
+Engine A 的 `au-face` 流（八脸型 + 桌宠 canvas 像素）与 Engine B MuMu 真机
+（`tools/mumu_apk_smoke.py`）——这条与本轮 mod 盘点并列，不互相替代。
+
 ---
 
 ## 9. 一键复现清单（发版前）

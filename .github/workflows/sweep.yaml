@@ -182,6 +182,22 @@ jobs:
           test -n "${HTML}"
           test -n "${FIXTURE}"
           STATUS=0
+          # Mod 内容（2026-10-07）：mod passage 只在运行时合并进 Story，静态
+          # extract_passages 永远看不到。先盘点（可游玩 / widget / 加密不透明），
+          # 再把可游玩 passage 纳入扫描；列表为空视为覆盖回归。
+          python tools/mod_passage_inventory.py "$HTML" \
+            --out .local/sweep/daily-mod-inventory \
+            --json .local/sweep/daily-mod-inventory/mod-inventory-report.json \
+            --md .local/sweep/daily-mod-inventory/mod-inventory-report.md \
+            --write-list .local/sweep/daily-mod-passages.txt || STATUS=1
+          if [ ! -s .local/sweep/daily-mod-passages.txt ]; then
+            echo "::error::mod inventory produced an empty playable-passage list"
+            STATUS=1
+          else
+            python tools/passage_sweep.py "$HTML" \
+              --only-file .local/sweep/daily-mod-passages.txt --allow-runtime-only \
+              --out .local/sweep/daily-mod-passages || STATUS=1
+          fi
           python tools/passage_sweep.py "$HTML" --fixture "$FIXTURE" \
             --sample 300 --seed "$SWEEP_SEED" --out .local/sweep/daily-passage || STATUS=1
           python tools/scenario_sweep.py "$HTML" --fixture "$FIXTURE" \
@@ -191,7 +207,7 @@ jobs:
           python tools/env_matrix.py --target "$HTML" --fixture "$FIXTURE" \
             --tier daily --seed "$SWEEP_SEED" --out .local/sweep/daily-env || STATUS=1
           if [ "${STATUS}" -ne 0 ]; then
-            echo "::error::daily tier reported failures; all four axes still ran for a complete report set"
+            echo "::error::daily tier reported failures; mod inventory + all four sweep axes still ran for a complete report set"
           fi
           exit "${STATUS}"
       - name: Export sanitized reports
