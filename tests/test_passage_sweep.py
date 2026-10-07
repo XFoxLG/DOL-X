@@ -137,9 +137,28 @@ def test_startup_repeat_key_only_for_dismiss_actions() -> None:
     from tools import passage_sweep as ps
 
     assert ps._startup_repeat_key({"action": "no_action"}) is None
+    # Page-level confirms key on the button label, not the unstable page text.
+    assert ps._startup_repeat_key({"action": "click_startup_control", "text_sample": "x"}) is None
     assert (
-        ps._startup_repeat_key({"action": "click_startup_control", "text_sample": "x"})
-        is None
+        ps._startup_repeat_key(
+            {
+                "action": "click_startup_control",
+                "clicked": True,
+                "button_text": "  I Understand  ",
+                "text_sample": "whole page text",
+            }
+        )
+        == "I Understand"
+    )
+    assert (
+        ps._startup_repeat_key(
+            {
+                "action": "accept_framework_notice",
+                "clicked": True,
+                "button_text": "我已知晓",
+            }
+        )
+        == "我已知晓"
     )
     assert ps._startup_repeat_key({"action": "dismiss_modal", "text_sample": "   "}) is None
     key = ps._startup_repeat_key(
@@ -157,6 +176,80 @@ def test_startup_interaction_script_supports_skip_keys() -> None:
     assert "skipKeys" in script
     assert "skipHit" in script
     assert "slice(0, 120)" in script
+
+
+def test_startup_interaction_script_handles_checkbox_gated_confirm() -> None:
+    """CI 37544629870：Maplebirch 欢迎框必须先勾选再点 I Understand。"""
+    from tools import browser_smoke_test as bst
+
+    script = bst._startup_interaction_script()
+    assert "skipTextHit" in script
+    assert "ensureGateCheckboxes" in script
+    assert "all_candidates_skipped" in script
+    # <<checkbox '_maplebirchNoticeVerify'>> 渲染出的真实 input id
+    assert "checkbox--maplebirchnoticeverify" in script
+    assert "accept_framework_notice" in script
+
+
+def test_startup_consent_labels_cover_maplebirch_notice() -> None:
+    from tools import browser_smoke_test as bst
+
+    labels = bst.STARTUP_CONSENT_LABELS
+    assert "I have read and understood the notice above" in labels
+    assert "我已阅读并已经了解上述说明" in labels
+
+
+class _RepeatingPageConfirmPage(_FakeStartupPage):
+    """页面级 confirm 永远点不消失（CI 37544629870 的 I Understand 死循环）。"""
+
+    def __init__(self, button: str = "I Understand") -> None:
+        super().__init__(passage="Start", clicked=True)
+        self.button = button
+        self.clicked_calls = 0
+        self.first_skip_call: int | None = None
+
+    def evaluate(self, script: str, *args):
+        assert script in (self._ready_script, self._interaction_script)
+        self.evaluations += 1
+        if script == self._ready_script:
+            return {"passage": self.passage, "ready": True}
+        options = args[0] if args else None
+        skipped = self.button in list((options or {}).get("skipKeys") or [])
+        self.actions += 1
+        if skipped:
+            if self.first_skip_call is None:
+                self.first_skip_call = self.actions - 1
+            return {
+                "action": "no_action",
+                "clicked": False,
+                "reason": "all_candidates_skipped",
+            }
+        self.clicked_calls += 1
+        return {
+            "action": "click_startup_control",
+            "clicked": True,
+            "button_text": self.button,
+            "text_sample": "page text that keeps changing",
+        }
+
+
+def test_reach_gameplay_skips_repeated_page_confirm_button() -> None:
+    """同一按钮连点 25 次无效后进入 skipKeys，并由 no-progress 早停。"""
+    from tools import passage_sweep as ps
+
+    page = _RepeatingPageConfirmPage()
+    info = ps._reach_gameplay(page, steps=400, no_progress_limit=40, deadline_s=0)
+
+    assert info["skip_keys"] == ["I Understand"]
+    # 25 次点击（step 0..24）+ 40 次 no-action（step 25..64）→ 第 65 次前 break
+    assert info["steps"] == 25 + 40 - 1
+    assert info["no_progress_steps"] == 40
+    assert info["deadline_hit"] is False
+    assert page.actions == 65
+    assert page.clicked_calls == 25
+    # 第 26 次交互（索引 25）开始带 skipKeys
+    assert page.first_skip_call == 25
+    assert info["actions"][-1]["clicked"] is False
 
 
 def test_reach_gameplay_skips_repeated_dismissal_root() -> None:

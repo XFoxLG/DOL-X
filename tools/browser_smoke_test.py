@@ -762,8 +762,10 @@ STARTUP_INTERACTION_MAX_STEPS = 45
 STARTUP_CONSENT_LABELS: tuple[str, ...] = (
     "我确定我已年满十八岁",
     "我已阅读并理解上述说明",
+    "我已阅读并已经了解上述说明",
     "I confirm I am at least 18",
     "I have read and understand",
+    "I have read and understood the notice above",
 )
 
 
@@ -1084,9 +1086,19 @@ def _startup_interaction_script() -> str:
       // (e.g. an always-visible overlay whose confirm button reopens itself).
       // Skipping them lets the loop try other controls instead of spinning.
       const skipKeys = Array.isArray(options.skipKeys) ? options.skipKeys : [];
-      const skipHit = (element) => skipKeys.some(
-        (key) => key && textOf(element).slice(0, 120).trim() === key
-      );
+      // 2026-10-07 (CI run 37544629870): a confirm button can also loop forever
+      // when its dialog only closes after a checkbox is ticked (Maplebirch
+      // framework notice). The caller therefore keys repeats on the button
+      // text as well, and both root texts and candidate labels are compared
+      // case-insensitively against the same skip list.
+      const skipTextHit = (text) => {
+        const normalized = String(text || '').slice(0, 120).trim().toLowerCase();
+        if (!normalized) return false;
+        return skipKeys.some(
+          (key) => key && String(key).slice(0, 120).trim().toLowerCase() === normalized
+        );
+      };
+      const skipHit = (element) => skipTextHit(textOf(element).slice(0, 120));
       const visible = (element) => Boolean(
         element &&
         (element.offsetWidth || element.offsetHeight || element.getClientRects().length) &&
@@ -1128,12 +1140,15 @@ def _startup_interaction_script() -> str:
         }))
         .filter((candidate) => candidate.text.length > 0);
       const clickMatchingControl = (root, labels = confirmLabels) => {
-        const candidates = controlsIn(root);
+        const allCandidates = controlsIn(root);
+        const candidates = allCandidates.filter((candidate) => !skipTextHit(candidate.text));
+        const skipped = allCandidates.length - candidates.length;
         const matched = candidates.find((candidate) => matchesLabel(candidate.text, labels));
         if (!matched) {
           return {
             clicked: false,
-            reason: candidates.length ? 'no_matching_label' : 'no_candidate',
+            reason: candidates.length ? 'no_matching_label' : (skipped ? 'all_candidates_skipped' : 'no_candidate'),
+            skipped_candidates: skipped,
             candidates: candidates.slice(0, 20).map(({ text, tag, id, className }) => ({ text, tag, id, className })),
           };
         }
@@ -1141,6 +1156,11 @@ def _startup_interaction_script() -> str:
           matched.element.disabled = false;
           matched.element.removeAttribute('disabled');
         }
+        // Mod gates (Maplebirch framework notice, consent dialogs) keep the
+        // confirm button inert until their checkbox is ticked. Ticking the
+        // closest checkbox container before the click turns an infinite
+        // "clicked but nothing happens" loop into a real dismissal.
+        const checkboxChecked = ensureGateCheckboxes(matched.element);
         matched.element.click();
         return {
           clicked: true,
@@ -1148,6 +1168,7 @@ def _startup_interaction_script() -> str:
           tag: matched.tag,
           id: matched.id,
           className: matched.className,
+          checkbox_checked: checkboxChecked,
         };
       };
       const firstVisibleModalWithText = (needle) => {
@@ -1181,6 +1202,67 @@ def _startup_interaction_script() -> str:
         checkbox.dispatchEvent(new Event('click', { bubbles: true }));
         return Boolean(checkbox.checked);
       };
+      // Walk up from the control that is about to be clicked and tick the
+      // checkboxes of the nearest gate container (dialog body / modal panel).
+      // SugarCube's <<checkbox>> widget renders a real input, so this covers
+      // Maplebirch's framework notice and any mod gate that follows the same
+      // "acknowledge, then confirm" pattern.
+      const ensureGateCheckboxes = (element) => {
+        const checkedIds = [];
+        let node = element ? element.parentElement : null;
+        let depth = 0;
+        while (node && node !== document.body && depth < 6) {
+          const checkboxes = Array.from(node.querySelectorAll('input[type="checkbox"]'));
+          if (checkboxes.length && textOf(node).length <= 2000) {
+            for (const checkbox of checkboxes) {
+              if (!checkbox.checked) {
+                setCheckboxChecked(checkbox, checkbox.closest('label'));
+              }
+              if (checkbox.checked) {
+                checkedIds.push(checkbox.id || 'checkbox');
+              }
+            }
+            if (checkedIds.length) return checkedIds;
+          }
+          node = node.parentElement;
+          depth += 1;
+        }
+        return checkedIds;
+      };
+
+      // Maplebirch framework notice (4.1.x): a <<dialog>> with a
+      // <<checkbox '_maplebirchNoticeVerify'>> and an "I Understand" button
+      // whose handler only closes the dialog when the checkbox is ticked.
+      // CI run 37544629870 spent the whole bootstrap budget clicking the
+      // inert button; tick the acknowledged checkbox first, then confirm.
+      const frameworkNoticeCheckbox =
+        document.getElementById('checkbox--maplebirchnoticeverify') ||
+        Array.from(document.querySelectorAll('input[type="checkbox"]'))
+          .find((input) => /maplebirchnoticeverify/i.test(input.id || ''));
+      const frameworkNoticeLabel = frameworkNoticeCheckbox
+        ? frameworkNoticeCheckbox.closest('label')
+        : null;
+      if (
+        frameworkNoticeCheckbox &&
+        (visible(frameworkNoticeCheckbox) || (frameworkNoticeLabel && visible(frameworkNoticeLabel)))
+      ) {
+        const noticeRoot = frameworkNoticeCheckbox.closest('div, dialog, section, form') || document.body;
+        const checked = setCheckboxChecked(
+          frameworkNoticeCheckbox,
+          frameworkNoticeCheckbox.closest('label')
+        );
+        let noticeClick = clickMatchingControl(noticeRoot, confirmLabels);
+        if (!noticeClick.clicked) noticeClick = clickMatchingControl(document, confirmLabels);
+        return {
+          action: 'accept_framework_notice',
+          clicked: Boolean(noticeClick.clicked),
+          checkbox_checked: checked,
+          checkbox_id: frameworkNoticeCheckbox.id || null,
+          button_text: noticeClick.text || null,
+          root_selector: simpleSelector(noticeRoot),
+          text_sample: textOf(noticeRoot).slice(0, 500),
+        };
+      }
 
       const swal = Array.from(document.querySelectorAll('.swal2-container, .swal2-popup')).find(visible);
       if (swal) {

@@ -13,6 +13,25 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI 冷启动 Maplebirch 欢迎框死循环（2026-10-07 同日第六轮）**：daily / combat-full /
+  full 三个云端 run 全部红在 `bootstrap did not reach gameplay; last passage='Start'
+  after 1245-1252 steps (deadline_hit=True)`，action trail 全是
+  `click_startup_control` 点击 `I Understand`。根因是 maplebirch 4.1.14 框架欢迎框的
+  确认按钮只在 `<<checkbox '_maplebirchNoticeVerify'>>`（真实 input
+  `checkbox--maplebirchnoticeverify`）勾选后才关闭对话框，而测试器只点按钮不勾选、
+  英文勾选说明 `I have read and understood the notice above` 又不在 consent 名单里，
+  重复断路器也不覆盖页面级 confirm。修复：`browser_smoke_test` 新增
+  `accept_framework_notice` 分支与通用 `ensureGateCheckboxes`（confirm 前自动勾选最近
+  门控容器内的 checkbox）、`skipKeys` 支持按候选按钮文本匹配，`STARTUP_CONSENT_LABELS`
+  补中文/英文两条 maplebirch 勾选说明；`passage_sweep` 重复 key 扩到
+  `click_startup_control` / `accept_consent_gate` / `accept_framework_notice` 并改按
+  `button_text` 记 key，trail 记录 `checkbox_checked`。真实产物（base-1003，37 mod）
+  本机 bootstrap **4 步**进入 `Orphanage Intro`（`.local/sweep/bootcheck/`，含
+  `accept_framework_notice` 勾选后点击证据）；新增 2 条真实 DOM 测试（Chromium 驱动
+  `_startup_interaction_script`）+ 3 条 passage_sweep 单测，`pytest` **647 passed**。
+
 ### Added
 
 - **剧情轴行分类 + 深度摘要 + 赋值前置检查（2026-10-07 同日第五轮）**：1006 剧情跑分

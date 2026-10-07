@@ -514,20 +514,42 @@ STARTUP_DEADLINE_S = 1140
 STARTUP_REPEAT_SKIP_AFTER = 25
 STARTUP_SKIP_SAMPLE_CHARS = 120
 STARTUP_REPEAT_ACTIONS = frozenset(
-    {"dismiss_modal", "dismiss_sweetalert", "fill_custom_spellbook_password"}
+    {
+        "dismiss_modal",
+        "dismiss_sweetalert",
+        "fill_custom_spellbook_password",
+        "accept_consent_gate",
+        "accept_framework_notice",
+        "click_startup_control",
+    }
+)
+# Actions whose repeat identity is the clicked control's label. The browser
+# side matches skip keys against both the container text and each candidate
+# button label, so a page-level confirm button can be skipped by its own text
+# (CI run 37544629870: ``click_startup_control`` on an inert "I Understand"
+# button repeated 1,245 times because the repeat set only covered modals).
+STARTUP_REPEAT_BUTTON_ACTIONS = frozenset(
+    {"accept_consent_gate", "accept_framework_notice", "click_startup_control"}
 )
 
 
 def _startup_repeat_key(action: dict[str, Any]) -> str | None:
     """Skip key for dismiss-style startup actions that keep repeating.
 
-    Only dismissal actions qualify: they are the ones that can spin on an
-    always-visible overlay whose confirm button does nothing. The key is the
-    normalized root text (first ``STARTUP_SKIP_SAMPLE_CHARS`` chars), which the
-    browser side compares against the same slice of ``textOf(root)``.
+    Only dismissal/confirm actions qualify: they are the ones that can spin on
+    an always-visible overlay whose confirm button does nothing. Page-level
+    confirm clicks key on the button label (``button_text``); modal dismissals
+    key on the normalized root text sample. The browser side compares both
+    against the same 120-char slice, case-insensitively.
     """
-    if str(action.get("action") or "") not in STARTUP_REPEAT_ACTIONS:
+    name = str(action.get("action") or "")
+    if name not in STARTUP_REPEAT_ACTIONS:
         return None
+    if name in STARTUP_REPEAT_BUTTON_ACTIONS:
+        button = str(action.get("button_text") or "").strip()
+        # Page-level confirms are identified by their own label; the page text
+        # sample is too unstable to serve as a skip key.
+        return button[:STARTUP_SKIP_SAMPLE_CHARS] if button else None
     sample = str(action.get("text_sample") or "")[:STARTUP_SKIP_SAMPLE_CHARS].strip()
     return sample or None
 
@@ -623,6 +645,8 @@ def _reach_gameplay(
                 or action.get("label")
                 or action.get("button_text"),
             }
+            if action.get("checkbox_checked"):
+                entry["checkbox_checked"] = action.get("checkbox_checked")
             root = action.get("root_selector") or action.get("simple_selector")
             if root:
                 entry["root"] = str(root)[:120]
