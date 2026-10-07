@@ -144,6 +144,29 @@ def filter_passages(passages: list[Passage], names: list[str]) -> tuple[list[Pas
     return kept, missing
 
 
+def apply_only_file(
+    passages: list[Passage],
+    names: list[str],
+    *,
+    allow_runtime_only: bool = False,
+) -> tuple[list[Passage], list[str], list[str]]:
+    """Resolve an ``--only-file`` request against the static passage list.
+
+    ModLoader merges mod twee into the runtime story rather than the HTML file,
+    so ``extract_passages`` cannot see mod passages. With
+    ``allow_runtime_only`` those names are kept (empty body) instead of being
+    dropped as drift, because ``Engine.play`` can still reach them at runtime.
+
+    Returns ``(kept, missing, runtime_only)``.
+    """
+    kept, missing = filter_passages(passages, names)
+    if not allow_runtime_only or not missing:
+        return kept, missing, []
+    runtime_only = list(missing)
+    kept = [*kept, *(Passage(name=name, body="") for name in runtime_only)]
+    return kept, [], runtime_only
+
+
 def load_fixture_file(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load a fixture JSON (fixture_ladder ``capture`` format or a flat dict).
 
@@ -1114,6 +1137,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="file with passage names to sweep (one per line, # comments ignored)",
     )
+    p.add_argument(
+        "--allow-runtime-only",
+        action="store_true",
+        help=(
+            "keep --only-file names that are absent from the static story data; "
+            "mod passages are merged into SugarCube at runtime and can still be "
+            "played with Engine.play (see tools/mod_passage_inventory.py)"
+        ),
+    )
     return p.parse_args(argv)
 
 
@@ -1127,12 +1159,15 @@ def main(argv: list[str] | None = None) -> int:
         if not args.only_file.exists():
             raise SystemExit(f"--only-file not found: {args.only_file}")
         names = parse_only_file(args.only_file)
-        passages, missing = filter_passages(passages, names)
+        passages, missing, runtime_only = apply_only_file(
+            passages, names, allow_runtime_only=args.allow_runtime_only
+        )
         only_meta = {
             "source": str(args.only_file),
             "requested": len(names),
             "kept": len(passages),
             "missing": missing,
+            "runtime_only": runtime_only,
         }
         if missing:
             print(f"[sweep] WARNING: {len(missing)} requested passage(s) not found: {missing[:8]}")
