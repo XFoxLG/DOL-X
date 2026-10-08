@@ -2013,6 +2013,7 @@ class DayloopStep:
     action_keywords: tuple[str, ...] = ()
     min_minutes: int = 0
     completion: str = "passage"
+    route_hops: tuple[str, ...] = ()
 
 
 # 2026-10-08 rewrite. The old table was pure keyword matching, so the day
@@ -2067,6 +2068,11 @@ DAYLOOP_STEPS: tuple[DayloopStep, ...] = (
         ("学校", "上学", "school"),
         target_passages=("School Front Courtyard", "School"),
         waypoints=("Barb Street", "Oxford Street"),
+        # Verified 2026-10-08 (probe_bus_school): the Domus Street -> Bus ->
+        # Oxford Street leg is the reliable morning route; both links render
+        # localized labels over ``data-passage="Bus seat"`` so they must be
+        # matched by keyword.
+        route_hops=("公交车", "等待", "bus", "牛津", "oxford"),
     ),
     DayloopStep(
         "上课",
@@ -2877,6 +2883,12 @@ DAYLOOP_PREP = r"""
     // every combat action widget render an error box instead of radios.
     try { if (V.options) V.options.combatControls = "radio"; } catch (e) {}
     try { if ("combatControls" in V) V.combatControls = "radio"; } catch (e) {}
+    // Verified 2026-10-08 (probe_sleep_drive): ``sleephour`` breaks on its very
+    // first iteration when ``Time.schoolDay && Time.hour is 7 &&
+    // !$daily.baileyWake`` - Bailey wakes the PC for school. A prep that lands
+    // on 7:00 therefore leaves zero sleep time on the table unless the wake
+    // flag is already spent, exactly like on a second night in real play.
+    try { if (V.daily) V.daily.baileyWake = true; } catch (e) {}
     // Rewind to the opening passage so the scripted tutorial continuation can
     // be clicked exactly like a player would (the street links only appear
     // after ``Tutorial Finish``).
@@ -3365,6 +3377,37 @@ def run_dayloop(
             for _ in range(max_clicks_per_step):
                 links = list(current.get("links") or [])
                 pick = dayloop_pick_target(links, step.target_passages)
+                if pick is None and step.route_hops:
+                    # Verified 2026-10-08 (probe_bus_school): the bus leg to
+                    # school is a two-hop route (wait for the bus -> buy the
+                    # Oxford ticket) whose links all share
+                    # ``data-passage="Bus seat"`` and whose labels are
+                    # localized, so the hop is matched by keyword.
+                    route_pick = dayloop_pick(links, step.route_hops)
+                    if route_pick is not None:
+                        outcome = click_once(route_pick, fallback=True, step_name=step.name)
+                        step_records.append(
+                            add_record(
+                                step,
+                                step_index,
+                                step_started,
+                                len(step_records),
+                                route_pick,
+                                outcome,
+                                phase="route",
+                                status="fallback",
+                                detail=(
+                                    f"route hop via {route_pick['matched']!r}: "
+                                    f"{outcome['passage_before']} -> "
+                                    f"{outcome['passage_after']}; navigation "
+                                    "only, not counted as step completion"
+                                )[:600],
+                            )
+                        )
+                        current = probe(step.name)
+                        current_passage = str(current.get("passage") or "")
+                        visited.append(current_passage)
+                        continue
                 if pick is None:
                     hop = ""
                     for target in step.target_passages:
