@@ -202,3 +202,82 @@ def test_write_passage_list_handles_empty_and_named_lists(tmp_path) -> None:
     # 空列表必须是 0 字节文件：CI 用 `test -s` 判定“没有可游玩 mod passage”
     assert empty.read_bytes() == b""
     assert named.read_text(encoding="utf-8") == "Food Preference\nCE_Wardrobe\n"
+
+
+class _ModButtonFakePage:
+    """Fake Playwright page for the mod-button isolation pass."""
+
+    def __init__(self, probe: dict, clicks: dict) -> None:
+        self.probe = probe
+        self.clicks = clicks
+        self.waits = 0
+
+    def evaluate(self, script: str, payload: dict | None = None) -> dict:
+        if script == mpi._mod_buttons_probe_script():
+            return self.probe
+        if script == mpi._mod_button_click_script():
+            return self.clicks.get((payload or {}).get("key"), {"ok": False, "error": "unknown"})
+        raise AssertionError("unexpected script")
+
+    def wait_for_timeout(self, milliseconds: int) -> None:
+        self.waits += 1
+
+
+def test_mod_button_tokens_cover_registered_mods() -> None:
+    expected = {
+        "maplebirch",
+        "cheat extended",
+        "More Love Interests Mod",
+        "CustomHair",
+        "longer-combat",
+        "yanling-cheat-collection",
+        "DOLI",
+        "ModI18N",
+        "【AUsDoL】facial expansion",
+    }
+
+    assert set(mpi.MOD_BUTTON_TOKENS) == expected
+    assert all(group for group in mpi.MOD_BUTTON_TOKENS.values())
+
+
+def test_touch_mod_buttons_counts_thrown_and_vanished() -> None:
+    probe = {
+        "ok": True,
+        "scanned": 7,
+        "candidates": [
+            {"key": "a", "tag": "BUTTON", "id": "mb-1", "text": "菜单", "matched": "maplebirch", "visible": True},
+            {"key": "b", "tag": "BUTTON", "id": "ce-1", "text": "作弊", "matched": "cheat", "visible": True},
+            {"key": "c", "tag": "BUTTON", "id": "ce-2", "text": "关闭", "matched": "cheat", "visible": True},
+        ],
+        "errors": [],
+    }
+    clicks = {
+        "a": {"ok": True, "error": None},
+        "b": {"ok": False, "error": "click threw: boom"},
+        "c": {"ok": False, "error": "button vanished before the isolated click"},
+    }
+    page = _ModButtonFakePage(probe, clicks)
+
+    result = mpi._touch_mod_buttons(page, limit=5, settle_ms=0)
+
+    summary = result["summary"]
+    assert summary["candidates"] == 3
+    assert summary["attempted"] == 3
+    assert summary["ok"] == 1
+    assert summary["thrown"] == 1
+    assert summary["vanished"] == 1
+    assert "maplebirch" in summary["tokens"]
+    assert page.waits == 3
+    assert [item["threw"] for item in result["attempts"]] == [False, True, False]
+
+
+def test_touch_mod_buttons_is_empty_without_candidates() -> None:
+    page = _ModButtonFakePage(
+        {"ok": True, "scanned": 0, "candidates": [], "errors": []}, {}
+    )
+
+    result = mpi._touch_mod_buttons(page)
+
+    assert result["summary"]["candidates"] == 0
+    assert result["summary"]["attempted"] == 0
+    assert result["attempts"] == []

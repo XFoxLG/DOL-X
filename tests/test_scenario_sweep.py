@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections import Counter
 from pathlib import Path
@@ -23,7 +24,10 @@ import pytest
 from tools.scenario_sweep import (
     DAYLOOP_CLICK,
     DAYLOOP_CLICK_STATUSES,
+    DAYLOOP_COMBAT_CLICK,
+    DAYLOOP_COMBAT_OPTIONS,
     DAYLOOP_FALLBACK_KEYWORDS,
+    DAYLOOP_PREP,
     DAYLOOP_PROBE,
     DAYLOOP_STEPS,
     DEFAULT_FIXTURE,
@@ -37,11 +41,13 @@ from tools.scenario_sweep import (
     classify_interaction,
     classify_unresolvable,
     cross_check_manifest,
+    dayloop_combat_choice,
     dayloop_click_status,
     dayloop_clock_moved,
     dayloop_match,
     dayloop_missing_step_record,
     dayloop_pick,
+    dayloop_scripted_pick,
     dayloop_time_advance,
     default_out_dir,
     diff_scenarios,
@@ -1027,6 +1033,8 @@ def test_dayloop_click_status_requires_own_keyword_and_progress() -> None:
         "ok",
         "fallback",
         "stalled",
+        "progress",
+        "unknown",
         "soft_fail",
         "not_applicable",
     }
@@ -1051,10 +1059,14 @@ class _DayloopFakePage:
         graph: dict[str, tuple[str, str]],
         *,
         advance_seconds: float = 0.0,
+        school_day: bool = True,
+        prep_jump_seconds: float = 0.0,
     ) -> None:
         self.passage = passage
         self.graph = graph
         self.advance_seconds = advance_seconds
+        self.school_day = school_day
+        self.prep_jump_seconds = prep_jump_seconds
         self.seconds_since_midnight = 0.0
         self.clicked: list[str] = []
 
@@ -1069,12 +1081,34 @@ class _DayloopFakePage:
         if script is DAYLOOP_PROBE:
             return {
                 "passage": self.passage,
+                "combat": 0,
                 "time": {
                     "dayOfYear": 10,
                     "secondsSinceMidnight": self.seconds_since_midnight,
+                    "schoolDay": self.school_day,
                 },
                 "links": self._links(),
                 "node": "#passage-content",
+                "errors": [],
+            }
+        if script is DAYLOOP_PREP:
+            before = {
+                "dayOfYear": 10,
+                "secondsSinceMidnight": self.seconds_since_midnight,
+                "schoolDay": self.school_day,
+            }
+            self.seconds_since_midnight += self.prep_jump_seconds
+            self.school_day = True
+            after = {
+                "dayOfYear": 10,
+                "secondsSinceMidnight": self.seconds_since_midnight,
+                "schoolDay": True,
+            }
+            return {
+                "ok": True,
+                "via": "fake prep",
+                "before": before,
+                "after": after,
                 "errors": [],
             }
         if script is DAYLOOP_CLICK:
@@ -1113,7 +1147,12 @@ def test_dayloop_self_looping_continue_is_never_ok() -> None:
 
 
 def test_dayloop_fallback_hops_are_recorded_but_never_ok() -> None:
-    """一路“返回”只产生 fallback 记录：地点切换再多也不能判 ok。"""
+    """一路“返回”只产生 fallback/not_applicable 记录：地点切换再多也不能判 ok。
+
+    “上课”没有固定 target passage（课时 passage 因课程/日期而异），它要求
+    现场存在一条真正的上课动作链接；假页面只提供“返回”，所以它是
+    not_applicable 而不是 fallback。
+    """
     graph = {
         "A": ("返回 B", "B"),
         "B": ("返回 C", "C"),
@@ -1124,10 +1163,23 @@ def test_dayloop_fallback_hops_are_recorded_but_never_ok() -> None:
 
     report = run_dayloop(page, max_clicks_per_step=1, timeout_ms=50, settle_ms=0)
 
-    assert report["clicks"] == len(DAYLOOP_STEPS)
+    statuses = [r["status"] for r in report["records"]]
+    # The multi-hop navigation walk can spend more than one click per step; the
+    # invariant is that no click is ever counted as step completion.
     assert report["ok_clicks"] == 0
-    assert report["fallback_clicks"] == len(DAYLOOP_STEPS)
-    assert all(r["status"] == "fallback" for r in report["records"])
+    assert report["clicks"] >= len(DAYLOOP_STEPS)
+    assert report["fallback_clicks"] >= len(DAYLOOP_STEPS) - 1
+    # Every step is offered a fallback hop (the fake page only knows "返回"),
+    # and none of those hops may ever be promoted to completion. A step whose
+    # target is not even reachable (the fake "上课" has no fixed passage) may
+    # also be reported as not_applicable.
+    assert set(statuses) <= {"fallback", "not_applicable"}
+    assert statuses.count("fallback") >= len(DAYLOOP_STEPS) - 1
+    assert all(
+        ("fallback" in r["detail"] or "navigation only" in r["detail"] or "no action matched" in r["detail"])
+        and r["status"] in {"fallback", "not_applicable"}
+        for r in report["records"]
+    )
     assert report["location_switches"] >= 3
     assert report["verdict"] == "soft_fail"
 
@@ -1135,7 +1187,7 @@ def test_dayloop_fallback_hops_are_recorded_but_never_ok() -> None:
 def test_dayloop_in_place_step_with_clock_advance_can_still_be_ok() -> None:
     """同 passage 内推进但时钟前进的步骤（如上课）仍可判 ok。"""
     page = _DayloopFakePage(
-        "Lesson", {"Lesson": ("上课", "Lesson")}, advance_seconds=600
+        "Lesson", {"Lesson": ("上课", "Lesson")}, advance_seconds=1200
     )
 
     report = run_dayloop(page, max_clicks_per_step=1, timeout_ms=50, settle_ms=0)
@@ -1144,7 +1196,211 @@ def test_dayloop_in_place_step_with_clock_advance_can_still_be_ok() -> None:
     ok_record = next(r for r in report["records"] if r["status"] == "ok")
     assert ok_record["step"] == "上课"
     assert ok_record["keyword_hits"] == ["上课"]
-    assert report["time_advance_hours"] == pytest.approx(600 / 3600)
+    # 上课 requires >=15 in-game minutes, so 1200s is the smallest honest pass.
+    assert report["time_advance_hours"] == pytest.approx(1200 / 3600)
+
+
+def test_dayloop_prep_time_jump_is_never_counted_as_day_time() -> None:
+    """准备阶段的时间跳跃（周二/学期起点）不得计入 >=16h 的日循环断言。"""
+    page = _DayloopFakePage(
+        "Tutorial",
+        {"Tutorial": ("(1) 继续", "Tutorial")},
+        school_day=False,
+        prep_jump_seconds=360000.0,
+    )
+
+    report = run_dayloop(page, max_clicks_per_step=1, timeout_ms=50, settle_ms=0)
+
+    assert report["prep"]["ran"] is True
+    assert report["prep"]["ok"] is True
+    assert report["time_start"]["schoolDay"] is True
+    # 100h of preparation must not leak into the measured day.
+    assert report["time_advance_hours"] == 0
+    time_assertion = next(
+        a for a in report["assertions"] if a["name"] == "time_advance>=16h"
+    )
+    assert time_assertion["ok"] is False
+
+
+class _DayloopEncounterFakePage:
+    """复现 Domus Street 教程遭遇：动作单选 + 两页脚本续接。
+
+    只实现 run_dayloop 真正调用的四个脚本（PROBE/PREP/COMBAT_OPTIONS/
+    COMBAT_CLICK）与普通 CLICK，且 `$tutorial` 只触发一次：教程结束后
+    Domus Street 换成真实的街道链接，避免把驱动器拖进无限重进教程。
+    """
+
+    def __init__(self) -> None:
+        self.passage = "Domus Street"
+        self.combat = 0
+        self.tutorial_done = False
+        self.seconds_since_midnight = 25200.0
+        self.clicked: list[str] = []
+        self.radio_clicks: list[str] = []
+
+    def _links(self) -> list[dict[str, Any]]:
+        if self.passage == "Domus Street":
+            if self.tutorial_done:
+                return [
+                    {"text": "倒钩街 (0:05)", "visible": True, "data": "Barb Street", "cls": ""}
+                ]
+            return [
+                {"text": "(1) 继续", "visible": True, "data": "Tutorial", "cls": ""}
+            ]
+        if self.passage == "Tutorial Finish":
+            return [
+                {"text": "(1) 调情", "visible": True, "data": "Tutorial Flirt", "cls": ""},
+                {"text": "(2) 谢谢他", "visible": True, "data": "Tutorial Thank", "cls": ""},
+            ]
+        if self.passage == "Tutorial Flirt":
+            return [
+                {"text": "(1) 继续", "visible": True, "data": "Domus Street", "cls": ""}
+            ]
+        return []
+
+    def _time(self) -> dict[str, Any]:
+        return {
+            "dayOfYear": 10,
+            "secondsSinceMidnight": self.seconds_since_midnight,
+            "schoolDay": True,
+        }
+
+    def evaluate(self, script: Any, payload: Any = None) -> Any:
+        if script is DAYLOOP_PROBE:
+            return {
+                "passage": self.passage,
+                "combat": self.combat,
+                "time": self._time(),
+                "links": self._links(),
+                "node": "#passage-content",
+                "errors": [],
+            }
+        if script is DAYLOOP_PREP:
+            return {
+                "ok": True,
+                "via": "fake prep",
+                "before": self._time(),
+                "after": self._time(),
+                "logout_pending": False,
+                "errors": [],
+            }
+        if script is DAYLOOP_COMBAT_OPTIONS:
+            if self.combat and self.passage == "Tutorial":
+                return {
+                    "passage": "Tutorial",
+                    "combat": 1,
+                    "options": [
+                        {"id": "radio-rest", "label": "休息", "checked": False},
+                        {"id": "radio-scream", "label": "尖叫", "checked": False},
+                    ],
+                    "next": "(1) 继续",
+                    "errors": [],
+                }
+            return {
+                "passage": self.passage,
+                "combat": self.combat,
+                "options": [],
+                "next": None,
+                "errors": [],
+            }
+        if script is DAYLOOP_COMBAT_CLICK:
+            radio_id = str((payload or {}).get("id") or "")
+            self.radio_clicks.append(radio_id)
+            label = "休息" if radio_id == "radio-rest" else "尖叫"
+            if radio_id == "radio-scream":
+                self.passage = "Tutorial Finish"
+                self.combat = 0
+                self.seconds_since_midnight += 30
+            return {
+                "ok": True,
+                "id": radio_id,
+                "radio_clicked": True,
+                "next_clicked": True,
+                "text": label,
+                "error": None,
+            }
+        if script is DAYLOOP_CLICK:
+            link = self._links()[int((payload or {}).get("index") or 0)]
+            self.clicked.append(str(link["text"]))
+            target = str(link["data"])
+            if target == "Tutorial":
+                self.passage = "Tutorial"
+                self.combat = 1
+            else:
+                self.passage = target
+                if target == "Domus Street" and self.combat == 0:
+                    self.tutorial_done = True
+            return {
+                "ok": True,
+                "text": link["text"],
+                "passage_before": None,
+                "error": None,
+            }
+        raise AssertionError("unexpected dayloop script")
+
+    def wait_for_function(self, expression: str, timeout: int | None = None) -> bool:
+        return True
+
+    def wait_for_timeout(self, milliseconds: int) -> None:
+        return None
+
+
+def test_dayloop_combat_choice_prefers_escape_over_attack() -> None:
+    options = [
+        {"id": "r-rest", "label": "休息 |"},
+        {"id": "r-attack", "label": "攻击 |"},
+        {"id": "r-scream", "label": "尖叫 |"},
+    ]
+
+    assert dayloop_combat_choice(options)["id"] == "r-scream"
+    assert dayloop_combat_choice([{"id": "r1", "label": "Attack"}] )["id"] == "r1"
+    assert dayloop_combat_choice([{"id": "", "label": "尖叫"}]) is None
+    assert dayloop_combat_choice([]) is None
+
+
+def test_dayloop_scripted_pick_follows_the_tutorial_chain() -> None:
+    finish = [
+        {"text": "无关", "visible": True, "data": "Elsewhere", "cls": ""},
+        {"text": "(1) 调情", "visible": True, "data": "Tutorial Flirt", "cls": ""},
+    ]
+    assert dayloop_scripted_pick("Tutorial Finish", finish)["data_passage"] == "Tutorial Flirt"
+
+    exit_links = [
+        {"text": "(1) 继续", "visible": True, "data": "Domus Street", "cls": ""}
+    ]
+    assert dayloop_scripted_pick("Tutorial Flirt", exit_links)["data_passage"] == "Domus Street"
+    # 普通 passage 与尚未打完的 Tutorial 战斗页都不归它管。
+    assert dayloop_scripted_pick("Domus Street", exit_links) is None
+    assert dayloop_scripted_pick("Tutorial", exit_links) is None
+    assert dayloop_scripted_pick("Tutorial Finish", []) is None
+
+
+def test_dayloop_prep_uses_the_string_combat_control_mode() -> None:
+    """``$options.combatControls`` 是控制类型字符串，写成数字会让动作列表整页报错。"""
+    assert 'V.options.combatControls = "radio"' in DAYLOOP_PREP
+    assert "combatControls = 0" not in DAYLOOP_PREP
+
+
+def test_dayloop_driver_never_pre_sets_debug_before_prep() -> None:
+    """驱动器不得先写 ``$debug=1``：prep 会把它当作原值还原，导致整天 debug 常开。"""
+    source = inspect.getsource(run_dayloop)
+    assert "V.debug = 1" not in source
+    assert "V.debug=1" not in source
+
+
+def test_dayloop_plays_the_scripted_tutorial_combat_once_and_never_counts_it() -> None:
+    page = _DayloopEncounterFakePage()
+
+    report = run_dayloop(page, max_clicks_per_step=2, timeout_ms=50, settle_ms=0)
+
+    phases = {(r.get("phase"), r["status"]) for r in report["records"]}
+    assert ("combat", "progress") in phases
+    assert ("tutorial", "progress") in phases
+    # 逃跑优先：尖叫让教程以“获救”结束，而不是把攻击打满。
+    assert page.radio_clicks == ["radio-scream"]
+    # 遭遇回合与脚本续接都不是任何一步的完成。
+    assert report["ok_clicks"] == 0
+    assert report["verdict"] == "soft_fail"
 
 
 def test_roundtrip_digest_diff_ignores_volatile_keys() -> None:

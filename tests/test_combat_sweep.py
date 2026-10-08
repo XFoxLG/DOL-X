@@ -41,6 +41,8 @@ from tools.combat_sweep import (
     classify_outcome,
     detect_stall,
     diff_against_baseline,
+    entry_error_annotations,
+    filter_archetype_jobs,
     find_combat_link_target,
     initiator_key,
     parse_args,
@@ -454,7 +456,10 @@ def _actions(*texts: str, kind: str = "radio") -> list[dict]:
 def test_choose_action_matches_bilingual_keywords() -> None:
     actions = _actions("躲避", "击打", "踢", "逃跑")
 
-    assert choose_action(actions, "win") == (1, False)
+    # ``kick`` is the generic attack and outranks the tentacle-specific
+    # ``lefthittentacle`` ("击打") in the curated id order, so the win path
+    # picks "踢" even though "击打" sits earlier in the DOM.
+    assert choose_action(actions, "win") == (2, False)
     assert choose_action(actions, "flee") == (3, False)
     assert choose_action(_actions("亲吻", "顺从"), "submit") == (1, False)
     assert choose_action(_actions("wait", "endure"), "lose") == (0, False)
@@ -1986,3 +1991,627 @@ def test_classify_entry_errors_maps_personselect_zero_to_first_slot() -> None:
 
     assert verdict == "hard_fail"
     assert "NPCList[0]" in missing
+
+
+# --------------------------------------------------------------------------- #
+# 2026-10-08 收口：路径按钮 / 投降双点 / 动态回合上限 / widget 宿主归因
+# --------------------------------------------------------------------------- #
+
+
+def _tagged_html(entries: list[tuple[str, str, str]]) -> str:
+    """Synthetic story data with ``tags`` attributes (widget libraries)."""
+    body = []
+    for name, text, tags in entries:
+        attrs = f' tags="{html.escape(tags, quote=True)}"' if tags else ""
+        body.append(
+            f'<tw-passagedata pid="1" name="{html.escape(name, quote=True)}"{attrs}>'
+            f"{html.escape(text, quote=False)}</tw-passagedata>"
+        )
+    return "<tw-storydata>" + "".join(body) + "</tw-storydata>"
+
+
+class _CombatPage:
+    """Scripted Playwright stand-in for ``drive_combat``.
+
+    ``evaluate`` answers the state/action probes from the current scripted
+    turn; ``wait_for_function`` (one per submitted press) hands the turn to
+    ``on_turn`` so the fight advances deterministically.
+    """
+
+    class _Keyboard:
+        def __init__(self, owner: "_CombatPage") -> None:
+            self._owner = owner
+
+        def press(self, _key: str) -> None:
+            self._owner.presses += 1
+
+    def __init__(
+        self,
+        state: dict,
+        actions: list,
+        on_turn: object,
+    ) -> None:
+        self.state = dict(state)
+        self.actions = list(actions)
+        self.on_turn = on_turn
+        self.presses = 0
+        self.selects: list[object] = []
+        self.settle_ms: int | None = None
+        self.keyboard = self._Keyboard(self)
+
+    def evaluate(self, script: str, arg: object = None) -> object:
+        if script == combat_sweep.COMBAT_STATE_JS:
+            return json.dumps(self.state)
+        if script == combat_sweep.COMBAT_ACTIONS_JS:
+            return json.dumps({"ok": True, "actions": self.actions})
+        if script == combat_sweep.SELECT_RADIO_JS:
+            self.selects.append(arg)
+            return json.dumps(
+                {
+                    "ok": True,
+                    "kind": "radio",
+                    "id": str((arg or {}).get("id") or ""),
+                    "checked": True,
+                }
+            )
+        return 0
+
+    def click(self, selector: str, timeout: int | None = None) -> None:
+        self.selects.append(selector)
+
+    def wait_for_function(
+        self, _expr: str, arg: object = None, timeout: int | None = None
+    ) -> None:
+        self.state, self.actions = self.on_turn(self.state, self.actions)  # type: ignore[operator]
+
+    def wait_for_timeout(self, ms: int) -> None:
+        self.settle_ms = ms
+
+
+def test_choose_action_strict_matches_select_options_and_never_falls_back() -> None:
+    select = {
+        "kind": "select",
+        "id": "listbox-x",
+        "text": "攻击 | 亲吻",
+        "options": [
+            {"value": "0", "text": "攻击"},
+            {"value": "1", "text": "亲吻"},
+        ],
+    }
+    radio = {"kind": "radio", "id": "r0", "text": "顺从"}
+
+    assert combat_sweep.choose_action_strict([select], "lose") == (-1, None)
+    assert combat_sweep.choose_action_strict([select], "win") == (0, "攻击")
+    assert combat_sweep.choose_action_strict([radio], "submit") == (0, "顺从")
+    assert combat_sweep.choose_action_strict([], "flee") == (-1, None)
+    # 躲避 is a defensive, non-attacking control: it expresses "do not win",
+    # which is what the lose path needs (recorded as a keyword hit).
+    assert combat_sweep.choose_action_strict(
+        [{"kind": "radio", "id": "d0", "text": "躲避"}], "lose"
+    ) == (0, "躲避")
+
+
+def test_radios_carry_no_action_id_so_labels_resolve_the_curated_ids() -> None:
+    # 2026-10-08 artifact evidence: SugarCube's ``radiobutton`` macro sets only
+    # id/name/type and binds the checked value through a closure, so every radio
+    # reports ``value === "on"``. The curated action ids are therefore resolved
+    # through the bilingual label table, not through the DOM value.
+    radios = [
+        {"kind": "radio", "id": "r0", "text": "揉搓", "value": "on"},
+        {"kind": "radio", "id": "r1", "text": "休息", "value": "on"},
+        {"kind": "radio", "id": "r2", "text": "躲避攻击", "value": "on"},
+    ]
+
+    assert combat_sweep.choose_action_strict(radios, "lose") == (1, "id:rest")
+    # Rest outranks Dodge even when the dodge button is earlier in the DOM.
+    reordered = [radios[2], radios[1]]
+    assert combat_sweep.choose_action_strict(reordered, "lose") == (1, "id:rest")
+    # English labels resolve the same ids.
+    english = [
+        {"kind": "radio", "id": "e0", "text": "Rub", "value": "on"},
+        {"kind": "radio", "id": "e1", "text": "Whack the tattoo gun", "value": "on"},
+    ]
+    assert combat_sweep.choose_action_strict(english, "win") == (1, "id:whack")
+    # And the non-strict chooser used by the win path sees the same ids.
+    win = [
+        {"kind": "radio", "id": "w0", "text": "抚摸", "value": "on"},
+        {"kind": "radio", "id": "w1", "text": "捶打", "value": "on"},
+    ]
+    assert combat_sweep.choose_action(win, "win") == (1, False)
+
+
+def test_ascii_action_labels_match_on_word_boundaries_only() -> None:
+    # "Rest" must not fire on "Restrain"; CJK labels stay substring-matched.
+    assert combat_sweep.label_matches_text("Rest", "Rest (still)")
+    assert not combat_sweep.label_matches_text("Rest", "Restraint")
+    assert not combat_sweep.label_matches_text("Rest", "Restrain")
+    assert combat_sweep.label_matches_text("休息", "（休息）")
+    assert not combat_sweep.label_matches_text("Rest", "")
+
+
+def test_radio_click_records_the_state_value_the_game_stored() -> None:
+    clicked: list[str] = []
+
+    class _Page:
+        def click(self, selector: str, timeout: int | None = None) -> None:
+            clicked.append(selector)
+
+        def evaluate(self, script: str, arg: object = None) -> object:
+            if script == combat_sweep.VERIFY_RADIO_JS:
+                return json.dumps(
+                    {
+                        "ok": True,
+                        "name": "radiobutton-leftaction",
+                        "variable": "leftaction",
+                        "value": "rest",
+                    }
+                )
+            return 0
+
+    record = combat_sweep._select_action(
+        _Page(),
+        {"kind": "radio", "id": "radiobutton-leftaction-1", "index": 0, "text": "休息"},
+        keyword_path="lose",
+        keyword="id:rest",
+    )
+
+    assert clicked == ["#radiobutton-leftaction-1"]
+    assert record["action_id"] == "rest"
+    assert record["state_after"]['value'] == "rest"
+
+
+def test_select_options_match_action_ids_in_listbox_modes() -> None:
+    select = {
+        "kind": "select",
+        "id": "listbox-leftaction",
+        "text": "逃跑 | 休息",
+        "options": [
+            {"value": "swim", "text": "游到安全的地方"},
+            {"value": "rest", "text": "休息"},
+        ],
+    }
+
+    assert combat_sweep.choose_action_strict([select], "flee") == (0, "id:swim")
+    assert combat_sweep.choose_action_strict([select], "lose") == (0, "id:rest")
+
+
+def test_offered_controls_records_every_button_on_screen() -> None:
+    offer = combat_sweep.offered_controls(
+        [
+            {"kind": "radio", "text": "攻击"},
+            {"kind": "radio", "text": ""},
+            {"kind": "select", "text": "攻击 | 躲避"},
+        ]
+    )
+
+    assert offer[0] == "radio:攻击"
+    assert offer[1] == "radio:<no text>"
+    assert offer[2].startswith("select:")
+    # Every radio shows the HTML default "on" (SugarCube's radiobutton macro
+    # binds the value in a closure), so a value prefix would be a lie.
+    assert combat_sweep.offered_controls(
+        [{"kind": "radio", "text": "休息", "value": "on"}]
+    ) == ["radio:休息"]
+    # A select whose chosen value is informative keeps it in the evidence.
+    assert combat_sweep.offered_controls(
+        [{"kind": "select", "text": "游到安全的地方 | 休息", "value": "rest"}]
+    ) == ["select[rest]:游到安全的地方 | 休息"]
+
+
+def test_lose_path_without_a_matching_button_stops_instead_of_attacking() -> None:
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        raise AssertionError("no turn may be submitted without a matching control")
+
+    page = _CombatPage(
+        {"combat": 1, "enemyhealth": 200, "passage": "Dog Park"},
+        [
+            {"kind": "radio", "id": "r0", "text": "攻击", "checked": False},
+            {"kind": "radio", "id": "r1", "text": "遮住你的胸部", "checked": False},
+        ],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(page, path="lose", max_rounds=80, timeout_ms=1000)
+
+    assert result["verdict"] == "soft_fail"
+    assert "no matching control" in result["detail"]
+    assert result["rounds"] == 0
+    assert result["presses"] == 0
+    assert result["actions"][-1]["kind"] == "missing_path_control"
+    assert any("攻击" in item for item in result["offered_controls"])
+    assert page.presses == 0
+
+
+def test_submit_path_presses_the_surrender_control_twice() -> None:
+    turns: list[int] = []
+
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        turns.append(len(turns) + 1)
+        if len(turns) == 1:
+            # First press only arms the surrender; the fight is still on.
+            return (
+                {"combat": 1, "enemyhealth": 200, "passage": "Dog Park"},
+                [{"kind": "radio", "id": "s1", "text": "顺从", "checked": False}],
+            )
+        return (
+            {
+                "combat": 0,
+                "enemyhealth": 200,
+                "enemyarousal": 20,
+                "enemyarousalmax": 20,
+                "passage": "Dog Park Finish",
+            },
+            [],
+        )
+
+    page = _CombatPage(
+        {"combat": 1, "enemyhealth": 200, "passage": "Dog Park"},
+        [{"kind": "radio", "id": "s0", "text": "顺从", "checked": False}],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(page, path="submit", max_rounds=80, timeout_ms=1000)
+
+    assert result["presses"] == 2, "surrender must be pressed twice"
+    assert result["rounds"] == 1, "one surrender gesture, not two attack rounds"
+    assert page.presses == 2
+    assert result["actions"][0]["presses"][0]["keyword"] == "顺从"
+    assert result["verdict"] == "ok"
+    assert result["outcome"] == "submit"
+
+
+def test_estimate_round_cap_extends_from_measured_damage() -> None:
+    hp = [
+        {"enemyhealth": [600.0 - float(i), 599.0 - float(i)]} for i in range(6)
+    ]
+
+    extended = combat_sweep.estimate_round_cap(hp, 120, current_cap=80)
+
+    assert extended is not None
+    cap, reason = extended
+    assert cap == 125  # ceil(120 / 1) + 5
+    assert "median" in reason
+    # Already affordable, no damage evidence, non-numeric HP: nothing to extend.
+    assert combat_sweep.estimate_round_cap(hp, 10, current_cap=80) is None
+    assert combat_sweep.estimate_round_cap([], 120, current_cap=80) is None
+    assert combat_sweep.estimate_round_cap(hp, 120, current_cap=200) is None
+    assert combat_sweep.estimate_round_cap(hp, None, current_cap=80) is None
+    # The ceiling is hard: 100k HP still stops at HARD_ROUND_CEILING.
+    capped = combat_sweep.estimate_round_cap(hp, 100000, current_cap=80)
+    assert capped is not None and capped[0] == combat_sweep.HARD_ROUND_CEILING
+
+
+def test_slow_but_steady_health_drop_extends_the_cap_inside_the_driver() -> None:
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        health = float(state.get("enemyhealth") or 0.0) - 10.0
+        return (
+            {
+                "combat": 1 if health > 0 else 0,
+                "enemyhealth": health,
+                "passage": "Dog Park",
+            },
+            actions,
+        )
+
+    page = _CombatPage(
+        {"combat": 1, "enemyhealth": 100.0, "passage": "Dog Park"},
+        [{"kind": "radio", "id": "a0", "text": "攻击", "checked": False}],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(page, path="win", max_rounds=4, timeout_ms=1000)
+
+    assert result["round_cap"]["final"] > 4
+    assert result["round_cap"]["extensions"], "the extension must be recorded"
+    assert result["outcome"] == "win"
+    assert result["verdict"] == "ok"
+    assert result["rounds"] == 10
+
+
+def test_scan_initiators_flags_widget_host_passages() -> None:
+    html_text = _tagged_html(
+        [
+            ("Moor Widgets", '<<widget "moor_fox">><<beastNEWinit 1 fox>><</widget>>', "widget"),
+            ("Moor", "<<moor_fox>>", ""),
+        ]
+    )
+
+    scan = scan_initiators(html_text)
+
+    assert scan["widget_host_passages"] == 1
+    row = scan["rows"][0]
+    assert row["passage"] == "Moor Widgets"
+    assert row["widget_host"] is True
+    assert row["tags"] == "widget"
+
+
+def test_resolve_widget_entry_points_at_a_real_caller() -> None:
+    bodies = {
+        "Moor Widgets": '<<widget "moor_fox">><<beastNEWinit 1 fox>><</widget>>',
+        "Moor": "<<moor_fox>>",
+        "Widgets Other": "<<moor_fox>>",
+    }
+
+    found = combat_sweep.resolve_widget_entry(
+        {"passage": "Moor Widgets", "widget_host": True}, bodies
+    )
+
+    assert found is not None
+    caller, evidence = found
+    assert caller == "Moor"
+    assert "Moor Widgets" in evidence
+    assert combat_sweep.resolve_widget_entry({"passage": "Moor Widgets"}, {
+        "Moor Widgets": bodies["Moor Widgets"]
+    }) is None
+
+
+def test_choose_entry_prefers_a_real_passage_over_a_widget_host() -> None:
+    spec = next(
+        s for s in ARCHETYPE_SPECS if s.kind == "beastNEWinit" and s.token == "fox"
+    )
+    widget_row = {
+        "key": "beastNEWinit:fox:Moor Widgets",
+        "kind": "beastNEWinit",
+        "token": "fox",
+        "passage": "Moor Widgets",
+        "widget_host": True,
+        "tags": "widget",
+        "macro": "beastNEWinit",
+        "args": "1 fox",
+        "entry_flags": [],
+        "combat_starters": [],
+    }
+    real_row = dict(
+        widget_row,
+        key="beastNEWinit:fox:Fox Den",
+        passage="Fox Den",
+        widget_host=False,
+        tags="",
+        combat_starters=["beastCombatInit"],
+    )
+    bodies = {
+        "Moor Widgets": '<<widget "moor_fox">><<beastNEWinit 1 fox>><</widget>>',
+        "Moor": "<<moor_fox>>",
+        "Fox Den": "<<beastCombatInit>>",
+    }
+
+    chosen = choose_entry([widget_row, real_row], spec, bodies)
+
+    assert chosen is not None
+    assert chosen["passage"] == "Fox Den"
+    assert chosen["widget_host"] is False
+
+
+def test_choose_entry_redirects_a_lone_widget_host_to_its_caller() -> None:
+    spec = next(
+        s for s in ARCHETYPE_SPECS if s.kind == "beastNEWinit" and s.token == "fox"
+    )
+    widget_row = {
+        "key": "beastNEWinit:fox:Moor Widgets",
+        "kind": "beastNEWinit",
+        "token": "fox",
+        "passage": "Moor Widgets",
+        "widget_host": True,
+        "tags": "widget",
+        "macro": "beastNEWinit",
+        "args": "1 fox",
+        "entry_flags": [],
+        "combat_starters": [],
+    }
+    bodies = {
+        "Moor Widgets": '<<widget "moor_fox">><<beastNEWinit 1 fox>><</widget>>',
+        "Moor": "<<moor_fox>>",
+    }
+
+    chosen = choose_entry([widget_row], spec, bodies)
+
+    assert chosen is not None
+    assert chosen["passage"] == "Moor"
+    assert chosen["widget_host_passage"] == "Moor Widgets"
+    assert "caller passage" in str(chosen["resolution"])
+
+
+def test_choose_entry_marks_an_uncallable_widget_host_unenterable() -> None:
+    spec = next(
+        s for s in ARCHETYPE_SPECS if s.kind == "beastNEWinit" and s.token == "fox"
+    )
+    widget_row = {
+        "key": "beastNEWinit:fox:Moor Widgets",
+        "kind": "beastNEWinit",
+        "token": "fox",
+        "passage": "Moor Widgets",
+        "widget_host": True,
+        "tags": "widget",
+        "macro": "beastNEWinit",
+        "args": "1 fox",
+        "entry_flags": [],
+        "combat_starters": [],
+    }
+
+    chosen = choose_entry(
+        [widget_row],
+        spec,
+        {"Moor Widgets": '<<widget "moor_fox">><<beastNEWinit 1 fox>><</widget>>'},
+    )
+
+    assert chosen is not None
+    assert "no caller passage" in str(chosen["unenterable_reason"])
+
+
+class _SelectPage:
+    """Minimal page recording ``select_option`` calls."""
+
+    def __init__(self) -> None:
+        self.selects: list[tuple[str, str]] = []
+
+    def select_option(self, selector: str, value: str) -> None:
+        self.selects.append((selector, value))
+
+
+def test_select_action_uses_the_matched_option_for_strict_paths() -> None:
+    page = _SelectPage()
+    action = {
+        "kind": "select",
+        "id": "listbox-actions",
+        "options": [
+            {"value": "0", "text": "躲避"},
+            {"value": "1", "text": "顺从"},
+            {"value": "2", "text": "攻击"},
+        ],
+    }
+
+    record = combat_sweep._select_action(
+        page, action, keyword_path="submit", keyword="顺从"
+    )
+
+    assert record["selected"]["ok"] is True
+    assert page.selects == [("#listbox-actions", "1")]
+    assert record.get("fallback") in (False, None)
+
+
+def test_select_action_refuses_a_strict_pick_with_no_matching_option() -> None:
+    page = _SelectPage()
+    action = {
+        "kind": "select",
+        "id": "listbox-actions",
+        "options": [
+            {"value": "0", "text": "躲避"},
+            {"value": "1", "text": "攻击"},
+        ],
+    }
+
+    record = combat_sweep._select_action(
+        page, action, keyword_path="submit", keyword="顺从"
+    )
+
+    assert record["selected"]["ok"] is False
+    assert "no option matched" in record["selected"]["error"]
+    assert page.selects == []
+
+
+# --------------------------------------------------------------------------- #
+# 2026-10-08 attribution: widget hosts, special passages, scan false positives
+# --------------------------------------------------------------------------- #
+
+
+def test_possessed_word_is_not_a_combat_starter() -> None:
+    """取证：possessedWord 是文本替换 widget，从不翻转 $combat。"""
+    assert "possessedWord" not in combat_sweep.COMBAT_STARTER_MACROS
+    # The manifest口径 still records the macro so the audit can explain the row.
+    assert "possessedWord" in INITIATOR_MACROS["possession"]
+
+
+def test_is_non_scene_passage_flags_sugarcube_specials() -> None:
+    assert combat_sweep.is_non_scene_passage("StoryCaption") is True
+    assert combat_sweep.is_non_scene_passage("PassageFooter") is True
+    assert combat_sweep.is_non_scene_passage("Bedroom") is False
+    assert combat_sweep.is_non_scene_passage("") is False
+
+
+def test_scan_initiators_marks_special_passages_non_scene() -> None:
+    html_text = _synthetic_html([("StoryCaption", "<<possessedWord 'test'>>")])
+
+    manifest = scan_initiators(html_text)
+
+    row = next(r for r in manifest["rows"] if r["passage"] == "StoryCaption")
+    assert row["non_scene"] is True
+    assert row["widget_host"] is False
+    assert row["combat_starters"] == []
+    assert manifest["non_scene_passages"] == 1
+
+
+def test_build_archetype_jobs_records_scan_false_positives() -> None:
+    matrix = build_archetype_jobs(_synthetic_rows())
+
+    false_positives = matrix["scan_false_positives"]
+    assert [item["archetype"] for item in false_positives] == ["special-possession"]
+    assert "possessedWord" in false_positives[0]["reason"]
+    jobs = [job for job in matrix["jobs"] if job["archetype"] == "special-possession"]
+    assert len(jobs) == len(ARCHETYPE_PATHS)
+    assert all(job["unenterable_reason"] == false_positives[0]["reason"] for job in jobs)
+    assert matrix["coverage"]["scan_false_positives"] == 1
+    assert matrix["unresolved"] == []
+
+
+def test_run_initiator_rows_marks_special_passage_not_applicable() -> None:
+    row = {
+        "key": "possession::StoryCaption",
+        "kind": "possession",
+        "token": "",
+        "passage": "StoryCaption",
+        "macro": "possessedWord",
+        "args": "",
+        "entry_flags": [],
+        "combat_starters": [],
+        "tags": "",
+        "widget_host": False,
+        "non_scene": True,
+    }
+
+    # No page: the row must be answered from source evidence without playing.
+    results = combat_sweep.run_initiator_rows(None, [row], max_rounds=1, timeout_ms=50)
+
+    assert len(results) == 1
+    assert results[0]["verdict"] == "not_applicable"
+    assert "StoryCaption" in results[0]["detail"]
+
+
+def test_filter_archetype_jobs_matches_job_key_or_archetype() -> None:
+    jobs = [
+        {"key": "beast-lizard:win", "archetype": "beast-lizard", "path": "win"},
+        {"key": "beast-lizard:lose", "archetype": "beast-lizard", "path": "lose"},
+        {"key": "beast-snake:win", "archetype": "beast-snake", "path": "win"},
+    ]
+    assert filter_archetype_jobs(jobs, None) == jobs
+    assert filter_archetype_jobs(jobs, []) == jobs
+    # by archetype: all four paths of one spec
+    picked = filter_archetype_jobs(jobs, ["beast-lizard"])
+    assert [job["key"] for job in picked] == [
+        "beast-lizard:win",
+        "beast-lizard:lose",
+    ]
+    # by exact job key: one matrix path
+    picked = filter_archetype_jobs(jobs, ["beast-snake:win"])
+    assert [job["key"] for job in picked] == ["beast-snake:win"]
+    assert filter_archetype_jobs(jobs, ["does-not-exist"]) == []
+
+
+def _stalled_drive() -> dict:
+    return {"verdict": "soft_fail", "stalled": True, "rounds": 3}
+
+
+def test_entry_error_annotations_names_the_first_entry_error() -> None:
+    entry_state = {
+        "errors": [
+            {"kind": "console.error", "message": "widget blew up: reading 'includes'"},
+            {"kind": "error", "message": "second"},
+            {"kind": "error", "message": "third"},
+            {"kind": "error", "message": "fourth"},
+        ]
+    }
+    annotation = entry_error_annotations("soft_fail", _stalled_drive(), entry_state)
+    assert annotation["count"] == 4
+    assert len(annotation["sample"]) == 3
+    assert "reading 'includes'" in annotation["suffix"]
+    assert "4 error(s)" in annotation["suffix"]
+
+
+def test_entry_error_annotations_never_upgrades_or_noises_healthy_runs() -> None:
+    entry_state = {"errors": [{"kind": "error", "message": "boom"}]}
+    # Not stalled: no suffix, but the evidence is still recorded for the report.
+    annotation = entry_error_annotations(
+        "soft_fail", {"verdict": "soft_fail", "stalled": False}, entry_state
+    )
+    assert annotation["suffix"] == ""
+    assert annotation["count"] == 1
+    # Stalled but the entry was clean: no suffix either.
+    annotation = entry_error_annotations("soft_fail", _stalled_drive(), {"errors": []})
+    assert annotation["suffix"] == ""
+    assert annotation["count"] == 0
+    # Non-mapping payloads are counted but never sampled.
+    annotation = entry_error_annotations(
+        "soft_fail", _stalled_drive(), {"errors": ["not-a-dict"]}
+    )
+    assert annotation["count"] == 1
+    assert annotation["sample"] == []
+    assert annotation["suffix"] == ""
