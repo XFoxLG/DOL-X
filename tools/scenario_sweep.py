@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import dataclasses
 import hashlib
 import json
 import random
@@ -1993,16 +1994,115 @@ def manifest_baseline_path(fixture: Path | None) -> Path:
 # --------------------------------------------------------------------------- #
 
 
-DAYLOOP_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("起床", ("继续", "起床", "醒来", "wake", "get up", "continue")),
-    ("洗漱", ("浴室", "洗漱", "洗澡", "bathroom", "wash", "shower")),
-    ("早餐", ("厨房", "早餐", "吃点", "kitchen", "breakfast")),
-    ("出门", ("离开", "出门", "离开孤儿院", "leave", "domus street", "出门去")),
-    ("上学", ("学校", "上学", "school")),
-    ("上课", ("上课", "课程", "lesson", "class", "教室")),
-    ("放学", ("放学", "离开学校", "leave school", "after school", "回家", "go home")),
-    ("回家", ("孤儿院", "回家", "家", "orphanage", "home", "卧室", "bedroom", "大厅")),
-    ("睡觉", ("睡觉", "爬上床", "床", "sleep", "bed")),
+@dataclasses.dataclass(frozen=True)
+class DayloopStep:
+    """One step of the real-UI day.
+
+    ``target_passages`` is the structured goal: navigation prefers a link whose
+    ``data-passage`` names it and only falls back to the label text. A
+    ``completion="effect"`` step is *not* finished by arriving -- it needs one
+    more click that matches ``action_keywords`` and consumes at least
+    ``min_minutes`` of in-game clock, so "entered the bathroom" can never be
+    reported as "washed".
+    """
+
+    name: str
+    keywords: tuple[str, ...]
+    target_passages: tuple[str, ...] = ()
+    waypoints: tuple[str, ...] = ()
+    action_keywords: tuple[str, ...] = ()
+    min_minutes: int = 0
+    completion: str = "passage"
+
+
+# 2026-10-08 rewrite. The old table was pure keyword matching, so the day
+# "completed" on entering the bathroom and then died at the first step whose
+# label the current passage did not carry (7:00 Sunday start, 0.03h advanced).
+# Targets now come from the artifact's own passage names (verified in the
+# 0.5.11.9 build: Orphanage Intro -> Bedroom -> Bathroom -> ...
+# -> Leave orphanage -> Domus Street -> Harvest Street -> School Front
+# Courtyard -> ... -> Bedroom -> Sleep).
+DAYLOOP_STEPS: tuple[DayloopStep, ...] = (
+    DayloopStep(
+        "起床",
+        ("继续", "起床", "醒来", "wake", "get up", "continue"),
+        target_passages=("Bedroom",),
+    ),
+    DayloopStep(
+        "洗漱",
+        ("浴室", "洗漱", "洗澡", "bathroom", "wash", "shower"),
+        target_passages=("Bathroom",),
+        action_keywords=(
+            "洗澡", "沐浴", "淋浴", "洗脸", "刷牙", "洗个",
+            "shower", "wash", "bathe", "brush",
+        ),
+        min_minutes=1,
+        completion="effect",
+    ),
+    DayloopStep(
+        "早餐",
+        ("厨房", "早餐", "吃点", "kitchen", "breakfast", "食堂", "canteen"),
+        target_passages=("Kitchen", "Canteen"),
+        action_keywords=(
+            "吃", "早餐", "进食", "面包", "麦片", "烹饪", "做点",
+            "eat", "breakfast", "cereal", "toast", "cook", "meal",
+            "买", "购买", "餐", "buy", "purchase",
+        ),
+        min_minutes=1,
+        completion="effect",
+    ),
+    DayloopStep(
+        "出门",
+        ("离开", "出门", "离开孤儿院", "leave", "domus street", "出门去"),
+        target_passages=("Domus Street",),
+        # Verified 2026-10-08 (probe_dayloop_ui): the orphanage hall shows a
+        # random event first; the leave link lives in Bedroom, and the hall
+        # link lives in Kitchen. The waypoints let the driver walk the
+        # Kitchen -> Orphanage -> Bedroom -> street chain when the current
+        # room has no direct street link.
+        waypoints=("Orphanage", "Bedroom"),
+    ),
+    DayloopStep(
+        "上学",
+        ("学校", "上学", "school"),
+        target_passages=("School Front Courtyard", "School"),
+        waypoints=("Barb Street", "Oxford Street"),
+    ),
+    DayloopStep(
+        "上课",
+        ("上课", "课程", "lesson", "class", "教室"),
+        target_passages=("Hallways", "School Front Courtyard"),
+        action_keywords=(
+            "上课", "课程", "课时", "教室", "lesson", "class", "attend",
+            "科学", "数学", "语文", "历史", "家务", "Science", "Maths",
+            "English", "History", "Housekeeping",
+        ),
+        min_minutes=15,
+        completion="effect",
+    ),
+    DayloopStep(
+        "放学",
+        ("放学", "离开学校", "leave school", "after school", "go home"),
+        target_passages=("Domus Street",),
+        waypoints=("School Front Courtyard", "Oxford Street", "Barb Street"),
+    ),
+    DayloopStep(
+        "回家",
+        ("孤儿院", "回家", "家", "orphanage", "home", "卧室", "bedroom", "大厅"),
+        target_passages=("Bedroom",),
+        waypoints=("Orphanage",),
+    ),
+    DayloopStep(
+        "睡觉",
+        ("睡觉", "爬上床", "床", "sleep", "bed"),
+        # Verified 2026-10-08: "睡8小时" lives in the ``Bed`` passage, so the
+        # step must reach the bed first and then spend the night.
+        target_passages=("Bed",),
+        waypoints=("Bedroom",),
+        action_keywords=("睡觉", "睡", "sleep", "bed", "上床"),
+        min_minutes=60,
+        completion="effect",
+    ),
 )
 
 # Only used when a step's own keywords are absent: walk one hop back inside the
@@ -2016,6 +2116,10 @@ DAYLOOP_FALLBACK_KEYWORDS: tuple[str, ...] = (
     "回到",
     "back",
     "return",
+    # The unkeyed orphanage exits and street connectors in the 0.5.11.9 build
+    # (verified 2026-10-08): "安全返回" / "后退".
+    "安全返回",
+    "后退",
 )
 
 # Keys whose values are expected to move across a save/load round trip (save
@@ -2056,6 +2160,12 @@ ROUNDTRIP_CORE_KEYS: tuple[str, ...] = (
     "location",
 )
 
+# Variables the dayloop preparation itself changes (Time.timeTravel sets the
+# calendar, options.combatControls is normalised to the string form). A click
+# never legitimately rewinds the clock, so a negative minute delta is treated
+# as a state rewind by the effect phase.
+DAYLOOP_REWIND_MINUTES = 0.0
+
 
 def dayloop_match(link_text: str, keywords: Iterable[str]) -> str | None:
     """Return the first keyword contained in the link text (case-insensitive)."""
@@ -2082,6 +2192,350 @@ def dayloop_pick(links: list[dict[str, Any]], keywords: Iterable[str]) -> dict[s
     return None
 
 
+DAYLOOP_LINK_RE = re.compile(r"\[\[([^\]|]*)(?:\|([^\]]*))?\]\]")
+DAYLOOP_COST_RE = re.compile(r"\((\d+):([0-5]\d)\)")
+
+
+def dayloop_cost_minutes(text: str) -> int | None:
+    """Minutes stated in a DoL link label such as ``Bathroom (0:01)``."""
+    match = DAYLOOP_COST_RE.search(str(text or ""))
+    if not match:
+        return None
+    return int(match.group(1)) * 60 + int(match.group(2))
+
+
+def dayloop_pick_target(
+    links: list[dict[str, Any]], targets: Iterable[str]
+) -> dict[str, Any] | None:
+    """Pick a visible link whose ``data-passage`` is one of ``targets``.
+
+    This is the structured navigation channel: it does not care what the link
+    is called in the current locale.
+    """
+    wanted = [str(target) for target in targets if target]
+    if not wanted:
+        return None
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        data = str(link.get("data") or "").strip()
+        if data and data in wanted:
+            return {
+                "index": index,
+                "text": str(link.get("text") or ""),
+                "matched": data,
+                "data_passage": data,
+                "structured": True,
+            }
+    return None
+
+
+def dayloop_pick_effect(
+    links: list[dict[str, Any]], keywords: Iterable[str]
+) -> dict[str, Any] | None:
+    """Pick the matching effect link that costs the most in-game time.
+
+    ``Sleep for 8 hours`` must win over ``Sleep for 1 hour`` so the day really
+    advances; the stated ``(H:MM)`` cost is the only ordering signal needed.
+    """
+    keywords = tuple(keywords)
+    candidates: list[tuple[int, int, dict[str, Any]]] = []
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        text = str(link.get("text") or "")
+        matched = dayloop_match(text, keywords)
+        if not matched:
+            continue
+        cost = dayloop_cost_minutes(text) or 0
+        picked = dict(link)
+        picked.update(
+            {
+                "index": index,
+                "text": text,
+                "matched": matched,
+                "data_passage": link.get("data"),
+                "cost_minutes": cost,
+            }
+        )
+        candidates.append((-cost, index, picked))
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda item: (item[0], item[1]))[0][2]
+
+
+def dayloop_resolve_pick(
+    links: list[dict[str, Any]],
+    current_passage: str,
+    static_links: Mapping[str, Sequence[str]],
+) -> dict[str, Any] | None:
+    """Pick an on-screen event whose passage leads back to the current one.
+
+    Verified 2026-10-08 (probe_kitchen): the orphanage hall renders a random
+    event ("Home Orphan Poster") whose links leave and then return, and the
+    real hall exits only appear afterwards. Resolving such an event is
+    navigation, so the caller records it as a fallback, never as step
+    completion. Round-trip events are preferred; if none is provable the first
+    visible passage link that is not the current passage is offered instead
+    (still recorded, still bounded by the step's click budget).
+    """
+    if not current_passage:
+        return None
+    fallback: dict[str, Any] | None = None
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        data = str(link.get("data") or "").strip()
+        if not data or data == current_passage:
+            continue
+        pick = {
+            "index": index,
+            "text": str(link.get("text") or ""),
+            "matched": data,
+            "data_passage": data,
+        }
+        targets = [str(item) for item in (static_links.get(data) or [])]
+        if current_passage in targets:
+            pick["event_roundtrip"] = True
+            return pick
+        if fallback is None:
+            fallback = pick
+    return fallback
+
+
+DAYLOOP_WINDOW_TOKENS: tuple[str, ...] = (
+    "属性", "特质", "社交", "日志", "统计", "成就", "选项", "存档", "设置",
+    "衣柜", "态度", "人物", "保存", "加载", "游戏设置", "昵称", "调色",
+    "换装", "重生", "导出", "作弊", "言灵", "特质",
+    # Tutorial-only links (verified 2026-10-08): the scripted continuation is
+    # labelled "下一段" and must be clicked through to finish the tutorial.
+    "下一段",
+)
+
+
+def dayloop_window_pick(
+    current_passage: str,
+    step: "DayloopStep",
+    links: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Pick a chrome/window link that is known not to advance the clock.
+
+    Verified 2026-10-08 (probe_kitchen): ``Orphanage`` renders a random event
+    first and the real hall exits only appear afterwards; some of those exits
+    are entry doors that need a key and are dead ends without one. This helper
+    therefore only ever offers chrome links (clothing/options/attitude/...)
+    that the game itself opens as replacement panels -- they are recorded as
+    fallback navigation and never as step completion.
+    """
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        text = str(link.get("text") or "")
+        data = str(link.get("data") or "").strip()
+        if data == current_passage or not text:
+            continue
+        if any(token and token in text for token in DAYLOOP_WINDOW_TOKENS):
+            return {
+                "index": index,
+                "text": text,
+                "matched": text,
+                "data_passage": data or None,
+                "window": True,
+            }
+    return None
+
+
+DAYLOOP_EXIT_KEYWORDS: tuple[str, ...] = (
+    "离开孤儿院", "离开", "出门", "leave", "exit",
+)
+
+
+def dayloop_exit_pick(links: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Pick the orphanage's own exit link regardless of its current label."""
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        text = str(link.get("text") or "")
+        matched = dayloop_match(text, DAYLOOP_EXIT_KEYWORDS)
+        if matched:
+            return {
+                "index": index,
+                "text": text,
+                "matched": matched,
+                "data_passage": link.get("data"),
+            }
+    return None
+
+
+DAYLOOP_TUTORIAL_ADVANCE: tuple[str, ...] = ("结束教程", "Finish", "结束", "完成")
+
+
+def dayloop_tutorial_advance_pick(links: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Pick the tutorial's own continuation link.
+
+    Verified 2026-10-08 (``Tutorial`` body + ``Tutorial Finish`` body): the
+    first scripted page shows the text with no action radios; the only way
+    forward is its ``"<Tutorial Finish|Tutorial>"`` continuation link, and the
+    next page exits through ``$tutorialExit``. This helper is only consulted
+    while ``$tutorial`` is still 0 (the caller gates on the probe's combat
+    flag), so it can never touch an ordinary combat turn.
+    """
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        text = str(link.get("text") or "")
+        data = str(link.get("data") or "")
+        matched = dayloop_match(text, DAYLOOP_TUTORIAL_ADVANCE)
+        if matched or data == "Tutorial Finish":
+            return {
+                "index": index,
+                "text": text,
+                "matched": matched or data,
+                "data_passage": data or None,
+                "tutorial": True,
+            }
+    return None
+
+
+DAYLOOP_SCRIPTED_PASSAGES: tuple[str, ...] = (
+    "Tutorial Finish",
+    "Tutorial Flirt",
+    "Tutorial Thank",
+)
+
+
+def dayloop_scripted_pick(
+    passage: str, links: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Pick the scripted Tutorial continuation after its combat has ended.
+
+    Verified 2026-10-08 (``Tutorial Finish`` / ``Tutorial Flirt`` bodies): the
+    chain is ``Tutorial`` (combat) -> ``Tutorial Finish`` -> ``Tutorial Flirt``
+    or ``Tutorial Thank`` -> ``$tutorialExit`` (Domus Street). Only consulted
+    for the named scripted passages while ``combat`` is 0, so ordinary combat
+    turns and the stuck-Tutorial regression case are never touched.
+    """
+    if str(passage) not in DAYLOOP_SCRIPTED_PASSAGES:
+        return None
+    fallback: dict[str, Any] | None = None
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        data = str(link.get("data") or "").strip()
+        text = str(link.get("text") or "")
+        if not data or data == passage:
+            continue
+        pick = {
+            "index": index,
+            "text": text,
+            "matched": data,
+            "data_passage": data,
+            "scripted": True,
+        }
+        if data.startswith("Tutorial"):
+            return pick
+        if fallback is None:
+            fallback = pick
+    return fallback
+
+
+# Action preference for an automatic combat turn: escape first (the scripted
+# Tutorial rescues the player on a scream), then plain attacks, then whatever
+# the game offers. The label is matched case-insensitively on either locale.
+DAYLOOP_COMBAT_PREFERENCE: tuple[str, ...] = (
+    "尖叫",
+    "呼救",
+    "scream",
+    "shout",
+    "攻击",
+    "击退",
+    "attack",
+    "fight",
+)
+
+# Hard bound for one encounter; a real combat turn is ~1-3 s of wall clock, so
+# 40 rounds cannot mask a stuck fight as progress.
+DAYLOOP_COMBAT_MAX_ROUNDS = 40
+
+
+def dayloop_combat_choice(
+    options: Sequence[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Choose one offered combat action radio, preferring escape over attack."""
+    usable = [opt for opt in options if str(opt.get("id") or "")]
+    for token in DAYLOOP_COMBAT_PREFERENCE:
+        lowered = token.lower()
+        for opt in usable:
+            if lowered in str(opt.get("label") or "").lower():
+                return opt
+    return usable[0] if usable else None
+
+
+def dayloop_minutes_between(
+    before: dict[str, Any] | None, after: dict[str, Any] | None
+) -> float | None:
+    """In-game minutes between two probe clocks (None when unmeasurable)."""
+    before = before or {}
+    after = after or {}
+    old_ms = before.get("dateMs")
+    new_ms = after.get("dateMs")
+    if isinstance(old_ms, (int, float)) and isinstance(new_ms, (int, float)):
+        return (float(new_ms) - float(old_ms)) / 60000.0
+    old_day = before.get("dayOfYear")
+    new_day = after.get("dayOfYear")
+    old_sec = before.get("secondsSinceMidnight")
+    new_sec = after.get("secondsSinceMidnight")
+    if all(
+        isinstance(value, (int, float))
+        for value in (old_day, new_day, old_sec, new_sec)
+    ):
+        day_delta = (float(new_day) - float(old_day)) % 365 if new_day != old_day else 0.0
+        return (day_delta * 86400.0 + (float(new_sec) - float(old_sec))) / 60.0
+    return None
+
+
+def dayloop_link_targets(body: str) -> list[str]:
+    """Passage names a body links to, in document order (``[[label|Target]]``)."""
+    targets: list[str] = []
+    for match in DAYLOOP_LINK_RE.finditer(str(body or "")):
+        target = str(match.group(2) or match.group(1) or "").strip()
+        if target and target not in targets:
+            targets.append(target)
+    return targets
+
+
+def dayloop_static_links(passages: Mapping[str, str]) -> dict[str, list[str]]:
+    return {
+        str(name): dayloop_link_targets(body) for name, body in passages.items()
+    }
+
+
+def dayloop_path(
+    start: str,
+    goal: str,
+    links: Mapping[str, Sequence[str]],
+    *,
+    max_depth: int = 6,
+) -> list[str]:
+    """Shortest passage path from ``start`` to ``goal`` (goal excluded start)."""
+    if not start or not goal or start == goal:
+        return []
+    queue: collections.deque[tuple[str, list[str]]] = collections.deque([(start, [])])
+    seen = {start}
+    while queue:
+        node, path = queue.popleft()
+        if len(path) >= max_depth:
+            continue
+        for nxt in links.get(node) or []:
+            if nxt in seen:
+                continue
+            if nxt == goal:
+                return path + [nxt]
+            seen.add(nxt)
+            queue.append((nxt, path + [nxt]))
+    return []
+
+
 # Verdict vocabulary for a single dayloop click. ``ok`` is the only status that
 # counts as step completion; ``fallback``/``stalled``/``not_applicable`` are
 # honest non-completions and ``soft_fail`` means the click itself did not land.
@@ -2089,6 +2543,8 @@ DAYLOOP_CLICK_STATUSES: tuple[str, ...] = (
     "ok",
     "fallback",
     "stalled",
+    "progress",
+    "unknown",
     "soft_fail",
     "not_applicable",
 )
@@ -2247,6 +2703,7 @@ TIME_HELPER_JS = r"""
         out.secondsSinceMidnight = num(() => T.secondsSinceMidnight);
         out.dateMs = num(() => T.date.getTime());
         try { out.weekDayName = String(T.weekDayName); } catch (e) {}
+        try { out.schoolDay = Boolean(T.schoolDay); } catch (e) {}
       }
     } catch (e) { out.error = String(e && e.message ? e.message : e).slice(0, 200); }
     return out;
@@ -2261,6 +2718,7 @@ DAYLOOP_PROBE = (
   const S = window.__DOLX__ || {};
   const out = { passage: null, time: {}, links: [], node: null, errors: [] };
   try { out.passage = SC.State.passage; } catch (e) {}
+  try { out.combat = Number(SC.State.variables.combat) || 0; } catch (e) { out.combat = null; }
 """
     + TIME_HELPER_JS
     + r"""
@@ -2303,6 +2761,137 @@ DAYLOOP_CLICK = r"""
   S.done = false;
   S.renderSeq = 0;
   try { el.click(); out.ok = true; } catch (e) { out.error = "click threw: " + String(e && e.message ? e.message : e).slice(0, 200); }
+  return out;
+}
+"""
+
+
+# The Tutorial and random street encounters are real combat turns: the actions
+# are ``input.macro-radiobutton`` elements inside ``#listContainer`` and the
+# confirm control is the ``#next`` link (``<<nexttext>>``). ``combatControls``
+# is a *string* control-type name ("radio", "columnRadio", "lists",
+# "limitedLists"), never a number: writing a number breaks
+# ``$options.combatControls.includes(...)`` and the whole action list renders as
+# an ``error-view`` box instead of radios (verified 2026-10-08).
+DAYLOOP_COMBAT_OPTIONS = r"""
+() => {
+  const out = { passage: null, combat: null, options: [], next: null, errors: [] };
+  const SC = window.SugarCube;
+  try { out.passage = SC.State.passage; } catch (e) {}
+  try { out.combat = Number(SC.State.variables.combat) || 0; } catch (e) { out.combat = null; }
+  try {
+    const radios = Array.from(document.querySelectorAll("#listContainer input.macro-radiobutton"));
+    out.options = radios.map((el) => {
+      const label = el.closest ? el.closest("label") : null;
+      return {
+        id: String(el.id || ""),
+        label: ((label && label.innerText) || el.value || "").replace(/\s+/g, " ").trim().slice(0, 100),
+        checked: !!el.checked,
+      };
+    });
+  } catch (e) { out.errors.push("options: " + String(e && e.message ? e.message : e).slice(0, 160)); }
+  const next = document.querySelector("#next a") || document.querySelector("#next .link-internal");
+  out.next = next ? (next.innerText || "").replace(/\s+/g, " ").trim().slice(0, 60) : null;
+  return out;
+}
+"""
+
+
+DAYLOOP_COMBAT_CLICK = r"""
+(payload) => {
+  const out = { ok: false, id: payload.id, radio_clicked: false, next_clicked: false, text: null, error: null };
+  const S = (window.__DOLX__ = window.__DOLX__ || {});
+  let el = null;
+  try { el = document.getElementById(payload.id); } catch (e) { el = null; }
+  if (!el) { out.error = "action radio missing: " + payload.id; return out; }
+  try {
+    el.click();
+    out.radio_clicked = true;
+    const label = el.closest ? el.closest("label") : null;
+    out.text = ((label && label.innerText) || "").replace(/\s+/g, " ").trim().slice(0, 100);
+  } catch (e) { out.error = "radio click threw: " + String(e && e.message ? e.message : e).slice(0, 160); return out; }
+  try {
+    const next = document.querySelector("#next a") || document.querySelector("#next .link-internal");
+    if (!next) { out.error = "no #next control to confirm the turn"; return out; }
+    S.done = false;
+    S.renderSeq = 0;
+    next.click();
+    out.next_clicked = true;
+  } catch (e) { out.error = "next click threw: " + String(e && e.message ? e.message : e).slice(0, 160); return out; }
+  out.ok = out.radio_clicked && out.next_clicked;
+  return out;
+}
+"""
+
+
+# Preparation for the day loop. The base artifact boots on a Sunday morning and
+# Domus Street immediately starts the combat Tutorial; a lesson needs a school
+# day and the street graph is only reachable after the Tutorial. Both are done
+# through the game's own surfaces: ``$debug=1`` uses the debug menu's own
+# "Next School" entry (``Time.timeTravel``), and the Tutorial's scripted
+# continuation links are clicked in the real UI. The whole preparation runs in
+# debug mode, the debug flag is cleared afterwards, and ``start_time`` is only
+# captured once it finishes, so the clock jump can never inflate
+# ``time_advance>=16h`` and the nine recorded steps are never debug traffic.
+DAYLOOP_PREP = r"""
+(payload) => {
+  const out = { ok: false, via: null, before: null, after: null, logout_pending: false, errors: [] };
+  const SC = window.SugarCube;
+  const T = window.Time;
+  const DT = (typeof DateTime !== "undefined") ? DateTime : window.DateTime;
+  const num = (fn) => { try { const v = fn(); return typeof v === "number" && isFinite(v) ? v : null; } catch (e) { return null; } };
+  const read = () => ({
+    year: num(() => T.year), month: num(() => T.month), day: num(() => T.date.day),
+    hour: num(() => T.hour), minute: num(() => T.minute),
+    weekDayName: (() => { try { return String(T.weekDayName); } catch (e) { return null; } })(),
+    schoolDay: (() => { try { return Boolean(T.schoolDay); } catch (e) { return null; } })(),
+  });
+  if (!T || !DT || !SC || !SC.State) { out.errors.push("Time/DateTime/SugarCube missing"); return out; }
+  const V = SC.State.variables;
+  const S = (window.__DOLX__ = window.__DOLX__ || {});
+  try {
+    const debugBefore = num(() => V.debug);
+    V.debug = 1;
+    if (typeof T.set === "function") T.set();
+    out.before = read();
+    if (out.before.schoolDay === true && out.before.hour !== null && out.before.hour >= 5) {
+      out.via = "already a school day";
+    } else {
+      let target = null;
+      if (typeof T.getNextSchoolTermStartDate === "function") {
+        const d = T.getNextSchoolTermStartDate();
+        if (d && num(() => d.year) !== null) {
+          target = new DT(d.year, d.month, d.day, payload.hour || 7, 0);
+        }
+      }
+      if (!target) { out.errors.push("getNextSchoolTermStartDate unavailable"); }
+      else {
+        T.timeTravel(target);
+        out.via = "Time.timeTravel(next school term start)";
+      }
+    }
+    // The debug menu's own reset form sets the control mode while it is open;
+    // leaving the mode at "Radio" keeps the school walk from opening a full
+    // four-mode chooser on the way. The value is a control-type *string*: the
+    // game calls ``$options.combatControls.includes(...)`` and a number makes
+    // every combat action widget render an error box instead of radios.
+    try { if (V.options) V.options.combatControls = "radio"; } catch (e) {}
+    try { if ("combatControls" in V) V.combatControls = "radio"; } catch (e) {}
+    // Rewind to the opening passage so the scripted tutorial continuation can
+    // be clicked exactly like a player would (the street links only appear
+    // after ``Tutorial Finish``).
+    if (SC.State.passage === "Domus Street") {
+      SC.Engine.play("Orphanage Intro");
+      out.logout_pending = true;
+    }
+    out.after = read();
+    out.ok = out.after.schoolDay === true;
+    if (!out.ok) out.errors.push("schoolDay is still false after timeTravel");
+    V.debug = debugBefore == null ? 0 : debugBefore;
+  } catch (e) {
+    out.errors.push(String(e && e.message ? e.message : e));
+    try { if (SC.State.variables) SC.State.variables.debug = 0; } catch (e2) {}
+  }
   return out;
 }
 """
@@ -2422,11 +3011,35 @@ def run_dayloop(
     max_clicks_per_step: int = 3,
     timeout_ms: int = 8000,
     settle_ms: int = 250,
+    passages: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Click through one in-game day on the real UI; never fake a pass."""
+    """Click through one in-game day on the real UI; never fake a pass.
+
+    Each step is a three-phase state machine:
+
+    * **encounters** -- a live combat turn (the scripted street Tutorial or a
+      random encounter) is played with a real action radio and the game's own
+      ``#next`` confirm until ``$combat`` drops; the scripted ``Tutorial
+      Finish`` / ``Tutorial Flirt`` / ``Tutorial Thank`` pages are clicked by
+      their ``data-passage``. Encounter rounds are recorded but never counted
+      as step completion.
+
+    * **navigation** -- click real links until the probe reports the step's
+      target passage. Structured navigation (``data-passage``) wins over label
+      text, and the static passage map (``passages``) supplies the next hop
+      when the target is more than one passage away. Navigation by itself is
+      recorded as ``fallback`` and never completes a step.
+    * **effect** -- for ``completion="effect"`` steps, click the action that
+      costs in-game time (``洗澡 (1:00)``, ``Sleep for 8 hours``, ...) and
+      require the clock to advance by at least ``min_minutes``. Arriving in the
+      bathroom is never reported as having washed.
+
+    Nothing here writes game state or jumps the clock: the only writes are
+    clicks on real passage links.
+    """
     started = time.strftime("%Y-%m-%dT%H:%M:%S")
     first = page.evaluate(DAYLOOP_PROBE)
-    start_time = dict(first.get("time") or {})
+    static_links = dayloop_static_links(passages or {})
     records: list[dict[str, Any]] = []
     visited: list[str] = [str(first.get("passage") or "")]
     save_report: dict[str, Any] | None = None
@@ -2434,104 +3047,587 @@ def run_dayloop(
     save_at_passage: str | None = None
     hard_errors: list[dict[str, Any]] = []
 
-    for step_index, (step_name, keywords) in enumerate(DAYLOOP_STEPS):
-        step_started = time.time()
-        click_errors_before = _hard_error_count(hard_errors)
-        step_records: list[dict[str, Any]] = []
-        for click_index in range(max_clicks_per_step):
-            probe = page.evaluate(DAYLOOP_PROBE)
-            for error in probe.get("errors") or []:
-                if error.get("kind") in ps.HARD_ERROR_KINDS:
-                    hard_errors.append(
-                        {
-                            "step": step_name,
-                            "kind": error.get("kind"),
-                            "message": str(error.get("message"))[:300],
-                        }
-                    )
-            pick = dayloop_pick(list(probe.get("links") or []), keywords)
-            fallback = False
-            if pick is None and not step_records:
-                pick = dayloop_pick(list(probe.get("links") or []), DAYLOOP_FALLBACK_KEYWORDS)
-                fallback = pick is not None
-            if pick is None:
-                break
-            passage_before = str(probe.get("passage") or "")
-            clicked = page.evaluate(DAYLOOP_CLICK, {"index": pick["index"]})
-            waited = False
-            if clicked.get("ok"):
+    def probe(step_name: str) -> dict[str, Any]:
+        data = page.evaluate(DAYLOOP_PROBE)
+        for error in data.get("errors") or []:
+            if error.get("kind") in ps.HARD_ERROR_KINDS:
+                hard_errors.append(
+                    {
+                        "step": step_name,
+                        "kind": error.get("kind"),
+                        "message": str(error.get("message"))[:300],
+                    }
+                )
+        return data
+
+    def click_once(
+        pick: dict[str, Any], *, fallback: bool, step_name: str
+    ) -> dict[str, Any]:
+        before = probe(step_name)
+        passage_before = str(before.get("passage") or "")
+        clicked = page.evaluate(DAYLOOP_CLICK, {"index": pick["index"]})
+        waited = False
+        if clicked.get("ok"):
+            try:
+                page.wait_for_function(
+                    "(() => !!(window.__DOLX__ && window.__DOLX__.done))()",
+                    timeout=timeout_ms,
+                )
+                waited = True
+            except Exception:  # noqa: BLE001 - a slow render is recorded, not fatal
+                waited = False
+        page.wait_for_timeout(settle_ms)
+        after = page.evaluate(DAYLOOP_PROBE)
+        passage_after = str(after.get("passage") or "")
+        if passage_after and passage_after != passage_before:
+            visited.append(passage_after)
+        moved = passage_after != passage_before
+        if not moved:
+            moved = dayloop_clock_moved(before.get("time"), after.get("time"))
+        return {
+            "passage_before": passage_before,
+            "passage_after": passage_after,
+            "moved": moved,
+            "minutes": dayloop_minutes_between(before.get("time"), after.get("time")),
+            "clicked_ok": bool(clicked.get("ok")),
+            "click_error": None if clicked.get("ok") else str(clicked.get("error"))[:200],
+            "clicked_text": str(clicked.get("text") or pick.get("text") or "")[:120],
+            "waited": waited,
+            "click_status": dayloop_click_status(
+                clicked_ok=bool(clicked.get("ok")),
+                waited=waited,
+                fallback=fallback,
+                moved=moved,
+            ),
+        }
+
+    def add_record(
+        step: DayloopStep,
+        step_index: int,
+        step_started: float,
+        click_index: int,
+        pick: dict[str, Any],
+        outcome: dict[str, Any],
+        *,
+        phase: str,
+        status: str,
+        detail: str,
+    ) -> dict[str, Any]:
+        record = {
+            "step": step.name,
+            "step_index": step_index,
+            "click_index": click_index,
+            "phase": phase,
+            "keyword_hits": [pick.get("matched")],
+            "keywords": list(step.keywords),
+            "fallback_navigation": phase == "fallback",
+            "passage_before": outcome["passage_before"],
+            "passage_after": outcome["passage_after"],
+            "clicked_text": outcome["clicked_text"],
+            "matched_link": str(pick.get("text") or "")[:120],
+            "data_passage": pick.get("data_passage"),
+            "minutes_advanced": outcome["minutes"],
+            "elapsed_ms": int((time.time() - step_started) * 1000),
+            "status": status,
+            "detail": detail,
+        }
+        records.append(record)
+        return record
+
+    # --- recorded preparation (debug pass) ----------------------------------- #
+    # The artifact boots on a Sunday and Domus Street starts the combat
+    # Tutorial; a lesson needs a school day and the Tutorial must be resolved
+    # before the street graph opens.
+    prep: dict[str, Any] = {
+        "ran": False,
+        "ok": None,
+        "via": None,
+        "before": None,
+        "after": None,
+        "logout_pending": None,
+        "errors": [],
+    }
+    if (first.get("time") or {}).get("schoolDay") is False:
+        prep["ran"] = True
+        # The prep script flips ``$debug`` itself and restores the previous
+        # value before it returns. The driver must not pre-set ``$debug``:
+        # the street Tutorial only fires while ``$debug is 0``, so a leftover
+        # 1 would silently skip the encounter and strand the whole day on
+        # Domus Street (regression captured 2026-10-08).
+        raw = page.evaluate(DAYLOOP_PREP, {"hour": 7})
+        if isinstance(raw, dict):
+            prep["ok"] = raw.get("ok")
+            prep["via"] = raw.get("via")
+            prep["before"] = raw.get("before")
+            prep["after"] = raw.get("after")
+            prep["logout_pending"] = raw.get("logout_pending")
+            prep["errors"] = [str(item)[:200] for item in (raw.get("errors") or [])]
+            if raw.get("logout_pending"):
                 try:
                     page.wait_for_function(
                         "(() => !!(window.__DOLX__ && window.__DOLX__.done))()",
                         timeout=timeout_ms,
                     )
-                    waited = True
-                except Exception:
+                except Exception:  # noqa: BLE001 - the reprobe below records reality
+                    pass
+        else:
+            prep["ok"] = False
+            prep["errors"] = ["prep script returned no object"]
+        first = page.evaluate(DAYLOOP_PROBE)
+        prep["ok"] = bool(prep.get("ok")) and (
+            (first.get("time") or {}).get("schoolDay") is True
+        )
+    start_time = dict(first.get("time") or {})
+    visited[0] = str(first.get("passage") or "")
+
+    for step_index, step in enumerate(DAYLOOP_STEPS):
+        step_started = time.time()
+        step_records: list[dict[str, Any]] = []
+        current = probe(step.name)
+        current_passage = str(current.get("passage") or "")
+
+        # --- phase 0: live combat / scripted Tutorial continuation -------- #
+        # The first street visit starts the scripted Tutorial (a real combat
+        # passage) and streets can also throw random encounters. Leaving one
+        # half-played would strand every later step, so each turn is played
+        # with a real action radio + the game's own ``#next`` confirm, and the
+        # scripted follow-up pages are clicked by their ``data-passage``.
+        for _ in range(DAYLOOP_COMBAT_MAX_ROUNDS):
+            combat = int(current.get("combat") or 0)
+            if combat:
+                options = page.evaluate(DAYLOOP_COMBAT_OPTIONS) or {}
+                choice = dayloop_combat_choice(list(options.get("options") or []))
+                if choice is None:
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            {
+                                "index": -1,
+                                "text": "",
+                                "matched": None,
+                                "data_passage": None,
+                            },
+                            {
+                                "passage_before": current_passage,
+                                "passage_after": current_passage,
+                                "minutes": None,
+                                "clicked_text": "",
+                                "click_status": "not_applicable",
+                            },
+                            phase="combat",
+                            status="not_applicable",
+                            detail=(
+                                f"combat turn in {current_passage} offered no action "
+                                f"radios; next control={options.get('next')!r}"
+                            )[:600],
+                        )
+                    )
+                    pick = dayloop_tutorial_advance_pick(
+                        list(current.get("links") or [])
+                    )
+                    if pick is None:
+                        break
+                else:
+                    before = probe(step.name)
+                    clicked = page.evaluate(
+                        DAYLOOP_COMBAT_CLICK, {"id": choice.get("id")}
+                    )
                     waited = False
-            page.wait_for_timeout(settle_ms)
-            after = page.evaluate(DAYLOOP_PROBE)
-            passage_after = str(after.get("passage") or "")
-            moved = passage_after != passage_before
-            if not moved:
-                moved = dayloop_clock_moved(probe.get("time"), after.get("time"))
-            if passage_after and passage_after != passage_before:
-                visited.append(passage_after)
-            status = dayloop_click_status(
-                clicked_ok=bool(clicked.get("ok")),
-                waited=waited,
-                fallback=fallback,
-                moved=moved,
+                    if clicked.get("ok"):
+                        try:
+                            page.wait_for_function(
+                                "(() => !!(window.__DOLX__ && window.__DOLX__.done))()",
+                                timeout=timeout_ms,
+                            )
+                            waited = True
+                        except Exception:  # noqa: BLE001 - a slow turn is recorded, not fatal
+                            waited = False
+                    page.wait_for_timeout(settle_ms)
+                    after = probe(step.name)
+                    passage_before = str(before.get("passage") or "")
+                    passage_after = str(after.get("passage") or "")
+                    if passage_after and passage_after != passage_before:
+                        visited.append(passage_after)
+                    moved = passage_after != passage_before
+                    if not moved:
+                        moved = dayloop_clock_moved(
+                            before.get("time"), after.get("time")
+                        )
+                    status = (
+                        "progress"
+                        if clicked.get("ok") and moved
+                        else "stalled"
+                    )
+                    detail = (
+                        f"combat action {str(choice.get('label'))!r}: "
+                        f"{passage_before} -> {passage_after} (settled={waited})"
+                        if clicked.get("ok")
+                        else f"combat action failed: {str(clicked.get('error'))[:140]}"
+                    )
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            {
+                                "index": -1,
+                                "text": str(choice.get("label") or ""),
+                                "matched": str(choice.get("label") or ""),
+                                "data_passage": None,
+                            },
+                            {
+                                "passage_before": passage_before,
+                                "passage_after": passage_after,
+                                "minutes": dayloop_minutes_between(
+                                    before.get("time"), after.get("time")
+                                ),
+                                "clicked_text": str(clicked.get("text") or ""),
+                                "click_status": status,
+                            },
+                            phase="combat",
+                            status=status,
+                            detail=detail[:600],
+                        )
+                    )
+                    current = after
+                    current_passage = passage_after
+                    if status == "stalled":
+                        break
+                    continue
+            pick = dayloop_scripted_pick(
+                current_passage, list(current.get("links") or [])
             )
-            detail = ""
-            if not clicked.get("ok"):
-                detail = f"click failed: {clicked.get('error')}"
-            elif not waited:
-                detail = "the :passagedisplay hook did not fire within the step timeout"
-            elif status == "fallback":
-                detail = (
-                    f"fallback navigation via {pick['matched']!r}: movement only, "
-                    "not counted as step completion"
+            if pick is None:
+                break
+            outcome = click_once(pick, fallback=False, step_name=step.name)
+            step_records.append(
+                add_record(
+                    step,
+                    step_index,
+                    step_started,
+                    len(step_records),
+                    pick,
+                    outcome,
+                    phase="tutorial",
+                    status=(
+                        "stalled"
+                        if outcome["click_status"] == "stalled"
+                        else "progress"
+                    ),
+                    detail=(
+                        f"scripted tutorial continuation via {pick['matched']!r}: "
+                        f"{outcome['passage_before']} -> {outcome['passage_after']}; "
+                        "movement only, not counted as step completion"
+                    )[:600],
                 )
-            elif status == "stalled":
-                detail = "click landed but neither the passage nor the in-game clock moved"
-            record = {
-                "step": step_name,
-                "step_index": step_index,
-                "click_index": click_index,
-                "keyword_hits": [pick["matched"]],
-                "keywords": list(keywords),
-                "fallback_navigation": fallback,
-                "passage_before": passage_before,
-                "passage_after": passage_after,
-                "clicked_text": str(clicked.get("text") or pick["text"])[:120],
-                "matched_link": pick["text"][:120],
-                "data_passage": pick.get("data_passage"),
-                "elapsed_ms": int((time.time() - step_started) * 1000),
-                "status": status,
-                "detail": detail,
-            }
-            records.append(record)
-            step_records.append(record)
-            if status == "stalled":
+            )
+            current = probe(step.name)
+            current_passage = str(current.get("passage") or "")
+            if outcome["click_status"] == "stalled":
                 break
-            if passage_after == passage_before and (fallback or not clicked.get("ok")):
-                break
-            if passage_after != passage_before and not fallback:
-                break
-        if not step_records:
-            probe = page.evaluate(DAYLOOP_PROBE)
+        if int(current.get("combat") or 0):
+            step_records.append(
+                add_record(
+                    step,
+                    step_index,
+                    step_started,
+                    len(step_records),
+                    {
+                        "index": -1,
+                        "text": "",
+                        "matched": None,
+                        "data_passage": None,
+                    },
+                    {
+                        "passage_before": current_passage,
+                        "passage_after": current_passage,
+                        "minutes": None,
+                        "clicked_text": "",
+                        "click_status": "stalled",
+                    },
+                    phase="combat",
+                    status="stalled",
+                    detail=(
+                        f"combat still live in {current_passage} after "
+                        f"{DAYLOOP_COMBAT_MAX_ROUNDS} recorded rounds"
+                    ),
+                )
+            )
+
+        navigated = (not step.target_passages) or current_passage in step.target_passages
+
+        # --- phase 1: navigation ------------------------------------------ #
+        if step.target_passages and not navigated:
+            for _ in range(max_clicks_per_step):
+                links = list(current.get("links") or [])
+                pick = dayloop_pick_target(links, step.target_passages)
+                if pick is None:
+                    hop = ""
+                    for target in step.target_passages:
+                        path = dayloop_path(current_passage, target, static_links)
+                        if path:
+                            hop = path[0]
+                            break
+                    if hop:
+                        pick = dayloop_pick_target(links, (hop,))
+                if pick is None:
+                    pick = dayloop_pick(links, step.keywords)
+                if (
+                    pick is None
+                    and step.completion == "effect"
+                    and step.name != "睡觉"
+                ):
+                    # School lessons are one-shot passages: the classroom entry
+                    # itself is the effect link ("上课 (1:00)"), and the lesson
+                    # is then finished from wherever that click lands. The bed
+                    # action is the opposite case (Bedroom -> Bed must happen
+                    # first), so it keeps the play-then-sleep order.
+                    pick = dayloop_pick_effect(links, step.action_keywords or step.keywords)
+                if pick is None:
+                    pick = dayloop_window_pick(current_passage, step, links)
+                if pick is None:
+                    pick = dayloop_resolve_pick(links, current_passage, static_links)
+                if pick is None and step.name == "出门":
+                    pick = dayloop_exit_pick(links)
+                if pick is None:
+                    break
+                outcome = click_once(pick, fallback=False, step_name=step.name)
+                landed = str(outcome["passage_after"]) in step.target_passages
+                navigated_now = str(outcome["passage_after"]) in (step.waypoints or ())
+                effect_minutes = outcome["minutes"]
+                if (
+                    step.completion == "effect"
+                    and effect_minutes is not None
+                    and effect_minutes >= step.min_minutes
+                ):
+                    status = "ok"
+                    detail = (
+                        f"{pick['matched']!r} advanced {effect_minutes:.0f} min "
+                        f"(required >= {step.min_minutes}); class entry "
+                        f"{outcome['passage_before']} -> {outcome['passage_after']}"
+                    )
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="effect",
+                            status=status,
+                            detail=detail,
+                        )
+                    )
+                    current = probe(step.name)
+                    break
+                phase = "navigate"
+                if pick.get("window") or pick.get("event_roundtrip"):
+                    phase = "fallback"
+                if outcome["click_status"] == "stalled":
+                    status = "stalled"
+                    detail = "click landed but neither the passage nor the in-game clock moved"
+                elif landed and step.completion == "passage" and phase == "navigate":
+                    status = "ok"
+                    detail = f"reached {outcome['passage_after']}"
+                elif navigated_now:
+                    status = "fallback"
+                    detail = (
+                        f"waypoint navigation via {pick['matched']!r}: "
+                        f"{outcome['passage_before']} -> {outcome['passage_after']}; "
+                        "movement only, not counted as step completion"
+                    )
+                elif pick.get("window"):
+                    status = "fallback"
+                    detail = (
+                        f"window link via {pick['matched']!r}: "
+                        f"{outcome['passage_before']} -> {outcome['passage_after']}; "
+                        "this game action did not advance the in-game clock"
+                    )
+                elif pick.get("event_roundtrip"):
+                    status = "fallback"
+                    detail = (
+                        f"resolved an event via {pick['matched']!r}: "
+                        f"{outcome['passage_before']} -> {outcome['passage_after']}; "
+                        "navigation only, not counted as step completion"
+                    )
+                else:
+                    status = "fallback"
+                    detail = (
+                        f"navigation only: {outcome['passage_before']} -> "
+                        f"{outcome['passage_after']} (step target "
+                        f"{list(step.target_passages)})"
+                    )
+                step_records.append(
+                    add_record(
+                        step,
+                        step_index,
+                        step_started,
+                        len(step_records),
+                        pick,
+                        outcome,
+                        phase=phase,
+                        status=status,
+                        detail=detail,
+                    )
+                )
+                current = probe(step.name)
+                current_passage = str(current.get("passage") or "")
+                if landed and phase == "navigate":
+                    navigated = True
+                    break
+                if status == "stalled":
+                    break
+            if not navigated:
+                # One hop back inside the current location (e.g. Bathroom ->
+                # Bedroom) so a side room cannot end the day. Recorded as
+                # fallback: movement only, never step completion.
+                pick = dayloop_pick(list(current.get("links") or []), DAYLOOP_FALLBACK_KEYWORDS)
+                if pick is not None:
+                    outcome = click_once(pick, fallback=True, step_name=step.name)
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="fallback",
+                            status="fallback",
+                            detail=(
+                                f"fallback navigation via {pick['matched']!r}: "
+                                "movement only, not counted as step completion"
+                            ),
+                        )
+                    )
+                    current = probe(step.name)
+                    current_passage = str(current.get("passage") or "")
+                    navigated = current_passage in step.target_passages
+
+        # --- phase 2: effect ---------------------------------------------- #
+        if step.completion == "effect" and navigated:
+            effect_keywords = step.action_keywords or step.keywords
+            for _ in range(max_clicks_per_step):
+                links = list(current.get("links") or [])
+                pick = dayloop_pick_effect(links, effect_keywords)
+                if pick is None:
+                    if not step_records:
+                        step_records.append(
+                            add_record(
+                                step,
+                                step_index,
+                                step_started,
+                                len(step_records),
+                                {
+                                    "index": -1,
+                                    "text": "",
+                                    "matched": None,
+                                    "data_passage": None,
+                                },
+                                {
+                                    "passage_before": current_passage,
+                                    "passage_after": current_passage,
+                                    "minutes": None,
+                                    "clicked_text": "",
+                                },
+                                phase="effect",
+                                status="not_applicable",
+                                detail=(
+                                    f"reached {current_passage} but no action matched "
+                                    f"{list(effect_keywords)}; offered: "
+                                    + ", ".join(
+                                        str(link.get('text'))[:40]
+                                        for link in links[:12]
+                                    )
+                                )[:600],
+                            )
+                        )
+                    break
+                outcome = click_once(pick, fallback=False, step_name=step.name)
+                minutes = outcome["minutes"]
+                if minutes is not None and minutes < DAYLOOP_REWIND_MINUTES:
+                    # The click landed but the clock went backwards (a state
+                    # rewind); never credit it as progress toward a step.
+                    status = "stalled"
+                    detail = (
+                        f"{pick['matched']!r} moved the clock backwards "
+                        f"({minutes:.0f} min); not counted as progress"
+                    )
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="effect",
+                            status=status,
+                            detail=detail,
+                        )
+                    )
+                    current = probe(step.name)
+                    current_passage = str(current.get("passage") or "")
+                    break
+                advanced = minutes is not None and minutes >= step.min_minutes
+                if advanced:
+                    status = "ok"
+                    detail = (
+                        f"{pick['matched']!r} advanced {minutes:.0f} min "
+                        f"(required >= {step.min_minutes})"
+                    )
+                elif outcome["click_status"] == "stalled":
+                    status = "stalled"
+                    detail = "effect click landed but nothing moved"
+                else:
+                    # ``None`` means the clock basis was missing, not that the
+                    # action did nothing; an explicit 0 that fails the minimum
+                    # is a genuine partial effect (e.g. one lesson of a longer
+                    # block), which a later click in the same step can top up.
+                    status = "progress" if minutes is not None else "unknown"
+                    detail = (
+                        f"{pick['matched']!r} advanced "
+                        f"{'unknown' if minutes is None else f'{minutes:.0f}'} min "
+                        f"(required >= {step.min_minutes})"
+                    )
+                step_records.append(
+                    add_record(
+                        step,
+                        step_index,
+                        step_started,
+                        len(step_records),
+                        pick,
+                        outcome,
+                        phase="effect",
+                        status=status,
+                        detail=detail,
+                    )
+                )
+                current = probe(step.name)
+                current_passage = str(current.get("passage") or "")
+                if status == "ok":
+                    break
+                if status == "stalled":
+                    break
+
+        if not step_records and not navigated:
             records.append(
                 dayloop_missing_step_record(
-                    step_name,
-                    keywords,
-                    str(probe.get("passage") or ""),
+                    step.name,
+                    step.keywords,
+                    str(current.get("passage") or ""),
                     step_index=step_index,
                     elapsed_ms=int((time.time() - step_started) * 1000),
                 )
             )
         if (
             save_report is None
-            and step_name == "出门"
+            and step.name == "出门"
             and any(r["status"] == "ok" for r in step_records)
         ):
             digest = json.loads(page.evaluate(DAYLOOP_DIGEST))
@@ -2667,7 +3763,8 @@ def run_dayloop(
         "started_at": started,
         "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "slot": slot,
-        "steps_requested": [name for name, _ in DAYLOOP_STEPS],
+        "steps_requested": [step.name for step in DAYLOOP_STEPS],
+        "prep": prep,
         "records": records,
         "clicks": len(records),
         "ok_clicks": len(completed_steps),
@@ -3116,10 +4213,30 @@ def run(
                     )
                 if suite in ("dayloop", "all"):
                     print("[scenario] dayloop: walking one in-game day", flush=True)
+                    # The static passage graph lets the walk resolve multi-hop
+                    # routes (Bathroom -> Kitchen, Domus Street -> Harvest
+                    # Street) even though only the current passage's links are
+                    # clickable at any moment.
+                    try:
+                        dayloop_passages = {
+                            passage.name: passage.body
+                            for passage in ps.extract_passages(html_path)[0]
+                        }
+                        report["dayloop_passages"] = {
+                            "ok": True,
+                            "count": len(dayloop_passages),
+                        }
+                    except Exception as exc:  # noqa: BLE001 - record and continue
+                        dayloop_passages = {}
+                        report["dayloop_passages"] = {
+                            "ok": False,
+                            "error": f"{type(exc).__name__}: {exc}"[:300],
+                        }
                     report["dayloop"] = run_dayloop(
                         page,
                         max_clicks_per_step=dayloop_max_clicks,
                         timeout_ms=min(timeout_ms, 15000),
+                        passages=dayloop_passages,
                     )
     except Exception as exc:  # noqa: BLE001 - always emit a report
         report["fatal_error"] = f"{type(exc).__name__}: {exc}"[:600]
@@ -3404,7 +4521,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dayloop-max-clicks",
         type=int,
-        default=3,
+        default=8,
         help="max clicks per dayloop step",
     )
     return parser.parse_args(argv)
