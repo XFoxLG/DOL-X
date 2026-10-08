@@ -15,7 +15,11 @@ Flows:
     ce-panel   opening the Cheat Extended overlay through its real entry point
                (window.CEiconClicked) and asserting its DOM
     au-face    AU face variant + desk-pet canvas pixel smoke on an AU artifact
-               (the engine A mirror of tools/pet_remount_ab_device_check.py)
+               (the engine A mirror of tools/pet_remount_ab_device_check.py),
+               preceded by runtime marker checks for the AU facial-expansion
+               module (widget/passage/mirror hook/eye-colour pipeline step).
+               Only identifier-level names are probed; the decrypted payload
+               stays in the local research cache and never reaches a report.
     morelove   the More Love "Food Preference" passage renders its DOM
 
 Reuse notes: startup gates, the HTTP server (with the modList.json shim) and
@@ -733,6 +737,140 @@ AU_FACE_SET = r"""
 }
 """
 
+AU_SE_PROBE = r"""
+() => {
+  // Identifier-level runtime markers for the AU facial-expansion module.
+  // Nothing here reads or reports payload source text; the decrypted payload
+  // is only compared locally and must never be uploaded or committed.
+  const SC = window.SugarCube;
+  const out = { errors: [] };
+  const guard = (key, fn) => {
+    try {
+      out[key] = fn();
+    } catch (e) {
+      out.errors.push(key + ": " + String(e && (e.message || e)));
+    }
+  };
+  const macroHas = (name) => {
+    try {
+      if (SC && SC.Macro && typeof SC.Macro.has === "function") {
+        return SC.Macro.has(name);
+      }
+    } catch (e) {}
+    try {
+      if (SC && SC.Macros && typeof SC.Macros.has === "function") {
+        return SC.Macros.has(name);
+      }
+    } catch (e) {}
+    return null;
+  };
+  guard("seWidgetsPassage", () => SC.Story.has("SE Widgets"));
+  guard("widgetRegistry", () => {
+    // ``<<widget "AU_facial_expansion">>`` lives in the AU payload's
+    // ``SE Widgets`` passage, so its registry entry hangs off that passage.
+    // SugarCube stores widget registries as a Map (``.has``/``.get``) while
+    // some loaders expose a plain object, so both shapes are handled.
+    const hasEntry = (container, name) => {
+      if (!container) return false;
+      try {
+        if (typeof container.has === "function") return container.has(name);
+      } catch (e) {}
+      if (Array.isArray(container)) return container.indexOf(name) >= 0;
+      return Object.prototype.hasOwnProperty.call(container, name);
+    };
+    const countOf = (container) => {
+      if (!container) return 0;
+      try {
+        if (typeof container.size === "number") return container.size;
+      } catch (e) {}
+      return Object.keys(container).length;
+    };
+    const passages = ["SE Widgets", "Widgets"];
+    const found = passages.filter((name) => {
+      if (!SC.Story.has(name)) return false;
+      return hasEntry((SC.Story.get(name) || {}).widgets, "AU_facial_expansion");
+    });
+    return {
+      passage: SC.Story.has("SE Widgets"),
+      checkedPassages: passages,
+      foundIn: found,
+      hasAuWidget: found.length > 0,
+      total: countOf((SC.Story.get("SE Widgets") || {}).widgets),
+    };
+  });
+  guard("macros", () => {
+    // ``AU_facial_expansion`` is a <<widget>>, not a macro: it is asserted
+    // through ``widgetRegistry`` above. The names below are registered as
+    // SugarCube macros by the payload's JS.
+    const wanted = [
+      "SE_Canvas_add",
+      "eyesSelector",
+      "mouthSelector",
+      "auSelector",
+    ];
+    const res = {};
+    for (const name of wanted) res[name] = macroHas(name);
+    return res;
+  });
+  guard("mirrorHook", () => {
+    if (!SC.Story.has("Widgets Mirror")) {
+      return { passage: false, injectedPanel: false, callCount: 0 };
+    }
+    const text = String((SC.Story.get("Widgets Mirror") || {}).text || "");
+    return {
+      passage: true,
+      injectedPanel: text.indexOf("AU_facial_expansion") >= 0,
+      callCount: (text.match(/AU_facial_expansion/g) || []).length,
+    };
+  });
+  guard("setupSE", () => {
+    const se = (window.setup || {}).SE;
+    if (!se) return { present: false, listKeys: [], auKeys: [] };
+    const list = se.faceVariantList || null;
+    const keys = list ? Object.keys(list) : [];
+    return {
+      present: true,
+      hasInit: typeof se.Init === "function",
+      listKeys: keys,
+      auKeys: keys.filter((k) => k.indexOf("au_") === 0),
+    };
+  });
+  guard("seVariables", () => {
+    const se = (SC.State.variables || {}).SE;
+    if (!se) return { present: false };
+    return {
+      present: true,
+      keyCount: Object.keys(se).length,
+      eyeColor: typeof se.eyeColor === "string" ? se.eyeColor : null,
+      eyesColorEnabled: se.eyesColorEnabled === true,
+      mixFaceEnable: se.mixFaceEnable === true,
+      hasEyesFacestyle: Object.prototype.hasOwnProperty.call(se, "eyesFacestyle"),
+      hasVariantEyes: Object.prototype.hasOwnProperty.call(se, "variant_eyes"),
+      hasMouthFacestyle: Object.prototype.hasOwnProperty.call(se, "mouthFacestyle"),
+      hasVariantMouth: Object.prototype.hasOwnProperty.call(se, "variant_mouth"),
+    };
+  });
+  guard("pipeline", () => {
+    const pipeline = (window.Renderer || {}).RenderingPipeline;
+    if (!Array.isArray(pipeline)) return { isArray: false };
+    const names = pipeline
+      .map((step) => step && step.name)
+      .filter((n) => typeof n === "string");
+    const customIndex = names.indexOf("eyesCustomColor");
+    const blendIndex = names.indexOf("BlendColor");
+    return {
+      isArray: true,
+      stepCount: names.length,
+      hasEyesCustomColor: customIndex >= 0,
+      hasBlendColor: blendIndex >= 0,
+      beforeBlendColor:
+        customIndex >= 0 && blendIndex >= 0 ? customIndex < blendIndex : null,
+    };
+  });
+  return out;
+}
+"""
+
 MORELOVE_STORY_PROBE = r"""
 () => {
   const SC = window.SugarCube;
@@ -1220,6 +1358,33 @@ def flow_ce_panel(page: Any, ctx: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def au_se_module_gaps(probe: dict[str, Any]) -> list[str]:
+    """Return the AU facial-expansion runtime markers that are missing.
+
+    Only identifier-level names are inspected here; the decrypted payload
+    stays in the local research cache and is never read by this function.
+    """
+    if not isinstance(probe, dict):
+        return ["au_se_probe_missing"]
+    gaps: list[str] = []
+    if probe.get("seWidgetsPassage") is not True:
+        gaps.append("SE Widgets passage")
+    if not (probe.get("widgetRegistry") or {}).get("hasAuWidget"):
+        gaps.append("AU_facial_expansion widget")
+    if (probe.get("mirrorHook") or {}).get("injectedPanel") is not True:
+        gaps.append("Widgets Mirror panel hook")
+    setup_se = probe.get("setupSE") or {}
+    if not setup_se.get("present"):
+        gaps.append("setup.SE")
+    if not (setup_se.get("auKeys") or []):
+        gaps.append("setup.SE.faceVariantList au_* keys")
+    if not (probe.get("seVariables") or {}).get("present"):
+        gaps.append("V.SE")
+    if (probe.get("pipeline") or {}).get("hasEyesCustomColor") is not True:
+        gaps.append("Renderer eyesCustomColor step")
+    return gaps
+
+
 def flow_au_face(page: Any, ctx: dict[str, Any]) -> dict[str, Any]:
     variant = ctx.get("artifact_variant")
     evidence: dict[str, Any] = {"artifact_variant": variant}
@@ -1230,6 +1395,24 @@ def flow_au_face(page: Any, ctx: dict[str, Any]) -> dict[str, Any]:
                 "target is not an AU artifact (variant="
                 f"{variant!r}); the AU face/pet pixel smoke only applies to "
                 "au-f/au-m/au-a builds"
+            ),
+            "evidence": evidence,
+        }
+
+    # The AU facial-expansion module must be loaded before the desk-pet face
+    # smoke means anything: check its identifier-level runtime markers first
+    # (passage, widget, mirror hook, setup.SE registry, V.SE family and the
+    # eyesCustomColor renderer step). Missing markers name the failing layer
+    # instead of hiding it behind a pixel measurement.
+    se_probe = page.evaluate(AU_SE_PROBE)
+    evidence["au_se"] = se_probe
+    se_gaps = au_se_module_gaps(se_probe)
+    if se_gaps:
+        return {
+            "status": FAIL,
+            "detail": (
+                "AU facial-expansion module is not fully loaded at runtime; "
+                "missing markers: " + ", ".join(se_gaps)
             ),
             "evidence": evidence,
         }

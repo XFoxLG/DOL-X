@@ -337,6 +337,168 @@ def _classify_script() -> str:
     """
 
 
+# --------------------------------------------------------------------------- #
+# Mod-owned UI controls (2026-10-08)
+# --------------------------------------------------------------------------- #
+
+# Every registered mod renders at least one control *outside* the passage body
+# (sidebar button, panel entry, toggle). Touching each control once, in
+# isolation, only has to prove the handler does not throw -- this is not a
+# behavioural test, and it deliberately never touches a cheat value.
+MOD_BUTTON_TOKENS: dict[str, tuple[str, ...]] = {
+    "maplebirch": ("maplebirch", "maple-birch", "mb-sidebar", "mb_sidebar"),
+    "cheat extended": ("cheat", "cheat_extended", "cheat-extended"),
+    "More Love Interests Mod": (
+        "morelove",
+        "more-love",
+        "more_love",
+        "food preference",
+        "food-preference",
+    ),
+    "CustomHair": ("customhair", "custom-hair", "customhairpassage", "customdye"),
+    "longer-combat": ("longercombat", "longer-combat", "longer_combat"),
+    "yanling-cheat-collection": ("yanling", "言灵"),
+    "DOLI": ("doli-", "doli_", "doliicon"),
+    "ModI18N": ("modi18n", "mod-i18n", "mod_i18n"),
+    "【AUsDoL】facial expansion": (
+        "ausdol",
+        "au_facial",
+        "au-facial",
+        "au面部",
+        "facial-expansion",
+        "facialexpansion",
+    ),
+}
+
+
+def _mod_buttons_probe_script() -> str:
+    return r"""
+    (payload) => {
+      const out = { ok: true, scanned: 0, candidates: [], errors: [] };
+      try {
+        const nodes = Array.from(document.querySelectorAll(
+          "button, a.link-internal, [role='button'], input[type='button'], input[type='submit'], select"
+        ));
+        out.scanned = nodes.length;
+        const seen = new Set();
+        const describe = (el) => {
+          let hay = "";
+          let cur = el;
+          for (let depth = 0; depth < 5 && cur && cur.getAttribute; depth++) {
+            hay += " " + (cur.id || "") + " " +
+              (typeof cur.className === "string" ? cur.className : "") + " " +
+              (cur.getAttribute("data-mod") || "") + " " +
+              (cur.getAttribute("data-name") || "");
+            cur = cur.parentElement;
+          }
+          return hay.toLowerCase();
+        };
+        for (const el of nodes) {
+          if (out.candidates.length >= payload.limit) break;
+          const hay = describe(el);
+          const matched = (payload.tokens || []).find((token) => hay.includes(token));
+          if (!matched) continue;
+          if (el.closest && el.closest("#passage-content, .passage[data-passage]")) continue;
+          const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+          const key = [el.tagName, el.id || "", String(el.className || "").slice(0, 60), text].join("|");
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.candidates.push({
+            key,
+            tag: el.tagName,
+            id: el.id || "",
+            cls: String(el.className || "").slice(0, 80),
+            text,
+            matched,
+            visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
+            disabled: !!el.disabled,
+          });
+        }
+      } catch (error) {
+        out.ok = false;
+        out.errors.push(String(error && error.message ? error.message : error).slice(0, 200));
+      }
+      return out;
+    }
+    """
+
+
+def _mod_button_click_script() -> str:
+    return r"""
+    (payload) => {
+      const out = {
+        ok: false, key: payload.key, error: null, text: null,
+        passage_before: null, passage_after: null,
+      };
+      try { out.passage_before = window.SugarCube.State.passage; } catch (error) {}
+      const nodes = Array.from(document.querySelectorAll(
+        "button, a.link-internal, [role='button'], input[type='button'], input[type='submit'], select"
+      ));
+      const keyOf = (el) => {
+        const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+        return [el.tagName, el.id || "", String(el.className || "").slice(0, 60), text].join("|");
+      };
+      let target = null;
+      for (const el of nodes) {
+        if (keyOf(el) === payload.key) { target = el; break; }
+      }
+      if (!target) { out.error = "button vanished before the isolated click"; return out; }
+      out.text = (target.innerText || target.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      try {
+        target.click();
+        out.ok = true;
+      } catch (error) {
+        out.error = "click threw: " + String(error && error.message ? error.message : error).slice(0, 200);
+      }
+      try { out.passage_after = window.SugarCube.State.passage; } catch (error) {}
+      return out;
+    }
+    """
+
+
+def _touch_mod_buttons(
+    page: Any, *, limit: int = 12, settle_ms: int = 250
+) -> dict[str, Any]:
+    """Click every mod-owned chrome control once and record whether it threw."""
+    tokens = sorted({token for group in MOD_BUTTON_TOKENS.values() for token in group})
+    probe = page.evaluate(_mod_buttons_probe_script(), {"tokens": tokens, "limit": limit})
+    attempts: list[dict[str, Any]] = []
+    for candidate in probe.get("candidates") or []:
+        clicked = page.evaluate(_mod_button_click_script(), {"key": candidate.get("key")})
+        page.wait_for_timeout(settle_ms)
+        error = clicked.get("error")
+        attempts.append(
+            {
+                "key": candidate.get("key"),
+                "tag": candidate.get("tag"),
+                "id": candidate.get("id"),
+                "text": candidate.get("text"),
+                "matched": candidate.get("matched"),
+                "visible": candidate.get("visible"),
+                "attempted": bool(clicked.get("ok")) or bool(error),
+                "clicked": bool(clicked.get("ok")),
+                "threw": bool(error and str(error).startswith("click threw")),
+                "error": error,
+                "passage_before": clicked.get("passage_before"),
+                "passage_after": clicked.get("passage_after"),
+            }
+        )
+    summary = {
+        "scanned": probe.get("scanned"),
+        "candidates": len(probe.get("candidates") or []),
+        "attempted": sum(1 for item in attempts if item["attempted"]),
+        "ok": sum(1 for item in attempts if item["clicked"]),
+        "thrown": sum(1 for item in attempts if item["threw"]),
+        "vanished": sum(
+            1 for item in attempts if item["error"] and "vanished" in str(item["error"])
+        ),
+        "tokens": tokens,
+        "limit": limit,
+        "probe_errors": list(probe.get("errors") or []),
+    }
+    return {"probe": probe, "attempts": attempts, "summary": summary}
+
+
 def measure_runtime(
     html_path: Path,
     *,
@@ -346,6 +508,7 @@ def measure_runtime(
     deadline_s: float = ps.STARTUP_DEADLINE_S,
     headless: bool = True,
     probe_js: str | None = None,
+    mod_buttons_limit: int = 12,
 ) -> dict[str, Any]:
     """Boot the carrier once and return the runtime passage surface.
 
@@ -361,6 +524,7 @@ def measure_runtime(
         "story": [],
         "classification": {},
         "widget_registry": {},
+        "mod_buttons": None,
         "errors": [],
     }
     static_set = {str(name) for name in static_names}
@@ -404,6 +568,13 @@ def measure_runtime(
                     name: bool(row.get("registered"))
                     for name, row in (data.get("widgets") or {}).items()
                 }
+            if mod_buttons_limit and not result["errors"]:
+                # Touching a control must never throw. A vanished control is
+                # recorded as such (a previous click may have swapped the panel)
+                # and is not treated as a failure.
+                result["mod_buttons"] = _touch_mod_buttons(
+                    page, limit=mod_buttons_limit
+                )
             return result
         finally:
             browser.close()
@@ -432,8 +603,32 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"| 声明的 widget 宏 | {counts.get('declared_widgets')} |",
         f"| \\u2513 启动时已注册 | {counts.get('registered_widgets')} |",
         f"| 加密（不透明）mod | {counts.get('encrypted_mods')} |",
+        f"| mod 功能按钮隔离点击（无异常） | {counts.get('mod_button_checks')} |",
         "",
     ]
+    buttons = (report.get("mod_buttons") or {}).get("summary") or {}
+    if buttons:
+        lines += [
+            "## Mod 功能按钮隔离调用",
+            "",
+            "只确认点击不抛异常；不验证行为、不修改任何作弊数值。"
+            "`vanished` = 前一次点击换掉了面板，按钮在本次点击前已不存在（不计失败）。",
+            "",
+            f"- scanned={buttons.get('scanned')} candidates={buttons.get('candidates')} "
+            f"attempted={buttons.get('attempted')} ok={buttons.get('ok')} "
+            f"thrown={buttons.get('thrown')} vanished={buttons.get('vanished')}",
+            "",
+        ]
+        attempts = (report.get("mod_buttons") or {}).get("attempts") or []
+        thrown = [item for item in attempts if item.get("threw")]
+        if thrown:
+            lines += ["| 按钮 | 匹配 | 异常 |", "| --- | --- | --- |"]
+            for item in thrown:
+                lines.append(
+                    f"| {item.get('tag')}#{item.get('id')} {str(item.get('text'))[:40]} "
+                    f"| {item.get('matched')} | {str(item.get('error'))[:160]} |"
+                )
+            lines.append("")
     rows = report.get("mod_passages", [])
     if rows:
         lines += [
@@ -498,6 +693,7 @@ def build_report(
     headless: bool,
     probe_js: str | None = None,
     write_list: Path | None = None,
+    mod_buttons_limit: int = 12,
 ) -> dict[str, Any]:
     member, html = load_html_artifact(html_path)
     if html is None:
@@ -525,6 +721,7 @@ def build_report(
         deadline_s=deadline_s,
         headless=headless,
         probe_js=probe_js,
+        mod_buttons_limit=mod_buttons_limit,
     )
     split = classify_mod_passages(
         static_names,
@@ -582,6 +779,9 @@ def build_report(
             "widget": len(split["widget"]),
             "unregistered": len(split["unregistered"]),
             "encrypted_mods": len(opaque_mods),
+            "mod_button_checks": (
+                (runtime.get("mod_buttons") or {}).get("summary", {}).get("ok", 0)
+            ),
         },
         "static_missing_from_runtime": sorted(set(static_names) - set(runtime["dom"])),
         "mod_passages": mod_rows,
@@ -594,6 +794,19 @@ def build_report(
         "opaque_mods": opaque_mods,
         "boot": runtime["boot"],
         "probe": runtime["probe"],
+        "mod_buttons": runtime.get("mod_buttons")
+        or {
+            "probe": None,
+            "attempts": [],
+            "summary": {
+                "candidates": 0,
+                "attempted": 0,
+                "ok": 0,
+                "thrown": 0,
+                "vanished": 0,
+                "skipped": True,
+            },
+        },
         "errors": [*scan_errors, *runtime["errors"]],
     }
     report["counts"]["declared_widgets"] = len(widget_rows)
@@ -622,6 +835,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--deadline-seconds", type=float, default=ps.STARTUP_DEADLINE_S)
     p.add_argument("--headful", action="store_true", help="run the browser headed")
     p.add_argument(
+        "--mod-buttons-limit",
+        type=int,
+        default=12,
+        help=(
+            "click at most N mod-owned chrome controls once each and record "
+            "whether the handler threw (0 disables; default 12)"
+        ),
+    )
+    p.add_argument(
         "--probe-js",
         type=Path,
         default=None,
@@ -642,6 +864,7 @@ def main(argv: list[str] | None = None) -> int:
         headless=not args.headful,
         probe_js=probe_js,
         write_list=args.write_list,
+        mod_buttons_limit=args.mod_buttons_limit,
     )
     json_path = args.json or (args.out / "mod-passage-inventory.json")
     md_path = args.md or (args.out / "mod-passage-inventory.md")
@@ -658,6 +881,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     for name in report["playable_names"]:
         print(f"[mod-inventory] playable: {name}")
+    buttons = (report.get("mod_buttons") or {}).get("summary") or {}
+    print(
+        "[mod-inventory] mod buttons: "
+        f"candidates={buttons.get('candidates')} attempted={buttons.get('attempted')} "
+        f"ok={buttons.get('ok')} thrown={buttons.get('thrown')} "
+        f"vanished={buttons.get('vanished')}"
+    )
     print(f"[mod-inventory] report -> {md_path}")
     return 0
 

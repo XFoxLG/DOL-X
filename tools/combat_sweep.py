@@ -64,6 +64,7 @@ import collections
 import hashlib
 import html as html_mod
 import json
+import math
 import random
 import re
 import sys
@@ -174,10 +175,130 @@ ARCHETYPE_PATHS = ("win", "lose", "flee", "submit")
 # Preference keyword tables (bilingual). First match wins; the driver falls back
 # to the first available action and records ``fallback: true``.
 PATH_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "win": ("攻击", "击打", "踢", "拳", "咬", "attack", "hit", "kick", "punch", "strike"),
-    "lose": ("承受", "忍耐", "不动", "endure", "bear", "wait", "rest"),
-    "flee": ("逃跑", "逃离", "离开", "flee", "escape", "leave", "run"),
-    "submit": ("顺从", "服从", "屈服", "接受", "submit", "accept", "yield"),
+    "win": (
+        "攻击", "击打", "捶打", "踢", "拳", "咬", "拍开", "防狼喷雾", "投掷",
+        "attack", "hit", "kick", "punch", "strike", "whack", "spray",
+    ),
+    "lose": (
+        "承受", "忍耐", "不动", "休息", "保持", "警惕", "防护", "站稳", "躲避",
+        "隐藏", "蹒跚", "静止",
+        "endure", "bear", "wait", "rest", "guard", "protect", "dodge",
+        "hide", "hobble", "still",
+    ),
+    "flee": (
+        "逃跑", "逃离", "离开", "游到安全的地方", "追赶", "移开", "扭动脱身",
+        "挣脱", "拔出来", "拉住链条", "拉扯链条", "解放",
+        "flee", "escape", "leave", "swim", "wriggle", "pull away", "pull out",
+        "struggle", "free your",
+    ),
+    "submit": (
+        "顺从", "服从", "屈服", "接受", "接纳", "忍受", "道歉", "恳求", "宽恕",
+        "submit", "accept", "yield", "take it", "apologise", "apologize",
+        "plead", "forgive",
+    ),
+}
+
+# The labels above go through ModI18N and drift, so the driver also carries the
+# upstream action ids it intends to accept. The DOM does **not** expose those
+# ids for radio menus -- verified 2026-10-08 against the bundled SugarCube
+# source inside the shipped artifact:
+#   Macro.add("radiobutton", ...) sets only
+#   ``jQuery(el).attr({id: `radiobutton-${varId}-${n}`, name:
+#   `radiobutton-${varId}`, type: "radio", tabindex: 0})`` and binds the
+#   checked value through a ``change.macros`` closure, so every radio reports
+#   the HTML default ``value === "on"``.
+# ``<<listbox>>`` options do carry real ``value`` attributes, so select menus
+# are still matched by id. For radios the id survives as the *label text*; the
+# bilingual table below maps the curated ids to the labels mined from the
+# game's own i18n data (2026-10-08, ``.local/probe_vocab_unique.txt``), which
+# is what makes ``lose``/``flee``/``submit`` find 休息 / 游到安全的地方 /
+# 接受 without a translation guessing game.
+PATH_ACTION_IDS: dict[str, tuple[str, ...]] = {
+    "win": (
+        "kick", "lefthit", "righthit", "feethit", "headbutt", "breastbite",
+        "whack", "vaginal_whack", "anal_whack", "penwhack", "hypnosiswhack",
+        "shacklewhack", "lefthittentacle", "righthittentacle",
+        "spray", "capture",
+    ),
+    "lose": (
+        "rest", "feetHold", "leftstillW", "rightstillW", "handcloseW",
+        "guard", "leftprotect", "rightprotect", "plant", "evade", "hide",
+        "hobble", "stand", "behind", "stopbehind", "clench", "stifle",
+    ),
+    "flee": (
+        "swim", "doubleescape", "otheranusescape", "leftwriggle",
+        "rightwriggle", "chain_struggle", "pullOut", "pullawayvagina",
+        "breastpull", "leftfree", "rightfree", "leftvorefree", "rightvorefree",
+    ),
+    "submit": (
+        "take", "leftacceptW", "rightacceptW", "mouthacceptW", "feetacceptW",
+        "apologise", "plead", "forgive",
+    ),
+}
+
+# id -> labels the game actually renders for it (English / Simplified Chinese),
+# mined from the artifact's i18n tables. ASCII labels are matched on word
+# boundaries (``Rest`` must not hit ``Restrain``); CJK labels match as
+# substrings, which is how the translation renders them.
+ACTION_ID_LABELS: dict[str, tuple[str, ...]] = {
+    # win
+    "kick": ("Kick", "踢"),
+    "lefthit": ("Punch",),
+    "righthit": ("Punch",),
+    "feethit": ("Kick the", "踢"),
+    "headbutt": ("Headbutt", "头槌"),
+    "breastbite": ("Bite", "咬"),
+    "whack": ("Whack the tattoo gun", "捶打纹身枪", "捶打那个纹身枪", "踢那个纹身枪"),
+    "vaginal_whack": ("Whack the phallic machine", "捶打炮机", "捶打那台炮机", "踢那台炮机"),
+    "anal_whack": ("Whack the small phallic machine", "捶打小炮机", "捶打那台小炮机", "踢那台小炮机"),
+    "penwhack": ("Whack the writing tool away", "把书写工具拍开"),
+    "hypnosiswhack": ("Whack the hypnotic instrument away", "把催眠道具拍开"),
+    "shacklewhack": ("Whack away the shackles", "把镣铐拍开"),
+    "lefthittentacle": ("Strike the", "击打"),
+    "righthittentacle": ("Strike the", "击打"),
+    "spray": ("Pepper spray", "防狼喷雾"),
+    "capture": ("Hurl net", "投掷捕捉网"),
+    # lose / endure
+    "rest": ("Rest", "休息", "Keep still", "保持不动", "Keep left arm still", "保持左臂静止"),
+    "feetHold": ("Hold still",),
+    "leftstillW": ("Hold it still", "将其固定不动"),
+    "rightstillW": ("Hold it still", "将其固定不动"),
+    "handcloseW": ("Clamp your mouth shut", "紧闭你的嘴"),
+    "guard": ("Guard", "警惕"),
+    "leftprotect": ("Protect", "防护"),
+    "rightprotect": ("Protect", "防护"),
+    "plant": ("Plant", "站稳防御"),
+    "evade": ("Dodge", "躲避攻击"),
+    "hide": ("Hide", "隐藏"),
+    "hobble": ("Hobble", "蹒跚而行"),
+    "stand": ("Stand still", "站立不动"),
+    "behind": ("Keep behind", "保持在后", "Hold behind back", "别在身后"),
+    "stopbehind": ("Stop", "停止"),
+    "clench": ("Clench",),
+    "stifle": ("Stifle", "强忍住"),
+    # flee / escape
+    "swim": ("Swim to safety", "游到安全的地方"),
+    "doubleescape": ("Pull away", "移开"),
+    "otheranusescape": ("Pull away", "移开"),
+    "leftwriggle": ("Wriggle free", "扭动脱身"),
+    "rightwriggle": ("Wriggle free", "扭动脱身"),
+    "chain_struggle": ("Pull on the chains", "拉住链条", "Pull against the chains", "拉扯链条"),
+    "pullOut": ("Pull out", "拔出来"),
+    "pullawayvagina": ("移开",),
+    "breastpull": ("Pull away", "把嘴别开"),
+    "leftfree": ("解放你的右臂",),
+    "rightfree": ("Free your left arm", "解放你的左臂"),
+    "leftvorefree": ("Free your right arm", "解放你的右手"),
+    "rightvorefree": ("Free your right arm", "解放你的右手"),
+    # submit / surrender
+    "take": ("Take it", "接纳"),
+    "leftacceptW": ("Accept it", "接受"),
+    "rightacceptW": ("Accept it", "接受"),
+    "mouthacceptW": ("Accept it", "忍受"),
+    "feetacceptW": ("Accept it", "接受"),
+    "apologise": ("Apologise", "道歉"),
+    "plead": ("Plead", "恳求"),
+    "forgive": ("Forgive", "宽恕"),
 }
 # Only the unambiguous matrix paths are asserted: a "win" run must actually
 # defeat the enemy, and a "submit" run may win by enemy orgasm (DoL resolves
@@ -188,6 +309,23 @@ EXPECTED_OUTCOME_ACCEPTS: dict[str, tuple[str, ...]] = {
     "submit": ("submit", "win"),
 }
 
+# Paths whose intent is one *specific* control rather than "whichever attack is
+# on offer". Losing/fleeing/submitting by attacking is not evidence for the
+# intent, and 80 attack rounds then land as a soft failure anyway -- so the
+# driver stops immediately, records every button that was on screen, and says
+# why. (2026-10-08: the old fallback produced 80-round no-op runs whose only
+# outcome was "round limit reached".)
+STRICT_PATHS: tuple[str, ...] = ("lose", "flee", "submit")
+# DoL resolves surrender through a leg action the player must press twice: the
+# first press only arms it. Both presses are recorded.
+SUBMIT_PRESSES = 2
+# An enemy can carry more HP than 80 rounds of the chosen attack can remove.
+# The cap is extended from the *measured* per-round damage instead of a guess,
+# and never past HARD_ROUND_CEILING.
+HARD_ROUND_CEILING = 160
+ROUND_EXTENSION_MARGIN = 5
+ROUND_DAMAGE_WINDOW = 10
+
 
 # --------------------------------------------------------------------------- #
 # Static initiator scan
@@ -197,6 +335,12 @@ PASSAGE_BLOCK_RE = re.compile(
     r'<tw-passagedata\b[^>]*name="([^"]*)"[^>]*>(.*?)</tw-passagedata>',
     re.DOTALL,
 )
+# The opening tag is re-read for its ``tags`` attribute: SugarCube marks widget
+# libraries with ``tags="widget"``, and playing such a passage with
+# ``Engine.play`` cannot start a fight (2026-10-08: cat/fox rows pointed at
+# "Moor Widgets" and every run hard-failed with "段落 ... 不存在").
+PASSAGE_OPEN_TAG_RE = re.compile(r"<tw-passagedata\b([^>]*)>")
+PASSAGE_TAGS_ATTR_RE = re.compile(r'tags="([^"]*)"')
 
 # kind -> concrete Twine macro names that count as that encounter's initiator.
 # Kept as an explicit allowlist so the manifest口径 is auditable (the artifact
@@ -240,9 +384,44 @@ COMBAT_STARTER_MACROS = (
     "stalk_init",
     "vore",
     "generatePlant1",
-    "possessedWord",
     "gwylanCombatInit",
 )
+
+# 2026-10-08 evidence: ``possessedWord`` used to be listed above, but the
+# 0.5.11.9 artifact defines it in ``Widgets Wraith`` as a pure text-substitution
+# widget -- ``<<widget "possessedWord">><span @class="$possessed ? 'wraith '
+# ..."><<print _args[0]>></span><</widget>>`` -- it colours a word while
+# possessed and never touches ``$combat``. Possession fights are started by the
+# wraith initiators (``initWraith`` / ``startWraith`` / ``generateWraith`` /
+# ``rainWraith``), which ``special-wraith`` already covers, and the possession
+# state itself is entered by ``wraithPossess``.
+
+# SugarCube special passages (and DoL's chrome passages) look like ordinary
+# ``tw-passagedata`` blocks to the scanner but render as sidebar/menu chrome.
+# ``Engine.play("StoryCaption")`` on a real artifact answers "The passage
+# StoryCaption has no usable links.", so those rows must never be played.
+SPECIAL_NON_SCENE_PASSAGES = frozenset(
+    {
+        "StoryCaption",
+        "StoryTitle",
+        "StoryMenu",
+        "StoryInit",
+        "StorySubtitle",
+        "StoryAuthor",
+        "StoryBanner",
+        "StoryDisplay",
+        "PassageHeader",
+        "PassageFooter",
+        "PassageReady",
+        "StoryJavaScript",
+        "StoryStylesheet",
+    }
+)
+
+
+def is_non_scene_passage(name: str) -> bool:
+    """True for SugarCube special / chrome passages that cannot be played."""
+    return str(name or "") in SPECIAL_NON_SCENE_PASSAGES
 
 ENTRY_FLAGS = ("molestationstart", "sexstart")
 ENTRY_FLAG_ATTEMPTS: tuple[tuple[str, ...], ...] = (
@@ -1240,6 +1419,84 @@ def _combat_starters_for(body: str) -> list[str]:
     return [macro for macro in COMBAT_STARTER_MACROS if f"<<{macro}" in body]
 
 
+def passage_tags(block_html: str) -> str:
+    """``tags`` attribute of one ``<tw-passagedata>`` block ("" when absent)."""
+    open_tag = PASSAGE_OPEN_TAG_RE.search(str(block_html or ""))
+    if not open_tag:
+        return ""
+    attr = PASSAGE_TAGS_ATTR_RE.search(open_tag.group(1))
+    return html_mod.unescape(attr.group(1)).strip() if attr else ""
+
+
+def widget_callers(
+    widget_names: Sequence[str],
+    passage_bodies: Mapping[str, str],
+    *,
+    exclude: Iterable[str] = (),
+) -> list[str]:
+    """Passages that invoke any of ``widget_names``, in store order."""
+    skip = {str(name) for name in exclude}
+    patterns = [
+        re.compile(r"<<\s*" + re.escape(str(name)) + r"\b")
+        for name in widget_names
+        if str(name)
+    ]
+    if not patterns:
+        return []
+    callers: list[str] = []
+    for name, body in passage_bodies.items():
+        if str(name) in skip:
+            continue
+        text = str(body or "")
+        if not text:
+            continue
+        if any(pattern.search(text) for pattern in patterns):
+            callers.append(str(name))
+    return callers
+
+
+def resolve_widget_entry(
+    row: Mapping[str, Any], passage_bodies: Mapping[str, str]
+) -> tuple[str, str] | None:
+    """Find a real passage that renders an initiator defined in a host passage.
+
+    An initiator macro living in a ``tags="widget"`` library passage (or in a
+    SugarCube special / chrome passage such as ``StoryCaption``) only runs when
+    an ordinary passage calls that widget, so the host itself is not an entry
+    point. Returns ``(passage, evidence)`` or ``None`` when no caller exists in
+    the artifact.
+    """
+    host = str(row.get("passage") or "")
+    body = str(passage_bodies.get(host) or "")
+    if not host or not body:
+        return None
+    widget_names = [match.group(1) for match in WIDGET_DEF_RE.finditer(body)]
+    if not widget_names:
+        return None
+    callers = [
+        name
+        for name in widget_callers(widget_names, passage_bodies, exclude=(host,))
+        if not name.startswith("Widgets")
+    ]
+    if not callers:
+        return None
+
+    def caller_rank(name: str) -> tuple[int, int, str]:
+        caller_body = str(passage_bodies.get(name) or "")
+        return (
+            -len(_combat_starters_for(caller_body)),
+            -len(_entry_flags_for(caller_body)),
+            name,
+        )
+
+    chosen = sorted(callers, key=caller_rank)[0]
+    evidence = (
+        f"initiator host {host!r} defines {len(widget_names)} widget(s); the "
+        f"initiator only runs through caller passage {chosen!r}"
+    )
+    return chosen, evidence
+
+
 def scan_initiators(html_text: str) -> dict[str, Any]:
     """Scan the raw artifact HTML for combat initiator macro calls.
 
@@ -1250,9 +1507,18 @@ def scan_initiators(html_text: str) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     passages: set[str] = set()
-    for raw_name, raw_body in PASSAGE_BLOCK_RE.findall(html_text):
-        name = html_mod.unescape(raw_name)
-        body = html_mod.unescape(raw_body)
+    widget_hosts = 0
+    non_scene_hosts = 0
+    for block in PASSAGE_BLOCK_RE.finditer(html_text):
+        name = html_mod.unescape(block.group(1))
+        body = html_mod.unescape(block.group(2))
+        tags = passage_tags(block.group(0))
+        widget_host = "widget" in tags.split()
+        non_scene = is_non_scene_passage(name)
+        if widget_host:
+            widget_hosts += 1
+        if non_scene:
+            non_scene_hosts += 1
         entry_flags = _entry_flags_for(body)
         starters = _combat_starters_for(body)
         calls: list[tuple[str, str, str, str]] = []
@@ -1289,6 +1555,9 @@ def scan_initiators(html_text: str) -> dict[str, Any]:
                     "args": args[:160],
                     "entry_flags": list(entry_flags),
                     "combat_starters": list(starters),
+                    "tags": tags,
+                    "widget_host": widget_host,
+                    "non_scene": non_scene,
                 }
             )
             passages.add(name)
@@ -1311,6 +1580,8 @@ def scan_initiators(html_text: str) -> dict[str, Any]:
         "by_kind": by_kind,
         "by_token": by_token,
         "passages": len(passages),
+        "widget_host_passages": widget_hosts,
+        "non_scene_passages": non_scene_hosts,
         "expected": EXPECTED_INITIATORS,
         "drift": drift,
         "macro_names": {kind: list(macros) for kind, macros in INITIATOR_MACROS.items()},
@@ -1353,6 +1624,10 @@ class ArchetypeSpec:
     kind: str
     token: str | None = None
     passage_keywords: tuple[str, ...] = ()
+    # Set when the spec's own macro turns out to be a scanner false positive
+    # (not a combat initiator at all). The spec still yields one honest
+    # ``not_applicable`` job per path with this text as the source evidence.
+    false_positive_reason: str | None = None
 
 
 # 28 archetypes: 1 human, 4 named NPC, 14 beasts, 9 specials.
@@ -1396,7 +1671,19 @@ ARCHETYPE_SPECS: tuple[ArchetypeSpec, ...] = (
     ArchetypeSpec("special-stalk", "潜行", "special", "stalk"),
     ArchetypeSpec("special-vore", "吞噬", "special", "vore"),
     ArchetypeSpec("special-machine", "机械", "special", "machine"),
-    ArchetypeSpec("special-possession", "附身", "special", "possession"),
+    ArchetypeSpec(
+        "special-possession",
+        "附身",
+        "special",
+        "possession",
+        false_positive_reason=(
+            "扫描误命中：possessedWord 是 0.5.11.9 产物 Widgets Wraith 里的文本替换 "
+            "widget（<<widget \"possessedWord\">><span @class=\"$possessed ? 'wraith' "
+            "...\"><<print _args[0]>></span>），不翻转 $combat；怨灵战斗入口 "
+            "initWraith/startWraith/generateWraith/rainWraith 已由 special-wraith "
+            "覆盖，附身状态由 wraithPossess 设置"
+        ),
+    ),
     ArchetypeSpec("special-plant", "植物", "special", "plant"),
     ArchetypeSpec("special-hypno", "催眠", "special", "hypno"),
 )
@@ -1440,7 +1727,16 @@ def choose_entry(
         # ``Widgets *`` passages are the game's widget libraries: they carry many
         # initiator macros but only render when invoked from a real passage, so
         # ``Engine.play`` on them never flips ``$combat``.
-        library = 1 if str(row.get("passage") or "").startswith("Widgets") else 0
+        passage = str(row.get("passage") or "")
+        library = (
+            1
+            if (
+                row.get("widget_host")
+                or row.get("non_scene")
+                or passage.startswith("Widgets")
+            )
+            else 0
+        )
         starters = len(row.get("combat_starters") or [])
         flags = len(row.get("entry_flags") or [])
         return (
@@ -1448,11 +1744,35 @@ def choose_entry(
             link_depth(row),
             -starters,
             -flags,
-            len(str(row.get("passage") or "")),
-            str(row.get("passage") or ""),
+            len(passage),
+            passage,
         )
 
-    return sorted(pool, key=rank)[0]
+    def resolved(row: dict[str, Any]) -> dict[str, Any]:
+        # A widget-host row is entered through the passage that calls the
+        # widget; when no caller exists the row stays flagged so the runner can
+        # record ``not_applicable`` instead of playing a passage that cannot
+        # start a fight.
+        if not (passage_bodies and (row.get("widget_host") or row.get("non_scene"))):
+            return row
+        found = resolve_widget_entry(row, passage_bodies)
+        if not found:
+            mapped = dict(row)
+            mapped["unenterable_reason"] = (
+                f"initiator host {row.get('passage')!r} (widget library or "
+                "SugarCube special/chrome passage) has no caller passage in this "
+                "artifact, so the initiator never renders and the passage itself "
+                "cannot be played"
+            )
+            return mapped
+        caller, evidence = found
+        mapped = dict(row)
+        mapped["widget_host_passage"] = row.get("passage")
+        mapped["passage"] = caller
+        mapped["resolution"] = evidence
+        return mapped
+
+    return sorted((resolved(row) for row in pool), key=rank)[0]
 
 
 def build_archetype_jobs(
@@ -1477,15 +1797,51 @@ def build_archetype_jobs(
 
     jobs: list[dict[str, Any]] = []
     unresolved: list[dict[str, Any]] = []
+    scan_false_positives: list[dict[str, Any]] = []
     bodies = passage_bodies if passage_bodies is not None else rows_passage_bodies(rows)
     for spec in specs:
-        row = choose_entry(rows, spec)
+        if spec.false_positive_reason:
+            # The spec's macro is not a combat initiator (source evidence is in
+            # the reason text). Emit one honest not_applicable job per path and
+            # keep it out of ``unresolved`` (which means "no row was found").
+            scan_false_positives.append(
+                {
+                    "archetype": spec.key,
+                    "kind": spec.kind,
+                    "token": spec.token,
+                    "reason": spec.false_positive_reason,
+                    "source": "tools/combat_sweep.py COMBAT_STARTER_MACROS",
+                }
+            )
+            for path in ARCHETYPE_PATHS:
+                jobs.append(
+                    {
+                        "key": f"{spec.key}:{path}",
+                        "archetype": spec.key,
+                        "label": spec.label,
+                        "category": spec.category,
+                        "path": path,
+                        "kind": spec.kind,
+                        "token": spec.token,
+                        "passage": None,
+                        "entry_flags": [],
+                        "combat_starters": [],
+                        "initiator_key": None,
+                        "widget_host": False,
+                        "widget_host_passage": None,
+                        "resolution": "scan_false_positive",
+                        "unenterable_reason": spec.false_positive_reason,
+                        "tags": None,
+                        "false_positive": True,
+                    }
+                )
+            continue
         row = choose_entry(rows, spec, bodies)
         if row is None:
             unresolved.append({"archetype": spec.key, "reason": "no static initiator row"})
             continue
         follow = None
-        if not row.get("combat_starters"):
+        if not row.get("unenterable_reason") and not row.get("combat_starters"):
             follow = find_combat_link_target(row, bodies)
             if follow is None:
                 unresolved.append(
@@ -1512,16 +1868,23 @@ def build_archetype_jobs(
                     "entry_flags": list(row.get("entry_flags") or []),
                     "combat_starters": list(row.get("combat_starters") or []),
                     "initiator_key": row["key"],
+                    "widget_host": bool(row.get("widget_host")),
+                    "widget_host_passage": row.get("widget_host_passage"),
+                    "resolution": row.get("resolution"),
+                    "unenterable_reason": row.get("unenterable_reason"),
+                    "tags": row.get("tags"),
                     **({"link_from": row["passage"]} if follow else {}),
                 }
             )
     return {
         "jobs": jobs,
         "unresolved": unresolved,
+        "scan_false_positives": scan_false_positives,
         "archetypes": len(specs),
         "coverage": {
             "specs": len(ARCHETYPE_SPECS),
-            "resolved": len(specs) - len(unresolved),
+            "resolved": len(specs) - len(unresolved) - len(scan_false_positives),
+            "scan_false_positives": len(scan_false_positives),
             "paths": list(ARCHETYPE_PATHS),
         },
     }
@@ -1559,20 +1922,207 @@ def action_text(action: dict[str, Any]) -> str:
 def choose_action(actions: Sequence[dict[str, Any]], path: str) -> tuple[int, bool]:
     """Pick an action index by path preference.
 
+    The best-ranked offer wins, where ``PATH_ACTION_IDS`` / ``PATH_KEYWORDS``
+    order is the preference order (Rest before Dodge on the lose path, an
+    escape id before a keyword hit on the flee path).
+
     Fallback prefers an *unchecked* radio: re-clicking the pre-checked default
     (``休息``) is a DOM no-op, so the turn never submits and the fight stalls.
     """
-    keywords = PATH_KEYWORDS.get(path) or ()
+    best: tuple[int, str, int] | None = None
     for index, action in enumerate(actions):
-        low = action_text(action).casefold()
-        if any(kw.casefold() in low for kw in keywords):
-            return index, False
+        ranked = action_path_rank(action, path)
+        if ranked is None:
+            continue
+        rank, _hit = ranked
+        if best is None or rank < best[2]:
+            best = (index, _hit, rank)
+    if best is not None:
+        return best[0], False
     if not actions:
         return -1, True
     for index, action in enumerate(actions):
         if action.get("kind") == "radio" and action.get("checked") is False:
             return index, True
     return 0, True
+
+
+def action_keyword_hit(action: dict[str, Any], keywords: Sequence[str]) -> str | None:
+    """Return the first path keyword this control offers, if any.
+
+    ``Lists`` / ``List (w)`` render ``<select>`` listboxes whose own text is the
+    concatenation of every option, so the option texts are part of the offer.
+    """
+    haystacks = [action_text(action)]
+    for option in action.get("options") or []:
+        if isinstance(option, Mapping):
+            haystacks.append(str(option.get("text") or ""))
+    for keyword in keywords:
+        low = str(keyword).casefold()
+        for haystack in haystacks:
+            if low and low in str(haystack).casefold():
+                return str(keyword)
+    return None
+
+
+def label_matches_text(label: str, text: str) -> bool:
+    """Whether ``label`` is rendered inside ``text``.
+
+    ASCII labels use word boundaries so ``Rest`` cannot hit ``Restrain``; CJK
+    labels are substring-matched, which is how ModI18N renders them.
+    """
+    if not label or not text:
+        return False
+    low_text = str(text).casefold()
+    low_label = str(label).casefold()
+    if low_label.isascii():
+        pattern = rf"(?<![a-z0-9]){re.escape(low_label)}(?![a-z0-9])"
+        return re.search(pattern, low_text) is not None
+    return low_label in low_text
+
+
+def action_id_hit(action: dict[str, Any], action_ids: Sequence[str]) -> str | None:
+    """Return the upstream action id this control expresses, if it is wanted.
+
+    Two honest mechanisms (2026-10-08):
+
+    * ``Lists`` / ``List (w)`` render ``<select>`` listboxes whose ``<option>``
+      values are the real upstream action ids.
+    * Radio menus carry no id in the DOM -- SugarCube's ``radiobutton`` macro
+      leaves ``value`` at the HTML default ``"on"`` -- so the id is recovered
+      from the label text through :data:`ACTION_ID_LABELS`.
+    """
+    wanted = [str(value) for value in action_ids if str(value)]
+    if not wanted:
+        return None
+    for option in action.get("options") or []:
+        if isinstance(option, Mapping):
+            option_value = str(option.get("value") or "")
+            if option_value and option_value in wanted:
+                return option_value
+    if str(action.get("kind") or "") == "select":
+        value = str(action.get("value") or "")
+        if value and value in wanted:
+            return value
+    text = action_text(action)
+    for action_id in wanted:
+        for label in ACTION_ID_LABELS.get(action_id, ()):
+            if label_matches_text(label, text):
+                return action_id
+    return None
+
+
+def action_path_rank(action: dict[str, Any], path: str) -> tuple[int, str] | None:
+    """Preference rank of this control for ``path``; lower is better.
+
+    Action ids are ranked before keywords, so a correctly-translated id always
+    outbids a text coincidence; keyword hits share one tier, which preserves
+    on-screen order among equal-preference synonyms.
+    """
+    action_ids = PATH_ACTION_IDS.get(path) or ()
+    for rank, wanted in enumerate(action_ids):
+        hit = action_id_hit(action, (wanted,))
+        if hit:
+            return rank, f"id:{hit}"
+    hit = action_keyword_hit(action, PATH_KEYWORDS.get(path) or ())
+    if hit:
+        return len(action_ids), hit
+    return None
+
+
+def action_path_hit(action: dict[str, Any], path: str) -> str | None:
+    """How this control expresses ``path``: ``"id:<action>"`` or a keyword."""
+    ranked = action_path_rank(action, path)
+    return ranked[1] if ranked else None
+
+
+def choose_action_strict(
+    actions: Sequence[dict[str, Any]], path: str
+) -> tuple[int, str | None]:
+    """Pick the control that actually expresses ``path``; never substitute one.
+
+    Returns ``(-1, None)`` when the screen offers no such control -- the caller
+    records the offer and stops instead of attacking under a lose/flee/submit
+    label.
+    """
+    best: tuple[int, str, int] | None = None
+    for index, action in enumerate(actions):
+        ranked = action_path_rank(action, path)
+        if ranked is None:
+            continue
+        rank, hit = ranked
+        if best is None or rank < best[2]:
+            best = (index, hit, rank)
+    if best is not None:
+        return best[0], best[1]
+    return -1, None
+
+
+def offered_controls(actions: Sequence[dict[str, Any]], limit: int = 24) -> list[str]:
+    """Every control on screen, for the soft-failure evidence trail.
+
+    Radios render the same HTML default value (``"on"``) no matter which action
+    they carry, so the value is only printed when it is informative (select
+    menus). Radio evidence is therefore the label text itself, and select
+    evidence is ``select[value]:text``.
+    """
+    texts: list[str] = []
+    for action in actions[:limit]:
+        text = action_text(action).strip()
+        kind = str(action.get("kind") or "")
+        value = str(action.get("value") or "")
+        label = f"{kind}[{value}]" if value and value != "on" else kind
+        texts.append(f"{label}:{text}" if text else f"{label}:<no text>")
+    return texts
+
+
+def estimate_round_cap(
+    hp_evidence: Sequence[Mapping[str, Any]],
+    current_health: Any,
+    *,
+    current_cap: int,
+    ceiling: int = HARD_ROUND_CEILING,
+    margin: int = ROUND_EXTENSION_MARGIN,
+    window: int = ROUND_DAMAGE_WINDOW,
+) -> tuple[int, str] | None:
+    """Extend the round cap from measured damage when HP is still dropping.
+
+    Returns ``(new_cap, reason)`` or ``None`` when there is nothing to extend:
+    no numeric HP, no observed decrease, or the ceiling is already reached.
+    The estimate uses the median of the observed per-round decreases inside the
+    window so one lucky crit cannot inflate the budget.
+    """
+    if not isinstance(current_health, (int, float)) or current_health <= 0:
+        return None
+    drops: list[float] = []
+    for row in list(hp_evidence)[-window:]:
+        pair = row.get("enemyhealth")
+        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+            continue
+        before, after = pair
+        if not isinstance(before, (int, float)) or not isinstance(after, (int, float)):
+            continue
+        if after < before:
+            drops.append(float(before) - float(after))
+    if len(drops) < 2:
+        return None
+    drops.sort()
+    mid = len(drops) // 2
+    damage = drops[mid] if len(drops) % 2 else (drops[mid - 1] + drops[mid]) / 2
+    if damage <= 0:
+        return None
+    needed = int(math.ceil(float(current_health) / damage)) + margin
+    target = min(max(current_cap, needed), ceiling)
+    if target <= current_cap:
+        return None
+    return (
+        target,
+        (
+            f"round cap extended {current_cap}->{target}: enemyhealth="
+            f"{current_health}, median damage/round={damage:g} over "
+            f"{len(drops)} decreasing rounds"
+        ),
+    )
 
 
 def round_digest(state: dict[str, Any]) -> str:
@@ -1936,6 +2486,7 @@ COMBAT_ACTIONS_JS = r"""
     const label = el.closest("label");
     out.push({
       kind: "radio", id: el.id || null, group: groupOf(el), index: i, checked: !!el.checked,
+      name: el.name || null,
       text: label ? String(label.innerText || "").trim().replace(/\s+/g, " ") : "",
       value: String(el.value === undefined ? "" : el.value).slice(0, 80),
     });
@@ -2023,6 +2574,29 @@ SELECT_RADIO_JS = r"""
   if (!el) return JSON.stringify({ ok: false, error: "radio not found" });
   el.click();
   return JSON.stringify({ ok: true, kind: "radio", id: el.id, checked: !!el.checked });
+}
+"""
+
+# After a radio click, read back the variable the radio writes. The action id is
+# bound in a closure (see PATH_ACTION_IDS), so the only *verifiable* proof the
+# click carried the intended action is the state value the game itself stored:
+# ``<<radiobutton "$leftaction" "rest">>`` ends up as ``V.leftaction === "rest"``.
+VERIFY_RADIO_JS = r"""
+(payload) => {
+  const SC = window.SugarCube;
+  const el = payload && payload.id ? document.getElementById(payload.id) : null;
+  if (!SC || !SC.State || !el) return JSON.stringify({ ok: false, error: "no radio element" });
+  const name = String(el.name || "");
+  const slug = name.replace(/^radiobutton-/, "");
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const V = SC.State.variables || {};
+  const key = Object.keys(V).find((k) => norm(k) === slug);
+  if (!key) return JSON.stringify({ ok: false, name: name, slug: slug, error: "no state variable for group" });
+  const value = V[key];
+  return JSON.stringify({
+    ok: true, name: name, variable: key,
+    value: typeof value === "string" ? value : String(value),
+  });
 }
 """
 
@@ -2174,25 +2748,58 @@ def enter_row(
     }
 
 
+def _radio_state_value(page: Any, radio_id: str | None) -> dict[str, Any] | None:
+    """Read back the state variable a radio click wrote, when it can be read.
+
+    Evidence only: a missing or unreadable readback never fails the run, it
+    just leaves the click unverified.
+    """
+    if not radio_id:
+        return None
+    try:
+        raw = page.evaluate(VERIFY_RADIO_JS, {"id": radio_id})
+    except Exception:  # noqa: BLE001 - verification is evidence, never a gate
+        return None
+    if not isinstance(raw, str) or not raw.startswith("{"):
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _select_action(
     page: Any,
     action: dict[str, Any],
     *,
     keyword_path: str,
     fallback: bool = False,
+    keyword: str | None = None,
 ) -> dict[str, Any]:
-    """Perform one real DOM selection; returns the selection record."""
+    """Perform one real DOM selection; returns the selection record.
+
+    ``keyword`` is the hit that ``action_path_hit`` reported: either a bilingual
+    text keyword or ``"id:<action>"`` naming the upstream action id. The id form
+    is matched against option values (listbox modes) or the bilingual label
+    table (radios), the text form against option text.
+    """
     record: dict[str, Any] = {
         "kind": action.get("kind"),
         "fallback": fallback,
         "text": action_text(action)[:120],
         "group": action.get("group"),
     }
+    if keyword:
+        record["keyword"] = keyword
+        if str(keyword).startswith("id:"):
+            record["action_id"] = str(keyword)[3:]
     if action.get("kind") == "radio":
         if action.get("id"):
             try:
                 page.click(f"#{action['id']}", timeout=4000)
                 record["selected"] = action["id"]
+                record["state_after"] = _radio_state_value(page, action["id"])
                 return record
             except Exception as exc:  # noqa: BLE001 - fall back to the JS click
                 record["click_error"] = str(exc)[:160]
@@ -2201,16 +2808,49 @@ def _select_action(
             record["selected"] = json.loads(raw) if isinstance(raw, str) else raw
         except Exception:  # noqa: BLE001
             record["selected"] = {"ok": False, "raw": str(raw)[:120]}
+        selected_id = None
+        if isinstance(record["selected"], Mapping):
+            selected_id = record["selected"].get("id")
+        record["state_after"] = _radio_state_value(page, selected_id)
         return record
     # Lists / List (w): a SugarCube listbox <select>.
     options = action.get("options") or []
+    wanted_ids: tuple[str, ...]
+    wanted_text: tuple[str, ...]
+    if keyword and str(keyword).startswith("id:"):
+        wanted_ids, wanted_text = (str(keyword)[3:],), ()
+    elif keyword:
+        wanted_ids, wanted_text = (), (str(keyword),)
+    else:
+        wanted_ids = tuple(PATH_ACTION_IDS.get(keyword_path, ()))
+        wanted_text = tuple(PATH_KEYWORDS.get(keyword_path, ()))
     picked = None
     for option in options:
+        option_value = str(option.get("value") or "")
+        if option_value and option_value in wanted_ids:
+            picked = option
+            break
         low = str(option.get("text") or "").casefold()
-        if any(kw.casefold() in low for kw in PATH_KEYWORDS.get(keyword_path, ())):
+        if any(str(kw).casefold() in low for kw in wanted_text if str(kw)):
             picked = option
             break
     if picked is None and options:
+        if keyword:
+            # A strict path already matched this control; if the
+            # matching option is gone the honest answer is "not selectable",
+            # not "pick whatever is second in the list".
+            record["selected"] = {
+                "ok": False,
+                "error": f"no option matched hit {keyword!r}",
+                "options": [
+                    {
+                        "value": str(opt.get("value") or ""),
+                        "text": str(opt.get("text") or "")[:60],
+                    }
+                    for opt in options[:12]
+                ],
+            }
+            return record
         picked = options[min(1, len(options) - 1)]
         record["fallback"] = True
     if picked is None:
@@ -2338,9 +2978,19 @@ def drive_combat(
     }
     state = _state(page)
     last_active: dict[str, Any] | None = state if state.get("combat") == 1 else None
-    for round_no in range(1, max_rounds + 1):
+    strict = path in STRICT_PATHS
+    round_cap = max(0, int(max_rounds))
+    result["presses"] = 0
+    result["round_cap"] = {
+        "requested": int(max_rounds),
+        "final": round_cap,
+        "extensions": [],
+    }
+    round_no = 0
+    while round_no < round_cap:
         if state.get("combat") != 1:
             break
+        round_no += 1
         actions_probe = _actions(page)
         actions = actions_probe.get("actions") or []
         if not actions:
@@ -2352,6 +3002,7 @@ def drive_combat(
                     last_active = state
                 result["endure_rounds"] += 1
                 result["rounds"] += 1
+                result["presses"] += 1
                 result["digests"].append(round_digest(state))
                 result["actions"].append(
                     {
@@ -2361,6 +3012,7 @@ def drive_combat(
                         "target": advance.get("target"),
                         "attempt": advance.get("attempt"),
                         "fallback": False,
+                        "presses": [],
                     }
                 )
                 if detect_stall(result["digests"]):
@@ -2383,41 +3035,107 @@ def drive_combat(
                 {"round": round_no, "verdict": verdict, "detail": detail, "missing": missing}
             )
             break
-        index, fallback = choose_action(actions, path)
+
+        keyword: str | None = None
+        if strict:
+            index, keyword = choose_action_strict(actions, path)
+            if index < 0:
+                offer = offered_controls(actions)
+                result["offered_controls"] = offer
+                result["verdict"] = "soft_fail"
+                result["detail"] = (
+                    f"{path} path: no matching control on offer; buttons on "
+                    f"screen: {offer}"
+                )
+                result["actions"].append(
+                    {
+                        "round": round_no,
+                        "kind": "missing_path_control",
+                        "path": path,
+                        "offered": offer,
+                        "fallback": False,
+                        "presses": [],
+                    }
+                )
+                break
+            fallback = False
+        else:
+            index, fallback = choose_action(actions, path)
         action = actions[max(0, index)]
-        before = state
-        before_render = begin_turn(page)
-        selection = _select_action(page, action, keyword_path=path, fallback=fallback)
-        turn = _press_turn(page, timeout_ms=timeout_ms, before_render=before_render)
-        state = turn["state"]
-        if state.get("combat") == 1:
-            last_active = state
-        digest = round_digest(state)
-        result["digests"].append(digest)
+
+        # DoL resolves surrender through a leg action the player presses twice:
+        # the first press only arms it. Both presses are real DOM turns and both
+        # are recorded, so a "submit" path cannot pass on one press.
+        presses_wanted = SUBMIT_PRESSES if (strict and path == "submit") else 1
+        round_record: dict[str, Any] = {
+            "round": round_no,
+            "kind": action.get("kind"),
+            "group": action.get("group"),
+            "text": action_text(action)[:120],
+            "fallback": fallback,
+            "presses": [],
+        }
+        selection_failed: dict[str, Any] | None = None
+        for press_index in range(presses_wanted):
+            before = state
+            before_render = begin_turn(page)
+            selection = _select_action(
+                page, action, keyword_path=path, fallback=fallback, keyword=keyword
+            )
+            turn = _press_turn(page, timeout_ms=timeout_ms, before_render=before_render)
+            state = turn["state"]
+            if state.get("combat") == 1:
+                last_active = state
+            result["presses"] += 1
+            selected = selection.get("selected")
+            failed = isinstance(selected, Mapping) and selected.get("ok") is False
+            round_record["presses"].append(
+                {
+                    "press": press_index + 1,
+                    "kind": action.get("kind"),
+                    "text": action_text(action)[:120],
+                    "keyword": keyword,
+                    "fallback": fallback,
+                    "selection": selection,
+                    "timed_out": turn["timed_out"],
+                }
+            )
+            result["hp_evidence"].append(
+                {
+                    "round": round_no,
+                    "press": press_index + 1,
+                    "enemyhealth": [before.get("enemyhealth"), state.get("enemyhealth")],
+                    "enemyarousal": [before.get("enemyarousal"), state.get("enemyarousal")],
+                    "tentacleHealth": [before.get("tentacleHealth"), state.get("tentacleHealth")],
+                    "swarmActive": [before.get("swarmActive"), state.get("swarmActive")],
+                    "machineHealth": [before.get("machineHealth"), state.get("machineHealth")],
+                    "combat": state.get("combat"),
+                    "passage": state.get("passage"),
+                }
+            )
+            if failed:
+                selection_failed = dict(selected)
+                break
+            if press_index + 1 >= presses_wanted or state.get("combat") != 1:
+                break
+            reprobe = _actions(page)
+            again = reprobe.get("actions") or []
+            next_index, next_keyword = choose_action_strict(again, path)
+            if next_index < 0:
+                break
+            action = again[max(0, next_index)]
+            keyword = next_keyword
+
+        result["digests"].append(round_digest(state))
         result["rounds"] += 1
-        result["actions"].append(
-            {
-                "round": round_no,
-                "kind": action.get("kind"),
-                "group": action.get("group"),
-                "text": action_text(action)[:120],
-                "fallback": fallback,
-                "selection": selection,
-                "timed_out": turn["timed_out"],
-            }
-        )
-        result["hp_evidence"].append(
-            {
-                "round": round_no,
-                "enemyhealth": [before.get("enemyhealth"), state.get("enemyhealth")],
-                "enemyarousal": [before.get("enemyarousal"), state.get("enemyarousal")],
-                "tentacleHealth": [before.get("tentacleHealth"), state.get("tentacleHealth")],
-                "swarmActive": [before.get("swarmActive"), state.get("swarmActive")],
-                "machineHealth": [before.get("machineHealth"), state.get("machineHealth")],
-                "combat": state.get("combat"),
-                "passage": state.get("passage"),
-            }
-        )
+        result["actions"].append(round_record)
+        if selection_failed is not None:
+            result["verdict"] = "soft_fail"
+            result["detail"] = (
+                f"could not select the {path} control: "
+                f"{str(selection_failed.get('error'))[:160]}"
+            )
+            break
         round_errors = state.get("errors") or []
         if round_errors:
             verdict, detail, missing = classify_round_errors(round_errors)
@@ -2441,6 +3159,16 @@ def drive_combat(
             result["verdict"] = "soft_fail"
             result["detail"] = "turn render timed out"
             break
+        if state.get("combat") == 1 and round_no >= round_cap:
+            extended = estimate_round_cap(
+                result["hp_evidence"], state.get("enemyhealth"), current_cap=round_cap
+            )
+            if extended:
+                round_cap, reason = extended
+                result["round_cap"]["final"] = round_cap
+                result["round_cap"]["extensions"].append(
+                    {"at_round": round_no, "cap": round_cap, "reason": reason}
+                )
     result["landed"] = state.get("passage")
     landing_body = ""
     if passage_bodies:
@@ -2457,7 +3185,7 @@ def drive_combat(
         state,
         path=path,
         rounds=result["rounds"],
-        max_rounds=max_rounds,
+        max_rounds=round_cap,
         stalled=result["stalled"],
         last_active=last_active,
         landing_body=landing_body,
@@ -2469,9 +3197,16 @@ def drive_combat(
     if result["verdict"] == "ok" and outcome == "unknown" and state.get("combat") != 1:
         result["verdict"] = "soft_fail"
         result["detail"] = outcome_detail
-    if result["verdict"] == "ok" and state.get("combat") == 1 and result["rounds"] >= max_rounds:
+    if result["verdict"] == "ok" and state.get("combat") == 1 and round_no >= round_cap:
         result["verdict"] = "soft_fail"
-        result["detail"] = f"round limit {max_rounds} reached"
+        result["detail"] = (
+            f"round limit {round_cap} reached"
+            + (
+                f" (extended from {int(max_rounds)})"
+                if round_cap > int(max_rounds)
+                else ""
+            )
+        )
     if (
         result["verdict"] == "ok"
         and expected_outcome
@@ -2497,6 +3232,52 @@ def drive_combat(
     return result
 
 
+def filter_archetype_jobs(
+    jobs: Sequence[dict[str, Any]], only_keys: Sequence[str] | None
+) -> list[dict[str, Any]]:
+    """Keep the archetype jobs named by ``only_keys`` (job key or archetype).
+
+    Used for targeted reruns (smoke / attribution) so one matrix path can be
+    replayed without re-running all 26 archetypes.
+    """
+    if not only_keys:
+        return list(jobs)
+    wanted = {str(key) for key in only_keys}
+    return [
+        job
+        for job in jobs
+        if str(job.get("key")) in wanted or str(job.get("archetype")) in wanted
+    ]
+
+
+def entry_error_annotations(
+    verdict: str,
+    drive: Mapping[str, Any],
+    entry_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compact entry-error evidence for a stalled fight.
+
+    A fight that stalls without ever pressing a control is usually the entry's
+    fault (a widget that needs precursor state), not the driver's. Naming the
+    first entry error keeps the soft failure attributable; the verdict itself is
+    never upgraded here.
+    """
+    raw_errors = list(entry_state.get("errors") or [])
+    sample = [
+        {"kind": err.get("kind"), "message": str(err.get("message"))[:200]}
+        for err in raw_errors
+        if isinstance(err, Mapping)
+    ]
+    count = len(raw_errors)
+    suffix = ""
+    if str(verdict) == "soft_fail" and drive.get("stalled") and sample:
+        suffix = (
+            f" | entry produced {count} error(s); "
+            f"first: {sample[0]['message'][:180]}"
+        )
+    return {"suffix": suffix, "count": count, "sample": sample[:3]}
+
+
 def run_archetype_jobs(
     page: Any,
     jobs: Sequence[dict[str, Any]],
@@ -2514,6 +3295,34 @@ def run_archetype_jobs(
         # alive). Force a clean entry so each job measures its own fight.
         if _state(page).get("combat") == 1:
             page.evaluate(ps.RESTORE_FIXTURE)
+        if job.get("unenterable_reason"):
+            # The initiator lives in a widget library with no caller passage, so
+            # no real passage can render it. Recorded with its source evidence
+            # instead of playing a passage that cannot start a fight.
+            record = {
+                "key": job["key"],
+                "archetype": job["archetype"],
+                "label": job.get("label"),
+                "category": job.get("category"),
+                "path": job.get("path"),
+                "kind": job.get("kind"),
+                "token": job.get("token"),
+                "passage": job.get("passage"),
+                "verdict": "not_applicable",
+                "detail": str(job.get("unenterable_reason"))[:400],
+                "entry_flag": None,
+                "entry_timed_out": None,
+                "combat": None,
+                "missing": [],
+                "resolution": job.get("resolution"),
+                "widget_host_passage": job.get("widget_host_passage"),
+                "tags": job.get("tags"),
+                "elapsed_ms": int((time.time() - t0) * 1000),
+            }
+            results.append(record)
+            if progress is not None:
+                progress(record, position, len(jobs))
+            continue
         entry = enter_row(page, job, timeout_ms=timeout_ms)
         if entry.get("ok"):
             expected = EXPECTED_OUTCOME_ACCEPTS.get(str(job.get("path") or ""))
@@ -2527,6 +3336,10 @@ def run_archetype_jobs(
             )
             verdict = drive["verdict"]
             detail = drive.get("detail") or drive.get("outcome_detail") or ""
+            annotation = entry_error_annotations(
+                verdict, drive, entry.get("state") or {}
+            )
+            detail = f"{detail}{annotation['suffix']}"
             record = {
                 "key": job["key"],
                 "archetype": job["archetype"],
@@ -2540,6 +3353,8 @@ def run_archetype_jobs(
                 "detail": str(detail)[:400],
                 "entry_flag": entry.get("flags"),
                 "entry_timed_out": entry.get("timed_out"),
+                "entry_error_count": annotation["count"],
+                "entry_errors": annotation["sample"],
                 "combat": drive,
                 "missing": [],
                 "elapsed_ms": int((time.time() - t0) * 1000),
@@ -2756,15 +3571,65 @@ def run_initiator_rows(
     results: list[dict[str, Any]] = []
     for position, row in enumerate(rows, 1):
         t0 = time.time()
+        entry_row = dict(row)
+        if row.get("widget_host") or row.get("non_scene"):
+            # ``tags="widget"`` passages are libraries: the initiator macro only
+            # runs when an ordinary passage calls the widget. 2026-10-08: every
+            # cat/fox/possession hard failure was this, so the row is redirected
+            # to its caller when one exists and otherwise recorded with its
+            # source evidence instead of being played. SugarCube special /
+            # chrome passages (``StoryCaption`` ...) are the same kind of host:
+            # Engine.play() on them only answers "has no usable links".
+            found = resolve_widget_entry(row, passage_bodies or {}) if passage_bodies else None
+            if found is None:
+                if row.get("non_scene") and not row.get("widget_host"):
+                    reason = (
+                        f"SugarCube special/chrome passage {row.get('passage')!r} "
+                        "(rendered as sidebar/menu, not as a scene): Engine.play() "
+                        "always reports 'has no usable links', so it cannot be an "
+                        "entry point"
+                    )
+                else:
+                    reason = (
+                        f"widget-host passage {row.get('passage')!r} "
+                        f"(tags={row.get('tags')!r}) has no caller passage in this "
+                        "artifact, so the initiator macro never renders"
+                    )
+                record = {
+                    "key": row["key"],
+                    "kind": row.get("kind"),
+                    "token": row.get("token"),
+                    "passage": row.get("passage"),
+                    "macro": row.get("macro"),
+                    "precursor": None,
+                    "verdict": "not_applicable",
+                    "detail": reason[:400],
+                    "entry_flag": None,
+                    "entry_timed_out": None,
+                    "combat": None,
+                    "missing": [],
+                    "widget_host": True,
+                    "non_scene": bool(row.get("non_scene")),
+                    "tags": row.get("tags"),
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+                results.append(record)
+                if progress is not None:
+                    progress(record, position, len(rows))
+                continue
+            caller, evidence = found
+            entry_row["widget_host_passage"] = row.get("passage")
+            entry_row["passage"] = caller
+            entry_row["resolution"] = evidence
         precursor = derive_precursor(
-            row,
+            entry_row,
             passage_bodies=passage_bodies or {},
             named_npcs=named_npcs,
             widget_bodies=widget_bodies or {},
         )
         entry = enter_row(
             page,
-            row,
+            entry_row,
             timeout_ms=timeout_ms,
             precursor=precursor if precursor.get("widgets") else None,
         )
@@ -2783,6 +3648,8 @@ def run_initiator_rows(
                 "passage": row.get("passage"),
                 "macro": row.get("macro"),
                 "precursor": precursor,
+                "widget_host_passage": entry_row.get("widget_host_passage"),
+                "resolution": entry_row.get("resolution"),
                 "verdict": drive["verdict"],
                 "detail": str(drive.get("detail") or drive.get("outcome_detail") or "")[:400],
                 "entry_flag": entry.get("flags"),
@@ -2799,6 +3666,8 @@ def run_initiator_rows(
                 "passage": row.get("passage"),
                 "macro": row.get("macro"),
                 "precursor": precursor,
+                "widget_host_passage": entry_row.get("widget_host_passage"),
+                "resolution": entry_row.get("resolution"),
                 "verdict": entry.get("verdict", "hard_fail"),
                 "detail": str(entry.get("detail") or "")[:400],
                 "entry_flag": None,
@@ -3140,6 +4009,13 @@ def run(
             "flags": list(ENTRY_FLAGS),
             "attempts": [list(item) for item in ENTRY_FLAG_ATTEMPTS],
             "reason": "upstream guards combat scenes behind $molestationstart/$sexstart; the fixture carries both at 0",
+            "host_reason": (
+                "tags=\"widget\" libraries and SugarCube special/chrome passages "
+                "(StoryCaption, ...) are never played directly: the row is "
+                "redirected to the passage that calls its widget, or recorded as "
+                "not_applicable with source evidence"
+            ),
+            "non_scene_passages": sorted(SPECIAL_NON_SCENE_PASSAGES),
             "precursor_schema": PRECURSOR_SCHEMA,
             "precursor_reason": "upstream combat scenes assume their own <<generate1>>/<<generateBEAST>>/<<npc X>>"
             " chain already ran; direct jumps leave $NPCList[0] as a 5-key shell and crash hand_section"
@@ -3189,12 +4065,21 @@ def run(
             "archetypes": matrix["archetypes"],
             "jobs": len(matrix["jobs"]),
             "unresolved": matrix["unresolved"],
+            "scan_false_positives": matrix.get("scan_false_positives") or [],
             "coverage": matrix["coverage"],
             "limit": limit,
             "sample": sample,
             "seed": seed,
         }
         selected_jobs = matrix["jobs"]
+        if resolved_only_keys:
+            # Targeted reruns (smoke / attribution) need to act on one archetype
+            # or one matrix path without re-running the whole 26-spec matrix.
+            selected_jobs = filter_archetype_jobs(selected_jobs, resolved_only_keys)
+            selection["only_keys"] = sorted({str(key) for key in resolved_only_keys})
+            selection["selected_count"] = len(selected_jobs)
+            if not selected_jobs:
+                selection["error"] = "no archetype job matched --only-keys"
         if modes_only:
             selected_jobs = []
     else:
