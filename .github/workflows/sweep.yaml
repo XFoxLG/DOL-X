@@ -190,6 +190,28 @@ jobs:
             --json .local/sweep/daily-mod-inventory/mod-inventory-report.json \
             --md .local/sweep/daily-mod-inventory/mod-inventory-report.md \
             --write-list .local/sweep/daily-mod-passages.txt || STATUS=1
+          # 2026-10-08: 每个已注册 mod 的功能按钮隔离点一次，只判“不抛异常”。
+          # thrown>0 才算失败；vanished（面板被上一次点击换掉）不算。
+          python - <<'PY' || STATUS=1
+          import json
+          import sys
+
+          path = ".local/sweep/daily-mod-inventory/mod-inventory-report.json"
+          with open(path, encoding="utf-8") as handle:
+              report = json.load(handle)
+          summary = (report.get("mod_buttons") or {}).get("summary") or {}
+          print(
+              "[mod-inventory] mod buttons: "
+              f"candidates={summary.get('candidates')} "
+              f"attempted={summary.get('attempted')} ok={summary.get('ok')} "
+              f"thrown={summary.get('thrown')} vanished={summary.get('vanished')}"
+          )
+          if summary.get("thrown"):
+              print(
+                  f"::error::mod button isolation: {summary['thrown']} handler(s) threw"
+              )
+              sys.exit(1)
+          PY
           if [ ! -s .local/sweep/daily-mod-passages.txt ]; then
             echo "::error::mod inventory produced an empty playable-passage list"
             STATUS=1
