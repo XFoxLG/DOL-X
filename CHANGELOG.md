@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- **战斗特殊血量终局误报（2026-10-09）**：`Brothel Show Machine` 的胜利终局由
+  `$machineHealth` 驱动（20 → -1），旧测试器只检查 `$enemyhealth`，导致已结束的
+  机器战被误报为“无敌人失败证据”。终局判定与动态回合上限现在识别
+  `enemyhealth` / `machineHealth` / `tentacleHealth` / `swarmActive`，并优先采用
+  最近回合里真正下降的血量字段；新增 4 条回归测试，`pytest` **729 passed**。
 - **combat-full 前 4 片 26 条 hard_fail 归因与修复（2026-10-09）**：run
   `37899995638`（head `a2e324f`）前 4 个分片暴露 26 条 hard_fail，分三类：
   15 条 Finish/出口缺父事件状态、6 条 `personselect` 读未初始化 NPC 槽、
