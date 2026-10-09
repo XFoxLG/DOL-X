@@ -2114,6 +2114,9 @@ def build_archetype_jobs(
     }
 
 
+MODE_ENTRY_KEYS: tuple[str, ...] = ("beastCombatInit:dog:Dog Park",)
+
+
 def pick_mode_entry(jobs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
     """Prefer a beast fight for the control-mode checks.
 
@@ -2122,6 +2125,10 @@ def pick_mode_entry(jobs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
     when the caller supplies paths (archetype matrix); the initiator tier's rows
     carry no path, so a second pass without that filter keeps the pick usable.
     """
+    for wanted_key in MODE_ENTRY_KEYS:
+        for job in jobs:
+            if str(job.get("key") or "") == wanted_key:
+                return job
     preferred_kinds = ("beastCombatInit", "beastNEWinit", "maninit")
     for require_win in (True, False):
         for kind in preferred_kinds:
@@ -4639,6 +4646,7 @@ def run(
     selected_jobs: list[dict[str, Any]] = []
     selection: dict[str, Any] = {}
     initiator_plan: list[dict[str, Any]] = []
+    mode_candidate_rows: list[dict[str, Any]] = []
     expected_keys: list[str] = []
     resume_results: list[dict[str, Any]] = []
     if tier == "archetypes":
@@ -4671,6 +4679,14 @@ def run(
         if modes_only:
             selected_jobs = []
     else:
+        mode_candidate_rows = list(manifest["rows"])
+        if resolved_only_keys:
+            wanted_mode_keys = set(resolved_only_keys)
+            mode_candidate_rows = [
+                row
+                for row in mode_candidate_rows
+                if str(row.get("key")) in wanted_mode_keys
+            ]
         initiator_plan = select_initiator_rows(
             manifest["rows"],
             limit=limit,
@@ -4810,7 +4826,11 @@ def run(
                     report["resume"]["completed"] = len(checkpoint.get("completed") or [])
 
                 if run_modes and not modes_only:
-                    mode_entry = pick_mode_entry(selected_jobs)
+                    mode_entry = pick_mode_entry(
+                        mode_candidate_rows
+                        if tier == "initiators" and mode_candidate_rows
+                        else selected_jobs
+                    )
                     if mode_entry is None:
                         report["modes"] = [
                             {
