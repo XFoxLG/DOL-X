@@ -910,8 +910,13 @@ run `37899995638`（head `a2e324f`）前 4 个 combat 分片完成后，共暴�
 “没有可用链接”。这是上游断链，不是 DOL-X 集成或夹具问题；测试器不创建假出口，
 保留 hard_fail 与源码证据，等上游修复后再复跑。
 
-本轮新增/更新 25 条战斗单测，`pytest` **725 passed**。旧 run 的后 4 个分片仍按
-原代码继续执行，其结论只用于保留原始报告；修复后的 combat-full 需要在新 head 上重跑。
+本轮新增/更新 25 条战斗单测，`pytest` **725 passed**。随后又修复一个终局判定细节：
+`Brothel Show Machine` 的实际血量是 `$machineHealth`（20 → -1），旧逻辑只看
+`$enemyhealth`，把已到达终局的机器战误报为无失败证据。现在终局与动态回合上限都会识别
+`enemyhealth` / `machineHealth` / `tentacleHealth` / `swarmActive`，并优先采用最近
+回合里真正下降的血量字段；新增 4 条回归测试后 `pytest` **729 passed**。旧 run 的后
+4 个分片仍按原代码继续执行，其结论只用于保留原始报告；修复后的 combat-full 需要在
+新 head 上重跑。
 
 ---
 
