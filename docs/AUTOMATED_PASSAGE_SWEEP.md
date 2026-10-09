@@ -881,7 +881,7 @@ passage 不进 Story）与 `Macro.has`，再按 payload 里的 `:: Name`、`<<wi
 Engine A 的 `au-face` 流（八脸型 + 桌宠 canvas 像素）与 Engine B MuMu 真机
 （`tools/mumu_apk_smoke.py`）——这条与本轮 mod 盘点并列，不互相替代。
 
-### 8.12 combat-full 首轮 26 条 hard_fail 的归因与收口（2026-10-09）
+### 8.14 combat-full 首轮 26 条 hard_fail 的归因与收口（2026-10-09）
 
 run `37899995638`（head `a2e324f`）前 4 个 combat 分片完成后，共暴露 26 条
 `hard_fail`。这批结果不封存为通过基线，只作为归因输入；逐条映射后分成三类：
@@ -938,6 +938,51 @@ run `37899995638`（head `a2e324f`）前 4 个 combat 分片完成后，共暴�
 
 上述修复后 `pytest` **735 passed**。这些结论来自旧报告归因与本地定向复现，最终
 combat-full 仍必须在新 head 上完整重跑。
+
+### 8.15 终局宏证据链：Finish 前快照不再被覆盖（2026-10-10）
+
+旧 run `37932338324` 的 shard 2 显示一个新测试器缺陷：不少场景其实已经到达
+`Finish`，但驱动器继续点击 Next 回到原场景，最后以 round limit 结束。典型证据是
+`Avery Hotel Bath Rape` 在第 78 回合 `enemyarousal=1031/1000` 后进入
+`Avery Hotel Bath Rape Finish`，Finish 把兴奋值重置为 200 且 `$combat` 探针仍为 1；
+随后驱动器又回到原场景，把已经发生的终局证据丢掉。
+
+本轮先核对上游完整源码，再改测试器：
+
+- 上游仓库：`https://gitgud.io/Vrelnir/degrees-of-lewdity`
+- tag / commit：`0.5.11.9` / `41993d3f32476f0b1c8db730c159a50ffcdc2a65`
+- `<<endcombat>>`：`game/base-combat/end.twee:3`，同文件第 186 行执行
+  `<<set $combat to 0>>`，是确认战斗终局。
+- `<<machine_end>>`：`game/base-combat/machine/machine.twee:42-47`，清理机器状态后调用
+  `<<endcombat>>`，也是确认终局。
+- `<<exitWraith>>`：`game/overworld-forest/loc-lake/ivory/widgets.twee:1486`，
+  按 `$wraith.exit` 路由；`true` 只设置 `$phase2`，不是战斗结束宏。
+
+`combat_sweep` 现在在每次 passage 切换后检查当前 passage 源码。首次命中
+`endcombat` / `machine_end` 时记录 `terminal_landing`：
+
+| 字段 | 含义 |
+| --- | --- |
+| `marker` | `endcombat` 或 `machine_end` |
+| `passage` / `round` / `press` | 第一次到达终局的位置与回合 |
+| `pre_terminal_state` | 进入 Finish 前的 `combat`、HP、arousal、机器血量等快照 |
+| `terminal_state` | Finish / End passage 当时的状态 |
+
+命中后立即停止，不再让后续 passage 覆盖第一次终局证据。分类优先级保持诚实：
+
+1. `pre_terminal_state` 已有敌人失败证据（HP ≤ 0、arousal 达上限、swarm 结束）→ `win`；
+2. 没有敌人失败证据但有确认终局宏 → `end`（`Orgasm` passage 仍为 `end_player_orgasm`）；
+3. `exitWraith true` 只写入 `route_landing`，不判 `end`，也不套用 `endcombat` 规则。
+
+因此 Avery / Bus / Pillory / Livestock 的“兴奋值先达上限、Finish 后重置”样本按
+终局前快照判 `win`；`Elk Compound Machine Rape End` 在 `machineHealth 9 → None` 时判
+确认终局 `end`；Wraith 只能依赖 `Wraith Caught Finish` 里的 `endcombat` 证据，
+不能因为 `Wraith Snatched Intro` 里的 `exitWraith true` 假通过。
+
+报告顶层新增 `source_evidence`（上游仓库、tag、commit 与宏源码路径），每条战斗结果
+新增 `terminal_landing` / `route_landing`。新增 7 条回归测试后
+`python -m pytest -q` 为 **742 passed**。旧 run `37932338324` 不取消，完整 artifacts
+保留为修复前原始报告；修复后的 combat-full 必须在新 head 上重跑。
 
 ---
 

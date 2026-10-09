@@ -15,6 +15,18 @@
 
 ### Fixed
 
+- **战斗终局证据被 Finish 状态重置覆盖（2026-10-10）**：以上游
+  `0.5.11.9` 源码（commit `41993d3f32476f0b1c8db730c159a50ffcdc2a65`）核实
+  `<<endcombat>>` / `<<machine_end>>` / `<<exitWraith>>` 的真实语义后，
+  `combat_sweep` 会在 passage 切换时识别确认终局宏，首次到达即记录
+  `terminal_landing` 与进入 Finish 前的 HP/arousal 快照并停止，不再继续点击
+  导致证据被后续 passage 覆盖。`Avery Hotel Bath Rape`、`Bus endure`、
+  `Pillory Oral`、`Livestock Caught Doggirl Rape` 这类“兴奋值已达上限后进入
+  Finish、Finish 重置兴奋值且 `$combat` 探针仍为 1”的样本现在按终局前快照判
+  `win`；`Elk Compound Machine Rape End` 按 `machine_end` 判确认终局；
+  `exitWraith true` 只记录为路由证据，不当作战斗结束。报告新增上游
+  source evidence 与 `terminal_landing` 字段；新增 7 条回归测试，
+  `pytest` **742 passed**。
 - **战斗轴 soft_fail 三类测试器根因修复（2026-10-09）**：动态回合上限改为
   “当前上限 + 剩余血量所需回合 + 5”，不再把剩余血量误当成新总上限；无控件续进
   会记录 HP/arousal 证据，只有连续 3 次有意义状态不变才停止，状态推进时可以继续
