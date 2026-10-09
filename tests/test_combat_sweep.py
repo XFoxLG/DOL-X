@@ -2474,6 +2474,49 @@ def test_estimate_round_cap_extends_from_measured_damage() -> None:
     assert capped is not None and capped[0] == combat_sweep.HARD_ROUND_CEILING
 
 
+def test_estimate_round_cap_follows_special_defeat_health_meter() -> None:
+    hp = [
+        {"enemyhealth": [999.0, 999.0], "machineHealth": [120.0 - i, 119.0 - i]}
+        for i in range(6)
+    ]
+    state = {"enemyhealth": 999.0, "machineHealth": 120.0}
+
+    extended = combat_sweep.estimate_round_cap(hp, state, current_cap=80)
+
+    assert extended is not None
+    cap, reason = extended
+    assert cap == 125
+    assert "machine health" in reason
+
+
+def test_enemy_defeat_evidence_accepts_special_health_fields() -> None:
+    assert combat_sweep._enemy_defeat_evidence({"machineHealth": -1.0}) == (
+        "win",
+        "machine health reached -1.0",
+    )
+    assert combat_sweep._enemy_defeat_evidence({"tentacleHealth": 0}) == (
+        "win",
+        "tentacle health reached 0",
+    )
+    assert combat_sweep._enemy_defeat_evidence({"swarmActive": False}) == (
+        "win",
+        "active swarm reached False",
+    )
+
+
+def test_classify_outcome_accepts_machine_health_defeat() -> None:
+    outcome, detail = classify_outcome(
+        {"combat": 0, "machineHealth": -1.0},
+        path="win",
+        rounds=21,
+        max_rounds=80,
+        stalled=False,
+    )
+
+    assert outcome == "win"
+    assert "machine health reached -1.0" in detail
+
+
 def test_slow_but_steady_health_drop_extends_the_cap_inside_the_driver() -> None:
     def on_turn(state: dict, actions: list) -> tuple[dict, list]:
         health = float(state.get("enemyhealth") or 0.0) - 10.0
@@ -2496,6 +2539,33 @@ def test_slow_but_steady_health_drop_extends_the_cap_inside_the_driver() -> None
 
     assert result["round_cap"]["final"] > 4
     assert result["round_cap"]["extensions"], "the extension must be recorded"
+    assert result["outcome"] == "win"
+    assert result["verdict"] == "ok"
+    assert result["rounds"] == 10
+
+
+def test_slow_machine_health_drop_extends_the_cap_inside_the_driver() -> None:
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        health = float(state.get("machineHealth") or 0.0) - 10.0
+        return (
+            {
+                "combat": 1 if health > 0 else 0,
+                "machineHealth": health,
+                "passage": "Brothel Show Machine",
+            },
+            actions,
+        )
+
+    page = _CombatPage(
+        {"combat": 1, "machineHealth": 100.0, "passage": "Brothel Show Machine"},
+        [{"kind": "radio", "id": "a0", "text": "攻击", "checked": False}],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(page, path="win", max_rounds=4, timeout_ms=1000)
+
+    assert result["round_cap"]["final"] > 4
+    assert result["round_cap"]["extensions"]
     assert result["outcome"] == "win"
     assert result["verdict"] == "ok"
     assert result["rounds"] == 10
