@@ -161,6 +161,25 @@ def test_classify_row_covers_all_six_entry_shapes() -> None:
     assert starter["entry_shape"] == "entry"
 
 
+def test_classify_row_does_not_treat_a_widget_library_as_a_sex_scene() -> None:
+    from tools import combat_sweep as cs
+
+    body = (
+        '<<widget "sex_scene">><<if $sexstart is 1>><<consensual>>'
+        "<<maninit>><</if>><<actionsman>><<if _combatend>><</if>><</widget>>"
+    )
+    row = dict(
+        cs.scan_initiators(_synthetic_html([("Widgets Sex", body)]))["rows"][0]
+    )
+
+    result = classify_row(
+        row, passage_bodies={"Widgets Sex": body}, widget_bodies={}, named_npcs=[]
+    )
+
+    assert result["entry_shape"] == "widget_definition"
+    assert result["sexual_scene_reason"] is None
+
+
 def test_classify_row_helper_only_when_no_starter_or_link() -> None:
     row = {
         "key": "beastNEWinit:wolf:Backwoods",
