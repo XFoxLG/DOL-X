@@ -49,7 +49,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -2014,6 +2014,7 @@ class DayloopStep:
     min_minutes: int = 0
     completion: str = "passage"
     route_hops: tuple[str, ...] = ()
+    route_targets: tuple[str, ...] = ()
 
 
 # 2026-10-08 rewrite. The old table was pure keyword matching, so the day
@@ -2077,8 +2078,29 @@ DAYLOOP_STEPS: tuple[DayloopStep, ...] = (
     DayloopStep(
         "上课",
         ("上课", "课程", "lesson", "class", "教室"),
-        target_passages=("Hallways", "School Front Courtyard"),
+        # Verified 2026-10-08 (dayloop-smoke15): the lesson links live inside
+        # the school (Hallways), not on the courtyard; stopping at the
+        # courtyard means no effect link is ever found and the day ends 8h
+        # short. The courtyard is only a waypoint on the way in.
+        target_passages=("Hallways",),
+        waypoints=("School Front Courtyard", "Oxford Street"),
+        # Verified 2026-10-08 (CI run 37766842291): the street Tutorial is
+        # resolved at the *start* of this step, so the bus route to school must
+        # be available here too: 等公交 -> 牛津街票 -> Oxford Street -> 学校.
+        route_hops=("公交", "等待", "bus", "牛津", "oxford", "学校", "school", "进入学校"),
+        route_targets=(
+            "Bus move Safe",
+            "Bus endure safe",
+            "School Front Courtyard",
+            "School",
+        ),
         action_keywords=(
+            # Verified 2026-10-08 (dayloop-smoke16): the classroom entry is
+            # "(1) 去上科学课 (0:01)" - "科学" alone outranks "去上科学课"'s
+            # (0:01) tail so the lesson entry is chosen; but the real effect
+            # (Focus / 认真上课) costs 60+ min inside Science Lesson.
+            "去上科学课", "去上数学课", "去上英语课", "去上历史课", "去上家务课",
+            "专注", "专心", "认真",
             "上课", "课程", "课时", "教室", "lesson", "class", "attend",
             "科学", "数学", "语文", "历史", "家务", "Science", "Maths",
             "English", "History", "Housekeeping",
@@ -2091,12 +2113,20 @@ DAYLOOP_STEPS: tuple[DayloopStep, ...] = (
         ("放学", "离开学校", "leave school", "after school", "go home"),
         target_passages=("Domus Street",),
         waypoints=("School Front Courtyard", "Oxford Street", "Barb Street"),
+        # Same bus route as 上学, walked in reverse: 离开学校 -> Oxford -> 等公交
+        # (ticket back to 宅邸街).
+        route_hops=("公交", "等待", "bus", "宅邸", "domus", "离开学校"),
     ),
     DayloopStep(
         "回家",
         ("孤儿院", "回家", "家", "orphanage", "home", "卧室", "bedroom", "大厅"),
         target_passages=("Bedroom",),
         waypoints=("Orphanage",),
+        # Verified 2026-10-08 (dayloop-smoke10): from the hall the bedroom is a
+        # direct ``Next|Bedroom`` hop, but the hall also renders event links
+        # (teasing, begging) that eat the budget. Prefer the bedroom target and
+        # otherwise only walk the hall's own Next links.
+        route_hops=("卧室", "bedroom", "回家", "孤儿院"),
     ),
     DayloopStep(
         "睡觉",
@@ -2194,6 +2224,7 @@ def dayloop_pick(links: list[dict[str, Any]], keywords: Iterable[str]) -> dict[s
                 "text": str(link.get("text") or ""),
                 "matched": matched,
                 "data_passage": link.get("data"),
+                "source": "keyword",
             }
     return None
 
@@ -2232,6 +2263,7 @@ def dayloop_pick_target(
                 "matched": data,
                 "data_passage": data,
                 "structured": True,
+                "source": "target",
             }
     return None
 
@@ -2261,7 +2293,9 @@ def dayloop_pick_effect(
                 "text": text,
                 "matched": matched,
                 "data_passage": link.get("data"),
+                "source": "exit",
                 "cost_minutes": cost,
+                "source": "effect",
             }
         )
         candidates.append((-cost, index, picked))
@@ -2299,6 +2333,7 @@ def dayloop_resolve_pick(
             "text": str(link.get("text") or ""),
             "matched": data,
             "data_passage": data,
+            "source": "resolve",
         }
         targets = [str(item) for item in (static_links.get(data) or [])]
         if current_passage in targets:
@@ -2347,7 +2382,500 @@ def dayloop_window_pick(
                 "matched": text,
                 "data_passage": data or None,
                 "window": True,
+                "source": "window",
             }
+    return None
+
+
+def dayloop_pick_non_backtracking(
+    links: list[dict[str, Any]],
+    keywords: Iterable[str],
+    *,
+    forbidden_passages: Iterable[str],
+) -> dict[str, Any] | None:
+    """Pick a keyword link whose target is not a passage just came from.
+
+    Verified 2026-10-08 (dayloop-smoke9): at 15:40 the School Front Courtyard
+    offers "离开学校" back to Oxford Street, and Oxford Street offers "学校"
+    right back - a two-way ping-pong that burns the whole click budget. The
+    driver must refuse a hop whose ``data-passage`` is one of the passages it
+    is explicitly trying to leave.
+    """
+    banned = {str(target) for target in forbidden_passages if target}
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        text = str(link.get("text") or "")
+        matched = dayloop_match(text, keywords)
+        if not matched:
+            continue
+        data = str(link.get("data") or "")
+        if data in banned:
+            continue
+        return {
+            "index": index,
+            "text": text,
+            "matched": matched,
+            "data_passage": data or None,
+            "source": "route_hop",
+        }
+    return None
+
+
+def dayloop_route_target_pick(
+    links: list[dict[str, Any]],
+    targets: Iterable[str],
+    current_passage: str,
+) -> dict[str, Any] | None:
+    """Pick a route target without consuming the current page's self-event.
+
+    A step's ``route_targets`` can name the page the player is already on
+    (for example ``School Front Courtyard`` while walking to school).  A
+    self-targeting continuation on that page must stay available to the
+    bounded self-event resolver instead of being clicked as if it were a
+    route hop.
+    """
+    for target in targets:
+        if not target or str(target) == str(current_passage):
+            continue
+        pick = dayloop_pick_target(links, (target,))
+        if pick is not None:
+            pick["source"] = "route_target"
+            return pick
+    return None
+
+
+def dayloop_self_event_pick(
+    links: list[dict[str, Any]], current_passage: str
+) -> dict[str, Any] | None:
+    """Pick a self-looping event continuation when no route link exists.
+
+    Random street/courtyard events can replace normal links with one
+    ``Next|CurrentPassage`` continuation. The generic route selector must not
+    loop on every self-link, but once all route channels are exhausted, click
+    it once to resolve the event and reveal the real route.
+    """
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        text = str(link.get("text") or "")
+        data = str(link.get("data") or "").strip()
+        if data and data == current_passage and dayloop_match(
+            text, ("继续", "next", "continue")
+        ):
+            return {
+                "index": index,
+                "text": text,
+                "matched": text,
+                "data_passage": data,
+                "event_self": True,
+                "source": "self_event",
+            }
+    return None
+
+
+def dayloop_science_continuation_pick(
+    links: list[dict[str, Any]], current_passage: str
+) -> dict[str, Any] | None:
+    """Follow the Science lesson chain through its optional event pages.
+
+    ``Science Lesson Focus`` can lead directly back to ``Science Lesson`` or
+    through ``Science Event*`` first. Prefer the exact lesson target, but do
+    not stop merely because an event page sits in between.
+    """
+    exact = dayloop_pick_target(links, ("Science Lesson",))
+    if exact is not None:
+        return exact
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        data = str(link.get("data") or "").strip()
+        if data and data != current_passage and (
+            data == "Science Lesson" or data.startswith("Science ")
+        ):
+            return {
+                "index": index,
+                "text": str(link.get("text") or ""),
+                "matched": data,
+                "data_passage": data,
+                "structured": True,
+                "source": "lesson_continuation",
+            }
+    return None
+
+
+def dayloop_lesson_continuation_pick(
+    links: list[dict[str, Any]], current_passage: str
+) -> dict[str, Any] | None:
+    """Follow a classroom chain, resolving a lesson-only self-event last.
+
+    A lesson-ending event page can temporarily expose only
+    ``Continue|CurrentPassage``. Prefer every real cross-page lesson link
+    first; only when none exists resolve the in-lesson self-loop so the next
+    iteration can return to the normal classroom chain. The returned pick is
+    marked ``event_self`` and therefore never counts as step completion.
+    """
+    subject = dayloop_lesson_subject(current_passage)
+    if subject is None:
+        return None
+    exact = dayloop_pick_target(links, (f"{subject} Lesson",))
+    if exact is not None:
+        return exact
+    safe_event_targets: Mapping[str, tuple[str, ...]] = {
+        # ``Swim away`` can fail and send the day into a molestation combat.
+        # ``Endure it`` is the same real event choice, but it always returns to
+        # Swimming Lesson and keeps the school-day loop on a testable path.
+        "Swimming": (
+            "Events Swimming Swim Endure",
+            "Events Swimming Stalk Confront",
+        ),
+    }
+    for target in safe_event_targets.get(subject, ()):
+        safe = dayloop_pick_target(links, (target,))
+        if safe is not None:
+            safe["source"] = "lesson_continuation"
+            return safe
+    if subject == "Swimming":
+        # Swimming has its own structured route. In particular ``School Pool
+        # Refuse`` contains ``Refuse``, which the generic school-event picker
+        # treats as a safe token even though it skips the lesson.
+        return None
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        data = str(link.get("data") or "").strip()
+        if data and data != current_passage and (
+            data.startswith(subject) or data.startswith(f"Events {subject}")
+        ):
+            return {
+                "index": index,
+                "text": str(link.get("text") or ""),
+                "matched": data,
+                "data_passage": data,
+                "structured": True,
+            }
+    return dayloop_self_event_pick(links, current_passage)
+
+
+def dayloop_school_event_pick(
+    links: list[dict[str, Any]], current_passage: str
+) -> dict[str, Any] | None:
+    """Resolve a school-side event page back to the normal school route."""
+    if not (
+        str(current_passage).startswith("Hallways ")
+        or str(current_passage).startswith("School ")
+    ):
+        return None
+    back = dayloop_pick_target(links, ("Hallways",))
+    if back is not None:
+        back["source"] = "school_event"
+        return back
+    preferred_tokens = ("Refuse", "Resist", "Escape", "Finish", "Next")
+    avoided_tokens = ("Sex", "Molestation", "Rape")
+    for index, link in enumerate(links):
+        if not link.get("visible", True):
+            continue
+        data = str(link.get("data") or "").strip()
+        if not data or data == current_passage:
+            continue
+        # This is the pool lesson's explicit "skip the lesson" exit. It advances
+        # only five minutes and sends the day loop back to the entrance, so it
+        # must never be selected as a safe school-event continuation.
+        if data == "School Pool Refuse":
+            continue
+        if any(token in data for token in preferred_tokens) and not any(
+            token in data for token in avoided_tokens
+        ):
+            return {
+                "index": index,
+                "text": str(link.get("text") or ""),
+                "matched": data,
+                "data_passage": data,
+                "structured": True,
+                "source": "school_event",
+            }
+    self_event = dayloop_self_event_pick(links, current_passage)
+    if self_event is not None:
+        self_event["source"] = "school_event"
+        return self_event
+    # Some event continuations are plain macro links without a
+    # ``data-passage``; the visible label is the only structured signal.
+    pick = dayloop_pick(links, ("继续", "next", "continue"))
+    if pick is not None and not str(pick.get("data_passage") or ""):
+        pick["data_passage"] = None
+        pick["source"] = "school_event"
+    return pick
+
+
+DAYLOOP_SWIMMING_ROUTE: Mapping[str, tuple[str, ...]] = {
+    "School Girl Changing Room": ("School Pool",),
+    "School Boy Changing Room": ("School Pool",),
+    "School Pool": ("Swimming Lesson", "School Pool Spare", "School Pool Wrong"),
+    "School Pool Wrong": ("Swimming Lesson", "School Pool"),
+    "School Pool Spare": (
+        "School Pool Crossdress",
+        "School Pool Nude",
+    ),
+    "School Pool Crossdress": ("Swimming Lesson",),
+    "Swimming Lesson": ("Swimming Lesson Focus",),
+    "Swimming Lesson Focus": (
+        "Swimming Lesson",
+        "School Girl Changing Room",
+        "School Boy Changing Room",
+        "Hallways",
+    ),
+}
+
+
+def dayloop_swimming_continuation_pick(
+    links: list[dict[str, Any]],
+    current_passage: str,
+    *,
+    swimwear_attempted: bool = False,
+) -> dict[str, Any] | None:
+    """Follow the fifth-period swimming chain through its real links.
+
+    Swimming is the one lesson whose classroom is behind two changing-room
+    and swimwear pages. Use structured passage targets in the game's own
+    order; this never invents a keyword click and never marks navigation as
+    lesson completion.
+    """
+    if current_passage in ("School Girl Changing Room", "School Boy Changing Room"):
+        if not swimwear_attempted:
+            # Fail closed: without a real swimwear action, entering the pool
+            # leads to the spare-clothes branch and ultimately skipping class.
+            for index, link in enumerate(links):
+                if not link.get("visible", True):
+                    continue
+                text = str(link.get("text") or "")
+                data = str(link.get("data") or "").strip()
+                if (
+                    data == current_passage
+                    and dayloop_match(
+                        text,
+                        (
+                            "Wear Swimwear",
+                            "Wear school swimsuit",
+                            "穿上泳衣",
+                            "穿上泳装",
+                            "穿上学校泳衣",
+                        ),
+                    )
+                ):
+                    return {
+                        "index": index,
+                        "text": text,
+                        "matched": text,
+                        "data_passage": data,
+                        "swimwear_self": True,
+                        "source": "swimming_continuation",
+                    }
+            return None
+    for target in DAYLOOP_SWIMMING_ROUTE.get(str(current_passage), ()):
+        pick = dayloop_pick_target(links, (target,))
+        if pick is not None:
+            pick["source"] = "swimming_continuation"
+            return pick
+    return None
+
+
+def dayloop_swimwear_self_status(
+    pick: Mapping[str, Any], outcome: Mapping[str, Any]
+) -> tuple[str, str]:
+    """Classify an in-place swimwear click by the resulting worn slots.
+
+    The real school swimsuit action keeps the player on the changing-room
+    passage and does not advance the clock.  Passage/clock movement therefore
+    cannot classify it; the authoritative evidence is the worn-slot delta.
+    """
+    worn_after = outcome.get("worn_after") or {}
+    swimwear_expected = (
+        worn_after.get("under_upper") == "school swimsuit"
+        and worn_after.get("under_lower") == "school swimsuit bottom"
+    )
+    if outcome.get("worn_changed") and swimwear_expected:
+        return (
+            "fallback",
+            (
+                f"changed into school swimwear via {pick.get('matched')!r}; "
+                f"worn {outcome.get('worn_before')} -> "
+                f"{outcome.get('worn_after')}; navigation only, "
+                "continuing to the pool"
+            ),
+        )
+    return (
+        "stalled",
+        (
+            f"swimwear action {pick.get('matched')!r} did not equip the "
+            f"expected school swimsuit; worn {outcome.get('worn_before')} -> "
+            f"{outcome.get('worn_after')}; refusing to enter the pool"
+        ),
+    )
+
+
+DAYLOOP_SCHOOL_EXIT_ROUTE: Mapping[str, tuple[str, ...]] = {
+    "Swimming Lesson Focus": (
+        "School Boy Changing Room",
+        "School Girl Changing Room",
+        "Hallways",
+    ),
+    "School Boy Changing Room": (
+        "School Pool Entrance",
+        "School Pool Entrance Exhibitionism",
+        "School Changing Room Escape",
+    ),
+    "School Girl Changing Room": (
+        "School Pool Entrance",
+        "School Pool Entrance Exhibitionism",
+        "School Changing Room Escape",
+    ),
+    "School Pool Entrance Exhibitionism": ("School Pool Entrance",),
+    "School Pool": (
+        "School Boy Changing Room",
+        "School Girl Changing Room",
+        "School Pool Entrance",
+    ),
+    "School Pool Entrance": ("Hallways",),
+    "School Rear Courtyard": ("School Front Courtyard", "Hallways"),
+    "School Stump": ("School Rear Courtyard",),
+    "School Stump Ignore": ("School Rear Courtyard",),
+    "School Front Courtyard": ("Oxford Street",),
+    "Hallways": ("School Front Courtyard", "School Rear Courtyard"),
+    "School Changing Room Escape": (
+        "School Pool Entrance",
+        "School Changing Room Strip",
+    ),
+    "School Changing Room Strip": ("School Changing Room Naked Refuse",),
+    "School Changing Room Naked Refuse": ("Oxford Street",),
+}
+
+
+def dayloop_school_exit_pick(
+    links: list[dict[str, Any]],
+    current_passage: str,
+    *,
+    exposed: int | None = None,
+    clothing_attempted: bool = False,
+    changing_room_gender: str | None = None,
+    worn: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Walk out of fifth-period pool and courtyard pages by passage target."""
+    if str(current_passage) in (
+        "School Boy Changing Room",
+        "School Girl Changing Room",
+    ):
+        already_school_uniform = (
+            isinstance(worn, Mapping)
+            and worn.get("upper") == "school shirt"
+            and worn.get("lower") in ("school skirt", "school shorts")
+        )
+        if not clothing_attempted and not already_school_uniform:
+            # The changing room lists "Wear Everyday" before "Wear School".
+            # The school set is the deterministic post-lesson restoration path;
+            # the everyday set may contain items that are not in this locker.
+            for keywords in (
+                ("穿上校服", "Wear School", "Put on uniform"),
+                ("穿上便服", "Wear Everyday", "Put on normal"),
+            ):
+                for index, link in enumerate(links):
+                    if not link.get("visible", True):
+                        continue
+                    text = str(link.get("text") or "")
+                    data = str(link.get("data") or "").strip()
+                    if data == current_passage and dayloop_match(text, keywords):
+                        return {
+                            "index": index,
+                            "text": text,
+                            "matched": text,
+                            "data_passage": data,
+                            "clothing_self": True,
+                            "source": "school_exit",
+                        }
+    route = DAYLOOP_SCHOOL_EXIT_ROUTE.get(str(current_passage), ())
+    changing_rooms = (
+        ("School Girl Changing Room", "School Boy Changing Room")
+        if str(changing_room_gender).lower() in ("girls", "girl", "f", "female")
+        else ("School Boy Changing Room", "School Girl Changing Room")
+        if str(changing_room_gender).lower() in ("boys", "boy", "m", "male")
+        else ("School Boy Changing Room", "School Girl Changing Room")
+    )
+    if current_passage == "Swimming Lesson Focus":
+        route = changing_rooms + ("Hallways",)
+    elif current_passage == "School Pool":
+        route = changing_rooms + ("School Pool Entrance",)
+    elif current_passage == "School Pool Entrance" and exposed:
+        route = changing_rooms + ("Hallways",)
+    if exposed:
+        if current_passage == "Hallways":
+            route = ("School Pool Entrance", "School Rear Courtyard")
+        elif current_passage == "School Rear Courtyard":
+            route = ("Hallways", "School Front Courtyard")
+        elif current_passage == "School Pool Entrance":
+            route = (
+                *changing_rooms,
+                "Hallways",
+            )
+        elif current_passage in ("School Boy Changing Room", "School Girl Changing Room"):
+            route = (
+                "School Changing Room Escape",
+                "School Pool Entrance",
+                "School Pool Entrance Exhibitionism",
+            )
+        elif current_passage == "School Front Courtyard":
+            route = ("School Rear Courtyard",)
+    for target in route:
+        pick = dayloop_pick_target(links, (target,))
+        if pick is not None:
+            pick["source"] = "school_exit"
+            pick["school_exit_target"] = target
+            return pick
+    if current_passage not in DAYLOOP_SCHOOL_EXIT_ROUTE:
+        return None
+    # A courtyard event can replace the exit links with a single
+    # self-continuation. Resolve it, then the next iteration can take the real
+    # Rear -> Front -> Oxford route.
+    return dayloop_self_event_pick(links, current_passage)
+
+
+DAYLOOP_HOME_ROUTE: Mapping[str, tuple[str, ...]] = {
+    "Oxford Street": ("Bus",),
+    "Bus": ("Bus seat",),
+    "Bus seat": ("Domus Street",),
+    "Domus Street": ("Orphanage",),
+    "Orphanage": ("Bedroom",),
+}
+
+
+def dayloop_home_route_pick(
+    links: list[dict[str, Any]], current_passage: str
+) -> dict[str, Any] | None:
+    """Follow the real Oxford-to-orphanage bus route by passage target."""
+    if current_passage == "Bus":
+        # Every ticket link targets ``Bus seat``; the game lists the Domus
+        # ticket first, but match its label as well so a reordered translation
+        # cannot silently send the day loop to another street.
+        for index, link in enumerate(links):
+            if not link.get("visible", True):
+                continue
+            text = str(link.get("text") or "")
+            data = str(link.get("data") or "").strip()
+            if data == "Bus seat" and dayloop_match(
+                text, ("Domus Street", "宅邸街", "domus")
+            ):
+                return {
+                    "index": index,
+                    "text": text,
+                    "matched": text,
+                    "data_passage": data,
+                    "source": "home_route",
+                }
+    for target in DAYLOOP_HOME_ROUTE.get(str(current_passage), ()):
+        pick = dayloop_pick_target(links, (target,))
+        if pick is not None:
+            pick["source"] = "home_route"
+            return pick
+    if current_passage in DAYLOOP_HOME_ROUTE:
+        return dayloop_self_event_pick(links, current_passage)
     return None
 
 
@@ -2399,8 +2927,30 @@ def dayloop_tutorial_advance_pick(links: list[dict[str, Any]]) -> dict[str, Any]
                 "matched": matched or data,
                 "data_passage": data or None,
                 "tutorial": True,
+                "source": "tutorial",
             }
     return None
+
+
+def dayloop_lesson_subject(passage: str) -> str | None:
+    """Return the lesson subject encoded by a classroom/lesson passage name."""
+    normalized = str(passage)
+    return next(
+        (
+            subject
+            for subject in (
+                "Science",
+                "Maths",
+                "English",
+                "History",
+                "Housekeeping",
+                "Swimming",
+            )
+            if normalized.startswith(subject)
+            or normalized.startswith(f"Events {subject}")
+        ),
+        None,
+    )
 
 
 DAYLOOP_SCRIPTED_PASSAGES: tuple[str, ...] = (
@@ -2445,10 +2995,11 @@ def dayloop_scripted_pick(
     return fallback
 
 
-# Action preference for an automatic combat turn: escape first (the scripted
-# Tutorial rescues the player on a scream), then plain attacks, then whatever
-# the game offers. The label is matched case-insensitively on either locale.
-DAYLOOP_COMBAT_PREFERENCE: tuple[str, ...] = (
+# The scripted Tutorial is rescued by screaming. Random encounters are not:
+# screaming in the rear-courtyard dog fight leaves combat live for the whole
+# round budget. Normal encounters therefore attack, while the Tutorial keeps
+# its scripted scream path. Labels are matched case-insensitively.
+DAYLOOP_COMBAT_TUTORIAL_PREFERENCE: tuple[str, ...] = (
     "尖叫",
     "呼救",
     "scream",
@@ -2458,6 +3009,25 @@ DAYLOOP_COMBAT_PREFERENCE: tuple[str, ...] = (
     "attack",
     "fight",
 )
+DAYLOOP_COMBAT_NORMAL_PREFERENCE: tuple[str, ...] = (
+    "攻击",
+    "击退",
+    "击打",
+    "踢",
+    "挣扎",
+    "反抗",
+    "attack",
+    "fight",
+    "hit",
+    "kick",
+    "struggle",
+    "defiant",
+    "resist",
+    "尖叫",
+    "呼救",
+    "scream",
+    "shout",
+)
 
 # Hard bound for one encounter; a real combat turn is ~1-3 s of wall clock, so
 # 40 rounds cannot mask a stuck fight as progress.
@@ -2466,15 +3036,29 @@ DAYLOOP_COMBAT_MAX_ROUNDS = 40
 
 def dayloop_combat_choice(
     options: Sequence[dict[str, Any]],
+    *,
+    tutorial: bool = False,
 ) -> dict[str, Any] | None:
-    """Choose one offered combat action radio, preferring escape over attack."""
+    """Choose an offered combat action radio, preferring an unchecked control."""
     usable = [opt for opt in options if str(opt.get("id") or "")]
-    for token in DAYLOOP_COMBAT_PREFERENCE:
+    preferences = (
+        DAYLOOP_COMBAT_TUTORIAL_PREFERENCE
+        if tutorial
+        else DAYLOOP_COMBAT_NORMAL_PREFERENCE
+    )
+    for token in preferences:
         lowered = token.lower()
-        for opt in usable:
-            if lowered in str(opt.get("label") or "").lower():
-                return opt
-    return usable[0] if usable else None
+        matches = [
+            opt
+            for opt in usable
+            if lowered in str(opt.get("label") or "").lower()
+        ]
+        if not matches:
+            continue
+        unchecked = [opt for opt in matches if not opt.get("checked")]
+        return (unchecked or matches)[0]
+    unchecked = [opt for opt in usable if not opt.get("checked")]
+    return (unchecked or usable)[0] if usable else None
 
 
 def dayloop_minutes_between(
@@ -2725,6 +3309,17 @@ DAYLOOP_PROBE = (
   const out = { passage: null, time: {}, links: [], node: null, errors: [] };
   try { out.passage = SC.State.passage; } catch (e) {}
   try { out.combat = Number(SC.State.variables.combat) || 0; } catch (e) { out.combat = null; }
+  try { out.exposed = Number(SC.State.variables.exposed) || 0; } catch (e) { out.exposed = null; }
+  try { out.changing_room_gender = String(SC.State.variables.changingRoomGender || ""); } catch (e) { out.changing_room_gender = null; }
+  try {
+    const worn = SC.State.variables.worn || {};
+    out.worn = {
+      upper: String(worn.upper && worn.upper.name || ""),
+      lower: String(worn.lower && worn.lower.name || ""),
+      under_upper: String(worn.under_upper && worn.under_upper.name || ""),
+      under_lower: String(worn.under_lower && worn.under_lower.name || ""),
+    };
+  } catch (e) { out.worn = null; }
 """
     + TIME_HELPER_JS
     + r"""
@@ -2856,6 +3451,19 @@ DAYLOOP_PREP = r"""
   const V = SC.State.variables;
   const S = (window.__DOLX__ = window.__DOLX__ || {});
   try {
+    if (!S.dayloopDangerHookInstalled) {
+      if (typeof window.jQuery !== "function") throw new Error("jQuery unavailable");
+      S.dayloopDangerHookInstalled = true;
+      window.jQuery(document).on(":passagestart", () => {
+        if (S.suppressDayloopDanger && SC.State.temporary) SC.State.temporary.danger = 1;
+      });
+    }
+    S.suppressDayloopDanger = true;
+    out.dangerHook = true;
+  } catch (e) {
+    out.errors.push("danger hook: " + String(e && e.message ? e.message : e));
+  }
+  try {
     const debugBefore = num(() => V.debug);
     V.debug = 1;
     if (typeof T.set === "function") T.set();
@@ -2864,8 +3472,12 @@ DAYLOOP_PREP = r"""
       out.via = "already a school day";
     } else {
       let target = null;
-      if (typeof T.getNextSchoolTermStartDate === "function") {
-        const d = T.getNextSchoolTermStartDate();
+      // The exported function requires a DateTime argument; the no-argument
+      // form used by the debug menu is the ``nextSchoolTermStartDate`` getter.
+      // Calling the function without an argument constructs a year-1 date and
+      // makes every later ``<<pass>>`` render "Invalid year".
+      if (typeof T.nextSchoolTermStartDate !== "undefined") {
+        const d = T.nextSchoolTermStartDate;
         if (d && num(() => d.year) !== null) {
           target = new DT(d.year, d.month, d.day, payload.hour || 7, 0);
         }
@@ -2889,6 +3501,83 @@ DAYLOOP_PREP = r"""
     // on 7:00 therefore leaves zero sleep time on the table unless the wake
     // flag is already spent, exactly like on a second night in real play.
     try { if (V.daily) V.daily.baileyWake = true; } catch (e) {}
+    // The scripted Tutorial is required before the street graph is reachable.
+    // Seed its first danger roll high so it deterministically starts the real
+    // combatTutorial; the runner switches to a safe roll only after the
+    // Tutorial returns to Domus Street.
+    try { if (SC.State.temporary) SC.State.temporary.danger = 10000; } catch (e) {}
+    // The classroom gates ``Science Lesson`` behind ``wearingSchoolOutfit()``.
+    // A generic new-game fixture starts in a sundress, so the driver reaches
+    // the classroom but can never enter the actual lesson (smoke22). Equip the
+    // game's own school shirt/skirt objects as fixture setup; this does not
+    // touch the clock and the lesson itself is still driven through the UI.
+    try {
+      const deep = (item) => {
+        if (typeof clone === "function") return clone(item);
+        return JSON.parse(JSON.stringify(item));
+      };
+      const ensureWardrobeItem = (wardrobe, slot, name) => {
+        try {
+          const item = window.setup?.clothes?.[slot]?.find?.((entry) => entry?.name === name);
+          if (!item || !wardrobe || !Array.isArray(wardrobe[slot])) return false;
+          if (wardrobe[slot].some((entry) => entry?.name === name)) return true;
+          wardrobe[slot].push(deep(item));
+          return true;
+        } catch (e) {
+          out.errors.push("wardrobe setup " + slot + ": " + String(e && e.message ? e.message : e));
+          return false;
+        }
+      };
+      // The school-pool wardrobe is location-scoped. Putting the school set
+      // only in the orphanage wardrobe lets the swimwear link work, but the
+      // post-lesson "put on normal clothes" link cannot find the upper/lower
+      // items and leaves the player exposed. Seed both school lockers as well.
+      const ensureSchoolWardrobeItem = (slot, name) => [
+        ensureWardrobeItem(V.wardrobe, slot, name),
+        ensureWardrobeItem(V.wardrobes?.schoolGirls, slot, name),
+        ensureWardrobeItem(V.wardrobes?.schoolBoys, slot, name),
+      ].every(Boolean);
+      const makeOutfit = (name, type, slots) => {
+        const outfit = { index: V.outfit.length, name, type, colors: false };
+        for (const slot of (window.setup?.clothes_all_slots || [])) outfit[slot] = "naked";
+        Object.assign(outfit, slots);
+        return outfit;
+      };
+      const upper = window.setup?.clothes?.upper?.find?.((item) => item?.name === "school shirt");
+      const lower = window.setup?.clothes?.lower?.find?.((item) => item?.name === "school skirt");
+      if (upper && lower && V.worn) {
+        V.worn.upper = deep(upper);
+        V.worn.lower = deep(lower);
+        out.schoolOutfit = typeof window.wearingSchoolOutfit === "function"
+          ? Boolean(window.wearingSchoolOutfit())
+          : null;
+      }
+      if (!Array.isArray(V.outfit)) V.outfit = [];
+      if (!V.outfit.some((item) => item?.name === "School" || (
+        item?.upper === "school shirt" && ["school skirt", "school shorts"].includes(item?.lower)
+      ))) {
+        V.outfit.push(makeOutfit("School", ["school"], {
+          upper: "school shirt", lower: "school skirt", under_lower: "plain panties"
+        }));
+      }
+      if (!V.outfit.some((item) => item?.type?.includes?.("swim") && (
+        item?.under_upper === "school swimsuit" || item?.under_lower === "school swimsuit bottom"
+      ))) {
+        V.outfit.push(makeOutfit("school swimsuit", ["swim"], {
+          under_upper: "school swimsuit", under_lower: "school swimsuit bottom"
+        }));
+      }
+      out.swimOutfit = Boolean(V.outfit.find((item) => item?.type?.includes?.("swim")));
+      out.wardrobeReady = [
+        ensureSchoolWardrobeItem("upper", "school shirt"),
+        ensureSchoolWardrobeItem("lower", "school skirt"),
+        ensureSchoolWardrobeItem("under_upper", "school swimsuit"),
+        ensureSchoolWardrobeItem("under_lower", "school swimsuit bottom"),
+      ].every(Boolean);
+      // A stale numeric selection can make the next ``wearoutfit`` call equip an
+      // unrelated or incomplete set. Every real link sets this variable itself.
+      V.wear_outfit = "none";
+    } catch (e) { out.errors.push("school outfit setup: " + String(e && e.message ? e.message : e)); }
     // Rewind to the opening passage so the scripted tutorial continuation can
     // be clicked exactly like a player would (the street links only appear
     // after ``Tutorial Finish``).
@@ -3058,6 +3747,8 @@ def run_dayloop(
     saved_digest: dict[str, Any] | None = None
     save_at_passage: str | None = None
     hard_errors: list[dict[str, Any]] = []
+    clothing_attempted_passages: set[str] = set()
+    swimwear_attempted_passages: set[str] = set()
 
     def probe(step_name: str) -> dict[str, Any]:
         data = page.evaluate(DAYLOOP_PROBE)
@@ -3091,6 +3782,20 @@ def run_dayloop(
         page.wait_for_timeout(settle_ms)
         after = page.evaluate(DAYLOOP_PROBE)
         passage_after = str(after.get("passage") or "")
+        exposed_before = before.get("exposed")
+        exposed_after = after.get("exposed")
+        worn_before = before.get("worn")
+        worn_after = after.get("worn")
+        exposed_changed = (
+            isinstance(exposed_before, (int, float))
+            and isinstance(exposed_after, (int, float))
+            and exposed_before != exposed_after
+        )
+        worn_changed = (
+            isinstance(worn_before, dict)
+            and isinstance(worn_after, dict)
+            and worn_before != worn_after
+        )
         if passage_after and passage_after != passage_before:
             visited.append(passage_after)
         moved = passage_after != passage_before
@@ -3101,6 +3806,12 @@ def run_dayloop(
             "passage_after": passage_after,
             "moved": moved,
             "minutes": dayloop_minutes_between(before.get("time"), after.get("time")),
+            "exposed_before": exposed_before,
+            "exposed_after": exposed_after,
+            "exposed_changed": exposed_changed,
+            "worn_before": worn_before,
+            "worn_after": worn_after,
+            "worn_changed": worn_changed,
             "clicked_ok": bool(clicked.get("ok")),
             "click_error": None if clicked.get("ok") else str(clicked.get("error"))[:200],
             "clicked_text": str(clicked.get("text") or pick.get("text") or "")[:120],
@@ -3138,7 +3849,15 @@ def run_dayloop(
             "clicked_text": outcome["clicked_text"],
             "matched_link": str(pick.get("text") or "")[:120],
             "data_passage": pick.get("data_passage"),
+            "pick_source": pick.get("source"),
+            "pick_target": pick.get("school_exit_target"),
             "minutes_advanced": outcome["minutes"],
+            "exposed_before": outcome.get("exposed_before"),
+            "exposed_after": outcome.get("exposed_after"),
+            "exposed_changed": outcome.get("exposed_changed"),
+            "worn_before": outcome.get("worn_before"),
+            "worn_after": outcome.get("worn_after"),
+            "worn_changed": outcome.get("worn_changed"),
             "elapsed_ms": int((time.time() - step_started) * 1000),
             "status": status,
             "detail": detail,
@@ -3208,7 +3927,10 @@ def run_dayloop(
             combat = int(current.get("combat") or 0)
             if combat:
                 options = page.evaluate(DAYLOOP_COMBAT_OPTIONS) or {}
-                choice = dayloop_combat_choice(list(options.get("options") or []))
+                choice = dayloop_combat_choice(
+                    list(options.get("options") or []),
+                    tutorial=current_passage.startswith("Tutorial"),
+                )
                 if choice is None:
                     step_records.append(
                         add_record(
@@ -3341,6 +4063,21 @@ def run_dayloop(
             current_passage = str(current.get("passage") or "")
             if outcome["click_status"] == "stalled":
                 break
+            if current_passage == "Domus Street":
+                # The Tutorial itself must be allowed to use ``dangerEvent``.
+                # Once it is over, seed the next danger roll safely so the
+                # deterministic daily flow is not replaced by a random street
+                # or school encounter. This is fixture setup, not step progress.
+                try:
+                    page.evaluate(
+                        "() => { const sc = window.SugarCube; "
+                        "if (!sc?.State) return null; "
+                        "if (sc.State.temporary) sc.State.temporary.danger = 1; "
+                        "sc.State.variables.eventskip = 1; "
+                        "return sc.State.temporary?.danger ?? null; }"
+                    )
+                except Exception:  # noqa: BLE001 - report runtime variation below
+                    pass
         if int(current.get("combat") or 0):
             step_records.append(
                 add_record(
@@ -3377,13 +4114,30 @@ def run_dayloop(
             for _ in range(max_clicks_per_step):
                 links = list(current.get("links") or [])
                 pick = dayloop_pick_target(links, step.target_passages)
+                if pick is None and step.route_targets:
+                    # A localized route may also expose the structured passage
+                    # name (Oxford Street -> School Front Courtyard). This is
+                    # cheaper and less ambiguous than text-only hop matching.
+                    pick = dayloop_route_target_pick(
+                        links, step.route_targets, current_passage
+                    )
                 if pick is None and step.route_hops:
                     # Verified 2026-10-08 (probe_bus_school): the bus leg to
                     # school is a two-hop route (wait for the bus -> buy the
                     # Oxford ticket) whose links all share
                     # ``data-passage="Bus seat"`` and whose labels are
                     # localized, so the hop is matched by keyword.
-                    route_pick = dayloop_pick(links, step.route_hops)
+                    # Route hops must not return a self-looping link: at
+                    # Oxford Street the localized "牛津街" hop matches both
+                    # the street's own link and the link into school. If the
+                    # first match is rejected later, the static-path fallback
+                    # can send the driver through side events such as
+                    # Street Box (dayloop-smoke20 regression).
+                    route_pick = dayloop_pick_non_backtracking(
+                        links,
+                        step.route_hops,
+                        forbidden_passages=(current_passage,),
+                    )
                     if route_pick is not None:
                         outcome = click_once(route_pick, fallback=True, step_name=step.name)
                         step_records.append(
@@ -3408,17 +4162,75 @@ def run_dayloop(
                         current_passage = str(current.get("passage") or "")
                         visited.append(current_passage)
                         continue
+                if (
+                    pick is None
+                    and step.route_hops
+                    and step.name in ("放学", "回家")
+                ):
+                    # Verified 2026-10-08 (dayloop-smoke9): from the courtyard
+                    # at 15:40 the game offers "离开学校" back to Oxford Street
+                    # and Oxford Street offers "学校" right back. Only accept a
+                    # hop that does NOT lead straight back to where we are
+                    # trying to leave.
+                    banned = (current_passage,)
+                    if step.name == "放学":
+                        banned = ("School Front Courtyard",)
+                    else:
+                        banned = ("Oxford Street", "School Front Courtyard")
+                    pick = dayloop_pick_non_backtracking(
+                        links, step.route_hops, forbidden_passages=banned
+                    )
+                if (
+                    pick is None
+                    and step.name in ("回家", "睡觉")
+                    and current_passage in DAYLOOP_HOME_ROUTE
+                ):
+                    pick = dayloop_home_route_pick(links, current_passage)
+                if (
+                    pick is None
+                    and step.name not in ("上学", "上课")
+                    and current_passage in DAYLOOP_SCHOOL_EXIT_ROUTE
+                ):
+                    pick = dayloop_school_exit_pick(
+                        links,
+                        current_passage,
+                        exposed=current.get("exposed"),
+                        clothing_attempted=current_passage in clothing_attempted_passages,
+                        changing_room_gender=current.get("changing_room_gender"),
+                        worn=current.get("worn"),
+                    )
                 if pick is None:
-                    hop = ""
-                    for target in step.target_passages:
-                        path = dayloop_path(current_passage, target, static_links)
-                        if path:
-                            hop = path[0]
-                            break
-                    if hop:
-                        pick = dayloop_pick_target(links, (hop,))
+                    # The structured school-exit route already knows how to
+                    # leave the building. The static BFS graph would happily
+                    # send the walk back into the pool, so do not use it while
+                    # a non-school step is stuck on a known school page.
+                    if not (
+                        step.name not in ("上学", "上课")
+                        and current_passage in DAYLOOP_SCHOOL_EXIT_ROUTE
+                    ):
+                        hop = ""
+                        for target in step.target_passages:
+                            path = dayloop_path(current_passage, target, static_links)
+                            if path:
+                                hop = path[0]
+                                break
+                        if hop:
+                            pick = dayloop_pick_target(links, (hop,))
+                            if pick is not None and str(
+                                pick.get("data_passage") or ""
+                            ) == current_passage:
+                                # A static BFS hop can point back at the current
+                                # passage when a random event owns the screen. Mark
+                                # it so the click is treated as event resolution.
+                                pick["event_self"] = True
                 if pick is None:
                     pick = dayloop_pick(links, step.keywords)
+                if pick is None:
+                    # If a random event has temporarily replaced the route with
+                    # a self-continuation, resolve it once. ``event_self`` keeps
+                    # the click from being counted as reaching the target.
+                    if current_passage in (step.waypoints or ()):
+                        pick = dayloop_self_event_pick(links, current_passage)
                 if (
                     pick is None
                     and step.completion == "effect"
@@ -3432,13 +4244,38 @@ def run_dayloop(
                     pick = dayloop_pick_effect(links, step.action_keywords or step.keywords)
                 if pick is None:
                     pick = dayloop_window_pick(current_passage, step, links)
+                if (
+                    pick is None
+                    and step.name not in ("上学", "上课")
+                    and (
+                        current_passage.startswith("Hallways ")
+                        or current_passage.startswith("School ")
+                    )
+                ):
+                    pick = dayloop_school_event_pick(links, current_passage)
                 if pick is None:
-                    pick = dayloop_resolve_pick(links, current_passage, static_links)
+                    # The school exit already has a structured route and a
+                    # bounded self-event resolver. The generic round-trip
+                    # resolver misclassifies Front -> Rear as an event because
+                    # those passages link back to each other, burning the clock
+                    # until the gate locks.
+                    pick = (
+                        None
+                        if step.name not in ("上学", "上课")
+                        and current_passage in DAYLOOP_SCHOOL_EXIT_ROUTE
+                        else dayloop_resolve_pick(
+                            links, current_passage, static_links
+                        )
+                    )
                 if pick is None and step.name == "出门":
                     pick = dayloop_exit_pick(links)
                 if pick is None:
                     break
                 outcome = click_once(pick, fallback=False, step_name=step.name)
+                if pick.get("clothing_self"):
+                    clothing_attempted_passages.add(current_passage)
+                if pick.get("swimwear_self"):
+                    swimwear_attempted_passages.add(current_passage)
                 landed = str(outcome["passage_after"]) in step.target_passages
                 navigated_now = str(outcome["passage_after"]) in (step.waypoints or ())
                 effect_minutes = outcome["minutes"]
@@ -3471,7 +4308,54 @@ def run_dayloop(
                 phase = "navigate"
                 if pick.get("window") or pick.get("event_roundtrip"):
                     phase = "fallback"
-                if outcome["click_status"] == "stalled":
+                if (
+                    pick.get("event_self")
+                    and outcome["passage_after"] == outcome["passage_before"]
+                ):
+                    phase = "fallback"
+                    status = "fallback"
+                    detail = (
+                        f"resolved self-loop event via {pick['matched']!r}: "
+                        f"{outcome['passage_before']} -> "
+                        f"{outcome['passage_after']}; navigation only"
+                    )
+                elif (
+                    pick.get("swimwear_self")
+                    and outcome["passage_after"] == outcome["passage_before"]
+                ):
+                    phase = "fallback"
+                    status, detail = dayloop_swimwear_self_status(pick, outcome)
+                elif (
+                    pick.get("clothing_self")
+                    and outcome["passage_after"] == outcome["passage_before"]
+                ):
+                    phase = "fallback"
+                    worn_after = outcome.get("worn_after") or {}
+                    clothes_restored = (
+                        worn_after.get("upper") not in (None, "naked")
+                        and worn_after.get("lower") not in (None, "naked")
+                    )
+                    if outcome.get("worn_changed") and clothes_restored:
+                        status = "fallback"
+                        detail = (
+                            f"changed clothes via {pick['matched']!r}; exposed "
+                            f"{outcome.get('exposed_before')} -> "
+                            f"{outcome.get('exposed_after')}; worn "
+                            f"{outcome.get('worn_before')} -> "
+                            f"{outcome.get('worn_after')}; navigation only, "
+                            "continuing to the exit"
+                        )
+                    else:
+                        status = "stalled"
+                        detail = (
+                            f"clothing action {pick['matched']!r} did not restore "
+                            f"upper and lower clothing; exposed "
+                            f"{outcome.get('exposed_before')} -> "
+                            f"{outcome.get('exposed_after')}, worn "
+                            f"{outcome.get('worn_before')} -> "
+                            f"{outcome.get('worn_after')}; refusing to repeat it"
+                        )
+                elif outcome["click_status"] == "stalled":
                     status = "stalled"
                     detail = "click landed but neither the passage nor the in-game clock moved"
                 elif landed and step.completion == "passage" and phase == "navigate":
@@ -3553,13 +4437,303 @@ def run_dayloop(
                     navigated = current_passage in step.target_passages
 
         # --- phase 2: effect ---------------------------------------------- #
+        # Verified 2026-10-08 (dayloop-smoke13): ``回家`` needs one more hop
+        # from the hall into the bedroom even when the click budget is spent;
+        # without it the day ends stranded in the hall and 睡觉 becomes
+        # not_applicable. Run the hall hop *before* the effect phase.
+        if (
+            step.name == "回家"
+            and current_passage in ("Orphanage", "Street Stalk", "Street Stalk Finish")
+            and not navigated
+        ):
+            links = list(current.get("links") or [])
+            hall_pick = (
+                dayloop_pick_target(links, ("Bedroom",))
+                if current_passage == "Orphanage"
+                else None
+            )
+            if hall_pick is None:
+                # Street events resolve via their own "继续" continuation.
+                hall_pick = dayloop_pick(links, ("继续", "next"))
+            if hall_pick is not None and str(
+                hall_pick.get("data_passage") or ""
+            ) != current_passage:
+                outcome = click_once(hall_pick, fallback=True, step_name=step.name)
+                step_records.append(
+                    add_record(
+                        step,
+                        step_index,
+                        step_started,
+                        len(step_records),
+                        hall_pick,
+                        outcome,
+                        phase="route",
+                        status="fallback",
+                        detail=(
+                            f"hall hop via {hall_pick['matched']!r}: "
+                            f"{outcome['passage_before']} -> "
+                            f"{outcome['passage_after']}; navigation only"
+                        )[:600],
+                    )
+                )
+                current = probe(step.name)
+                current_passage = str(current.get("passage") or "")
+                visited.append(current_passage)
+                navigated = current_passage == "Bedroom"
+        if (
+            step.name == "上课"
+            and current_passage in ("Science Classroom", "Science Classroom Study")
+            and not navigated
+        ):
+            # Verified 2026-10-08 (dayloop-smoke18): "Relax before class" only
+            # tops up the lesson counter; the real lesson lives in ``Science
+            # Lesson``. Click straight into it before the effect phase.
+            links = list(current.get("links") or [])
+            lesson_pick = dayloop_pick_target(links, ("Science Lesson",))
+            if lesson_pick is not None and str(
+                lesson_pick.get("data_passage") or ""
+            ) != current_passage:
+                outcome = click_once(lesson_pick, fallback=True, step_name=step.name)
+                step_records.append(
+                    add_record(
+                        step,
+                        step_index,
+                        step_started,
+                        len(step_records),
+                        lesson_pick,
+                        outcome,
+                        phase="route",
+                        status="fallback",
+                        detail=(
+                            f"lesson hop via {lesson_pick['matched']!r}: "
+                            f"{outcome['passage_before']} -> "
+                            f"{outcome['passage_after']}; navigation only"
+                        )[:600],
+                    )
+                )
+                current = probe(step.name)
+                current_passage = str(current.get("passage") or "")
+                visited.append(current_passage)
+                navigated = current_passage in step.target_passages
         if step.completion == "effect" and navigated:
             effect_keywords = step.action_keywords or step.keywords
             for _ in range(max_clicks_per_step):
                 links = list(current.get("links") or [])
                 pick = dayloop_pick_effect(links, effect_keywords)
+                if step.name == "上课" and current_passage in (
+                    "Hallways",
+                    "School Front Courtyard",
+                    "School Rear Courtyard",
+                    "School Stump",
+                    "School Pool Entrance",
+                ):
+                    current_time = current.get("time") or {}
+                    try:
+                        school_hour = int(current_time.get("hour") or 0)
+                        school_minute = int(current_time.get("minute") or 0)
+                    except (TypeError, ValueError):
+                        school_hour = 0
+                        school_minute = 0
+                    if current_passage == "Hallways" and 9 <= school_hour <= 14:
+                        # Mirror the game's ``schoolperiod`` schedule. At
+                        # minute >58 the link is for the *next* period; at
+                        # minute <=58 it is still the current lesson.
+                        weekday_name = str(
+                            (current.get("time") or {}).get("weekDayName") or ""
+                        ).lower()
+                        school_weekday = (
+                            3
+                            if "星期三" in weekday_name or "wed" in weekday_name
+                            else 5
+                            if "星期五" in weekday_name or "fri" in weekday_name
+                            else 1
+                        )
+                        if school_hour < 9 or (
+                            school_hour == 9 and school_minute <= 58
+                        ):
+                            scheduled = ("Science Classroom",)
+                        elif (school_hour == 9 and school_minute > 58) or (
+                            school_hour == 10 and school_minute <= 58
+                        ):
+                            scheduled = (
+                                ("Housekeeping Classroom",)
+                                if school_weekday in (3, 5)
+                                else ("Maths Classroom",)
+                            )
+                        elif (school_hour == 10 and school_minute > 58) or (
+                            school_hour == 11 and school_minute <= 58
+                        ):
+                            scheduled = ("English Classroom",)
+                        elif school_hour == 11 and school_minute > 58:
+                            scheduled = ("History Classroom",)
+                        elif school_hour == 12:
+                            scheduled = ()
+                        elif school_hour == 13 and school_minute <= 58:
+                            scheduled = ("History Classroom",)
+                        elif school_hour == 13 and school_minute > 58:
+                            scheduled = ("School Pool Entrance",)
+                        elif school_hour == 14:
+                            scheduled = (
+                                ("School Girl Changing Room",)
+                                if school_minute <= 58
+                                else ()
+                            )
+                        else:
+                            scheduled = ()
+                        if scheduled:
+                            pick = dayloop_pick_target(links, scheduled)
+                    if (
+                        pick is None
+                        and current_passage == "School Pool Entrance"
+                        and school_hour == 14
+                    ):
+                        # The fifth period is swimming: the entrance itself is
+                        # only a corridor. Enter the girls' changing room so
+                        # the lesson is actually attended instead of ping-
+                        # ponging between the entrance and Hallways.
+                        pick = dayloop_pick_target(
+                            links, ("School Girl Changing Room",)
+                        )
+                    elif (
+                        current_passage == "Hallways"
+                        and school_hour == 12
+                    ):
+                        # ``schooleffects`` sets 12:00 to lunch with no active
+                        # lesson. Relax in the rear courtyard until the next
+                        # lesson boundary.
+                        pick = dayloop_pick_target(
+                            links, ("School Rear Courtyard",)
+                        )
+                    elif current_passage == "School Rear Courtyard" and school_hour == 12:
+                        pick = dayloop_pick_target(links, ("School Stump",))
+                    elif current_passage == "School Stump" and school_hour == 12:
+                        # ``Keep relaxing`` is a self-target link; the target
+                        # selector intentionally accepts it here because it is
+                        # the game's own 10-minute lunch action.
+                        pick = dayloop_pick_target(links, ("School Stump",))
+                    elif current_passage == "School Stump" and school_hour >= 13:
+                        pick = dayloop_pick_target(links, ("School Rear Courtyard",))
+                    elif current_passage == "School Rear Courtyard" and school_hour >= 13:
+                        pick = dayloop_pick_target(links, ("Hallways",))
+                    if (
+                        pick is None
+                        and current_passage == "School Rear Courtyard"
+                        and school_hour >= 13
+                    ):
+                        pick = dayloop_pick_target(links, ("Hallways",))
+                if (
+                    step.name == "上课"
+                    and dayloop_lesson_subject(current_passage) is not None
+                    and pick is None
+                ):
+                    # After pre-class study reaches 9:00, or after each lesson
+                    # action lands on ``Science Lesson Focus``/``Socialise``,
+                    # the game's only continuation is ``Next|Science Lesson``.
+                    # Use the structured channel instead of inventing a keyword
+                    # that would also match unrelated ``Next`` links.
+                    pick = dayloop_lesson_continuation_pick(
+                        links, current_passage
+                    )
+                if (
+                    pick is None
+                    and step.name == "上课"
+                    and dayloop_lesson_subject(current_passage) == "Swimming"
+                ):
+                    pick = dayloop_swimming_continuation_pick(
+                        links,
+                        current_passage,
+                        swimwear_attempted=current_passage in swimwear_attempted_passages,
+                    )
+                if pick is None and step.name == "上课":
+                    pick = dayloop_school_event_pick(links, current_passage)
+                if (
+                    pick is None
+                    and step.name == "上课"
+                    and dayloop_lesson_subject(current_passage) != "Swimming"
+                ):
+                    pick = dayloop_swimming_continuation_pick(
+                        links,
+                        current_passage,
+                        swimwear_attempted=current_passage in swimwear_attempted_passages,
+                    )
+                if (
+                    pick is None
+                    and step.name == "上课"
+                    and current_passage == "Hallways"
+                ):
+                    # Random Hallway events can replace the classroom links.
+                    # Resolve the event first; the next iteration will see the
+                    # ordinary classroom route.
+                    pick = dayloop_self_event_pick(links, current_passage)
+                    if pick is None:
+                        pick = dayloop_resolve_pick(
+                            links, current_passage, static_links
+                        )
                 if pick is None:
-                    if not step_records:
+                        current_time = current.get("time") or {}
+                        try:
+                            school_hour = int(current_time.get("hour") or 0)
+                            school_minute = int(current_time.get("minute") or 0)
+                        except (TypeError, ValueError):
+                            school_hour = 0
+                            school_minute = 0
+                        school_done = school_hour >= 15 or (
+                            school_hour == 14 and school_minute >= 58
+                        )
+                        if school_done:
+                            step_records.append(
+                                add_record(
+                                    step,
+                                    step_index,
+                                    step_started,
+                                    len(step_records),
+                                    {
+                                        "index": -1,
+                                        "text": "",
+                                        "matched": "school day complete",
+                                        "data_passage": current_passage,
+                                    },
+                                    {
+                                        "passage_before": current_passage,
+                                        "passage_after": current_passage,
+                                        "minutes": 0,
+                                        "clicked_text": "",
+                                        "click_status": "ok",
+                                    },
+                                    phase="effect",
+                                    status="ok",
+                                    detail=(
+                                        "fifth lesson ended; school state "
+                                        f"at {school_hour:02d}:{school_minute:02d}"
+                                    ),
+                                )
+                            )
+                            break
+                        # Between periods, the focus/ending page only returns
+                        # to Hallways; the next loop iteration will enter the
+                        # next classroom.
+                        pick = dayloop_pick_target(links, ("Hallways",))
+                if (
+                    pick is not None
+                    and step.name == "上课"
+                    and str(pick.get("data_passage") or "")
+                    in ("Science Classroom", "Science Classroom Study")
+                ):
+                    # Verified 2026-10-08 (dayloop-smoke19): the highest-cost
+                    # keyword hit is the classroom *entry* ("去上科学课");
+                    # walking into Science Lesson must come first or the
+                    # effect loop never reaches the 100+ min lesson link.
+                    links = [
+                        link
+                        for link in links
+                        if str(link.get("data") or "") == "Science Lesson"
+                    ] or links
+                    pick = dayloop_pick_effect(links, effect_keywords)
+                if pick is None:
+                    if not any(
+                        record["status"] == "ok"
+                        for record in step_records
+                    ):
                         step_records.append(
                             add_record(
                                 step,
@@ -3593,6 +4767,70 @@ def run_dayloop(
                     break
                 outcome = click_once(pick, fallback=False, step_name=step.name)
                 minutes = outcome["minutes"]
+                landed_target = str(outcome["passage_after"]) in step.target_passages
+                if pick.get("swimwear_self"):
+                    swimwear_attempted_passages.add(current_passage)
+                if (
+                    step.name == "上课"
+                    and str(outcome["passage_after"])
+                    in ("Science Classroom", "Science Classroom Study")
+                ):
+                    # A pre-class room/study hop can legitimately advance over
+                    # an hour, but it is only the waiting phase. The real
+                    # lesson effect is the ``Science Lesson`` -> ``Science
+                    # Lesson Focus`` chain, so record and continue.
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="effect",
+                            status="progress",
+                            detail=(
+                                f"{pick['matched']!r} reached the pre-class "
+                                f"room {outcome['passage_after']}; the real "
+                                "lesson effect is one page deeper, continuing"
+                            ),
+                        )
+                    )
+                    current = probe(step.name)
+                    current_passage = str(current.get("passage") or "")
+                    continue
+                if (
+                    step.name == "上课"
+                    and landed_target
+                    and (minutes is None or minutes < step.min_minutes)
+                ):
+                    # Verified 2026-10-08 (dayloop-smoke17): the classroom
+                    # entry "去上科学课 (0:01)" costs only 1 min and lands in
+                    # Science Classroom; the real 100+ min lesson effect
+                    # (专注/认真上课) lives one page deeper. Counting the entry
+                    # as the effect ends the day 8h short - keep clicking.
+                    status = "progress"
+                    detail = (
+                        f"{pick['matched']!r} advanced {minutes or 0:.0f} min "
+                        f"and landed in {outcome['passage_after']}; the lesson "
+                        "effect is one page deeper, continuing"
+                    )
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="effect",
+                            status=status,
+                            detail=detail,
+                        )
+                    )
+                    current = probe(step.name)
+                    current_passage = str(current.get("passage") or "")
+                    continue
                 if minutes is not None and minutes < DAYLOOP_REWIND_MINUTES:
                     # The click landed but the clock went backwards (a state
                     # rewind); never credit it as progress toward a step.
@@ -3618,7 +4856,70 @@ def run_dayloop(
                     current_passage = str(current.get("passage") or "")
                     break
                 advanced = minutes is not None and minutes >= step.min_minutes
-                if advanced:
+                if (
+                    pick.get("swimwear_self")
+                    and outcome["passage_after"] == outcome["passage_before"]
+                ):
+                    status, detail = dayloop_swimwear_self_status(pick, outcome)
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="effect",
+                            status=status,
+                            detail=detail,
+                        )
+                    )
+                    current = probe(step.name)
+                    current_passage = str(current.get("passage") or "")
+                    if status == "stalled":
+                        break
+                    continue
+                if advanced and step.name == "上课":
+                    # DoL's school day has separate 9/10/11 and 13/14 lesson
+                    # states. One Focus click ends a single period; the day
+                    # cannot honestly count as “attended school” until the
+                    # fifth period has ended. Check the post-click clock before
+                    # accepting the step.
+                    current = probe(step.name)
+                    current_passage = str(current.get("passage") or "")
+                    visited.append(current_passage)
+                    current_time = current.get("time") or {}
+                    try:
+                        post_hour = int(current_time.get("hour") or 0)
+                        post_minute = int(current_time.get("minute") or 0)
+                    except (TypeError, ValueError):
+                        post_hour = 0
+                        post_minute = 0
+                    school_done = post_hour >= 15 or (
+                        post_hour == 14 and post_minute >= 58
+                    )
+                    status = "ok" if school_done else "progress"
+                    detail = (
+                        f"{pick['matched']!r} advanced {minutes:.0f} min; "
+                        f"school state at {post_hour:02d}:{post_minute:02d}, "
+                        + ("day complete" if school_done else "continuing classes")
+                    )
+                    step_records.append(
+                        add_record(
+                            step,
+                            step_index,
+                            step_started,
+                            len(step_records),
+                            pick,
+                            outcome,
+                            phase="effect",
+                            status=status,
+                            detail=detail,
+                        )
+                    )
+                    if not school_done:
+                        continue
+                elif advanced:
                     status = "ok"
                     detail = (
                         f"{pick['matched']!r} advanced {minutes:.0f} min "
@@ -4564,7 +5865,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dayloop-max-clicks",
         type=int,
-        default=8,
+        default=64,
         help="max clicks per dayloop step",
     )
     return parser.parse_args(argv)
