@@ -2466,6 +2466,107 @@ def detect_stall(digests: Sequence[str], threshold: int = STALL_ROUNDS) -> bool:
 ENDCOMBAT_MARKERS = ("<<endcombat>>", "&lt;&lt;endcombat&gt;&gt;")
 
 
+MACHINE_END_MARKERS = ("<<machine_end>>", html_mod.escape("<<machine_end>>"))
+EXIT_WRAITH_MARKERS = (
+    "<<exitWraith true>>",
+    html_mod.escape("<<exitWraith true>>"),
+)
+
+# The artifact is the runtime authority, but these semantics were verified in
+# upstream 0.5.11.9 before changing the driver:
+# https://gitgud.io/Vrelnir/degrees-of-lewdity at commit
+# 41993d3f32476f0b1c8db730c159a50ffcdc2a65.
+COMBAT_SOURCE_EVIDENCE: dict[str, Any] = {
+    "repository": "https://gitgud.io/Vrelnir/degrees-of-lewdity",
+    "tag": "0.5.11.9",
+    "commit": "41993d3f32476f0b1c8db730c159a50ffcdc2a65",
+    "macros": {
+        "endcombat": {
+            "path": "game/base-combat/end.twee",
+            "definition_line": 3,
+            "combat_reset_line": 186,
+            "semantic": "ends combat and clears combat state",
+        },
+        "machine_end": {
+            "path": "game/base-combat/machine/machine.twee",
+            "definition_line": 42,
+            "semantic": "clears machine state and calls endcombat",
+        },
+        "exitWraith": {
+            "path": "game/overworld-forest/loc-lake/ivory/widgets.twee",
+            "definition_line": 1486,
+            "semantic": "routes by $wraith.exit; not a combat-ending macro",
+        },
+    },
+}
+
+
+def _terminal_state_snapshot(state: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep the values needed to prove which ending the scene reached."""
+    keys = (
+        "combat",
+        "passage",
+        "enemytype",
+        "enemyhealth",
+        "enemyhealthmax",
+        "enemyarousal",
+        "enemyarousalmax",
+        "tentacleHealth",
+        "swarmActive",
+        "machineHealth",
+        "npcCount",
+    )
+    return {key: state.get(key) for key in keys}
+
+
+def terminal_landing_marker(
+    passage: Any, passage_bodies: Mapping[str, str] | None
+) -> str | None:
+    """Return the confirmed terminal macro in ``passage``, if any."""
+    if not passage_bodies:
+        return None
+    body = str(passage_bodies.get(str(passage or "")) or "")
+    if not body:
+        return None
+    for marker, variants in (
+        ("machine_end", MACHINE_END_MARKERS),
+        ("endcombat", ENDCOMBAT_MARKERS),
+    ):
+        if any(variant in body for variant in variants):
+            return marker
+    return None
+
+
+def route_landing_marker(
+    passage: Any, passage_bodies: Mapping[str, str] | None
+) -> str | None:
+    """Return the Wraith route macro in ``passage``; routing is not ending."""
+    if not passage_bodies:
+        return None
+    body = str(passage_bodies.get(str(passage or "")) or "")
+    if any(variant in body for variant in EXIT_WRAITH_MARKERS):
+        return "exitWraith"
+    return None
+
+
+def _terminal_landing_evidence(
+    *,
+    marker: str,
+    round_no: int,
+    press_no: int,
+    before_state: Mapping[str, Any],
+    after_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "marker": marker,
+        "passage": after_state.get("passage"),
+        "round": round_no,
+        "press": press_no,
+        "pre_terminal_state": _terminal_state_snapshot(before_state),
+        "terminal_state": _terminal_state_snapshot(after_state),
+    }
+
+
 def _enemy_defeat_evidence(snapshot: Mapping[str, Any]) -> tuple[str, str] | None:
     """Return ``(outcome, detail)`` when a snapshot shows the enemy defeated."""
     for field, label in DEFEAT_HEALTH_FIELDS:
@@ -2535,6 +2636,7 @@ def classify_outcome(
     landing_body: str = "",
     landing_passage: str | None = None,
     scripted_end: str | None = None,
+    terminal_landing: Mapping[str, Any] | None = None,
 ) -> tuple[str, str]:
     """Map the final state to an honest outcome; never guesses silently.
 
@@ -2546,6 +2648,41 @@ def classify_outcome(
     through its own ``_combatend``/``$timer`` guard is recorded as ``scene_end``;
     neither is a win, and both keep the undefeated state in the detail.
     """
+    if terminal_landing:
+        pre_terminal = terminal_landing.get("pre_terminal_state")
+        evidence = (
+            pre_terminal
+            if isinstance(pre_terminal, Mapping)
+            else terminal_landing.get("terminal_state")
+        )
+        landing = str(terminal_landing.get("passage") or landing_passage or "")
+        marker = str(terminal_landing.get("marker") or "endcombat")
+        found = _enemy_defeat_evidence(evidence) if isinstance(evidence, Mapping) else None
+        if found is not None:
+            outcome, detail = found
+            return outcome, f"{detail} before terminal landing at {landing}"
+        health = evidence.get("enemyhealth") if isinstance(evidence, Mapping) else None
+        arousal = evidence.get("enemyarousal") if isinstance(evidence, Mapping) else None
+        arousal_max = (
+            evidence.get("enemyarousalmax") if isinstance(evidence, Mapping) else None
+        )
+        machine_health = (
+            evidence.get("machineHealth") if isinstance(evidence, Mapping) else None
+        )
+        tail = (
+            f"pre-terminal: enemyhealth={health}, "
+            f"enemyarousal={arousal}/{arousal_max}, machineHealth={machine_health}"
+        )
+        if "orgasm" in landing.casefold():
+            return (
+                "end_player_orgasm",
+                f"scene ended via PC orgasm at {landing} "
+                f"(source carries {marker}); {tail}",
+            )
+        return (
+            "end",
+            f"scene ended at {landing} (source carries {marker}); {tail}",
+        )
     if stalled:
         return "unknown", f"stalled: {STALL_ROUNDS} consecutive rounds without state change"
     if state.get("combat") == 1:
@@ -2569,7 +2706,13 @@ def classify_outcome(
             return "submit", f"{detail} on submit path{label}"
         return outcome, f"{detail}{label}"
     landing = str(landing_passage or state.get("passage") or "")
-    if landing_body and any(marker in landing_body for marker in ENDCOMBAT_MARKERS):
+    landing_marker: str | None = None
+    if landing_body:
+        if any(marker in landing_body for marker in MACHINE_END_MARKERS):
+            landing_marker = "machine_end"
+        elif any(marker in landing_body for marker in ENDCOMBAT_MARKERS):
+            landing_marker = "endcombat"
+    if landing_marker is not None:
         health = evidence.get("enemyhealth") if isinstance(evidence, Mapping) else None
         arousal = evidence.get("enemyarousal") if isinstance(evidence, Mapping) else None
         arousal_max = (
@@ -2583,11 +2726,11 @@ def classify_outcome(
             return (
                 "end_player_orgasm",
                 f"scene ended via PC orgasm at {landing} "
-                f"(source carries <<endcombat>>); {tail}",
+                f"(source carries {landing_marker}); {tail}",
             )
         return (
             "end",
-            f"scene ended at {landing} (source carries <<endcombat>>); {tail}",
+            f"scene ended at {landing} (source carries {landing_marker}); {tail}",
         )
     if scripted_end:
         health = state.get("enemyhealth")
@@ -3280,6 +3423,8 @@ def drive_combat(
         "verdict": "ok",
         "detail": "",
         "landed": None,
+        "terminal_landing": None,
+        "route_landing": None,
     }
     state = _state(page)
     last_active: dict[str, Any] | None = state if state.get("combat") == 1 else None
@@ -3324,7 +3469,36 @@ def drive_combat(
                 result["no_action_advances"] += 1
                 advance_state = advance.get("state") or _state(page)
                 state = advance_state
-                if state.get("combat") == 1:
+                passage_changed = str(state.get("passage") or "") != str(
+                    before_state.get("passage") or ""
+                )
+                terminal_marker = (
+                    terminal_landing_marker(state.get("passage"), passage_bodies)
+                    if passage_changed
+                    else None
+                )
+                route_marker = (
+                    route_landing_marker(state.get("passage"), passage_bodies)
+                    if passage_changed and result["route_landing"] is None
+                    else None
+                )
+                if route_marker is not None:
+                    result["route_landing"] = _terminal_landing_evidence(
+                        marker=route_marker,
+                        round_no=round_no,
+                        press_no=1,
+                        before_state=before_state,
+                        after_state=state,
+                    )
+                if terminal_marker is not None and result["terminal_landing"] is None:
+                    result["terminal_landing"] = _terminal_landing_evidence(
+                        marker=terminal_marker,
+                        round_no=round_no,
+                        press_no=1,
+                        before_state=before_state,
+                        after_state=state,
+                    )
+                if state.get("combat") == 1 and terminal_marker is None:
                     last_active = state
                 result["hp_evidence"].append(
                     {
@@ -3358,6 +3532,8 @@ def drive_combat(
                         "presses": [],
                     }
                 )
+                if terminal_marker is not None:
+                    break
                 if detect_stall(result["digests"]):
                     result["stalled"] = True
                     result["verdict"] = "soft_fail"
@@ -3429,7 +3605,36 @@ def drive_combat(
             )
             turn = _press_turn(page, timeout_ms=timeout_ms, before_render=before_render)
             state = turn["state"]
-            if state.get("combat") == 1:
+            passage_changed = str(state.get("passage") or "") != str(
+                before.get("passage") or ""
+            )
+            terminal_marker = (
+                terminal_landing_marker(state.get("passage"), passage_bodies)
+                if passage_changed
+                else None
+            )
+            route_marker = (
+                route_landing_marker(state.get("passage"), passage_bodies)
+                if passage_changed and result["route_landing"] is None
+                else None
+            )
+            if route_marker is not None:
+                result["route_landing"] = _terminal_landing_evidence(
+                    marker=route_marker,
+                    round_no=round_no,
+                    press_no=press_index + 1,
+                    before_state=before,
+                    after_state=state,
+                )
+            if terminal_marker is not None and result["terminal_landing"] is None:
+                result["terminal_landing"] = _terminal_landing_evidence(
+                    marker=terminal_marker,
+                    round_no=round_no,
+                    press_no=press_index + 1,
+                    before_state=before,
+                    after_state=state,
+                )
+            if state.get("combat") == 1 and terminal_marker is None:
                 last_active = state
             result["presses"] += 1
             selected = selection.get("selected")
@@ -3461,7 +3666,11 @@ def drive_combat(
             if failed:
                 selection_failed = dict(selected)
                 break
-            if press_index + 1 >= presses_wanted or state.get("combat") != 1:
+            if (
+                press_index + 1 >= presses_wanted
+                or state.get("combat") != 1
+                or terminal_marker is not None
+            ):
                 break
             reprobe = _actions(page)
             again = reprobe.get("actions") or []
@@ -3495,6 +3704,8 @@ def drive_combat(
                 result["verdict"] = "fixture_insufficient"
                 result["detail"] = detail
                 break
+        if result["terminal_landing"] is not None:
+            break
         if detect_stall(result["digests"]):
             result["stalled"] = True
             result["verdict"] = "soft_fail"
@@ -3524,6 +3735,10 @@ def drive_combat(
         "source": "static" if landing_body else "none",
         "length": len(landing_body),
         "has_endcombat": any(marker in landing_body for marker in ENDCOMBAT_MARKERS),
+        "has_machine_end": any(marker in landing_body for marker in MACHINE_END_MARKERS),
+        "has_exit_wraith": any(marker in landing_body for marker in EXIT_WRAITH_MARKERS),
+        "terminal_landing": result["terminal_landing"],
+        "route_landing": result["route_landing"],
         "scripted_end": scripted_end,
     }
     outcome, outcome_detail = classify_outcome(
@@ -3536,6 +3751,7 @@ def drive_combat(
         landing_body=landing_body,
         landing_passage=result["landed"],
         scripted_end=scripted_end,
+        terminal_landing=result["terminal_landing"],
     )
     result["outcome"] = outcome
     result["outcome_detail"] = outcome_detail
@@ -4123,6 +4339,7 @@ def write_report(report: dict[str, Any], out_dir: Path, diff: dict[str, Any] | N
     counts = report.get("verdict_counts") or {}
     manifest = report.get("manifest") or {}
     fixture = report.get("fixture") or {}
+    source_evidence = report.get("source_evidence") or {}
     lines = [
         "# DOL-X combat sweep report",
         "",
@@ -4132,6 +4349,7 @@ def write_report(report: dict[str, Any], out_dir: Path, diff: dict[str, Any] | N
         f"({fixture.get('top_level_keys')} keys, digest {str(fixture.get('digest'))[:12]})",
         f"- initiator manifest: {manifest.get('total')} rows across {manifest.get('passages')} passages "
         f"(expected {report.get('expected', {}).get('total')}, drift {manifest.get('drift', {}).get('count')})",
+        f"- source evidence: {source_evidence.get('repository')} tag {source_evidence.get('tag')} commit `{source_evidence.get('commit')}`",
         f"- started: {report.get('started_at')} / finished: {report.get('finished_at')}",
         "",
         "## verdicts",
@@ -4374,6 +4592,7 @@ def run(
             "scan_ms": scan_ms,
         },
         "expected": {"total": EXPECTED_INITIATORS["total"]},
+        "source_evidence": COMBAT_SOURCE_EVIDENCE,
         "entry_strategy": {
             "flags": list(ENTRY_FLAGS),
             "attempts": [list(item) for item in ENTRY_FLAG_ATTEMPTS],

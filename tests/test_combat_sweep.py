@@ -693,6 +693,118 @@ def test_classify_outcome_without_landing_evidence_stays_unknown() -> None:
     assert outcome == "unknown"
 
 
+def test_terminal_and_route_markers_follow_upstream_semantics() -> None:
+    bodies = {
+        "Scene Finish": "<<endcombat>>",
+        "Machine End": "<<machine_end>>",
+        "Wraith Snatched Intro": "<<exitWraith true>>",
+    }
+
+    assert combat_sweep.terminal_landing_marker("Scene Finish", bodies) == "endcombat"
+    assert combat_sweep.terminal_landing_marker("Machine End", bodies) == "machine_end"
+    assert combat_sweep.terminal_landing_marker("Wraith Snatched Intro", bodies) is None
+    assert combat_sweep.route_landing_marker("Wraith Snatched Intro", bodies) == "exitWraith"
+    assert combat_sweep.terminal_landing_marker("Scene Finish", None) is None
+
+
+def test_terminal_landing_preserves_pre_finish_defeat_evidence() -> None:
+    terminal_landing = {
+        "marker": "endcombat",
+        "passage": "Avery Hotel Bath Rape Finish",
+        "pre_terminal_state": {
+            "combat": 1,
+            "enemyhealth": 260.71,
+            "enemyarousal": 1031,
+            "enemyarousalmax": 1000,
+        },
+        "terminal_state": {
+            "combat": 1,
+            "enemyhealth": 260.71,
+            "enemyarousal": 200,
+            "enemyarousalmax": 1000,
+        },
+    }
+
+    outcome, detail = classify_outcome(
+        {
+            "combat": 1,
+            "passage": "Avery Hotel Bath Rape",
+            "enemyhealth": 260.71,
+            "enemyarousal": 323,
+            "enemyarousalmax": 1000,
+        },
+        path="win",
+        rounds=80,
+        max_rounds=80,
+        stalled=False,
+        terminal_landing=terminal_landing,
+    )
+
+    assert outcome == "win"
+    assert "enemy arousal reached max (1031/1000)" in detail
+    assert "Avery Hotel Bath Rape Finish" in detail
+
+
+def test_terminal_landing_defeat_evidence_overrides_submit_strategy() -> None:
+    terminal_landing = {
+        "marker": "endcombat",
+        "passage": "Scene Finish",
+        "pre_terminal_state": {
+            "combat": 1,
+            "enemyhealth": 20,
+            "enemyarousal": 1000,
+            "enemyarousalmax": 1000,
+        },
+        "terminal_state": {
+            "combat": 1,
+            "enemyhealth": 20,
+            "enemyarousal": 100,
+            "enemyarousalmax": 1000,
+        },
+    }
+
+    outcome, detail = classify_outcome(
+        {
+            "combat": 1,
+            "passage": "Scene",
+            "enemyhealth": 20,
+            "enemyarousal": 100,
+            "enemyarousalmax": 1000,
+        },
+        path="submit",
+        rounds=20,
+        max_rounds=80,
+        stalled=False,
+        terminal_landing=terminal_landing,
+    )
+
+    assert outcome == "win"
+    assert "enemy arousal reached max (1000/1000)" in detail
+    assert "before terminal landing at Scene Finish" in detail
+
+
+def test_machine_end_without_defeat_is_confirmed_end() -> None:
+    terminal_landing = {
+        "marker": "machine_end",
+        "passage": "Elk Compound Machine Rape End",
+        "pre_terminal_state": {"combat": 1, "machineHealth": 9},
+        "terminal_state": {"combat": 0, "machineHealth": None},
+    }
+
+    outcome, detail = classify_outcome(
+        {"combat": 0, "passage": "Elk Compound Machine Rape End", "machineHealth": None},
+        path="win",
+        rounds=9,
+        max_rounds=80,
+        stalled=False,
+        terminal_landing=terminal_landing,
+    )
+
+    assert outcome == "end"
+    assert "machine_end" in detail
+    assert "machineHealth=9" in detail
+
+
 def test_expected_outcome_map_only_asserts_unambiguous_paths() -> None:
     assert combat_sweep.EXPECTED_OUTCOME_ACCEPTS["win"] == ("win",)
     assert "win" in combat_sweep.EXPECTED_OUTCOME_ACCEPTS["submit"]
@@ -2469,6 +2581,151 @@ def test_no_action_continuation_keeps_advancing_while_state_progresses(
     assert result["verdict"] == "ok"
     assert result["outcome"] == "win"
     assert "enemy arousal reached max" in result["outcome_detail"]
+
+
+def test_driver_stops_at_first_endcombat_landing(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    def advance(_page: object, *, timeout_ms: int) -> dict:
+        calls.append(len(calls) + 1)
+        return {
+            "ok": True,
+            "target": "Scene Finish",
+            "text": "Next",
+            "attempt": 1,
+            "state": {
+                "combat": 1,
+                "enemyhealth": 200,
+                "enemyarousal": 100,
+                "enemyarousalmax": 1000,
+                "passage": "Scene Finish",
+            },
+        }
+
+    monkeypatch.setattr(combat_sweep, "_advance_passage", advance)
+
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        raise AssertionError("the driver must stop at the first terminal landing")
+
+    page = _CombatPage(
+        {
+            "combat": 1,
+            "enemyhealth": 200,
+            "enemyarousal": 1000,
+            "enemyarousalmax": 1000,
+            "passage": "Scene",
+        },
+        [],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(
+        page,
+        path="win",
+        max_rounds=80,
+        timeout_ms=1000,
+        passage_bodies={"Scene Finish": "<<endcombat>>"},
+    )
+
+    assert calls == [1]
+    assert result["rounds"] == 1
+    assert result["landed"] == "Scene Finish"
+    assert result["terminal_landing"]["marker"] == "endcombat"
+    assert result["terminal_landing"]["pre_terminal_state"]["enemyarousal"] == 1000
+    assert result["terminal_landing"]["terminal_state"]["enemyarousal"] == 100
+    assert result["outcome"] == "win"
+    assert result["verdict"] == "ok"
+
+
+def test_driver_records_machine_end_without_inventing_defeat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def advance(_page: object, *, timeout_ms: int) -> dict:
+        return {
+            "ok": True,
+            "target": "Machine End",
+            "text": "Next",
+            "attempt": 1,
+            "state": {
+                "combat": 0,
+                "machineHealth": None,
+                "passage": "Machine End",
+            },
+        }
+
+    monkeypatch.setattr(combat_sweep, "_advance_passage", advance)
+
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        raise AssertionError("no action turn may be submitted without controls")
+
+    page = _CombatPage(
+        {"combat": 1, "machineHealth": 9, "passage": "Machine"},
+        [],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(
+        page,
+        path="win",
+        max_rounds=80,
+        timeout_ms=1000,
+        passage_bodies={"Machine End": "<<machine_end>>"},
+    )
+
+    assert result["terminal_landing"]["marker"] == "machine_end"
+    assert result["terminal_landing"]["pre_terminal_state"]["machineHealth"] == 9
+    assert result["terminal_landing"]["terminal_state"]["machineHealth"] is None
+    assert result["outcome"] == "end"
+    assert result["verdict"] == "ok"
+
+
+def test_driver_records_exit_wraith_as_route_not_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def advance(_page: object, *, timeout_ms: int) -> dict:
+        return {
+            "ok": True,
+            "target": "Wraith Snatched Intro",
+            "text": "Next",
+            "attempt": 1,
+            "state": {
+                "combat": 0,
+                "enemyhealth": 611.43,
+                "enemyarousal": 133.66,
+                "enemyarousalmax": 1360,
+                "passage": "Wraith Snatched Intro",
+            },
+        }
+
+    monkeypatch.setattr(combat_sweep, "_advance_passage", advance)
+
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        raise AssertionError("no action turn may be submitted without controls")
+
+    page = _CombatPage(
+        {
+            "combat": 1,
+            "enemyhealth": 611.43,
+            "enemyarousal": 133.66,
+            "enemyarousalmax": 1360,
+            "passage": "Wraith Caught Finish",
+        },
+        [],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(
+        page,
+        path="win",
+        max_rounds=80,
+        timeout_ms=1000,
+        passage_bodies={"Wraith Snatched Intro": "<<exitWraith true>>"},
+    )
+
+    assert result["route_landing"]["marker"] == "exitWraith"
+    assert result["terminal_landing"] is None
+    assert result["outcome"] == "unknown"
+    assert result["verdict"] == "soft_fail"
 
 
 def test_submit_path_presses_the_surrender_control_twice() -> None:
