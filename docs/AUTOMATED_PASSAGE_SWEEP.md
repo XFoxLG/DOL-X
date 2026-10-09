@@ -880,6 +880,39 @@ passage 不进 Story）与 `Macro.has`，再按 payload 里的 `:: Name`、`<<wi
 Engine A 的 `au-face` 流（八脸型 + 桌宠 canvas 像素）与 Engine B MuMu 真机
 （`tools/mumu_apk_smoke.py`）——这条与本轮 mod 盘点并列，不互相替代。
 
+### 8.12 combat-full 首轮 26 条 hard_fail 的归因与收口（2026-10-09）
+
+run `37899995638`（head `a2e324f`）前 4 个 combat 分片完成后，共暴露 26 条
+`hard_fail`。这批结果不封存为通过基线，只作为归因输入；逐条映射后分成三类：
+
+| 根因 | 行数 | 典型现场 | 修复 |
+| --- | ---: | --- | --- |
+| Finish / 出口 passage 读父事件状态 | 15 | `Mansion Return * Fight Finish` 读 `$avery_passage`；`Dog Park Escape` / `Lake Underwater Tentacles Finish` 读 `$bus`；`Estate Manor Approach Finish` 读 `$estate.chaos` | 新增 11 条 status-bootstrap，只补源码真正读取的字段，basis 追加 `status-bootstrap:<name>` |
+| `personselect` 读未初始化 NPC 槽 | 6 | `Chalets Work End Refuse`、`Street Collar Dog`、`Trash Compare Combat Loss` 报 `Undefined NPC in personselect N` | `person_reference_max` 识别 raw index 与 `random(0, N)`；闭包沿入口 → Finish → widget 推导最大槽位 |
+| widget 库 / SugarCube chrome 被当成可玩入口 | 5 | `Moor Widgets`、`Clothing Shop v2 Widgets` 直接 `Engine.play` 后报段落不存在或无链接 | `resolve_widget_entry` 只接受普通 caller passage；无真实 caller 的行如实记 `not_applicable` |
+
+另有两个测试器细节一并修复：`derive_precursor` 对自带 combat starter 的行
+（如 tentacle）允许附加状态引导；`Brothel Show` 按游戏源码初始化完整
+`$brothelshowdata`（含 `counts`），不再只写 `{}` 后访问 `.counts.pig`。
+
+最终代码对 26 条原 hard_fail 全量定向复跑（`.local/sweep/combat-fix-1009f/`，
+同一 1004 产物 + 合成夹具，回合上限 160）：
+
+| verdict | 行数 | 说明 |
+| --- | ---: | --- |
+| `ok` | 15 | 状态引导 / 槽位闭包后到达可确认终局 |
+| `not_applicable` | 10 | widget host 无真实 caller，或直接渲染后 `$combat` 保持 0（扫描命中但不是战斗入口） |
+| `hard_fail` | 1 | `Estate Manor Approach Fight` |
+| `soft_fail` / `fixture_insufficient` | 0 | — |
+
+唯一剩余 hard_fail 的源码证据：`Estate Manor Approach Finish` 的两个胜利分支都链接到
+`Estate Manor Intro Entrance`，但当前 0.5.11.9 产物中没有这个 passage，因此落点
+“没有可用链接”。这是上游断链，不是 DOL-X 集成或夹具问题；测试器不创建假出口，
+保留 hard_fail 与源码证据，等上游修复后再复跑。
+
+本轮新增/更新 25 条战斗单测，`pytest` **725 passed**。旧 run 的后 4 个分片仍按
+原代码继续执行，其结论只用于保留原始报告；修复后的 combat-full 需要在新 head 上重跑。
+
 ---
 
 ## 9. 一键复现清单（发版前）

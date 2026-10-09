@@ -1375,6 +1375,72 @@ def test_build_widget_index_and_person_closure_read_widget_refs() -> None:
     assert "person2" in info["basis"]
 
 
+def test_person_reference_max_reads_personselect_index() -> None:
+    """``personselect`` uses a raw index, so personselect 3 means person4."""
+    assert combat_sweep.person_reference_max("<<person2>>") == 2
+    assert combat_sweep.person_reference_max("<<personselect 3>>") == 4
+    assert combat_sweep.person_reference_max("<<person1>><<personselect 2>>") == 3
+    assert combat_sweep.person_reference_max("<<personselect random(0, 5)>>") == 6
+
+
+def test_derive_precursor_follows_random_personselect_through_finish_widget() -> None:
+    """Trash Compare's finish selects from all six event NPCs."""
+    bodies = {
+        "Trash Compare Forced Strip": (
+            "<<maninit>><<link [[Next|Trash Compare Combat Loss]]>><</link>>"
+        ),
+        "Trash Compare Combat Loss": "<<TrashComparePlayerBreastsReact>>",
+        "Trash Compare Widgets": (
+            '<<widget "TrashComparePlayerBreastsReact">><<trashSelect>><</widget>>'
+        ),
+        "Trash Select Widgets": (
+            '<<widget "trashSelect">><<personselect random(0, 5)>><</widget>>'
+        ),
+    }
+
+    info = combat_sweep.derive_precursor(
+        {"kind": "maninit", "passage": "Trash Compare Forced Strip", "token": ""},
+        passage_bodies=bodies,
+        widget_bodies=combat_sweep.build_widget_index(bodies),
+    )
+
+    assert "<<generate6>>" in info["widgets"]
+    assert "<<person6>>" in info["widgets"]
+    assert "person6" in info["basis"]
+
+
+def test_derive_precursor_appends_human_bystanders_for_beast_rows() -> None:
+    row = {"kind": "beastNEWinit", "passage": "Chalets Work End Refuse", "token": "horse"}
+    bodies = {
+        "Chalets Work End Refuse": (
+            "<<beastNEWinit 1 horse>>The <<person2>><<person>> dismounts."
+        ),
+        "Chalets Work End Refuse Finish": "The <<person2>><<person>> leaves.",
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == "<<generateBEAST 1 horse>><<generate2>><<person2>>"
+    assert info["basis"] == "row-token:horse|person-closure:person2..person2"
+
+
+def test_derive_precursor_appends_person_slot_for_wraith_finish() -> None:
+    row = {"kind": "wraith", "passage": "Lake Ritual Molestation Finish", "token": ""}
+    bodies = {
+        "Lake Ritual Molestation Finish": (
+            "<<initWraith>>The <<person1>><<person>> collapses."
+        )
+    }
+
+    info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+
+    assert info["widgets"] == "<<generate1>><<person1>>"
+    assert info["basis"] == (
+        "kind 'wraith' has no NPC hand/frontarm dependency"
+        "|person-closure:person1..person1"
+    )
+
+
 def test_derive_precursor_beast_row_token() -> None:
     row = {"kind": "beastNEWinit", "passage": "Farmland Pigs", "token": "pig"}
     info = combat_sweep.derive_precursor(row, passage_bodies={})
@@ -1456,8 +1522,14 @@ def test_derive_precursor_beast_predecessor_replays_ordered_chain() -> None:
         "Beach Phallus Dog Handjob": "<<beastCombatInit>>",
     }
     info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
-    assert info["widgets"] == "<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>"
+    assert info["widgets"] == (
+        "<<set $sciencephallus to 0>>"
+        "<<set $sciencephalluspenis to 0>>"
+        "<<set $sciencephallusclit to 0>>"
+        "<<clearnpc>><<beastNEWinit 1 dog>><<generate2>>"
+    )
     assert "predecessor:Widgets Events Beach" in info["basis"]
+    assert info["basis"].endswith("|status-bootstrap:science-phallus")
 
 
 def test_derive_precursor_beast_unresolved_records_reason() -> None:
@@ -1707,6 +1779,79 @@ def test_status_bootstrap_replays_event_chain_state() -> None:
         "<<if $sydneySeen is undefined>><<set $sydneySeen to []>><</if>>"
     )
     assert info6["basis"].endswith("|status-bootstrap:sydney-init")
+
+
+def test_status_bootstraps_seed_exit_and_branch_state() -> None:
+    """Observed combat-full hard fails: exits/branches need parent state."""
+    cases = [
+        (
+            {"kind": "maninit", "passage": "Mansion Return Bathe Fight", "token": ""},
+            '<<set $avery_passage to "Mansion Lounge">><<generate1>><<person1>>',
+            "status-bootstrap:avery-mansion-return",
+        ),
+        (
+            {"kind": "beastNEWinit", "passage": "Dog Park", "token": "dog"},
+            '<<set $bus to "park">><<generateBEAST 1 dog>>',
+            "status-bootstrap:dog-park-bus",
+        ),
+        (
+            {
+                "kind": "tentacle",
+                "passage": "Sewers Floor Slime Tentacles",
+                "token": "",
+                "combat_starters": ["tentaclestart"],
+            },
+            '<<set $bus to "sewersresidential">>',
+            "status-bootstrap:sewers-destination",
+        ),
+        (
+            {"kind": "maninit", "passage": "Estate Manor Approach Fight", "token": ""},
+            "<<estate_init gate>><<generate1>><<person1>>",
+            "status-bootstrap:estate_init",
+        ),
+        (
+            {
+                "kind": "beastNEWinit",
+                "passage": "Beach Phallus Dog Handjob",
+                "token": "dog",
+            },
+            (
+                "<<set $sciencephallus to 0>>"
+                "<<set $sciencephalluspenis to 0>>"
+                "<<set $sciencephallusclit to 0>>"
+                "<<generateBEAST 1 dog>>"
+            ),
+            "status-bootstrap:science-phallus",
+        ),
+        (
+            {"kind": "beastNEWinit", "passage": "Residential Dog", "token": "dog"},
+            (
+                "<<set $phase to 1>><<set $noise to 0>><<set $timer to 0>>"
+                "<<generateBEAST 1 dog>>"
+            ),
+            "status-bootstrap:residential-dog",
+        ),
+        (
+            {"kind": "beastNEWinit", "passage": "Brothel Show", "token": "pig"},
+            (
+                '<<set $brothelshowdata to { counts:{ agreed:0, done:0 }, '
+                'type:"pig", intro:0, done:false, missed:false }>>'
+                "<<generateBEAST 1 pig>>"
+            ),
+            "status-bootstrap:brothel-show-pig",
+        ),
+    ]
+
+    for row, expected_widgets, expected_tag in cases:
+        bodies = {str(row["passage"]): "<<maninit>>"}
+        if row["kind"] == "beastNEWinit":
+            bodies[str(row["passage"])] = f'<<beastNEWinit 1 {row["token"]}>>'
+        elif row["kind"] == "tentacle":
+            bodies[str(row["passage"])] = "<<tentaclestart>>"
+
+        info = combat_sweep.derive_precursor(row, passage_bodies=bodies)
+        assert info["widgets"] == expected_widgets
+        assert info["basis"].endswith(f"|{expected_tag}")
 
 
 def test_status_bootstrap_street_car_word_boundary() -> None:
@@ -2391,6 +2536,40 @@ def test_resolve_widget_entry_points_at_a_real_caller() -> None:
     assert combat_sweep.resolve_widget_entry({"passage": "Moor Widgets"}, {
         "Moor Widgets": bodies["Moor Widgets"]
     }) is None
+
+
+def test_resolve_widget_entry_rejects_a_widget_library_caller() -> None:
+    bodies = {
+        "Ambient Weather And Seasonal Event Widgets": (
+            '<<widget "eventAmbient">><<beastNEWinit 1 dog>><</widget>>'
+        ),
+        "Moor Widgets": '<<widget "eventsmoorlow">><<eventAmbient>><</widget>>',
+        "StoryCaption": "<<eventAmbient>>",
+        "Park": "<<eventAmbient>>",
+    }
+
+    found = combat_sweep.resolve_widget_entry(
+        {
+            "passage": "Ambient Weather And Seasonal Event Widgets",
+            "widget_host": True,
+        },
+        bodies,
+    )
+
+    assert found is not None
+    assert found[0] == "Park"
+    assert "Moor Widgets" not in found[1]
+
+    only_library = dict(bodies)
+    only_library.pop("Park")
+    # StoryCaption is SugarCube chrome, not a playable scene caller.
+    assert combat_sweep.resolve_widget_entry(
+        {
+            "passage": "Ambient Weather And Seasonal Event Widgets",
+            "widget_host": True,
+        },
+        only_library,
+    ) is None
 
 
 def test_choose_entry_prefers_a_real_passage_over_a_widget_host() -> None:
