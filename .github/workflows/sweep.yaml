@@ -565,7 +565,13 @@ jobs:
             env-full) EXPECTED=8 ;;
             *) echo "unknown tier"; exit 2 ;;
           esac
-          REPORTS="$(find shard-artifacts -type f \( -name '*-sweep.json' -o -name '*-report.json' \) | sort)"
+          # Daily auxiliary checks are enforced by the daily job itself.  The
+          # shard summary only aggregates the four primary axes so its shard
+          # count remains comparable across daily/full/combat-full/env-full.
+          REPORTS="$(find shard-artifacts -type f \
+            \( -name '*-sweep.json' -o -name '*-report.json' \) \
+            ! -path '*/daily-mod-inventory/*' \
+            ! -path '*/daily-mod-passages/*' | sort)"
           if [ -z "${REPORTS}" ]; then
             echo "::error::no sanitized shard reports downloaded"
             exit 1
