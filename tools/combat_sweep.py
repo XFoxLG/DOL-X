@@ -440,6 +440,23 @@ LINK_WIDGET_RE = re.compile(r"<<link\s+\[\[([^\]|]*)(?:\|([^\]]*))?\]\][^>]*>>")
 # ``<<personN>>`` renders ``$NPCList[N-1]`` directly, so a passage that prints
 # ``<<person4>>`` needs four slots even when ``$enemyno`` only covers 2.
 PERSON_INDEX_RE = re.compile(r"<<\s*person\s*(\d+)\s*>>")
+PERSON_SELECT_INDEX_RE = re.compile(r"<<\s*personselect\s+(\d+)\s*>>")
+PERSON_SELECT_RANDOM_RE = re.compile(
+    r"<<\s*personselect\s+random\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*>>"
+)
+
+
+def person_reference_max(text: str) -> int:
+    """Highest ``<<personN>>`` equivalent in a passage or widget body.
+
+    ``<<personselect N>>`` receives the raw ``$NPCList`` index, so its
+    equivalent person macro is ``N + 1``; ``<<personN>>`` is one-based.
+    """
+    text = str(text or "")
+    values = [int(item) for item in PERSON_INDEX_RE.findall(text)]
+    values.extend(int(item) + 1 for item in PERSON_SELECT_INDEX_RE.findall(text))
+    values.extend(int(match.group(2)) + 1 for match in PERSON_SELECT_RANDOM_RE.finditer(text))
+    return max(values, default=0)
 
 # --------------------------------------------------------------------------- #
 # Entry precursors (game-side generation preamble)
@@ -946,7 +963,7 @@ def person_reference_closure(
     for _ in range(widget_depth + 1):
         next_frontier: list[str] = []
         for item in frontier:
-            refs.update(int(value) for value in PERSON_INDEX_RE.findall(item))
+            refs.update([person_reference_max(item)])
             for macro in MACRO_CALL_RE.finditer(item):
                 widget = widget_bodies.get(macro.group(1))
                 if widget:
@@ -955,6 +972,53 @@ def person_reference_closure(
         if not frontier:
             break
     return max(refs, default=0)
+
+
+def append_person_closure(
+    info: dict[str, Any],
+    row: Mapping[str, Any],
+    *,
+    passage_bodies: Mapping[str, str],
+    widget_bodies: Mapping[str, str],
+) -> dict[str, Any]:
+    """Add only the human NPC slots a non-maninit scene still renders.
+
+    Beast rows already put the beast in slot 0, so their human bystanders start
+    at slot 1. Other kinds start at slot 0 when the scene itself prints a
+    person. Existing game-side generators are preserved and never duplicated.
+    """
+    kind = str(info.get("kind") or row.get("kind") or "")
+    if kind == "maninit":
+        return info
+    passage = str(row.get("passage") or "")
+    body = str(passage_bodies.get(passage) or "")
+    reference = person_reference_closure(
+        passage, body, passage_bodies, widget_bodies, widget_depth=3
+    )
+    if reference <= 0:
+        return info
+    widgets = str(info.get("widgets") or "")
+    covered: set[int] = set()
+    for match in re.finditer(r"<<generate(\d+)\s*>>", widgets):
+        covered.add(int(match.group(1)) - 1)
+    for match in re.finditer(r"<<generateRole\s+(\d+)", widgets):
+        covered.add(int(match.group(1)))
+    if kind in BEAST_PRECURSOR_KINDS or kind in BEAST_KINDS:
+        covered.add(0)
+    if "<<npc " in widgets or "<<generateBEAST" in widgets or "<<beastNNPCinit" in widgets:
+        covered.add(0)
+    start = 1 if 0 in covered else 0
+    additions: list[str] = []
+    for slot in range(start, reference):
+        if slot in covered:
+            continue
+        additions.append(f"<<generate{slot + 1}>><<person{slot + 1}>>")
+    if not additions:
+        return info
+    info["widgets"] = widgets + "".join(additions)
+    basis = str(info.get("basis") or info.get("reason") or f"{kind}:person-closure")
+    info["basis"] = f"{basis}|person-closure:person{start + 1}..person{reference}"
+    return info
 
 
 def _derive_precursor_core(
@@ -994,7 +1058,7 @@ def _derive_precursor_core(
         enemy_match = re.search(r"<<\s*set\s+\$enemyno\s+to\s+(\d+)\s*>>", body)
         if enemy_match:
             count = max(1, min(6, int(enemy_match.group(1))))
-        slot_refs = [int(item) for item in PERSON_INDEX_RE.findall(body)]
+        slot_refs = [person_reference_max(body)]
         reference = max(slot_refs) if slot_refs else 0
         # The entry passage itself may never print the extra slots; its finish
         # passage (or a widget it calls) does. ``Underground Robin Stage
@@ -1264,6 +1328,117 @@ AREA_BOOTSTRAPS: tuple[dict[str, str], ...] = (
         ),
     },
     {
+        "pattern": r"^Mansion Return (?:Walk|Sit|Bathe|Ride|Badminton) Fight\b",
+        "widgets": '<<set $avery_passage to "Mansion Lounge">>',
+        "tag": "status-bootstrap:avery-mansion-return",
+        "evidence": (
+            "Every Mansion Return * Fight Finish renders "
+            "avery_mansion_end_links, which links to $avery_passage; mansion "
+            "rooms set that variable to a room passage, and Mansion Lounge is "
+            "a valid game-side target"
+        ),
+    },
+    {
+        "pattern": r"^Dog Park\b",
+        "widgets": '<<set $bus to "park">>',
+        "tag": "status-bootstrap:dog-park-bus",
+        "evidence": (
+            "Dog Park Escape renders <<destination>>; Park and the Dog Park "
+            "chain set $bus to 'park'"
+        ),
+    },
+    {
+        "pattern": r"^Sewers Floor Slime Tentacles\b",
+        "widgets": '<<set $bus to "sewersresidential">>',
+        "tag": "status-bootstrap:sewers-destination",
+        "evidence": (
+            "Sewers Floor Slime Tentacles Finish renders destinationsewers; "
+            "Sewers Residential is the game's own valid $bus target"
+        ),
+    },
+    {
+        "pattern": r"^Lake Lichen\b",
+        "widgets": '<<set $bus to "lake_ruin">>',
+        "tag": "status-bootstrap:lake-ruin-bus",
+        "evidence": (
+            "Lake Underwater Tentacles Finish chooses _nextroom from $bus; "
+            "Lake Ruin sets $bus to 'lake_ruin'"
+        ),
+    },
+    {
+        "pattern": r"^Lake Ruin Deep (?:Consentacles|NonConsentacles)\b",
+        "widgets": '<<set $bus to "lake_ruin_deep">>',
+        "tag": "status-bootstrap:lake-ruin-deep-bus",
+        "evidence": (
+            "Lake Underwater Tentacles Finish chooses _nextroom from $bus; "
+            "Lake Ruin Deep sets $bus to 'lake_ruin_deep'"
+        ),
+    },
+    {
+        "pattern": r"^Bondage Student Rape\b",
+        "widgets": '<<set $bus to "park">><<set $location to "park">>',
+        "tag": "status-bootstrap:bondage-park",
+        "evidence": (
+            "Bondage Student Rape Finish renders destinationbondage; Bondage "
+            "Park is a valid game-side $bus target"
+        ),
+    },
+    {
+        "pattern": r"^Estate Manor Approach Fight\b",
+        "widgets": "<<estate_init gate>>",
+        "tag": "status-bootstrap:estate_init",
+        "evidence": (
+            "Estate Manor Approach Finish calls estate_security, which reads "
+            "$estate.chaos; estate_init gate is the game's own initializer"
+        ),
+    },
+    {
+        "pattern": r"^Whitney Park Fight\b",
+        "widgets": '<<set $bus to "park">><<set $location to "park">>',
+        "tag": "status-bootstrap:whitney-park",
+        "evidence": (
+            "Whitney Park Fight Finish renders whitneyexit, which links only "
+            "when $bus or $location is 'park'"
+        ),
+    },
+    {
+        "pattern": r"^Beach Phallus Dog Handjob\b",
+        "widgets": (
+            "<<set $sciencephallus to 0>>"
+            "<<set $sciencephalluspenis to 0>>"
+            "<<set $sciencephallusclit to 0>>"
+        ),
+        "tag": "status-bootstrap:science-phallus",
+        "evidence": (
+            "Beach Phallus Dog Handjob Finish calls receivephallusdata, which "
+            "increments the three science-phallus counters; the science "
+            "project initializes all three to 0"
+        ),
+    },
+    {
+        "pattern": r"^Residential Dog\b",
+        "widgets": (
+            "<<set $phase to 1>><<set $noise to 0>><<set $timer to 0>>"
+        ),
+        "tag": "status-bootstrap:residential-dog",
+        "evidence": (
+            "Residential Dog branches on $phase/$noise/$timer; the direct "
+            "entry needs the scene's own first branch to expose links"
+        ),
+    },
+    {
+        "pattern": r"^Brothel Show\b",
+        "widgets": (
+            '<<set $brothelshowdata to { counts:{ agreed:0, done:0 }, '
+            'type:"pig", intro:0, done:false, missed:false }>>'
+        ),
+        "tag": "status-bootstrap:brothel-show-pig",
+        "evidence": (
+            "Brothel Show branches on $brothelshowdata.type; the pig row "
+            "must select the game's own 'pig' show branch"
+        ),
+    },
+    {
         "pattern": r"^Temple Confess Sydney\b",
         "widgets": (
             "<<set C.npc.Sydney.init to 1>>"
@@ -1298,9 +1473,9 @@ def derive_precursor(
 ) -> dict[str, Any]:
     """``_derive_precursor_core`` plus the area/event-state bootstrap prefix.
 
-    Only rows that already produced a beast chain are touched: without a chain
-    the bootstrap state alone cannot start the fight. The basis keeps both
-    parts (``<chain basis>|area-bootstrap:<widget>`` /
+    A bootstrap is attached only when the row already produced a precursor
+    chain or carries its own combat starter; state alone cannot invent a fight.
+    The basis keeps both parts (``<chain basis>|area-bootstrap:<widget>`` /
     ``<chain basis>|status-bootstrap:<name>``) so a pass stays auditable.
     """
     info = _derive_precursor_core(
@@ -1310,11 +1485,18 @@ def derive_precursor(
         widget_bodies=widget_bodies,
         max_depth=max_depth,
     )
+    append_person_closure(
+        info,
+        row,
+        passage_bodies=passage_bodies,
+        widget_bodies=widget_bodies or {},
+    )
     boot = area_bootstrap(str(row.get("passage") or ""))
-    if boot and info.get("widgets"):
-        info["widgets"] = f"{boot['widgets']}{info['widgets']}"
-        if info.get("basis"):
-            info["basis"] = f"{info['basis']}|{boot['tag']}"
+    if boot and (info.get("widgets") or row.get("combat_starters")):
+        info["widgets"] = f"{boot['widgets']}{info.get('widgets') or ''}"
+        kind = str(row.get("kind") or "")
+        basis = str(info.get("basis") or info.get("reason") or f"{kind}:status-bootstrap")
+        info["basis"] = f"{basis}|{boot['tag']}"
     return info
 
 
@@ -1477,11 +1659,17 @@ def resolve_widget_entry(
     widget_names = [match.group(1) for match in WIDGET_DEF_RE.finditer(body)]
     if not widget_names:
         return None
-    callers = [
-        name
-        for name in widget_callers(widget_names, passage_bodies, exclude=(host,))
-        if not name.startswith("Widgets")
-    ]
+    callers: list[str] = []
+    for name in widget_callers(widget_names, passage_bodies, exclude=(host,)):
+        caller_body = str(passage_bodies.get(name) or "")
+        if (
+            name.startswith("Widgets")
+            or name.endswith("Widgets")
+            or is_non_scene_passage(name)
+            or WIDGET_DEF_RE.search(caller_body)
+        ):
+            continue
+        callers.append(name)
     if not callers:
         return None
 
