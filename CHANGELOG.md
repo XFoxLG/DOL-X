@@ -15,6 +15,13 @@
 
 ### Fixed
 
+- **云端 daily 汇总误判辅助报告（2026-10-09）**：run `37884127706` 的四个主轴
+  （passage / scenario / combat / env）全部完整且 `hard_fail=0`，但 summary 把
+  daily 新增的 mod 盘点与 mod passage 辅助报告也当成主轴 shard，导致
+  `expected 4, got 6`；同时 env 报告的 identity 位于 `meta.ledger`，汇总器只读
+  顶层 `ledger` 而误报缺 identity。修复：summary 只聚合四个主轴报告，辅助报告仍由
+  daily job 自身 fail-closed 校验并上传；`sweep_summary` 兼容读取
+  `meta.ledger.identity`。用该失败 run 的真实四主轴报告本地复验汇总为 `ok=True`。
 - **dayloop 真实一日流程收口（2026-10-09）**：`scenario_sweep` 的上课 effect 阶段
   此前只按 passage/时钟判定进度，把已经真实换上学校泳衣的原地动作误判为
   `stalled`；且换装成功后没有记入 `swimwear_attempted`，导致下一跳无法进入泳池。

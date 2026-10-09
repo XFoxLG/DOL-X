@@ -38,6 +38,11 @@ def _identity(report: dict[str, Any]) -> dict[str, Any] | None:
         return ledger["identity"]
     if isinstance(ledger, dict) and isinstance(ledger.get("ledger_identity"), dict):
         return ledger["ledger_identity"]
+    meta = report.get("meta")
+    if isinstance(meta, dict):
+        meta_ledger = meta.get("ledger")
+        if isinstance(meta_ledger, dict) and isinstance(meta_ledger.get("identity"), dict):
+            return meta_ledger["identity"]
     identity = report.get("ledger_identity")
     return identity if isinstance(identity, dict) else None
 
