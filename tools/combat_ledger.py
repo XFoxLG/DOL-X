@@ -207,7 +207,11 @@ def classify_row(
     basis = derived.get("basis")
     reason = derived.get("reason")
     kind_state = derivation_kind(basis, reason)
-    sexual_reason = cs.sexual_encounter_reason(row, passage_bodies)
+    sexual_reason = (
+        cs.sexual_encounter_reason(row, passage_bodies)
+        if site != "widget" and not row.get("non_scene")
+        else None
+    )
     starters = list(row.get("combat_starters") or [])
     link_target = None
     if site != "widget" and not starters:
