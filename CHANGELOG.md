@@ -22,7 +22,7 @@
   `_combatend` 的共识性场景改为源码证据明确的 `not_applicable`，静态台账新增
   `sexual_encounter` shape。`Abduction`、`Adult Shop Clerk Angel Molestation`、
   `Livestock Return Horse Rape` 等真实样本由 `soft_fail` 变为 `ok`；
-  `pytest` **734 passed**。
+  `pytest` **735 passed**。
 - **战斗特殊血量终局误报（2026-10-09）**：`Brothel Show Machine` 的胜利终局由
   `$machineHealth` 驱动（20 → -1），旧测试器只检查 `$enemyhealth`，导致已结束的
   机器战被误报为“无敌人失败证据”。终局判定与动态回合上限现在识别
