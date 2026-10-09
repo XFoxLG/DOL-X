@@ -3,7 +3,7 @@
 只覆盖纯逻辑，不依赖浏览器与 82MB 产物：
 - basis -> derivation_kind 映射
 - macro 调用点是否落在 ``<<widget>>`` 定义内
-- 五种 entry shape 的分类
+- 六种 entry shape 的分类
 - JSON+MD 写出与 runtime report 关联（不凭空造判定）
 - work list 排序/截断 与 ``--fail-on-unresolved`` 退出码
 """
@@ -43,6 +43,10 @@ def _synthetic_html(passages: list[tuple[str, str]], *, escape: bool = True) -> 
 
 PASSAGES = [
     ("Courtyard Crush Fight", "<<maninit>>"),
+    (
+        "Test Sex",
+        "<<if $sexstart is 1>><<consensual>><<maninit>><</if>><<actionsman>><<if _combatend>><</if>>",
+    ),
     ("Widgets NPC Generation", '<<widget "generateDog">><<beastNEWinit 1 dog>><</widget>>'),
     ("Farmland Pigs", "<<beastNEWinit 1 pig>>\n[[Fight|Pig Fight]]"),
     ("Pig Fight", "<<beastCombatInit 1 pig>>"),
@@ -119,7 +123,7 @@ def test_call_site_marks_macros_inside_widget_definitions() -> None:
     assert call_site(free_row, body) == ("passage", None)
 
 
-def test_classify_row_covers_all_five_entry_shapes() -> None:
+def test_classify_row_covers_all_six_entry_shapes() -> None:
     rows = {row["key"]: row for row in _rows()}
     bodies = _bodies()
 
@@ -133,6 +137,10 @@ def test_classify_row_covers_all_five_entry_shapes() -> None:
     assert maninit["combat_starters"] == ["maninit"]
     assert maninit["derivation_kind"] == "synthetic_generator"
     assert maninit["precursor_widgets"]
+
+    sexual = classify("maninit:-:Test Sex")
+    assert sexual["entry_shape"] == "sexual_encounter"
+    assert "consensual sexual encounter" in str(sexual["sexual_scene_reason"])
 
     widget = classify("beastNEWinit:dog:Widgets NPC Generation")
     assert widget["entry_shape"] == "widget_definition"

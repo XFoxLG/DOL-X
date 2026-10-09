@@ -2415,6 +2415,62 @@ def test_no_action_continuation_advances_are_bounded(
     assert page.presses == 0
 
 
+def test_no_action_continuation_keeps_advancing_while_state_progresses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+
+    def advance(_page: object, *, timeout_ms: int) -> dict:
+        calls.append(len(calls) + 1)
+        count = len(calls)
+        if count < 5:
+            return {
+                "ok": True,
+                "target": "Scene",
+                "text": "Next",
+                "attempt": 1,
+                "state": {
+                    "combat": 1,
+                    "enemyhealth": 200,
+                    "enemyarousal": 20 * count,
+                    "enemyarousalmax": 100,
+                    "passage": "Scene",
+                },
+            }
+        return {
+            "ok": True,
+            "target": "Scene Finish",
+            "text": "Next",
+            "attempt": 1,
+            "state": {
+                "combat": 0,
+                "enemyhealth": 200,
+                "enemyarousal": 100,
+                "enemyarousalmax": 100,
+                "passage": "Scene Finish",
+            },
+        }
+
+    monkeypatch.setattr(combat_sweep, "_advance_passage", advance)
+
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        raise AssertionError("no action turn may be submitted without controls")
+
+    page = _CombatPage(
+        {"combat": 1, "enemyhealth": 200, "enemyarousal": 0, "enemyarousalmax": 100, "passage": "Scene"},
+        [],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(page, path="win", max_rounds=80, timeout_ms=1000)
+
+    assert len(calls) == 5
+    assert result["no_action_advances"] == 5
+    assert result["verdict"] == "ok"
+    assert result["outcome"] == "win"
+    assert "enemy arousal reached max" in result["outcome_detail"]
+
+
 def test_submit_path_presses_the_surrender_control_twice() -> None:
     turns: list[int] = []
 
@@ -2462,16 +2518,36 @@ def test_estimate_round_cap_extends_from_measured_damage() -> None:
 
     assert extended is not None
     cap, reason = extended
-    assert cap == 125  # ceil(120 / 1) + 5
+    # The cap is total rounds, but the health value is what remains *now*:
+    # 80 already happened, then ceil(120 / 1) + 5 more rounds.
+    assert cap == 160
     assert "median" in reason
-    # Already affordable, no damage evidence, non-numeric HP: nothing to extend.
-    assert combat_sweep.estimate_round_cap(hp, 10, current_cap=80) is None
+    assert "+125 additional rounds" in reason
+    # Even a nearly defeated enemy gets the safety margin as additional rounds.
+    affordable = combat_sweep.estimate_round_cap(hp, 10, current_cap=80)
+    assert affordable is not None and affordable[0] == 95
+    # No damage evidence or non-numeric HP: nothing to extend.
     assert combat_sweep.estimate_round_cap([], 120, current_cap=80) is None
     assert combat_sweep.estimate_round_cap(hp, 120, current_cap=200) is None
     assert combat_sweep.estimate_round_cap(hp, None, current_cap=80) is None
     # The ceiling is hard: 100k HP still stops at HARD_ROUND_CEILING.
     capped = combat_sweep.estimate_round_cap(hp, 100000, current_cap=80)
     assert capped is not None and capped[0] == combat_sweep.HARD_ROUND_CEILING
+
+
+def test_estimate_round_cap_adds_remaining_rounds_near_defeat() -> None:
+    hp = [
+        {"enemyhealth": [9.0, 7.0]},
+        {"enemyhealth": [7.0, 5.0]},
+        {"enemyhealth": [5.0, 3.0]},
+    ]
+
+    extended = combat_sweep.estimate_round_cap(hp, 3, current_cap=80)
+
+    assert extended is not None
+    cap, reason = extended
+    assert cap == 87  # 80 already used + ceil(3 / 2) + 5
+    assert "+7 additional rounds" in reason
 
 
 def test_estimate_round_cap_follows_special_defeat_health_meter() -> None:
@@ -2485,7 +2561,7 @@ def test_estimate_round_cap_follows_special_defeat_health_meter() -> None:
 
     assert extended is not None
     cap, reason = extended
-    assert cap == 125
+    assert cap == 160
     assert "machine health" in reason
 
 
@@ -2851,6 +2927,57 @@ def test_run_initiator_rows_marks_special_passage_not_applicable() -> None:
     assert len(results) == 1
     assert results[0]["verdict"] == "not_applicable"
     assert "StoryCaption" in results[0]["detail"]
+
+
+def test_sexual_encounter_reason_requires_all_source_markers() -> None:
+    body = (
+        "<<if $sexstart is 1>><<consensual>><<maninit>><</if>>"
+        "<<actionsman>><<if _combatend>><</if>>"
+    )
+    row = {"passage": "Test Sex"}
+
+    reason = combat_sweep.sexual_encounter_reason(row, {"Test Sex": body})
+
+    assert reason is not None
+    assert "$sexstart" in reason
+    assert "consensual" in reason
+    assert combat_sweep.sexual_encounter_reason(row, {"Test Sex": body.replace("consensual", "")}) is None
+    assert combat_sweep.sexual_encounter_reason(row, {}) is None
+
+
+def test_run_initiator_rows_skips_consensual_sex_scenes() -> None:
+    row = {
+        "key": "maninit:-:Test Sex",
+        "kind": "maninit",
+        "token": "",
+        "passage": "Test Sex",
+        "macro": "maninit",
+        "args": "",
+        "entry_flags": ["sexstart"],
+        "combat_starters": ["maninit"],
+        "tags": "",
+        "widget_host": False,
+    }
+    bodies = {
+        "Test Sex": (
+            "<<if $sexstart is 1>><<consensual>><<maninit>><</if>>"
+            "<<actionsman>><<if _combatend>><</if>>"
+        )
+    }
+
+    # page=None proves the row is answered from source evidence without playing.
+    results = combat_sweep.run_initiator_rows(
+        None,
+        [row],
+        max_rounds=1,
+        timeout_ms=50,
+        passage_bodies=bodies,
+    )
+
+    assert len(results) == 1
+    assert results[0]["verdict"] == "not_applicable"
+    assert results[0]["sexual_scene"] is True
+    assert "consensual sexual encounter" in results[0]["detail"]
 
 
 def test_filter_archetype_jobs_matches_job_key_or_archetype() -> None:
