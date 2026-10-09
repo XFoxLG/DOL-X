@@ -2222,6 +2222,54 @@ def test_lose_path_without_a_matching_button_stops_instead_of_attacking() -> Non
     assert page.presses == 0
 
 
+def test_no_action_continuation_advances_are_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scene that only offers Next must not consume the whole round cap."""
+    calls: list[int] = []
+
+    def advance(_page: object, *, timeout_ms: int) -> dict:
+        calls.append(len(calls) + 1)
+        # This mirrors the Bailey evidence: the passage alternates while the
+        # combat state itself never changes and no action controls appear.
+        target = "Bailey Beating" if len(calls) % 2 else "Gwylan Strap-on Sex"
+        return {
+            "ok": True,
+            "target": target,
+            "text": "Next",
+            "attempt": 1,
+            "state": {
+                "combat": 1,
+                "enemyhealth": 199,
+                "passage": target,
+            },
+        }
+
+    monkeypatch.setattr(combat_sweep, "_advance_passage", advance)
+
+    def on_turn(state: dict, actions: list) -> tuple[dict, list]:
+        raise AssertionError("no action turn may be submitted without controls")
+
+    page = _CombatPage(
+        {"combat": 1, "enemyhealth": 199, "passage": "Bailey Beating"},
+        [],
+        on_turn,
+    )
+
+    result = combat_sweep.drive_combat(
+        page, path="win", max_rounds=80, timeout_ms=1000
+    )
+
+    assert len(calls) == combat_sweep.NO_ACTION_ADVANCE_LIMIT
+    assert result["rounds"] == combat_sweep.NO_ACTION_ADVANCE_LIMIT
+    assert result["presses"] == combat_sweep.NO_ACTION_ADVANCE_LIMIT
+    assert result["no_action_advances"] == combat_sweep.NO_ACTION_ADVANCE_LIMIT
+    assert result["verdict"] == "soft_fail"
+    assert "after 3 continuation advances" in result["detail"]
+    assert result["offered_controls"] == []
+    assert page.presses == 0
+
+
 def test_submit_path_presses_the_surrender_control_twice() -> None:
     turns: list[int] = []
 

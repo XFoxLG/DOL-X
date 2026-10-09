@@ -15,6 +15,15 @@
 
 ### Fixed
 
+- **战斗轴无动作场景空转（2026-10-09）**：daily 报告里的
+  `named-bailey:win` 证明测试器仍会在“只有 Next、没有战斗控件”的
+  场景里连续点 80 次 continuation，并把 passage 来回切换误当成有效回合。
+  修复：`combat_sweep` 为无动作 continuation 设置 3 次预算，超过后立即
+  记录 `offered_controls`、分类为 `soft_fail` 并停止，不再消耗回合上限。
+  定向复跑 `named-bailey:win`：1 次 continuation 后到达
+  `Bailey Beating Finish`，如实记为 `soft_fail`（scene end，非胜利），
+  不再出现 80 回合空转。
+  新增回归测试锁住“3 次后必须停、不能提交动作回合”；`pytest` **719 passed**。
 - **云端 daily 汇总误判辅助报告（2026-10-09）**：run `37884127706` 的四个主轴
   （passage / scenario / combat / env）全部完整且 `hard_fail=0`，但 summary 把
   daily 新增的 mod 盘点与 mod passage 辅助报告也当成主轴 shard，导致
