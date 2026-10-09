@@ -91,6 +91,25 @@ def test_aggregate_accepts_different_axes_on_same_artifact() -> None:
     assert payload["summary"]["ok"] is True
 
 
+def test_aggregate_reads_env_identity_from_meta_ledger() -> None:
+    report = _report(0, [{"key": "env", "verdict": "ok"}])
+    identity = ledger_mod.run_identity(
+        "env_matrix",
+        html_sha256="a" * 64,
+        fixture_digest="b" * 64,
+        tool_version="env-matrix-v2",
+        plan_digest="env-plan",
+        strategy={"tier": "daily", "shard_index": 0, "shard_count": 1},
+    )
+    report["meta"] = {"ledger": {"identity": identity}}
+    report.pop("ledger")
+
+    payload = sweep_summary.aggregate_reports([report])
+
+    assert payload["summary"]["ok"] is True
+    assert payload["identities"] == [identity]
+
+
 def test_write_summary_uses_atomic_json_and_markdown(tmp_path) -> None:
     payload = sweep_summary.aggregate_reports(
         [_report(0, [{"key": "a", "verdict": "hard_fail"}])]
