@@ -980,9 +980,15 @@ combat-full 仍必须在新 head 上完整重跑。
 不能因为 `Wraith Snatched Intro` 里的 `exitWraith true` 假通过。
 
 报告顶层新增 `source_evidence`（上游仓库、tag、commit 与宏源码路径），每条战斗结果
-新增 `terminal_landing` / `route_landing`。新增 7 条回归测试后
-`python -m pytest -q` 为 **742 passed**。旧 run `37932338324` 不取消，完整 artifacts
+新增 `terminal_landing` / `route_landing`。新增 8 条回归测试后
+`python -m pytest -q` 为 **743 passed**。旧 run `37932338324` 不取消，完整 artifacts
 保留为修复前原始报告；修复后的 combat-full 必须在新 head 上重跑。
+
+同轮修复了控制模式检查的分片随机性：模式检查不再取“当前分片第一条 beast”，
+而是优先从完整 initiator 清单选择稳定入口 `beastCombatInit:dog:Dog Park`。
+本地复现中，shard 4 原会落入 `Moor Bird Rape` 并在 Lists/List(w) 上因
+`#listContainer` 不渲染记为 `fixture_insufficient`；改为 `Dog Park` 后四种模式
+各 3 回合全部 `ok`。
 
 ---
 
