@@ -1695,6 +1695,32 @@ def resolve_widget_entry(
     return chosen, evidence
 
 
+SEXUAL_SCENE_MARKERS = ("$sexstart", "consensual", "actionsman", "_combatend")
+
+
+def sexual_encounter_reason(
+    row: Mapping[str, Any], passage_bodies: Mapping[str, str]
+) -> str | None:
+    """Source evidence that an initiator row is a consensual sex scene.
+
+    DoL reuses the combat renderer for consensual encounters. Those passages gate
+    on ``$sexstart``, set ``consensual``, render ``<<actionsman>>``, and exit
+    through ``_combatend``; they have no enemy-defeat objective, so a "win" path
+    is the wrong test. They are recorded as ``not_applicable`` for the combat
+    axis instead of being attacked for 80 rounds.
+    """
+    body = str(passage_bodies.get(str(row.get("passage") or "")) or "")
+    if not body:
+        return None
+    if not all(marker in body for marker in SEXUAL_SCENE_MARKERS):
+        return None
+    return (
+        "consensual sexual encounter, not a combat objective: source gates on "
+        "$sexstart, sets consensual, renders <<actionsman>>, and exits through "
+        "_combatend"
+    )
+
+
 def scan_initiators(html_text: str) -> dict[str, Any]:
     """Scan the raw artifact HTML for combat initiator macro calls.
 
@@ -2283,7 +2309,7 @@ def estimate_round_cap(
     margin: int = ROUND_EXTENSION_MARGIN,
     window: int = ROUND_DAMAGE_WINDOW,
 ) -> tuple[int, str] | None:
-    """Extend the round cap from measured damage when HP is still dropping.
+    """Extend the round cap by the rounds still needed when HP is dropping.
 
     Returns ``(new_cap, reason)`` or ``None`` when there is nothing to extend:
     no numeric HP, no observed decrease, or the ceiling is already reached.
@@ -2316,7 +2342,7 @@ def estimate_round_cap(
     if damage <= 0:
         return None
     needed = int(math.ceil(float(current_value) / damage)) + margin
-    target = min(max(current_cap, needed), ceiling)
+    target = min(current_cap + needed, ceiling)
     if target <= current_cap:
         return None
     return (
@@ -2325,6 +2351,7 @@ def estimate_round_cap(
             f"round cap extended {current_cap}->{target}: {health_label}="
             f"{current_value}, median damage/round={damage:g} over "
             f"{len(drops)} decreasing rounds"
+            f" (+{needed} additional rounds)"
         ),
     )
 
@@ -2388,6 +2415,39 @@ def round_digest(state: dict[str, Any]) -> str:
         "control",
     )
     return json.dumps({key: state.get(key) for key in keys}, ensure_ascii=False, sort_keys=True)
+
+
+NO_ACTION_PROGRESS_FIELDS = (
+    "combat",
+    "enemytype",
+    "enemyhealth",
+    "enemyhealthmax",
+    "enemyarousal",
+    "enemyarousalmax",
+    "npcCount",
+    "npcHealthTotal",
+    "tentacleHealth",
+    "swarmActive",
+    "machineHealth",
+    "arousal",
+    "pain",
+    "control",
+)
+
+
+def no_action_progress_digest(state: dict[str, Any]) -> str:
+    """Meaningful state summary for no-control continuation progress.
+
+    ``round_digest`` includes the passage name, so a scene can alternate two
+    continuation passages forever while nothing else changes. The no-control
+    budget must ignore that cosmetic movement, but keep advancing when arousal,
+    health, pain, or control actually changes.
+    """
+    return json.dumps(
+        {key: state.get(key) for key in NO_ACTION_PROGRESS_FIELDS},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
 
 
 def detect_stall(digests: Sequence[str], threshold: int = STALL_ROUNDS) -> bool:
@@ -3243,8 +3303,8 @@ def drive_combat(
             if consecutive_no_action_advances >= NO_ACTION_ADVANCE_LIMIT:
                 verdict, detail, missing = classify_no_actions(actions_probe, state)
                 detail = (
-                    f"{detail} after {NO_ACTION_ADVANCE_LIMIT} continuation "
-                    "advances without action controls"
+                    f"{detail} after {NO_ACTION_ADVANCE_LIMIT} continuation advances "
+                    "without action controls or state progress"
                 )
                 result["offered_controls"] = offered_controls(actions)
                 result["verdict"] = verdict
@@ -3258,14 +3318,31 @@ def drive_combat(
                     }
                 )
                 break
+            before_state = state
             advance = _advance_passage(page, timeout_ms=timeout_ms)
             if advance.get("ok"):
-                consecutive_no_action_advances += 1
-                result["no_action_advances"] = consecutive_no_action_advances
+                result["no_action_advances"] += 1
                 advance_state = advance.get("state") or _state(page)
                 state = advance_state
                 if state.get("combat") == 1:
                     last_active = state
+                result["hp_evidence"].append(
+                    {
+                        "round": round_no,
+                        "press": 1,
+                        "enemyhealth": [before_state.get("enemyhealth"), state.get("enemyhealth")],
+                        "enemyarousal": [before_state.get("enemyarousal"), state.get("enemyarousal")],
+                        "tentacleHealth": [before_state.get("tentacleHealth"), state.get("tentacleHealth")],
+                        "swarmActive": [before_state.get("swarmActive"), state.get("swarmActive")],
+                        "machineHealth": [before_state.get("machineHealth"), state.get("machineHealth")],
+                        "combat": state.get("combat"),
+                        "passage": state.get("passage"),
+                    }
+                )
+                if no_action_progress_digest(before_state) == no_action_progress_digest(state):
+                    consecutive_no_action_advances += 1
+                else:
+                    consecutive_no_action_advances = 0
                 result["endure_rounds"] += 1
                 result["rounds"] += 1
                 result["presses"] += 1
@@ -3303,7 +3380,6 @@ def drive_combat(
             break
         else:
             consecutive_no_action_advances = 0
-            result["no_action_advances"] = 0
 
         keyword: str | None = None
         if strict:
@@ -3890,6 +3966,30 @@ def run_initiator_rows(
             entry_row["widget_host_passage"] = row.get("passage")
             entry_row["passage"] = caller
             entry_row["resolution"] = evidence
+        sexual_reason = sexual_encounter_reason(entry_row, passage_bodies or {})
+        if sexual_reason is not None:
+            record = {
+                "key": row["key"],
+                "kind": row.get("kind"),
+                "token": row.get("token"),
+                "passage": row.get("passage"),
+                "macro": row.get("macro"),
+                "precursor": None,
+                "widget_host_passage": entry_row.get("widget_host_passage"),
+                "resolution": entry_row.get("resolution"),
+                "verdict": "not_applicable",
+                "detail": sexual_reason,
+                "entry_flag": None,
+                "entry_timed_out": None,
+                "combat": None,
+                "missing": [],
+                "sexual_scene": True,
+                "elapsed_ms": int((time.time() - t0) * 1000),
+            }
+            results.append(record)
+            if progress is not None:
+                progress(record, position, len(rows))
+            continue
         precursor = derive_precursor(
             entry_row,
             passage_bodies=passage_bodies or {},

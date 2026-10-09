@@ -15,6 +15,14 @@
 
 ### Fixed
 
+- **战斗轴 soft_fail 三类测试器根因修复（2026-10-09）**：动态回合上限改为
+  “当前上限 + 剩余血量所需回合 + 5”，不再把剩余血量误当成新总上限；无控件续进
+  会记录 HP/arousal 证据，只有连续 3 次有意义状态不变才停止，状态推进时可以继续
+  到终局；384 条同时具备 `$sexstart` / `consensual` / `<<actionsman>>` /
+  `_combatend` 的共识性场景改为源码证据明确的 `not_applicable`，静态台账新增
+  `sexual_encounter` shape。`Abduction`、`Adult Shop Clerk Angel Molestation`、
+  `Livestock Return Horse Rape` 等真实样本由 `soft_fail` 变为 `ok`；
+  `pytest` **734 passed**。
 - **战斗特殊血量终局误报（2026-10-09）**：`Brothel Show Machine` 的胜利终局由
   `$machineHealth` 驱动（20 → -1），旧测试器只检查 `$enemyhealth`，导致已结束的
   机器战被误报为“无敌人失败证据”。终局判定与动态回合上限现在识别
