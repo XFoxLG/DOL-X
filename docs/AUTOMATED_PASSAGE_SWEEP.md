@@ -936,7 +936,7 @@ run `37899995638`（head `a2e324f`）前 4 个 combat 分片完成后，共暴�
    记 `not_applicable`，静态台账新增 `sexual_encounter` shape，保留源码依据，不把它们
    算进战斗胜利矩阵。
 
-上述修复后 `pytest` **734 passed**。这些结论来自旧报告归因与本地定向复现，最终
+上述修复后 `pytest` **735 passed**。这些结论来自旧报告归因与本地定向复现，最终
 combat-full 仍必须在新 head 上完整重跑。
 
 ---
