@@ -101,6 +101,10 @@ DEFAULT_TURN_SETTLE_MS = 900
 # ``DEFAULT_TURN_SETTLE_MS``) is the normal per-round cost.
 TURN_WAIT_MS = 2000
 STALL_ROUNDS = 3
+# A combat scene may legitimately need a few continuation clicks before its
+# action controls appear.  Once that budget is exhausted the driver must stop
+# and classify the screen; following Next forever only burns the round cap.
+NO_ACTION_ADVANCE_LIMIT = 3
 
 VERDICTS = ("ok", "soft_fail", "hard_fail", "fixture_insufficient", "not_applicable")
 VERDICT_SEVERITY = {
@@ -2965,6 +2969,7 @@ def drive_combat(
         "path": path,
         "rounds": 0,
         "endure_rounds": 0,
+        "no_action_advances": 0,
         "actions": [],
         "digests": [],
         "hp_evidence": [],
@@ -2987,6 +2992,7 @@ def drive_combat(
         "extensions": [],
     }
     round_no = 0
+    consecutive_no_action_advances = 0
     while round_no < round_cap:
         if state.get("combat") != 1:
             break
@@ -2994,8 +3000,28 @@ def drive_combat(
         actions_probe = _actions(page)
         actions = actions_probe.get("actions") or []
         if not actions:
+            if consecutive_no_action_advances >= NO_ACTION_ADVANCE_LIMIT:
+                verdict, detail, missing = classify_no_actions(actions_probe, state)
+                detail = (
+                    f"{detail} after {NO_ACTION_ADVANCE_LIMIT} continuation "
+                    "advances without action controls"
+                )
+                result["offered_controls"] = offered_controls(actions)
+                result["verdict"] = verdict
+                result["detail"] = detail
+                result["errors"].append(
+                    {
+                        "round": round_no,
+                        "verdict": verdict,
+                        "detail": detail,
+                        "missing": missing,
+                    }
+                )
+                break
             advance = _advance_passage(page, timeout_ms=timeout_ms)
             if advance.get("ok"):
+                consecutive_no_action_advances += 1
+                result["no_action_advances"] = consecutive_no_action_advances
                 advance_state = advance.get("state") or _state(page)
                 state = advance_state
                 if state.get("combat") == 1:
@@ -3035,6 +3061,9 @@ def drive_combat(
                 {"round": round_no, "verdict": verdict, "detail": detail, "missing": missing}
             )
             break
+        else:
+            consecutive_no_action_advances = 0
+            result["no_action_advances"] = 0
 
         keyword: str | None = None
         if strict:
