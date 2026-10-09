@@ -9,6 +9,9 @@ say about it?**
 
 Each row gets a deterministic classification built only from the artifact text:
 
+* ``sexual_encounter`` - the passage is a consensual sex scene gated by
+  ``$sexstart``; it reuses the combat renderer but has no enemy-defeat
+  objective, so the combat axis records it as ``not_applicable``.
 * ``widget_definition`` - the macro call sits inside a ``<<widget "x">>`` body
   in a widget-library passage; it is not a clickable entry by itself.
 * ``entry`` - the passage itself carries a combat starter macro
@@ -92,6 +95,7 @@ def candidate_precursors(
 ENTRY_SHAPES = (
     "entry",
     "entry_via_link",
+    "sexual_encounter",
     "widget_definition",
     "helper_only",
     "unresolved",
@@ -203,11 +207,14 @@ def classify_row(
     basis = derived.get("basis")
     reason = derived.get("reason")
     kind_state = derivation_kind(basis, reason)
+    sexual_reason = cs.sexual_encounter_reason(row, passage_bodies)
     starters = list(row.get("combat_starters") or [])
     link_target = None
     if site != "widget" and not starters:
         link_target = cs.find_combat_link_target(dict(row), passage_bodies)
-    if site == "widget":
+    if sexual_reason is not None:
+        shape = "sexual_encounter"
+    elif site == "widget":
         shape = "widget_definition"
     elif starters:
         shape = "entry"
@@ -234,6 +241,7 @@ def classify_row(
         "call_site": site,
         "widget": widget_name,
         "entry_shape": shape,
+        "sexual_scene_reason": sexual_reason,
         "link_target": link_target,
         "derivation_kind": kind_state,
         "precursor_basis": basis,

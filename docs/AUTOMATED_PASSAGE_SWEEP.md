@@ -627,7 +627,8 @@ python tools/combat_ledger.py "workspace\prepare_package\zip\Degrees of Lewdity.
 
 | entry shape | 行数 | 含义 |
 | --- | --- | --- |
-| `entry` | 1300 | 该 passage 自己带 combat starter 宏 |
+| `entry` | 916 | 该 passage 自己带 combat starter 宏 |
+| `sexual_encounter` | 384 | `$sexstart` + `consensual` + `<<actionsman>>` + `_combatend` 的共识性场景；复用战斗渲染器但没有敌人失败目标 |
 | `entry_via_link` | 127 | 自己只生成，靠 passage 内链接进战斗 |
 | `widget_definition` | 73 | 宏调用落在 `<<widget>>` 定义体内（扫描口径内的"库函数"，不是入口） |
 | `helper_only` | 69 | 没有 starter / 链接；由别处调用的生成宏 |
@@ -917,6 +918,26 @@ run `37899995638`（head `a2e324f`）前 4 个 combat 分片完成后，共暴�
 回合里真正下降的血量字段；新增 4 条回归测试后 `pytest` **729 passed**。旧 run 的后
 4 个分片仍按原代码继续执行，其结论只用于保留原始报告；修复后的 combat-full 需要在
 新 head 上重跑。
+
+对旧 run 全 8 片的 `soft_fail` 复核又发现三个测试器问题，均有真实样本复现：
+
+1. **动态回合上限把“剩余血量所需回合”当成新总上限**。`Livestock Return Horse Rape`
+   在第 80 回合只剩 7.14 HP，旧公式因此判断“不需要扩展”并截断；正确语义是
+   `当前上限 + ceil(剩余血量 / 中位伤害) + 5`，硬顶 160。修复后同一样本在扩展上限内
+   到达 `enemyhealth=-5.71`，verdict `ok`。
+2. **无控件续进只数 3 次，不区分“状态在推进”与“只换 passage”**。`Abduction` 与
+   `Adult Shop Clerk Angel Molestation` 在只剩 Next 时，`enemyarousal` 每次续进都在
+   上升；旧驱动 3 次后停止。现在续进会记录 HP/arousal 证据，只有连续 3 次**有意义
+   状态**不变才停止，纯 passage 来回切换仍会被 bounded。两个真实样本修复后均以
+   arousal 达到上限结束，verdict `ok`。
+3. **384 条共识性场景被误当成胜利战斗**。这些 passage 同时具备
+   `$sexstart` / `consensual` / `<<actionsman>>` / `_combatend` 源码标记，复用战斗
+   渲染器但没有敌人失败目标；旧 run 中 349 条因此成为 `soft_fail`。现在运行时如实
+   记 `not_applicable`，静态台账新增 `sexual_encounter` shape，保留源码依据，不把它们
+   算进战斗胜利矩阵。
+
+上述修复后 `pytest` **734 passed**。这些结论来自旧报告归因与本地定向复现，最终
+combat-full 仍必须在新 head 上完整重跑。
 
 ---
 
