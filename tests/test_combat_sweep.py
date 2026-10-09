@@ -321,6 +321,15 @@ def test_pick_mode_entry_prefers_beast_combat_init() -> None:
     assert pick_mode_entry([]) is None
 
 
+def test_pick_mode_entry_prefers_the_stable_dog_park_key() -> None:
+    jobs = [
+        {"key": "beastCombatInit:creature:Moor Bird Rape", "kind": "beastCombatInit"},
+        {"key": "beastCombatInit:dog:Dog Park", "kind": "beastCombatInit"},
+    ]
+
+    assert pick_mode_entry(jobs)["key"] == "beastCombatInit:dog:Dog Park"
+
+
 def test_pick_mode_entry_prefers_beast_over_maninit() -> None:
     jobs = [
         {"key": "a", "kind": "maninit", "path": "win"},

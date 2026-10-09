@@ -27,6 +27,12 @@
   `exitWraith true` 只记录为路由证据，不当作战斗结束。报告新增上游
   source evidence 与 `terminal_landing` 字段；新增 7 条回归测试，
   `pytest` **742 passed**。
+- **控制模式检查不再受分片随机入口影响（2026-10-10）**：`combat_sweep`
+  的四种控制模式检查改为优先使用完整 initiator 清单中的稳定入口
+  `beastCombatInit:dog:Dog Park`，而不是每个分片的第一条 beast 战斗；
+  `Dog Park` 本地四种模式各 3 回合全部通过，shard 4 复现测试也不再落入
+  `Moor Bird Rape` 的 Lists/List(w) 兼容性缺口。新增 1 条回归测试后，
+  `pytest` **743 passed**。
 - **战斗轴 soft_fail 三类测试器根因修复（2026-10-09）**：动态回合上限改为
   “当前上限 + 剩余血量所需回合 + 5”，不再把剩余血量误当成新总上限；无控件续进
   会记录 HP/arousal 证据，只有连续 3 次有意义状态不变才停止，状态推进时可以继续
