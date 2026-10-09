@@ -314,9 +314,11 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
   游戏内年份是 361）→ 修检查；6 条 debug 作弊故意越界（`$awareness -= 200`、
   `Damage Chastity` 等）→ 改为"该行自己写入的越界值"备注；2 条上游 debug 菜单宏缺失
   （`<<parasiteProgressDay>>`）→ `soft_fail` 并标注 `upstream debug-menu defect`；
-- dayloop（修掉早期假通过之后）如实结果：`ok=3`（起床/洗漱/出门）、`not_applicable=6`、
-  fallback 0、stalled 0，存档往返 PASS；时间只推进 0.03h → 如实判 `soft_fail`
-  （"走一天"的水龙头还没接上，没有被伪装成通过）。
+- dayloop（2026-10-09 收口）：真实 UI 走完起床、洗漱、早餐、出门、上学、上课、
+  放学、回家、睡觉；`ok=9 / fallback=22 / stalled=2 / not_applicable=0`，
+  时间推进 **16.20h**、地点切换 70 次、存档往返 PASS、`hard_errors=0`。
+  两条 `stalled` 是脚本化 Tutorial 战斗中"动作已点但 passage/时钟未动"的记录，
+  后续导航仍真实完成 Tutorial，不把它们伪装成步骤完成。
 
 ### 8.4 战斗（2026-10-05）
 
