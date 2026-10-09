@@ -329,6 +329,12 @@ SUBMIT_PRESSES = 2
 HARD_ROUND_CEILING = 160
 ROUND_EXTENSION_MARGIN = 5
 ROUND_DAMAGE_WINDOW = 10
+DEFEAT_HEALTH_FIELDS: tuple[tuple[str, str], ...] = (
+    ("enemyhealth", "enemy health"),
+    ("machineHealth", "machine health"),
+    ("tentacleHealth", "tentacle health"),
+    ("swarmActive", "active swarm"),
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -2284,11 +2290,17 @@ def estimate_round_cap(
     The estimate uses the median of the observed per-round decreases inside the
     window so one lucky crit cannot inflate the budget.
     """
-    if not isinstance(current_health, (int, float)) or current_health <= 0:
+    if isinstance(current_health, Mapping):
+        health_field, health_label, current_value = defeat_health_from_evidence(
+            hp_evidence, current_health, window=window
+        )
+    else:
+        health_field, health_label, current_value = "enemyhealth", "enemy health", current_health
+    if not isinstance(current_value, (int, float)) or current_value <= 0:
         return None
     drops: list[float] = []
     for row in list(hp_evidence)[-window:]:
-        pair = row.get("enemyhealth")
+        pair = row.get(health_field)
         if not isinstance(pair, (list, tuple)) or len(pair) != 2:
             continue
         before, after = pair
@@ -2303,18 +2315,57 @@ def estimate_round_cap(
     damage = drops[mid] if len(drops) % 2 else (drops[mid - 1] + drops[mid]) / 2
     if damage <= 0:
         return None
-    needed = int(math.ceil(float(current_health) / damage)) + margin
+    needed = int(math.ceil(float(current_value) / damage)) + margin
     target = min(max(current_cap, needed), ceiling)
     if target <= current_cap:
         return None
     return (
         target,
         (
-            f"round cap extended {current_cap}->{target}: enemyhealth="
-            f"{current_health}, median damage/round={damage:g} over "
+            f"round cap extended {current_cap}->{target}: {health_label}="
+            f"{current_value}, median damage/round={damage:g} over "
             f"{len(drops)} decreasing rounds"
         ),
     )
+
+
+def active_defeat_health(state: Mapping[str, Any]) -> tuple[str, str, Any]:
+    """Pick the defeat-health field this encounter actually uses."""
+    for field, label in DEFEAT_HEALTH_FIELDS:
+        value = state.get(field)
+        if isinstance(value, (int, float)):
+            return field, label, value
+    return "enemyhealth", "enemy health", state.get("enemyhealth")
+
+
+def defeat_health_from_evidence(
+    hp_evidence: Sequence[Mapping[str, Any]],
+    state: Mapping[str, Any],
+    *,
+    window: int,
+) -> tuple[str, str, Any]:
+    """Pick the health field that recent rounds show is actually dropping.
+
+    Some encounters leave ``enemyhealth`` set to an unrelated value while the
+    real defeat meter is ``machineHealth`` or ``tentacleHealth``. The round-cap
+    estimate must follow the observed meter, not merely the first numeric field.
+    """
+    for field, label in DEFEAT_HEALTH_FIELDS:
+        for row in list(hp_evidence)[-window:]:
+            pair = row.get(field)
+            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                continue
+            before, after = pair
+            if (
+                isinstance(before, (int, float))
+                and isinstance(after, (int, float))
+                and after < before
+            ):
+                value = state.get(field)
+                if isinstance(value, (int, float)):
+                    return field, label, value
+                break
+    return active_defeat_health(state)
 
 
 def round_digest(state: dict[str, Any]) -> str:
@@ -2357,9 +2408,10 @@ ENDCOMBAT_MARKERS = ("<<endcombat>>", "&lt;&lt;endcombat&gt;&gt;")
 
 def _enemy_defeat_evidence(snapshot: Mapping[str, Any]) -> tuple[str, str] | None:
     """Return ``(outcome, detail)`` when a snapshot shows the enemy defeated."""
-    health = snapshot.get("enemyhealth")
-    if isinstance(health, (int, float)) and health <= 0:
-        return "win", f"enemy health reached {health}"
+    for field, label in DEFEAT_HEALTH_FIELDS:
+        health = snapshot.get(field)
+        if isinstance(health, (int, float)) and health <= 0:
+            return "win", f"{label} reached {health}"
     arousal = snapshot.get("enemyarousal")
     arousal_max = snapshot.get("enemyarousalmax")
     if (
@@ -3378,7 +3430,7 @@ def drive_combat(
             break
         if state.get("combat") == 1 and round_no >= round_cap:
             extended = estimate_round_cap(
-                result["hp_evidence"], state.get("enemyhealth"), current_cap=round_cap
+                result["hp_evidence"], state, current_cap=round_cap
             )
             if extended:
                 round_cap, reason = extended
