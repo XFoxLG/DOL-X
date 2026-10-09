@@ -44,6 +44,12 @@ def test_sweep_workflow_passes_identity_shard_args() -> None:
     assert "--expected-shards" in text
 
 
+def test_sweep_workflow_summary_excludes_daily_auxiliary_reports() -> None:
+    text = _workflow()
+    assert "! -path '*/daily-mod-inventory/*'" in text
+    assert "! -path '*/daily-mod-passages/*'" in text
+
+
 def test_sweep_workflow_never_uploads_raw_local_sweep_directory() -> None:
     text = _workflow()
     assert "path: .local/sweep" not in text
