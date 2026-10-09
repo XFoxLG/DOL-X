@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 
+import tools.scenario_sweep as scenario_sweep
 from tools.scenario_sweep import (
     DAYLOOP_CLICK,
     DAYLOOP_CLICK_STATUSES,
@@ -44,10 +45,18 @@ from tools.scenario_sweep import (
     dayloop_combat_choice,
     dayloop_click_status,
     dayloop_clock_moved,
+    dayloop_lesson_continuation_pick,
+    dayloop_lesson_subject,
     dayloop_match,
     dayloop_missing_step_record,
     dayloop_pick,
+    dayloop_route_target_pick,
     dayloop_scripted_pick,
+    dayloop_school_event_pick,
+    dayloop_home_route_pick,
+    dayloop_school_exit_pick,
+    dayloop_swimwear_self_status,
+    dayloop_swimming_continuation_pick,
     dayloop_time_advance,
     default_out_dir,
     diff_scenarios,
@@ -1050,6 +1059,775 @@ def test_dayloop_clock_moved_compares_each_clock_basis() -> None:
     assert dayloop_clock_moved(None, None) is False
 
 
+def test_dayloop_lesson_continuation_resolves_self_event_only_as_last_resort() -> None:
+    """Maths 课尾只剩自循环“继续”时，先解析事件，再回到正常课链。"""
+    exact = [
+        {"text": "(1) 继续", "visible": True, "data": "Maths Lesson Focus", "cls": ""},
+        {"text": "(2) 返回课程", "visible": True, "data": "Maths Lesson", "cls": ""},
+    ]
+    assert dayloop_lesson_continuation_pick(exact, "Maths Lesson Focus")[
+        "data_passage"
+    ] == "Maths Lesson"
+
+    cross_page_event = [
+        {"text": "(1) 继续", "visible": True, "data": "Maths Lesson Focus", "cls": ""},
+        {"text": "(2) 事件", "visible": True, "data": "Maths Event Blackboard", "cls": ""},
+    ]
+    assert dayloop_lesson_continuation_pick(
+        cross_page_event, "Maths Lesson Focus"
+    )["data_passage"] == "Maths Event Blackboard"
+
+    self_event = [
+        {"text": "(1) 继续", "visible": True, "data": "Maths Lesson Focus", "cls": ""}
+    ]
+    pick = dayloop_lesson_continuation_pick(self_event, "Maths Lesson Focus")
+    assert pick is not None
+    assert pick["data_passage"] == "Maths Lesson Focus"
+    assert pick["event_self"] is True
+
+    # 非课程页与不可见自循环都不归这个兜底管。
+    assert dayloop_lesson_continuation_pick(self_event, "Hallways") is None
+    assert dayloop_lesson_continuation_pick(
+        [{"text": "(1) 继续", "visible": False, "data": "Maths Lesson Focus"}],
+        "Maths Lesson Focus",
+    ) is None
+
+
+def test_dayloop_lesson_continuation_resolves_swimming_event_page() -> None:
+    """Swimming Lesson Focus 的 Events 页也要能回到正常课链。"""
+    harass_event = [
+        {
+            "text": "(1) 游离",
+            "visible": True,
+            "data": "Events Swimming Swim Away",
+            "cls": "",
+        },
+        {
+            "text": "(2) 忍受",
+            "visible": True,
+            "data": "Events Swimming Swim Endure",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_lesson_continuation_pick(
+            harass_event, "Swimming Lesson Focus"
+        )["data_passage"]
+        == "Events Swimming Swim Endure"
+    )
+    assert dayloop_lesson_subject("Events Swimming Swim Away") == "Swimming"
+
+    spare = [
+        {
+            "text": "(1) 换衣服",
+            "visible": True,
+            "data": "School Pool Crossdress",
+            "cls": "",
+        },
+        {
+            "text": "(2) 逃课 (0:05)",
+            "visible": True,
+            "data": "School Pool Refuse",
+            "cls": "",
+        },
+    ]
+    assert dayloop_lesson_continuation_pick(spare, "School Pool Spare") is None
+    assert (
+        dayloop_swimming_continuation_pick(spare, "School Pool Spare")[
+            "data_passage"
+        ]
+        == "School Pool Crossdress"
+    )
+
+    event_page = [
+        {
+            "text": "(1) 无视跟踪者",
+            "visible": True,
+            "data": "Events Swimming Stalk Ignore",
+            "cls": "",
+        },
+        {
+            "text": "(2) 对峙",
+            "visible": True,
+            "data": "Events Swimming Stalk Confront",
+            "cls": "",
+        }
+    ]
+    pick = dayloop_lesson_continuation_pick(event_page, "Swimming Lesson Focus")
+    assert pick is not None
+    assert pick["data_passage"] == "Events Swimming Stalk Confront"
+
+    unrelated_event = [
+        {
+            "text": "(1) 接受",
+            "visible": True,
+            "data": "Events Panty Accept",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_lesson_continuation_pick(
+            unrelated_event, "Swimming Lesson Focus"
+        )
+        is None
+    )
+
+
+def test_dayloop_route_target_pick_does_not_consume_self_event() -> None:
+    """route_targets 不能把当前页的自循环事件当成路线跳点。"""
+    links = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "School Front Courtyard",
+            "cls": "",
+        },
+        {
+            "text": "(2) 进入学校",
+            "visible": True,
+            "data": "Hallways",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_route_target_pick(
+            links, ("School Front Courtyard", "Hallways"), "School Front Courtyard"
+        )["data_passage"]
+        == "Hallways"
+    )
+    assert (
+        dayloop_route_target_pick(
+            links, ("School Front Courtyard",), "School Front Courtyard"
+        )
+        is None
+    )
+
+
+def test_dayloop_school_step_treats_oxford_street_as_a_waypoint() -> None:
+    """上学路上的牛津街自事件也要能被解析，不能把整天卡在街口。"""
+    step = next(step for step in DAYLOOP_STEPS if step.name == "上课")
+    assert "Oxford Street" in step.waypoints
+
+
+def test_dayloop_school_event_pick_returns_to_hallways() -> None:
+    """Hallways 事件页要能回到 Hallways，不能把上课卡死在事件里。"""
+    event_page = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "Hallways",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_school_event_pick(
+            event_page, "Hallways Locker Struggle Free Attempt"
+        )["data_passage"]
+        == "Hallways"
+    )
+
+    self_event = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "Hallways Locker Struggle Free Attempt",
+            "cls": "",
+        }
+    ]
+    pick = dayloop_school_event_pick(
+        self_event, "Hallways Locker Struggle Free Attempt"
+    )
+    assert pick is not None
+    assert pick["event_self"] is True
+    assert dayloop_school_event_pick(self_event, "Hallways") is None
+
+    unstructured_continue = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "",
+            "cls": "macro-link",
+        }
+    ]
+    text_pick = dayloop_school_event_pick(
+        unstructured_continue, "Hallways Locker Struggle Free Attempt"
+    )
+    assert text_pick is not None
+    assert text_pick["data_passage"] is None
+
+    catcall = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "Hallways Cupboard Sex",
+            "cls": "",
+        },
+        {
+            "text": "(2) 推开",
+            "visible": True,
+            "data": "Hallways Cupboard Refuse 2",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_school_event_pick(catcall, "Hallways Catcall Flirt")[
+            "data_passage"
+        ]
+        == "Hallways Cupboard Refuse 2"
+    )
+
+
+def test_dayloop_home_step_leaves_school_before_taking_the_bus() -> None:
+    """回家时如果还在学校里，先走学校出口，再上公交。"""
+    source = inspect.getsource(run_dayloop)
+    assert 'step.name not in ("上学", "上课")' in source
+    assert "current_passage in DAYLOOP_SCHOOL_EXIT_ROUTE" in source
+    assert 'step.name in ("回家", "睡觉")' in source
+    assert "current_passage in DAYLOOP_HOME_ROUTE" in source
+    assert 'pick.get("clothing_self")' in source
+    assert "clothing_attempted_passages" in source
+    assert '"exposed_before": exposed_before' in source
+    assert '"exposed_after": exposed_after' in source
+    assert '"worn_before": worn_before' in source
+    assert '"worn_after": worn_after' in source
+    assert 'outcome.get("worn_changed")' in source
+    assert "changing_room_gender=current.get" in source
+    assert "swimwear_attempted_passages" in source
+    assert "dayloop_swimwear_self_status" in source
+    assert "clothes_restored" in source
+
+
+def test_dayloop_swimming_continuation_follows_structured_pool_chain() -> None:
+    """第五节游泳课先换泳衣、进池、上课，不能停在更衣室。"""
+    changing_room = [
+        {"text": "(1) 穿上泳衣", "visible": True, "data": "School Girl Changing Room", "cls": ""},
+        {"text": "(2) 进入游泳馆", "visible": True, "data": "School Pool", "cls": ""},
+    ]
+    first = dayloop_swimming_continuation_pick(changing_room, "School Girl Changing Room")
+    assert first is not None
+    assert first["data_passage"] == "School Girl Changing Room"
+    assert first["swimwear_self"] is True
+    assert (
+        dayloop_swimming_continuation_pick(
+            changing_room,
+            "School Girl Changing Room",
+            swimwear_attempted=True,
+        )["data_passage"]
+        == "School Pool"
+    )
+
+    no_swimwear = [
+        {"text": "(1) 进入游泳馆", "visible": True, "data": "School Pool", "cls": ""}
+    ]
+    assert (
+        dayloop_swimming_continuation_pick(no_swimwear, "School Girl Changing Room")
+        is None
+    )
+
+    pool = [
+        {"text": "(1) 说你没有东西可换", "visible": True, "data": "School Pool Spare", "cls": ""},
+        {"text": "(2) 说你只有一件男孩的泳衣", "visible": True, "data": "School Pool Wrong", "cls": ""},
+    ]
+    assert dayloop_swimming_continuation_pick(pool, "School Pool")[
+        "data_passage"
+    ] == "School Pool Spare"
+
+    lesson = [
+        {"text": "(1) 专注课程", "visible": True, "data": "Swimming Lesson Focus", "cls": ""}
+    ]
+    assert dayloop_swimming_continuation_pick(lesson, "Swimming Lesson")[
+        "data_passage"
+    ] == "Swimming Lesson Focus"
+    assert dayloop_swimming_continuation_pick(lesson, "Hallways") is None
+
+
+def test_dayloop_swimwear_self_status_requires_the_real_school_swimsuit() -> None:
+    """换泳衣是原地动作：判定依据是穿着槽位，不是 passage 或时钟。"""
+    pick = {"matched": "(3) 穿上泳衣"}
+    changed = dayloop_swimwear_self_status(
+        pick,
+        {
+            "worn_before": {
+                "upper": "school shirt",
+                "lower": "school skirt",
+                "under_upper": "naked",
+                "under_lower": "plain panties",
+            },
+            "worn_after": {
+                "upper": "naked",
+                "lower": "naked",
+                "under_upper": "school swimsuit",
+                "under_lower": "school swimsuit bottom",
+            },
+            "worn_changed": True,
+        },
+    )
+    assert changed[0] == "fallback"
+    assert "changed into school swimwear" in changed[1]
+
+    unchanged = dayloop_swimwear_self_status(
+        pick,
+        {
+            "worn_before": {"under_upper": "naked"},
+            "worn_after": {"under_upper": "naked"},
+            "worn_changed": False,
+        },
+    )
+    assert unchanged[0] == "stalled"
+    assert "did not equip" in unchanged[1]
+
+
+def test_dayloop_swimming_never_selects_pool_refuse() -> None:
+    """逃课链接不是游泳课的安全续接，哪怕它是唯一选项。"""
+    links = [
+        {
+            "text": "(1) 逃课 (0:05)",
+            "visible": True,
+            "data": "School Pool Refuse",
+            "cls": "",
+        }
+    ]
+    assert dayloop_swimming_continuation_pick(links, "School Pool Spare") is None
+    assert dayloop_school_event_pick(links, "School Pool Spare") is None
+
+
+def test_dayloop_school_exit_leaves_pool_instead_of_reentering_it() -> None:
+    """放学从更衣室走 Leave 到入口，再回 Hallways，不能点回泳池。"""
+    restore_clothes = [
+        {"text": "(4) 穿上便服", "visible": True, "data": "School Boy Changing Room", "cls": ""},
+        {"text": "(2) 离开", "visible": True, "data": "School Pool Entrance", "cls": ""},
+    ]
+    restored = dayloop_school_exit_pick(
+        restore_clothes, "School Boy Changing Room"
+    )
+    assert restored is not None
+    assert restored["data_passage"] == "School Boy Changing Room"
+    assert restored["clothing_self"] is True
+    assert (
+        dayloop_school_exit_pick(
+            restore_clothes,
+            "School Boy Changing Room",
+            clothing_attempted=True,
+        )["data_passage"]
+        == "School Pool Entrance"
+    )
+
+    both_changing_rooms = [
+        {
+            "text": "(1) 男更衣室",
+            "visible": True,
+            "data": "School Boy Changing Room",
+            "cls": "",
+        },
+        {
+            "text": "(2) 女更衣室",
+            "visible": True,
+            "data": "School Girl Changing Room",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            both_changing_rooms,
+            "Swimming Lesson Focus",
+            changing_room_gender="girls",
+        )["data_passage"]
+        == "School Girl Changing Room"
+    )
+    assert (
+        dayloop_school_exit_pick(
+            both_changing_rooms,
+            "School Pool Entrance",
+            exposed=1,
+            changing_room_gender="girls",
+        )["data_passage"]
+        == "School Girl Changing Room"
+    )
+
+    uniform = {
+        "upper": "school shirt",
+        "lower": "school skirt",
+        "under_upper": "naked",
+        "under_lower": "plain panties",
+    }
+    assert (
+        dayloop_school_exit_pick(
+            restore_clothes,
+            "School Boy Changing Room",
+            worn=uniform,
+        )["data_passage"]
+        == "School Pool Entrance"
+    )
+
+    swimwear_worn = {
+        "upper": "naked",
+        "lower": "naked",
+        "under_upper": "school swimsuit",
+        "under_lower": "school swimsuit bottom",
+    }
+    changed = dayloop_school_exit_pick(
+        restore_clothes,
+        "School Boy Changing Room",
+        worn=swimwear_worn,
+    )
+    assert changed is not None
+    assert changed["data_passage"] == "School Boy Changing Room"
+    assert changed["clothing_self"] is True
+
+    both_normal_sets = [
+        {
+            "text": "(5) 穿上便服",
+            "visible": True,
+            "data": "School Girl Changing Room",
+            "cls": "",
+        },
+        {
+            "text": "(6) 穿上校服",
+            "visible": True,
+            "data": "School Girl Changing Room",
+            "cls": "",
+        },
+    ]
+    school_set = dayloop_school_exit_pick(
+        both_normal_sets,
+        "School Girl Changing Room",
+        worn=swimwear_worn,
+    )
+    assert school_set is not None
+    assert school_set["text"] == "(6) 穿上校服"
+    assert school_set["clothing_self"] is True
+
+    swimwear = [
+        {"text": "(3) 穿上泳衣", "visible": True, "data": "School Boy Changing Room", "cls": ""}
+    ]
+    assert dayloop_school_exit_pick(swimwear, "School Boy Changing Room") is None
+
+    changing_room = [
+        {"text": "(1) 进入游泳馆", "visible": True, "data": "School Pool", "cls": ""},
+        {"text": "(2) 离开", "visible": True, "data": "School Pool Entrance", "cls": ""},
+    ]
+    assert dayloop_school_exit_pick(
+        changing_room, "School Boy Changing Room"
+    )["data_passage"] == "School Pool Entrance"
+
+    entrance = [
+        {"text": "(1) 男更衣室", "visible": True, "data": "School Boy Changing Room", "cls": ""},
+        {"text": "(5) 离开 (0:01)", "visible": True, "data": "Hallways", "cls": ""},
+    ]
+    assert dayloop_school_exit_pick(entrance, "School Pool Entrance")[
+        "data_passage"
+    ] == "Hallways"
+
+    # Verified in the 0.5.11.9 HTML: an exposed Hallways page hides the front
+    # courtyard and only offers the rear courtyard. The real exit chain is
+    # Rear -> Front -> Oxford, not Rear -> Hallways -> Front.
+    exposed_hallways = [
+        {
+            "text": "(1) 偷偷溜到后操场 (0:05)",
+            "visible": True,
+            "data": "School Rear Courtyard",
+            "cls": "",
+        }
+    ]
+    assert dayloop_school_exit_pick(
+        exposed_hallways, "Hallways"
+    )["data_passage"] == "School Rear Courtyard"
+
+    rear = [
+        {
+            "text": "(1) 前操场 (0:02)",
+            "visible": True,
+            "data": "School Front Courtyard",
+            "cls": "",
+        },
+        {
+            "text": "(2) 进入学校 (0:01)",
+            "visible": True,
+            "data": "Hallways",
+            "cls": "",
+        },
+    ]
+    assert dayloop_school_exit_pick(rear, "School Rear Courtyard")[
+        "data_passage"
+    ] == "School Front Courtyard"
+
+    front = [
+        {
+            "text": "(1) 溜到学校后面 (0:05)",
+            "visible": True,
+            "data": "School Rear Courtyard",
+            "cls": "",
+        },
+        {
+            "text": "(2) 离开学校 (0:01)",
+            "visible": True,
+            "data": "Oxford Street",
+            "cls": "",
+        }
+    ]
+    assert dayloop_school_exit_pick(front, "School Front Courtyard")[
+        "data_passage"
+    ] == "Oxford Street"
+
+    exhibitionism = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "School Pool Entrance",
+            "cls": "",
+        }
+    ]
+    assert dayloop_school_exit_pick(
+        exhibitionism, "School Pool Entrance Exhibitionism"
+    )["data_passage"] == "School Pool Entrance"
+
+    rear_event = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "School Rear Courtyard",
+            "cls": "",
+        }
+    ]
+    event_pick = dayloop_school_exit_pick(rear_event, "School Rear Courtyard")
+    assert event_pick is not None
+    assert event_pick["data_passage"] == "School Rear Courtyard"
+    assert event_pick["event_self"] is True
+    assert dayloop_school_exit_pick(entrance, "Domus Street") is None
+
+    exposed_hallways_links = [
+        {
+            "text": "(1) 偷偷溜到泳池",
+            "visible": True,
+            "data": "School Pool Entrance",
+            "cls": "",
+        },
+        {
+            "text": "(2) 偷偷溜到后操场",
+            "visible": True,
+            "data": "School Rear Courtyard",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            exposed_hallways_links, "Hallways", exposed=1
+        )["data_passage"]
+        == "School Pool Entrance"
+    )
+
+    exposed_rear_links = [
+        {
+            "text": "(1) 偷偷溜进学校",
+            "visible": True,
+            "data": "Hallways",
+            "cls": "",
+        },
+        {
+            "text": "(2) 偷偷溜到学校前院",
+            "visible": True,
+            "data": "School Front Courtyard",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            exposed_rear_links, "School Rear Courtyard", exposed=1
+        )["data_passage"]
+        == "Hallways"
+    )
+
+    exposed_pool_links = [
+        {
+            "text": "(1) 男更衣室",
+            "visible": True,
+            "data": "School Boy Changing Room",
+            "cls": "",
+        },
+        {
+            "text": "(5) 离开",
+            "visible": True,
+            "data": "Hallways",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            exposed_pool_links, "School Pool Entrance", exposed=1
+        )["data_passage"]
+        == "School Boy Changing Room"
+    )
+
+    exposed_front_links = [
+        {
+            "text": "(1) 偷偷溜到后操场",
+            "visible": True,
+            "data": "School Rear Courtyard",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            exposed_front_links, "School Front Courtyard", exposed=1
+        )["data_passage"]
+        == "School Rear Courtyard"
+    )
+
+    exposed_changing_room = [
+        {
+            "text": "(1) 试图逃跑",
+            "visible": True,
+            "data": "School Changing Room Escape",
+            "cls": "",
+        },
+        {
+            "text": "(2) 离开",
+            "visible": True,
+            "data": "School Pool Entrance",
+            "cls": "",
+        },
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            exposed_changing_room, "School Boy Changing Room", exposed=1
+        )["data_passage"]
+        == "School Changing Room Escape"
+    )
+
+    caught_changing_room = [
+        {
+            "text": "(1) 试图逃跑",
+            "visible": True,
+            "data": "School Changing Room Escape",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            caught_changing_room, "School Boy Changing Room"
+        )["data_passage"]
+        == "School Changing Room Escape"
+    )
+
+    escape = [
+        {
+            "text": "(1) 脱衣",
+            "visible": True,
+            "data": "School Changing Room Strip",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_school_exit_pick(escape, "School Changing Room Escape")[
+            "data_passage"
+        ]
+        == "School Changing Room Strip"
+    )
+
+    strip = [
+        {
+            "text": "(2) 拒绝",
+            "visible": True,
+            "data": "School Changing Room Naked Refuse",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_school_exit_pick(strip, "School Changing Room Strip")[
+            "data_passage"
+        ]
+        == "School Changing Room Naked Refuse"
+    )
+
+    naked_refuse = [
+        {
+            "text": "(1) 继续",
+            "visible": True,
+            "data": "Oxford Street",
+            "cls": "",
+        }
+    ]
+    assert (
+        dayloop_school_exit_pick(
+            naked_refuse, "School Changing Room Naked Refuse"
+        )["data_passage"]
+        == "Oxford Street"
+    )
+
+
+def test_dayloop_home_route_takes_the_real_bus_chain_home() -> None:
+    """放学后从牛津街坐公交回宅邸街，再进孤儿院和卧室。"""
+    oxford = [
+        {
+            "text": "(1) 学校 (0:02)",
+            "visible": True,
+            "data": "School Front Courtyard",
+            "cls": "",
+        },
+        {
+            "text": "(5) 等待公交车 (0:02)",
+            "visible": True,
+            "data": "Bus",
+            "cls": "",
+        },
+    ]
+    assert dayloop_home_route_pick(oxford, "Oxford Street")[
+        "data_passage"
+    ] == "Bus"
+
+    bus = [
+        {
+            "text": "(1) 购买到宅邸街的车票",
+            "visible": True,
+            "data": "Bus seat",
+            "cls": "",
+        },
+        {
+            "text": "(2) 购买到牛津街的车票",
+            "visible": True,
+            "data": "Bus seat",
+            "cls": "",
+        },
+    ]
+    assert dayloop_home_route_pick(bus, "Bus")["text"].startswith("(1)")
+
+    bus_seat = [
+        {
+            "text": "(1) 宅邸街",
+            "visible": True,
+            "data": "Domus Street",
+            "cls": "",
+        }
+    ]
+    assert dayloop_home_route_pick(bus_seat, "Bus seat")[
+        "data_passage"
+    ] == "Domus Street"
+
+    domus = [
+        {
+            "text": "(1) 回家 (0:01)",
+            "visible": True,
+            "data": "Orphanage",
+            "cls": "",
+        }
+    ]
+    assert dayloop_home_route_pick(domus, "Domus Street")[
+        "data_passage"
+    ] == "Orphanage"
+
+    orphanage = [
+        {
+            "text": "(1) 卧室",
+            "visible": True,
+            "data": "Bedroom",
+            "cls": "",
+        }
+    ]
+    assert dayloop_home_route_pick(orphanage, "Orphanage")[
+        "data_passage"
+    ] == "Bedroom"
+
+
 class _DayloopFakePage:
     """run_dayloop 的无浏览器替身：按 graph 前进 passage 与时钟。"""
 
@@ -1124,6 +1902,134 @@ class _DayloopFakePage:
 
     def wait_for_timeout(self, milliseconds: int) -> None:
         return None
+
+
+class _DayloopSwimwearFakePage:
+    """复现 effect 阶段的原地换泳衣：passage/时钟不动，但穿着槽位变化。"""
+
+    def __init__(self) -> None:
+        self.passage = "School Girl Changing Room"
+        self.seconds_since_midnight = 14 * 3600
+        self.click_count = 0
+
+    def _worn(self) -> dict[str, str]:
+        if self.click_count:
+            return {
+                "upper": "naked",
+                "lower": "naked",
+                "under_upper": "school swimsuit",
+                "under_lower": "school swimsuit bottom",
+            }
+        return {
+            "upper": "school shirt",
+            "lower": "school skirt",
+            "under_upper": "naked",
+            "under_lower": "plain panties",
+        }
+
+    def _links(self) -> list[dict[str, Any]]:
+        if self.click_count == 0:
+            return [
+                {
+                    "text": "(3) 穿上泳衣",
+                    "visible": True,
+                    "data": "School Girl Changing Room",
+                    "cls": "",
+                }
+            ]
+        if self.click_count == 1:
+            return [
+                {
+                    "text": "(1) 进入游泳馆",
+                    "visible": True,
+                    "data": "School Pool",
+                    "cls": "",
+                }
+            ]
+        if self.click_count:
+            return []
+
+    def evaluate(self, script: Any, payload: Any = None) -> Any:
+        if script is DAYLOOP_PROBE:
+            return {
+                "passage": self.passage,
+                "combat": 0,
+                "time": {
+                    "dayOfYear": 10,
+                    "secondsSinceMidnight": self.seconds_since_midnight,
+                    "schoolDay": True,
+                },
+                "links": self._links(),
+                "node": "#passage-content",
+                "errors": [],
+                "exposed": 0,
+                "worn": self._worn(),
+            }
+        if script is DAYLOOP_PREP:
+            time = {
+                "dayOfYear": 10,
+                "secondsSinceMidnight": self.seconds_since_midnight,
+                "schoolDay": True,
+            }
+            return {
+                "ok": True,
+                "via": "fake prep",
+                "before": time,
+                "after": time,
+                "errors": [],
+            }
+        if script is DAYLOOP_CLICK:
+            if payload.get("index") != 0:
+                return {"ok": False, "error": "bad index"}
+            if self.click_count == 0:
+                self.click_count = 1
+            else:
+                self.passage = "School Pool"
+                self.click_count = 2
+            return {
+                "ok": True,
+                "text": "(3) 穿上泳衣" if self.click_count == 1 else "(1) 进入游泳馆",
+                "passage_before": self.passage,
+                "error": None,
+            }
+        raise AssertionError("unexpected dayloop script")
+
+    def wait_for_function(self, expression: str, timeout: int | None = None) -> bool:
+        return True
+
+    def wait_for_timeout(self, milliseconds: int) -> None:
+        return None
+
+
+def test_dayloop_effect_phase_accepts_real_swimwear_change_without_clock_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """上课 effect 阶段不能把已成功的换泳衣误判成 stalled。"""
+    step = scenario_sweep.DayloopStep(
+        "上课",
+        ("上课",),
+        target_passages=("School Girl Changing Room",),
+        # The real lesson effect keywords do not match the swimwear link;
+        # the structured swimming continuation must select and mark it.
+        action_keywords=("专注",),
+        # Keep this below the click's zero-minute delta so the earlier
+        # "landed target but partial effect" branch cannot consume the click.
+        min_minutes=0,
+        completion="effect",
+    )
+    monkeypatch.setattr(scenario_sweep, "DAYLOOP_STEPS", (step,))
+    page = _DayloopSwimwearFakePage()
+
+    report = run_dayloop(page, max_clicks_per_step=2, timeout_ms=50, settle_ms=0)
+
+    record = report["records"][0]
+    assert record["phase"] == "effect"
+    assert record["status"] == "fallback"
+    assert record["worn_changed"] is True
+    assert "changed into school swimwear" in record["detail"]
+    pool_record = report["records"][1]
+    assert pool_record["data_passage"] == "School Pool"
+    assert report["stalled_clicks"] == 0
 
 
 def test_dayloop_self_looping_continue_is_never_ok() -> None:
@@ -1352,7 +2258,29 @@ def test_dayloop_combat_choice_prefers_escape_over_attack() -> None:
         {"id": "r-scream", "label": "尖叫 |"},
     ]
 
-    assert dayloop_combat_choice(options)["id"] == "r-scream"
+    # The scripted Tutorial is the only encounter rescued by screaming.
+    assert dayloop_combat_choice(options, tutorial=True)["id"] == "r-scream"
+    # Random encounters must make progress; screaming at the rear-courtyard dog
+    # leaves combat live for the whole round budget.
+    assert dayloop_combat_choice(options)["id"] == "r-attack"
+    # Man-combat encounters expose struggle/defiant actions before screaming.
+    struggle_options = [
+        {"id": "r-struggle", "label": "挣扎 |"},
+        {"id": "r-scream", "label": "尖叫 |"},
+    ]
+    assert dayloop_combat_choice(struggle_options)["id"] == "r-struggle"
+    hit_options = [
+        {"id": "r-hit", "label": "击打 |"},
+        {"id": "r-scream", "label": "尖叫 |"},
+    ]
+    assert dayloop_combat_choice(hit_options)["id"] == "r-hit"
+    # Re-clicking the pre-checked default radio is a DOM no-op, so prefer an
+    # unchecked control even when it appears later in the DOM.
+    checked_first = [
+        {"id": "r-attack-checked", "label": "攻击 |", "checked": True},
+        {"id": "r-attack", "label": "攻击 |", "checked": False},
+    ]
+    assert dayloop_combat_choice(checked_first)["id"] == "r-attack"
     assert dayloop_combat_choice([{"id": "r1", "label": "Attack"}] )["id"] == "r1"
     assert dayloop_combat_choice([{"id": "", "label": "尖叫"}]) is None
     assert dayloop_combat_choice([]) is None
@@ -1379,6 +2307,29 @@ def test_dayloop_prep_uses_the_string_combat_control_mode() -> None:
     """``$options.combatControls`` 是控制类型字符串，写成数字会让动作列表整页报错。"""
     assert 'V.options.combatControls = "radio"' in DAYLOOP_PREP
     assert "combatControls = 0" not in DAYLOOP_PREP
+
+
+def test_dayloop_prep_uses_next_school_term_getter_not_bare_function() -> None:
+    """``getNextSchoolTermStartDate(date)`` 需要参数；无参调用会落到 year 1。"""
+    assert "T.nextSchoolTermStartDate" in DAYLOOP_PREP
+    assert "T.getNextSchoolTermStartDate()" not in DAYLOOP_PREP
+
+
+def test_dayloop_prep_owns_school_swimwear_and_clears_stale_outfit_choice() -> None:
+    """合成夹具要有真实泳装物品；旧的 outfit 索引不能带进换衣流程。"""
+    assert 'ensureSchoolWardrobeItem("under_upper", "school swimsuit")' in DAYLOOP_PREP
+    assert 'ensureSchoolWardrobeItem("under_lower", "school swimsuit bottom")' in DAYLOOP_PREP
+    assert "ensureWardrobeItem(V.wardrobes?.schoolGirls" in DAYLOOP_PREP
+    assert "ensureWardrobeItem(V.wardrobes?.schoolBoys" in DAYLOOP_PREP
+    assert 'V.wear_outfit = "none"' in DAYLOOP_PREP
+    assert "outfit.some((item) => item?.type?.includes?.(\"swim\")" in DAYLOOP_PREP
+
+
+def test_dayloop_prep_seeds_safe_danger_on_every_passage_start() -> None:
+    """Hallways 会在渲染末尾重置 eventskip；安全危险值必须挂在 passage start。"""
+    assert '":passagestart"' in DAYLOOP_PREP
+    assert "S.suppressDayloopDanger = true" in DAYLOOP_PREP
+    assert "SC.State.temporary.danger = 1" in DAYLOOP_PREP
 
 
 def test_dayloop_driver_never_pre_sets_debug_before_prep() -> None:

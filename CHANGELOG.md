@@ -15,6 +15,17 @@
 
 ### Fixed
 
+- **dayloop 真实一日流程收口（2026-10-09）**：`scenario_sweep` 的上课 effect 阶段
+  此前只按 passage/时钟判定进度，把已经真实换上学校泳衣的原地动作误判为
+  `stalled`；且换装成功后没有记入 `swimwear_attempted`，导致下一跳无法进入泳池。
+  修复：换泳衣按 `worn` 槽位变化判定（必须出现 `school swimsuit` +
+  `school swimsuit bottom`），effect 阶段复用同一判定并记录已尝试；放学恢复衣服时
+  优先选择"校服"而不是列表更靠前的"便服"，合成夹具同时把校服/泳装放进
+  schoolGirls / schoolBoys 两个位置衣柜。实测同一 1004 产物：
+  dayloop `ok`，9 个步骤全部完成，时间推进 **16.20h**、地点切换 70 次、
+  存档往返 PASS、`hard_errors=0`；完整剧情轴复跑 331 行保持
+  `ok=319 / soft_fail=2 / hard_fail=0 / fixture_insufficient=9 / not_applicable=1`，
+  无新增回归。`pytest` **716 passed**。
 - **CI 冷启动 Maplebirch 欢迎框死循环（2026-10-07 同日第六轮）**：daily / combat-full /
   full 三个云端 run 全部红在 `bootstrap did not reach gameplay; last passage='Start'
   after 1245-1252 steps (deadline_hit=True)`，action trail 全是
