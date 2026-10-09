@@ -15,6 +15,20 @@
 
 ### Fixed
 
+- **combat-full 前 4 片 26 条 hard_fail 归因与修复（2026-10-09）**：run
+  `37899995638`（head `a2e324f`）前 4 个分片暴露 26 条 hard_fail，分三类：
+  15 条 Finish/出口缺父事件状态、6 条 `personselect` 读未初始化 NPC 槽、
+  5 条把 widget 库 / SugarCube chrome 当成可玩入口。修复全部在测试器侧：
+  `person_reference_max` 支持 `<<personselect random(0, N)>>` 并沿
+  Finish → widget 闭包推导槽位；新增 11 条只补真实出口/分支状态的
+  status-bootstrap；`resolve_widget_entry` 拒绝 widget 库与 chrome caller；
+  `derive_precursor` 对自带 combat starter 的行允许状态引导；Brothel Show
+  按游戏源码初始化完整 `$brothelshowdata`。最终对 26 条原 hard_fail 全量
+  定向复跑：`ok=15 / not_applicable=10 / hard_fail=1 / soft_fail=0 /
+  fixture_insufficient=0`。唯一剩余 hard_fail 是
+  `Estate Manor Approach Fight`：源码出口链接指向当前产物不存在的
+  `Estate Manor Intro Entrance`，保留为上游断链证据，不造假出口。
+  `pytest` **725 passed**。
 - **战斗轴无动作场景空转（2026-10-09）**：daily 报告里的
   `named-bailey:win` 证明测试器仍会在“只有 Next、没有战斗控件”的
   场景里连续点 80 次 continuation，并把 passage 来回切换误当成有效回合。
