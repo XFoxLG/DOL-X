@@ -1,6 +1,6 @@
 # DOL-X 文档索引
 
-**最后更新**: 2026-10-04
+**最后更新**: 2026-10-13
 
 ---
 
@@ -29,6 +29,14 @@
 - [DOCUMENTATION_GUIDE](DOCUMENTATION_GUIDE.md) - CHANGELOG、Release 正文与状态文档写作规范
 - [TESTING_GUIDE](TESTING_GUIDE.md) - 当前测试流程与验证边界
 - [AUTOMATED_PASSAGE_SWEEP](AUTOMATED_PASSAGE_SWEEP.md) - Engine A 自动化测试套件总说明：全 passage 扫描 + 剧情场景/日循环 + 战斗 + 环境矩阵 + 夹具阶梯与存档安全 + 云端分片工作流
+- [AUTOMATED_GAMEPLAY_EXPLORER](AUTOMATED_GAMEPLAY_EXPLORER.md) - 自然轨道自动玩家、语义动作轨迹、状态指纹、checkpoint 归因、失败重放缩减、Android semantic replay 的边界
+- [Exploration Gate](../tools/exploration_gate.py) - 跨报告 target identity、coverage、failure attribution 与 release-ready 判定
+- [Framework Contract Check](../tools/framework_contract_check.py) + [矩阵](../config/framework-contract-matrix.toml) - 按内容（package.json + 签名 + needle）而不是 tag 名认 maplebirch 版本
+- [Static Reachability Solver](../tools/static_reachability_solver.py) - clingo bounded playtrace 的静态可达性见证；无见证时 fail-closed 区分 `unknown_dynamic_edges` / `unreachable_within_bound`
+- [Story Graph Audit](../tools/story_graph_audit.py) + [白名单](../config/accepted-upstream-graph-defects.toml) - 死胡同/自环/未定义目标/零入边 passage 的图完整性审计，白名单每条引用 tag `0.5.11.9` 行号
+- [Traversal Statistics](../tools/traversal_statistics.py) - 按 evidence track 分开统计访问率、边覆盖与唯一状态数
+- [Query Regression](../tools/query_regression.py) + [查询集](../config/exploration-queries.toml) - 发布查询回归集（含 AU 契约、A/B verdict 钉子、符号化可达性与 story graph 回归）
+- [外部测试方法基准](research/2026-10-13-external-testing-benchmarks.md) - CoT / DoL Plus evidence / i18nMod test / Lyra CI 等外部调研来源与负结论
 - [COMMUNITY_TOOLS](COMMUNITY_TOOLS.md) - 社区工具评估
 - [AU_MODS_INTEGRATION](AU_MODS_INTEGRATION.md) - AU Mod 集成说明
 - [MODLOADER_TROUBLESHOOTING](MODLOADER_TROUBLESHOOTING.md) - ModLoader 排障
