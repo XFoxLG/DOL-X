@@ -1,0 +1,289 @@
+# Accepted upstream story-graph defects for the 0.5.11.9 stable line.
+#
+# The auditor matches entries by ``category`` plus ``passage`` or ``target``.
+# Every entry must carry a re-checkable ``reason`` and at least one
+# ``evidence`` reference; entries without evidence are rejected.  Anything
+# referenced by the index but not listed here stays ``unclassified`` and
+# blocks the release exploration gate.
+
+schema = "dolx.accepted-graph-defects.v1"
+
+[[accepted]]
+category = "undefined_target"
+target = "Estate Manor Intro Entrance"
+reason = "Vanilla 0.5.11.9 base.zip shows the same reference/definition asymmetry: the two victory branches of Estate Manor Approach Finish link to a passage that does not exist upstream."
+evidence = [
+  "docs/CURRENT_PROJECT_STATE.md:409",
+  "docs/AUTOMATED_GAMEPLAY_EXPLORER.md:127",
+  "docs/AUTOMATED_PASSAGE_SWEEP.md:909",
+  "upstream tag 0.5.11.9 game/overworld-plains/loc-estate/manor.twee:64 and :74 emit [[Next|Estate Manor Intro Entrance]] from \"Estate Manor Approach Finish\" (:54); the file defines only Estate Manor / Approach / Approach Fight / Approach Finish / Approach Convince / Approach Scale, so the target has no definition",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Estate Manor Approach Defeat"
+reason = "Vanilla 0.5.11.9 base.zip shows the same reference/definition asymmetry: the defeat branch of Estate Manor Approach Finish links to a passage that does not exist upstream."
+evidence = [
+  "docs/CURRENT_PROJECT_STATE.md:409",
+  "docs/AUTOMATED_GAMEPLAY_EXPLORER.md:127",
+  "upstream tag 0.5.11.9 game/overworld-plains/loc-estate/manor.twee:81 emits [[Next|Estate Manor Approach Defeat]] from \"Estate Manor Approach Finish\" (:54); no passage of that name is defined in the pinned source",
+]
+upstream = true
+
+[[accepted]]
+category = "dead_end"
+passage = "Estate Manor Approach Finish"
+reason = "Dead end caused by the accepted upstream dangling references above; the passage itself is the failing landing recorded in the 0.5.11.9 sweep."
+evidence = [
+  "docs/CURRENT_PROJECT_STATE.md:409",
+  "docs/AUTOMATED_PASSAGE_SWEEP.md:909",
+  "upstream tag 0.5.11.9 game/overworld-plains/loc-estate/manor.twee:54-84: the passage's 3 exits all point at the two undefined names above, so it is the same dead end upstream",
+]
+upstream = true
+
+# ---------------------------------------------------------------------------
+# 2026-10-13 triage of the v0.5.11.9-1.0.0a-0915 artifact (source index rebuilt
+# from that build's Degrees of Lewdity.html, 15,628 passages).
+#
+# Method per entry: the reference rows below come from the rebuilt source index
+# (``owner = None`` means vanilla content, not contributed by an embedded mod),
+# the target is absent from the build's passage set, and the listed artifact
+# line is the exact reference site.  Where a passage body is the evidence
+# (dead ends), the body was inspected in ``story_graph_audit --html`` full mode.
+# Upstream cross-checks: gitgud.io/Vrelnir/degrees-of-lewdity carries the exact
+# tag ``0.5.11.9`` (58 tags total); files were fetched by path at that ref
+# (GitLab blob search requires auth).  Every entry now cites an ``upstream tag``
+# line naming the file and line at that ref.  The 2026-10-14 pass re-fetched
+# appointments.twee, passout-scenes.twee, loc-shop/main.twee,
+# testing-encounters-ui.twee, loc-cave/pub.twee, loc-livestock/barn.twee and
+# loc-estate/manor.twee at the tag and read back every cited line verbatim, so
+# no entry depends on the built artifact alone any more.
+# ---------------------------------------------------------------------------
+
+[[accepted]]
+category = "dead_end"
+passage = "Doctor Harper's Office Dog Strip Licking"
+reason = "Vanilla content dead end: the passage body has no <<link>>/<<goto>>/JS exit and calls no navigation widget, so the scene stops after \"…is ready for <<bhis>> turn.\"."
+evidence = [
+  "DOLL-0915 html:580245 and html:580311 -> \"Doctor Harper's Office Dog Strip Licking\" from \"Doctor Harper's Office Dog Strip\"",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-hospital/appointments.twee:650,692 defines the same passage and terminal body",
+  "story_graph_audit full mode: body len 1381, zero exit macros, zero navigation widget calls",
+]
+upstream = true
+
+[[accepted]]
+category = "dead_end"
+passage = "Maze Slime Escape"
+reason = "Dead end caused by the upstream dangling reference \"Maze Final\" (see the undefined_target entry): the only outgoing link points at a passage that does not exist."
+evidence = [
+  "DOLL-0915 html:500726 [[Next|Maze Final]] from \"Maze Slime Escape\"",
+  "upstream tag 0.5.11.9 game/overworld-plains/loc-maze/main.twee:1076 and loc-maze/widgets.twee:12,19 define/use Maze Slime Escape",
+  "story_graph_audit: class=dangling_exit, dangling_target_hints empty (no near match)",
+]
+upstream = true
+
+[[accepted]]
+category = "dead_end"
+passage = "Molestation Shop Alarm"
+reason = "Vanilla placeholder passage: the body is still the Twine editor default \"Double-click this passage to edit it.\" while \"Molestation Shop\" links to it, so the player lands on empty content."
+evidence = [
+  "DOLL-0915 html:708385 -> \"Molestation Shop Alarm\" from \"Molestation Shop\"",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-shop/main.twee:378,379 defines the same Twine placeholder passage",
+  "story_graph_audit full mode: body == \"Double-click this passage to edit it.\" (len 37)",
+]
+upstream = true
+
+[[accepted]]
+category = "dead_end"
+passage = "Passout Beach Heatstroke Lemonade Help"
+reason = "Dead end caused by the upstream dangling reference \"Robin Lemonade Help End\" (see the undefined_target entry)."
+evidence = [
+  "DOLL-0915 html:330190 [[Next|Robin Lemonade Help End]] from \"Passout Beach Heatstroke Lemonade Help\"",
+  "upstream tag 0.5.11.9 game/base-system/weather/passout-scenes.twee:1130,1156 defines the passage and carries the same broken link",
+]
+upstream = true
+
+[[accepted]]
+category = "dead_end"
+passage = "Smuggler Pub Work Dance Rape"
+reason = "Dead end caused by the upstream dangling references \"Smuggler Pub Dance Rape\" and \"Smuggler Pub Dance Rape Finish\" (see the undefined_target entries)."
+evidence = [
+  "DOLL-0915 html:866864..866876 four [[Next|Smuggler Pub Dance Rape*]] links from \"Smuggler Pub Work Dance Rape\"",
+  "upstream tag 0.5.11.9 game/overworld-underground/loc-cave/pub.twee:643,674,676,678,682,684,686 defines the passage and same two loop/four finish links",
+]
+upstream = true
+
+[[accepted]]
+category = "dead_end"
+passage = "UITest1 Finish"
+reason = "UI test harness terminal (body \"Demo Over\"), reachable only from the UITest1 debug page; it is not player content and has no further navigation by design."
+evidence = [
+  "DOLL-0915 html:275003 and html:275005 -> \"UITest1 Finish\" from \"UITest1\"",
+  "upstream tag 0.5.11.9 game/base-debug/testing-encounters-ui.twee:35,37 defines the same Demo Over terminal",
+  "story_graph_audit full mode: body == \"Demo Over\" (len 9)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Flats Window"
+reason = "Upstream broken link in vanilla content: \"Flats\" offers the window-cleaner job as [[Work as a window cleaner (1:00)|Flats Window]] but no passage named \"Flats Window\" exists in the build; the same reference exists in upstream source."
+evidence = [
+  "DOLL-0915 html:565511 [[Work as a window cleaner (1:00)|Flats Window]] from \"Flats\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-flats/main.twee:290 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Forest Trunks Caught"
+reason = "Upstream broken link in vanilla content: \"Forest Trunk Run\" links to \"Forest Trunks Caught\" (plural), and no passage of that name exists; unlike the other three Forest Trunks variants there is no singular twin either."
+evidence = [
+  "DOLL-0915 html:361530 [[Next|Forest Trunks Caught]] from \"Forest Trunk Run\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-forest/loc-forest/events.twee:5173 (same broken link)",
+  "defined build names: Forest Trunk Cower / Forest Trunk Howl / Forest Trunk Run only",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Forest Trunks Cower"
+reason = "Upstream broken link in vanilla content: plural typo; the defined passage is \"Forest Trunk Cower\"."
+evidence = [
+  "DOLL-0915 html:365544 [[Cower|Forest Trunks Cower]] from \"Widgets Forest\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-forest/loc-forest/widgets.twee:1424; near_match:Forest Trunk Cower",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Forest Trunks Howl"
+reason = "Upstream broken link in vanilla content: plural typo; the defined passage is \"Forest Trunk Howl\"."
+evidence = [
+  "DOLL-0915 html:365547 [[Howl|Forest Trunks Howl]] from \"Widgets Forest\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-forest/loc-forest/widgets.twee:1427; near_match:Forest Trunk Howl",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Forest Trunks Run"
+reason = "Upstream broken link in vanilla content: plural typo; the defined passage is \"Forest Trunk Run\"."
+evidence = [
+  "DOLL-0915 html:365542 [[Run|Forest Trunks Run]] from \"Widgets Forest\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-forest/loc-forest/widgets.twee:1422; near_match:Forest Trunk Run",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Livestock Barn Night"
+reason = "Upstream broken link in vanilla content: \"Livestock Barn Trough\" offers [[Leave|Livestock Barn Night]]; the barn passage set has no \"... Night\" passage, only \"Livestock Barn\" and its sub-scenes."
+evidence = [
+  "DOLL-0915 html:486173 [[Leave|Livestock Barn Night]] from \"Livestock Barn Trough\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-plains/loc-livestock/barn.twee:379 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Maze Final"
+reason = "Upstream broken link in vanilla content: three maze sources link to \"Maze Final\", which is not defined in the build (the maze ends define \"Maze ... End\" passages instead)."
+evidence = [
+  "DOLL-0915 html:500726 (Maze Slime Escape), html:500804 (Maze Vore Finish), html:501142 (Widgets Maze) [[Next|Maze Final]]",
+  "upstream tag 0.5.11.9 game/overworld-plains/loc-maze/main.twee:1082 and :1170; loc-maze/widgets.twee:25",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Model Silly"
+reason = "Upstream broken link in vanilla content: High Street advertises the modelling job as [[Modelling job (3:00)|Model Silly]]; no passage whose name starts with \"Model\" exists in the build. The same reference exists in upstream source."
+evidence = [
+  "DOLL-0915 html:731317 [[Modelling job (3:00)|Model Silly]] from \"High Street\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-street/high.twee:91 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Office Security Passout Molest"
+reason = "Upstream broken link in vanilla content: the office passout wake-up offers [[Wake up|Office Security Passout Molest]]; the defined passages are \"Office Security Passout\" and \"Office Security Molest\"."
+evidence = [
+  "DOLL-0915 html:614509 [[Wake up|Office Security Passout Molest]] from \"Widgets Office Main\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-office/main.twee:146 (same broken link)",
+  "defined names: Office Security Passout / Office Security Molest (no combined name)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Photo High Bottom Allow Clothed"
+reason = "Upstream broken link in vanilla content: [[Allow|Photo High Bottom Allow Clothed]] does not resolve; the photo set defines \"Photo High Bottom Allow\", \"... Allow Naked\" and \"... Allow Undies\"."
+evidence = [
+  "DOLL-0915 html:621110 [[Allow|Photo High Bottom Allow Clothed]] from \"Photo High Bottom Play\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-photography/jobs.twee:546 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Prison Chapel"
+reason = "Upstream broken link in vanilla content: Widgets Prison offers [[Next|Prison Chapel]] but no passage containing \"Chapel\" exists in the build; the same reference exists in the pinned upstream source."
+evidence = [
+  "DOLL-0915 html:646806 [[Next|Prison Chapel]] from \"Widgets Prison\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-prison/widgets.twee:670 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Prison Library"
+reason = "Upstream broken link in vanilla content: Widgets Prison offers [[Next|Prison Library]] but no passage of that name exists in the build; the same reference exists in the pinned upstream source."
+evidence = [
+  "DOLL-0915 html:646803 [[Next|Prison Library]] from \"Widgets Prison\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-prison/widgets.twee:667 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Robin Lemonade Help End"
+reason = "Upstream broken link in vanilla content: the heatstroke lemonade scene ends with [[Next|Robin Lemonade Help End]], and no \"Robin Lemonade\" passage exists in the build."
+evidence = [
+  "DOLL-0915 html:330190 [[Next|Robin Lemonade Help End]] from \"Passout Beach Heatstroke Lemonade Help\" (owner=None)",
+  "upstream tag 0.5.11.9 game/base-system/weather/passout-scenes.twee:1156 (same broken link)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Smuggler Pub Dance Rape"
+reason = "Upstream broken link in vanilla content: the dance-rape scene links back to \"Smuggler Pub Dance Rape\", which is not defined (the defined sibling is \"Smuggler Pub Dance\")."
+evidence = [
+  "DOLL-0915 html:866868 and html:866876 [[Next|Smuggler Pub Dance Rape]] from \"Smuggler Pub Work Dance Rape\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-underground/loc-cave/pub.twee:678,686 (same broken links)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "Smuggler Pub Dance Rape Finish"
+reason = "Upstream broken link in vanilla content: four finish branches link to \"Smuggler Pub Dance Rape Finish\", which is not defined."
+evidence = [
+  "DOLL-0915 html:866864, html:866866, html:866872, html:866874 [[Next|Smuggler Pub Dance Rape Finish]] (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-underground/loc-cave/pub.twee:674,676,682,684 (same broken links)",
+]
+upstream = true
+
+[[accepted]]
+category = "undefined_target"
+target = "high Exposed"
+reason = "Upstream case-typo link in vanilla content: Widgets Street Exposed links to \"high Exposed\" while the defined passage is \"High Exposed\" (exact match after case normalisation)."
+evidence = [
+  "DOLL-0915 html:731010 [[High Street (0:05)|high Exposed]] from \"Widgets Street Exposed\" (owner=None)",
+  "upstream tag 0.5.11.9 game/overworld-town/loc-street/exposed-widgets.twee:99 (same broken link)",
+  "case_mismatch:High Exposed",
+]
+upstream = true

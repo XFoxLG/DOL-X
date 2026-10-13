@@ -234,3 +234,87 @@ def test_validator_detects_broken_link_macro(validator):
         assert any(issue.kind == "broken_link" for issue in result.issues)
     finally:
         html_path.unlink()
+
+
+@pytest.mark.sugarcube
+def test_lints_detect_variables_macros_tags_and_assignments(validator):
+    """上游启发的 lint：变量、宏、标签配平与误赋值"""
+    passages = """
+    <tw-passagedata name="Start">
+        <<set $usedOnce to 1>>
+        <<display "Something">>
+        <<mysterymacro>>
+        <div><span>text</span>
+        <<if $a = 1>>x<</if>>
+        <<set $b == 2>>
+    </tw-passagedata>
+    """
+    html_path = _create_test_html(passages)
+
+    try:
+        result = validator.validate_html(html_path)
+        kinds = {issue.kind for issue in result.issues}
+        assert "single_use_variable" in kinds
+        assert "deprecated_macro" in kinds
+        assert "unregistered_macro" in kinds
+        assert "unbalanced_html_tag" in kinds
+        assert "suspect_assignment_in_condition" in kinds
+        assert "double_equals_in_set" in kinds
+        assert result.stats["lint_counts"]["deprecated_macro"] == 1
+    finally:
+        html_path.unlink()
+
+
+@pytest.mark.sugarcube
+def test_lint_pass_time_mismatch(validator):
+    """<<pass>> 数值与链接时间标注不一致会被报告"""
+    passages = """
+    <tw-passagedata name="Start">
+        <<link [[Next (0:05)|Target]]>><<pass 10>><</link>>
+    </tw-passagedata>
+    <tw-passagedata name="Target">x</tw-passagedata>
+    """
+    html_path = _create_test_html(passages)
+
+    try:
+        result = validator.validate_html(html_path)
+        mismatches = [i for i in result.issues if i.kind == "pass_time_mismatch"]
+        assert len(mismatches) == 1
+    finally:
+        html_path.unlink()
+
+
+@pytest.mark.sugarcube
+def test_validator_extracts_apostrophe_passage_names(validator):
+    """带撇号的 passage 名不被截断（Men's Toilets 回归）"""
+    passages = """
+    <tw-passagedata name="Men's Toilets">[[Next|Doctor Harper's Office]]</tw-passagedata>
+    <tw-passagedata name="Doctor Harper's Office">x</tw-passagedata>
+    """
+    html_path = _create_test_html(passages)
+
+    try:
+        result = validator.validate_html(html_path)
+        assert result.passage_count == 2
+        assert not any(issue.kind == "broken_link" for issue in result.issues)
+    finally:
+        html_path.unlink()
+
+
+@pytest.mark.sugarcube
+def test_no_lints_switch_disables_lint_checks():
+    """--no-lints 等价开关关闭 lint"""
+    plain_validator = SugarCubeValidator(lints=False)
+    passages = """
+    <tw-passagedata name="Start">
+        <<display "Something">>
+    </tw-passagedata>
+    """
+    html_path = _create_test_html(passages)
+
+    try:
+        result = plain_validator.validate_html(html_path)
+        assert not any(issue.kind == "deprecated_macro" for issue in result.issues)
+        assert result.stats["lint_counts"] == {}
+    finally:
+        html_path.unlink()
