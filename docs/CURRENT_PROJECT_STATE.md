@@ -87,6 +87,25 @@ needle 要迁到 `e.host.sugarcube.require().Macro` 形态，且**不能**改用
 sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，与官方逐字节相同；
 MIT 许可允许再分发）。默认仍走官方源，镜像只在官方资产消失或被换包时人工启用。
 
+#### Fork 保全的可靠性核验（2026-10-14）
+
+第三方 Fork `JohnLiao501/SCML-DOL-maplebirchFramework` 保住了上游删掉的 4.1.x 系列 tag。
+本轮三层证据把它从"看起来像是"升级为"可核对的一致"：
+
+1. **共享 tag 逐字节同一**：fork 与上游共有的 5 个 tag（v3.1.14 / v4.0.2 / v4.1.14 / v4.2.9 /
+   v4.3.5）的提交 SHA 完全一致；Git 内容寻址意味着同 SHA 即同树同历史，含作者与提交时间。
+2. **被删 tag 骑在真版 DAG 上**：fork 独有的 v4.1.13 / v4.1.2 / v4.2.0 / v4.3.0 都满足祖先
+   检查（v4.1.13→v4.1.14、v4.1.2→v4.2.0、v4.3.0→v4.3.5 均为祖先后代），内容指纹
+   （package.json 版本、`faceStyleSrcFn` 在 src/ 的出现数 20、4.1.2 反向出口数为 0）与
+   [契约矩阵](../config/framework-contract-matrix.toml) 的既有记录逐项吻合。
+3. **二进制不依赖 fork**：fork 的 Releases 是空的（0 资产）；上游仍托管 9 个 Release /
+   14 份资产。本轮重新从上游 Release 下载 `maplebirch-0.5.10.12-v4.1.14.mod.zip`，sha256
+   与本机原件、矩阵记录三方一致。被删版本里从未落本地原件的（如 4.2.0）只剩 fork 源码，
+   无法做到字节级复原。
+
+结论：fork 保全的是**源码**，且与原版内容一致；"全部包"只适用于仍存活的 9 个上游 Release
+和我方持有的两件原件，fork 本身不保全任何二进制。
+
 `lyra/warmup.py` 的 fail-closed digest 名单已把 `maplebirch` 一并纳入
 （原先只覆盖 `au_f`/`au_m`/`au_a`/`au_face`），堵住"陈旧缓存静默产出未测框架组合"的缺口。
 
@@ -306,8 +325,10 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 - maplebirch 云存档没有公共服务地址。官方只提供 Go+SQLite 与 Cloudflare Worker+R2+D1 自建源码；
   Go 后端还缺客户端会调用的 `/save-code` 路由。
 - AU model 的 `kiss改脸/.../eyes.png` 缺图与 AU Face 的 `blushN`/`tearN` 是两类问题，不应混记。
-- AU Face 面纹/流泪剩余视觉问题位于 AU Face 载荷的运行时边界，DOL-X 没有白盒修复手段，不阻塞 base 主线。
-  **（2026-10-04 更新：已确认根因是接口契约对不上，见下方新增小节。）**
+- AU Face 面纹/流泪的剩余视觉问题，在 2026-10-13 的 A/B 里表现为**当前锁定组合下测不出像素差**，
+  归因 `accepted_upstream` + `visual_incomplete`，不阻塞 base 主线。
+  **（2026-10-04 更新：根因确认为接口契约对不上；2026-10-13 更新：契约层 shim 已落地，
+  但实测是视觉 no-op，见下方 A/B 小节。）**
 
 ### AU Face 兼容性判定（2026-10-04）
 
@@ -317,7 +338,8 @@ AU Face 官方资产存在三层版本身份：Release 正文 `1.0.4`、外层 `
 AU 载荷的版本身份为 Release `1.0.4` / 外层 `1.1.0` / 内层 `1.2.8`
 （`js/faceSelector.js`、`addon/svr.js` 等 8 个成员）。
 
-**但"能看见"不等于"能修"。** 核对后确认 `faceStyleSrcFn` 是**双向不匹配**，不是单向缺失：
+**但"能看见"不等于"能修"——2026-10-13 已把这个判断推进到可测量的结论。** 核对后确认
+`faceStyleSrcFn` 是**双向不匹配**，不是单向缺失：
 
 - 4.1.14 的契约是单参数（字符串或函数），`facestyle`/`facevariant` 取自 options 对象；
 - AU 1.2.8 有四种调用形态，其中 `faceStyleSrcFn('eyes', { variant: true })` 的第二参数会被
@@ -326,14 +348,44 @@ AU 载荷的版本身份为 Release `1.0.4` / 外层 `1.1.0` / 内层 `1.2.8`
 - maplebirch **5.1.3 中 `faceStyleSrcFn` 计数为 0**，且无改名后的等价导出，
   该层已被 `faceStyleMap` 重写。删除发生在 4.2.0，5.x 未恢复；AU 1.2.8（2025-10-13）从未适配。
 
-因此 shim 不是可行路线。可选方向只有三条：等 AU 作者适配、停在 4.1.14、或放弃 AU 的基础脸层路径
-仅保留不依赖该 API 的图片资源。
+**（2026-10-13 修正）** ~~因此 shim 不是可行路线~~：DOL-X 已实现一个 fail-closed 的构建期 shim
+（`MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_*`，marker `dolxAuVariantDirPriority`），把第二参数转进
+resolver 闭包、仅对 `{ variant: true }` 关掉"扁平优先"分支，单参数调用逐字保留。
+**A/B 实测结论是 `no_visual_change`：它修正了解析路径，但没有改变任何像素**，因此 shim 作为
+**契约层修正**保留，视觉缺口仍记 `accepted_upstream` + `visual_incomplete`；`fixed` 只留给
+真正测得视觉改善的那一天。原"等 AU 适配 / 停在 4.1.14 / 放弃基础脸层"三条方向仍成立，
+只是不再是唯一选择。
 
 顺带得到一个可落地的构建期防线：现在能在构建期静态统计两侧计数，
 **框架载荷 `faceStyleSrcFn` 为 0 而 AU 载荷引用数 > 0 时直接 fail-fast**，
 不必等运行时红框才发现。
 
 （详细分析报告为本地留档，不入库。）
+
+### AU Face shim A/B（2026-10-13）
+
+证据锚点：`au-face-shim-ab-2026-10-13`（`tools/au_artifact_check.py` 的
+`AU_FACE_AB_EVIDENCE` 指向本节；`config/exploration-queries.toml` 有三条 release 查询钉住它的结论）。
+
+- **结论**：`ab_verdict = no_visual_change`、`defect_status = accepted_upstream`、
+  `defect_visual_status = visual_incomplete`。任何"AU 视觉已修好"的说法在这条 A/B 被替换前都无效。
+- **解析层**：baseline 下 `faceStyleSrcFn('freckles', { variant: true })` 返回
+  `img/face/default/freckles.png`；打 shim 后返回 `img/face/default/catty/freckles.png`。
+  单参数调用在 shim 前后逐字一致（6 变体 × 5 图层 × 冷/热两次采样）。
+- **渲染层**：桌宠 canvas 全像素 FNV，在 none / freckles / tears / all-on 四态、
+  default / catty / sweet / aloof 四变体下，**baseline 与 shim 逐像素完全相同**
+  （freckles 态 fnv=3259424164，tears 态 fnv=2062934132，all-on 态 fnv=1811537088）。
+- **机制**：内嵌社区 plus（`Legacy-Art-Mods-Compat` v1.0.3-plusV1.1）通过
+  `ImageLoaderHook` 的 side hook 把扁平路径重映射到同一张 AU 真图；且 AU model 的
+  `freckles / blusher / ears / tear-N / blush-N` 在 6 个变体间**逐字节相同**，只有
+  `eyes.png` 等风格层因变体而异。所以"变体目录优先"对这三层天然不产生像素差。
+- **反证纠正**：vanilla 的
+  `img/face/default/{freckles,blusher,blush-N,tears-N,mouth-*,lipstick-*}.png`
+  **不是透明占位图**，而是上游原版细描线（`freckles.png` 153 B、128×128、12 个不透明像素），
+  与 `Vrelnir/degrees-of-lewdity` master 拉取结果字节一致。旧记录的"透明占位"说法作废。
+- **覆盖缺口（不可省略）**：本轮只做了 4 个变体 × 3 个层组，**不是**原计划的八脸型 ×
+  三层截图矩阵；证据层级是 canvas 全像素哈希 + `drawImage` 资产清单 + 解析器返回路径
+  （assisted 轨道），不是人工视觉评审。补齐矩阵之前，不得把本节读成"AU 视觉已完美"。
 
 ## 6. 来源与验证
 
@@ -382,3 +434,68 @@ More Love 升级后的补丁复验是对仓库外归档的真实 v0.1.7.0 资产
 真机验收只覆盖 AU-F；AU-M / AU-A 仅有构建成功记录，无上机验证，且按既定决策不再补。
 More Love `v0.1.7.0` 的入口、页面跳转和空列表已真机通过；有恋爱兴趣 NPC 时的食物数据渲染、
 Avery/舒芙蕾以及既有存档的恋人列表清理行为仍未覆盖。
+
+## 7. 自动玩家与源码驱动测试系统（2026-10-13）
+
+在 `vega` `aa4758086e827211b29954db1c90958ed0c883ef` 上落地了自然轨道自动玩家加源码索引的
+测试系统，说明见 [AUTOMATED_GAMEPLAY_EXPLORER](AUTOMATED_GAMEPLAY_EXPLORER.md)。它不替代既有的
+passage / scenario / combat / environment 扫描，而是给这些静态与辅助测试补上“玩家能不能从
+`Start` 自然走到这里”的证据，并把证据轨道、判定和归因分开记录。
+
+当前证据（`v0.5.11.9-1.0.0a-0915` AU-F 载体，ZIP sha256 `c5ca5b68…`）：
+
+- 自然轨道 `natural-014`：seed 1719，30 步 `complete`，0 个运行时失败，27 个唯一 coarse state。
+- 辅助轨道 `assisted-full-0915-merged`：14,662 / 14,662 个静态目标 `ok`，无重复、无跨分片重复。
+- Mod inventory：39 个 embedded payload、37 个 runtime-only passage、4 个 playable passage 全部
+  尝试 `ok`、9 个 Mod 按钮隔离调用无异常；`【AUsDoL】facial expansion` 受限，记为
+  `opaque_runtime_only`，不声称源码分支覆盖。
+- Android：在 MuMu 12（Android 12，`127.0.0.1:16384`）上安装 0915 AU-F APK，
+  `adb pull` 回 `base.apk` 的 sha256 与本地 artifact 一致（`56dd6491…`），clean profile 下
+  37/37 semantic action matched 且全部真实执行，pageerror 0，logcat 无 FATAL/ANR/AndroidRuntime。
+- `tools/exploration_gate.py --release`：此前 23 条基线条件为 true、claim 为 `release_gate_ready`；
+  2026-10-13 起 release 档新增 6 条外部方法条件（符号化可达性、故事图审计、遍历统计、query
+  回归、AU 契约、框架契约），缺一即 fail-closed。
+- **2026-10-14 完整 release 链实测：29 条条件 27 true / 2 false，`completion_claim=none`。**
+  shim 之后的载体（ZIP `96939f3f…`、source index `4aa3fd5c…`、commit `aa475808…`）已重跑
+  `natural-shim`（30 步、30/30 ok、0 失败）与 `assisted-shim`（40/40 ok）闭合身份链，Plan v5
+  新增 6 条全部 true；两条真实阻塞是 `assisted_static_targets_covered`（40 vs 分母 14,772）与
+  `query_regression_passed`（24 passed / 0 failed / 2 pending：`au-pet-remount-survives-reload`、
+  `dayloop-time-advance-full-day`）。旧证据绑定 shim 前载体 `c5ca5b68…` 与旧索引 `417247f3…`，
+  与新载体混用会被 gate 判 identity drift（fail-closed 生效，不是工具 bug）。
+  注意 `android_gate_ready=true` 绑的是 2026-09-30 的 APK（`56dd6491…`），**不是** shim 载体；
+  gate 目前不比对 Android APK 摘要，这条绿灯的含金量要打折（缺口已记在
+  [AUTOMATED_GAMEPLAY_EXPLORER](AUTOMATED_GAMEPLAY_EXPLORER.md) 的 gate 小节）。
+- 战斗判定收严：`combat_sweep` 只把命中 `DECLARED_FIXTURE_GAPS`（67 条带源码行的已复核
+  缺口声明）的渲染错误降为 `fixture_insufficient`，其余一律 `hard_fail`；`has no usable links`
+  且全部出口缺失时会列出具体断链目标。CI 运行 `37967037983` 的 33 条 flagged 结果重新
+  归因为 28 `fixture_insufficient` / 3 `soft_fail` / 2 `hard_fail`（本机
+  `.local/sweep/combat-reattr-37967037983-offline/`）。
+- 两行保持 `hard_fail` 的失败已有可复核归因：`Estate Manor Approach Finish` 的
+  `Estate Manor Intro Entrance` / `Estate Manor Approach Defeat` 出口在 vanilla `base.zip`
+  里同样只被引用、没有定义（上游断链缺陷）；`DP Test` 的 `Molestation Ejaculation`
+  渲染中断（`$NPCList[_nn].penisdesc` 未防御读取）在 CI 与本地重跑中 2 fail / 2 pass，
+  记为 debug 场景夹具缺口（间歇），不升级为产品缺陷、也不计为通过。
+
+边界：数学意义上的全状态穷举不可行，上述数字只代表当前 seed 与预算；静态索引解析不到的
+5,146 条动态边留给运行时探索；checkpoint 在带战斗副作用的 passage 上无法做到 exact
+roundtrip，实现 fail-closed 写 `infrastructure_fail` 并输出 drift 归因，不冒充自然轨道；
+没有 Android 证据、没有全量 assisted 覆盖或仍有未归因 `hard_fail` 时，报告只能写“当前档位
+探索完成”，不能写“全流程测试完成”。
+
+### 贴图位置探针（2026-10-13）
+
+- 新增 `tools/sprite_layout_probe.py`：drawImage 级记录（资产 + 目标矩形，区分 3/5/9 参数形态）、
+  归一化几何（0..1 画布坐标）、桌宠 canvas 8×8 alpha 网格 + 包围盒 + 质心、HTTP>=400 资产请求
+  （legacy `blushN`/`tearN` 命名单独打标）、基线对比（`--update-baseline` / `--baseline`；
+  缺失、位移超 1% 或网格漂移判 `layout_drift`，新增资产只记 `new`）。
+- 实测 0915 AU-F：8 个脸型样本、56 个唯一资产、555–576 条带位置绘制记录、8/8 桌宠有像素；
+  同一构建两次独立运行 `missing`/`moved`/`new`/`grid_drift` 全 0，仅 10 个天气动画层
+  （`img/misc/sky/`）按已知设计排除。
+- 404 证据：109–110 条网络失败里 104–105 条是资产请求，其中 35 条为已知 legacy
+  `blushN`/`tearN` 命名。来源已用本机内层对照交叉验证：`addon/setting.twee` 9 处
+  `SE Widgets`/`AU_facial_expansion` 定义，`js/faceSelector.js`、`addon/svr.js`、`addon/AU_se.js`
+  共 12 处无连字符命名调用。
+- 边界：只证明“资产被绘制、位置与基线一致、像素分布一致”，不替代人工视觉评审；三层以上
+  先合成再整体 blit 的离屏管线只记录到 canvas 级（资产名不穿透）。受限 AU 载荷的归档标签
+  `encrypted_mods=1` 不代表内容不可审计——本机 `.local` 存有内层对照（不入库、不上传），
+  云端与公开报告仍只写运行时效果。
