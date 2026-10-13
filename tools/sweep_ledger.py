@@ -86,7 +86,12 @@ def identity_matches(
     return not diagnostics, diagnostics
 
 
-def atomic_write_json(path: Path, payload: Any) -> None:
+def atomic_write_json(
+    path: Path,
+    payload: Any,
+    *,
+    validate_readback: bool = True,
+) -> None:
     """Write JSON through a same-directory temp file and ``os.replace``."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,7 +115,10 @@ def atomic_write_json(path: Path, payload: Any) -> None:
         os.replace(temp_path, path)
         temp_path = None
         # Read back before returning so callers never trust a partial rename.
-        json.loads(path.read_text(encoding="utf-8"))
+        # Very large incremental reports can run under tight memory; callers
+        # may opt out because the temp file itself is already fsynced.
+        if validate_readback:
+            json.loads(path.read_text(encoding="utf-8"))
     finally:
         if handle is not None:
             handle.close()

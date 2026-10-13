@@ -19,6 +19,9 @@ def test_sweep_workflow_declares_prepare_shards_and_summary() -> None:
     assert "scenario:" in text
     assert "env-shards:" in text
     assert "combat-shards:" in text
+    assert "assisted-shards:" in text
+    assert "assisted-gate:" in text
+    assert "nightly:" in text
     assert "summary:" in text
     assert "fail-fast: false" in text
     assert "timeout-minutes: 210" in text
@@ -42,6 +45,11 @@ def test_sweep_workflow_passes_identity_shard_args() -> None:
     assert "--tier initiators" in text
     assert "--tier full" in text
     assert "--expected-shards" in text
+    assert "--shrink-failures" in text
+    assert "tools/exploration_gate.py" in text
+    assert "--assisted-full-coverage" in text
+    assert "tools/mod_passage_inventory.py" in text
+    assert "--mod-passage-sweep" in text
 
 
 def test_sweep_workflow_summary_excludes_daily_auxiliary_reports() -> None:
@@ -74,7 +82,7 @@ def test_sweep_workflow_verifies_package_identity_fail_closed() -> None:
     assert "--expect-version" in text
     assert "--min-mods 30" in text
     # every browser job re-checks the exact package before sweeping
-    assert text.count("Verify package identity") == 5
+    assert text.count("Verify package identity") == 8
     # only the verified build artifact (plus its manifest) is uploaded
     assert "name: sweep-package" in text
     assert "output/*.zip" in text
