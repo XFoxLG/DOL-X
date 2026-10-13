@@ -1,0 +1,238 @@
+# Regression queries over exploration evidence reports.
+#
+# Each query is evaluated against one report kind (auto-detected from the
+# report schema).  ``severity = "release"`` queries block the release
+# exploration gate; ``severity = "informational"`` queries are reported only.
+# A query with ``status = "pending"`` is not evaluated: it records required
+# evidence that has not been captured yet and is reported as ``pending``.
+
+schema = "dolx.exploration-queries.v1"
+
+# --- AU contract ---------------------------------------------------------
+
+[[query]]
+id = "au-contract-schema"
+kind = "au_contract"
+severity = "release"
+description = "AU artifacts must publish the dolx.au_contract.v1 report"
+path = "schema"
+op = "eq"
+value = "dolx.au_contract.v1"
+
+[[query]]
+id = "au-contract-framework-export-present"
+kind = "au_contract"
+severity = "release"
+description = "The maplebirch payload must still export faceStyleSrcFn for the nine AU face call sites"
+path = "framework_face_style_src_fn_export_count"
+op = "gte"
+value = 1
+
+[[query]]
+id = "au-contract-variant-dir-shim"
+kind = "au_contract"
+severity = "release"
+description = "The variant-directory priority shim marker must appear exactly once in the patched maplebirch payload"
+path = "framework_variant_dir_shim_marker_count"
+op = "eq"
+value = 1
+
+[[query]]
+id = "au-contract-pet-remount-marker"
+kind = "au_contract"
+severity = "release"
+description = "The AU pet remount patch marker must be present in the built artifact"
+path = "framework_pet_remount_marker_count"
+op = "gte"
+value = 1
+
+[[query]]
+id = "au-contract-errors-empty"
+kind = "au_contract"
+severity = "release"
+description = "The AU contract audit must not report errors"
+path = "errors"
+op = "empty"
+
+[[query]]
+id = "au-contract-opaque-runtime-obligation"
+kind = "au_contract"
+severity = "release"
+description = "When the AU payload logic is not observable (opaque members), the report must raise the runtime query obligation instead of passing silently"
+op = "opaque_requires_runtime_query"
+
+[[query]]
+id = "au-face-variant-layer-resolution"
+kind = "au_contract"
+severity = "release"
+description = "The 2026-10-13 A/B recorded the variant-directory shim as a visual no-op, so the layer gap must stay attributed to accepted_upstream instead of being declared fixed"
+path = "defect_status"
+op = "eq"
+value = "accepted_upstream"
+
+[[query]]
+id = "au-face-visual-incomplete-tag"
+kind = "au_contract"
+severity = "release"
+description = "The AU freckles/blusher/tears gap must stay tagged visual_incomplete until a new A/B measures a visual improvement"
+path = "defect_visual_status"
+op = "eq"
+value = "visual_incomplete"
+
+[[query]]
+id = "au-face-shim-ab-verdict"
+kind = "au_contract"
+severity = "release"
+description = "The variant-directory shim is recorded as a contract-level correction with ab_verdict=no_visual_change; any other value must come from a replacement A/B"
+path = "ab_verdict"
+op = "eq"
+value = "no_visual_change"
+
+[[query]]
+id = "au-pet-remount-survives-reload"
+kind = "au_contract"
+severity = "release"
+status = "pending"
+description = "Runtime proof that the AU pet remounts after a passage change is not captured"
+reason = "runtime replay pending"
+
+# --- mod inventory -------------------------------------------------------
+
+[[query]]
+id = "mod-more-love-registered"
+kind = "mod_inventory"
+severity = "release"
+description = "More Love Interests Mod must be embedded and registered"
+op = "mod_present"
+mod_name = "More Love Interests Mod"
+
+[[query]]
+id = "mod-cheat-extended-registered"
+kind = "mod_inventory"
+severity = "release"
+description = "cheat extended must be embedded and registered"
+op = "mod_present"
+mod_name = "cheat extended"
+
+[[query]]
+id = "mod-maplebirch-registered"
+kind = "mod_inventory"
+severity = "release"
+description = "maplebirch must be embedded and registered"
+op = "mod_present"
+mod_name = "maplebirch"
+
+[[query]]
+id = "mod-no-unregistered-passages"
+kind = "mod_inventory"
+severity = "release"
+description = "Every runtime passage must be attributed to a mod or to vanilla"
+path = "unregistered_names"
+op = "empty"
+
+[[query]]
+id = "mod-encrypted-mods-counted"
+kind = "mod_inventory"
+severity = "release"
+description = "Encrypted payloads must be counted as opaque surfaces, not silently dropped"
+path = "counts.encrypted_mods"
+op = "gte"
+value = 1
+
+# --- source index --------------------------------------------------------
+
+[[query]]
+id = "source-index-orphanage-intro"
+kind = "source_index"
+severity = "release"
+description = "The Orphanage Intro landing passage must exist in the indexed story map"
+op = "passage_exists"
+passage = "Orphanage Intro"
+
+[[query]]
+id = "source-index-bedroom"
+kind = "source_index"
+severity = "release"
+description = "The Bedroom passage must exist in the indexed story map"
+op = "passage_exists"
+passage = "Bedroom"
+
+# --- story graph ---------------------------------------------------------
+
+[[query]]
+id = "story-graph-estate-manor-dead-end-classified"
+kind = "story_graph"
+severity = "release"
+description = "Estate Manor Approach Finish must be accepted-upstream or otherwise classified"
+op = "dead_end_classified"
+passage = "Estate Manor Approach Finish"
+
+[[query]]
+id = "story-graph-estate-manor-target-accepted"
+kind = "story_graph"
+severity = "release"
+description = "The missing Estate Manor Intro Entrance reference must be classified"
+op = "undefined_target_classified"
+target = "Estate Manor Intro Entrance"
+
+[[query]]
+id = "story-graph-no-unclassified-dead-ends"
+kind = "story_graph"
+severity = "release"
+description = "Every dead end must be classified before release"
+path = "blocking.unclassified_dead_ends"
+op = "empty"
+
+[[query]]
+id = "story-graph-no-unclassified-undefined-targets"
+kind = "story_graph"
+severity = "release"
+description = "Every dangling reference must be classified before release"
+path = "blocking.unclassified_undefined_targets"
+op = "empty"
+
+# --- traversal -----------------------------------------------------------
+
+[[query]]
+id = "traversal-natural-actions-recorded"
+kind = "traversal"
+severity = "release"
+description = "At least one natural-track run with visible UI actions must be recorded"
+path = "tracks.natural.actions"
+op = "gte"
+value = 1
+
+[[query]]
+id = "traversal-natural-transitions-recorded"
+kind = "traversal"
+severity = "release"
+description = "Natural-track evidence must contain at least one passage transition"
+path = "tracks.natural.transitions_observed"
+op = "gte"
+value = 1
+
+[[query]]
+id = "dayloop-time-advance-full-day"
+kind = "traversal"
+severity = "release"
+status = "pending"
+description = "A verified full-day natural loop (morning to sleep) is not captured"
+reason = "runtime replay pending"
+
+# --- symbolic reachability ----------------------------------------------
+
+[[query]]
+id = "symbolic-no-solver-unavailable"
+kind = "symbolic_reachability"
+severity = "release"
+description = "The solver must be available and must not report bound-exhausted targets"
+op = "no_unreachable_targets"
+
+[[query]]
+id = "symbolic-orphanage-intro-reachable"
+kind = "symbolic_reachability"
+severity = "release"
+description = "The static witness Start2 -> Orphanage Intro must remain reachable"
+op = "target_verdict_in"
+target = "Orphanage Intro"
+allowed = ["reachable"]

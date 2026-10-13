@@ -15,6 +15,12 @@ typing-extensions>=4.15.0
 # 表格写入
 pytablewriter>=1.2.1
 
+# 符号化可达性求解（ASP，DendryScope 同族方案）
+clingo>=5.8.2
+
+# 故事图完整性审计（死胡同/自环/不可达/未定义目标）
+networkx>=3.4
+
 # 测试框架
 pytest>=8.0.0
 pytest-cov>=4.1.0
