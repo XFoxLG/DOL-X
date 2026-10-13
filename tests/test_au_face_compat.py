@@ -3,6 +3,8 @@
 import base64
 import io
 import json
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 import zipfile
 
@@ -19,9 +21,12 @@ from lyra.build import (
     MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW,
     MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD,
     MAPLEBIRCH_AU_FACE_VARIANT_MARKER,
+    MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD,
     MAPLEBIRCH_PET_REMOUNT_OLD,
     ZipBuilder,
     patch_maplebirch_au_face_variant_selection,
+    patch_maplebirch_au_variant_dir_priority,
+    patch_maplebirch_pet_passage_remount,
 )
 from lyra.config import ModCode
 from lyra.config_loader import ModloaderModConfig, load_build_config
@@ -443,7 +448,14 @@ def _maplebirch_face_patch_script(*, include_chained_needles: bool = False) -> s
     )
     if not include_chained_needles:
         return script
-    return f"class Character{{{MAPLEBIRCH_PET_REMOUNT_OLD}}}" + script
+    # The AU variant-directory shim owns the same member and runs after this patch,
+    # so a chained-needle payload has to carry its prologue too. It is parked in a
+    # comment here because this fixture only exercises needle presence.
+    return (
+        f"class Character{{faceStyleSrcFn=aD;{MAPLEBIRCH_PET_REMOUNT_OLD}}}"
+        f"/*{MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD}*/"
+        + script
+    )
 
 
 def _write_maplebirch_face_patch_payload(
@@ -475,30 +487,30 @@ def _read_maplebirch_face_patch_script(path) -> str:
 
 
 def _patched_maplebirch_payload() -> bytes:
-    source_buffer = io.BytesIO()
-    with zipfile.ZipFile(source_buffer, "w") as source_zip:
-        source_zip.writestr(
-            "boot.json",
-            '{"name":"maplebirch","version":"4.1.14"}',
-        )
-        source_zip.writestr(
-            "dist/inject_early.js",
-            _maplebirch_face_patch_script(),
-        )
+    """The Maplebirch payload exactly as the real DOL-X patch chain leaves it.
 
-    source_buffer.seek(0)
-    target_buffer = io.BytesIO()
-    with zipfile.ZipFile(source_buffer, "r") as source_zip:
-        original_script = source_zip.read("dist/inject_early.js").decode("utf-8")
-        patched_script = original_script.replace(
-            MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD,
-            MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW,
-            1,
-        )
-        with zipfile.ZipFile(target_buffer, "w") as target_zip:
-            target_zip.writestr("boot.json", source_zip.read("boot.json"))
-            target_zip.writestr("dist/inject_early.js", patched_script)
-    return target_buffer.getvalue()
+    Running the three payload patches in order keeps this artifact fixture honest:
+    the AU contract assertion reads the framework ``faceStyleSrcFn`` export and the
+    variant-directory shim marker, and both only exist after the chain has run.
+    """
+    with tempfile.TemporaryDirectory() as raw_dir:
+        workspace = Path(raw_dir)
+        source = workspace / "maplebirch.mod.zip"
+        _write_maplebirch_face_patch_payload(source, include_chained_needles=True)
+
+        current = source
+        for index, patch in enumerate(
+            (
+                patch_maplebirch_pet_passage_remount,
+                patch_maplebirch_au_face_variant_selection,
+                patch_maplebirch_au_variant_dir_priority,
+            )
+        ):
+            target = workspace / f"step{index}.mod.zip"
+            result = patch(current, target)
+            assert result["status"] == "patched", result
+            current = target
+        return current.read_bytes()
 
 
 def _embedded_boot_payload(name: str, *, script: str | None = None) -> bytes:
