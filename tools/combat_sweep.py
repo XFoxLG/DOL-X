@@ -2526,13 +2526,32 @@ def _terminal_state_snapshot(state: Mapping[str, Any]) -> dict[str, Any]:
     return {key: state.get(key) for key in keys}
 
 
+def _strip_twee_comments(body: str) -> str:
+    """Remove SugarCube block comments before source-marker checks."""
+    return re.sub(r"/\*.*?\*/", "", body, flags=re.DOTALL)
+
+
+def _strip_unreachable_false_conditions(body: str) -> str:
+    """Remove literal false branches; no JavaScript expression is evaluated."""
+    pattern = re.compile(r"<<\s*if\s+false\s*>>.*?<</if>>", re.IGNORECASE | re.DOTALL)
+    while True:
+        stripped = pattern.sub("", body, count=1)
+        if stripped == body:
+            return body
+        body = stripped
+
+
+def _executable_source(body: str) -> str:
+    return _strip_unreachable_false_conditions(_strip_twee_comments(str(body or "")))
+
+
 def terminal_landing_marker(
     passage: Any, passage_bodies: Mapping[str, str] | None
 ) -> str | None:
     """Return the confirmed terminal macro in ``passage``, if any."""
     if not passage_bodies:
         return None
-    body = str(passage_bodies.get(str(passage or "")) or "")
+    body = _executable_source(passage_bodies.get(str(passage or "")) or "")
     if not body:
         return None
     for marker, variants in (
@@ -2550,7 +2569,7 @@ def route_landing_marker(
     """Return the Wraith route macro in ``passage``; routing is not ending."""
     if not passage_bodies:
         return None
-    body = str(passage_bodies.get(str(passage or "")) or "")
+    body = _executable_source(passage_bodies.get(str(passage or "")) or "")
     if any(variant in body for variant in EXIT_WRAITH_MARKERS):
         return "exitWraith"
     return None
@@ -2766,21 +2785,207 @@ _READING_RE = re.compile(r"reading '([^']+)'")
 _PERSONSELECT_RE = re.compile(r"undefined npc in personselect\s+(\d+)", re.IGNORECASE)
 
 
+@dataclass(frozen=True)
+class FixtureGapDeclaration:
+    """Reviewed synthetic-fixture gap proven by the error chain and source.
+
+    ``anchor`` (a widget or passage name) and ``field`` must both appear in
+    the collected error message, and ``source_line`` points at the reviewed
+    read or write inside the exact 0.5.11.9 build. The table is deliberately
+    narrow: an undeclared ``ReferenceError`` or null read stays ``hard_fail``.
+    """
+
+    anchor: str
+    field: str
+    source_line: int
+    reason: str
+
+    @property
+    def source(self) -> str:
+        return f"Degrees of Lewdity.html:{self.source_line}"
+
+
+_GAP_NPC = "synthetic fixture carries no generated NPC instance for this chain"
+_GAP_AREA = "synthetic fixture skips the area/task init chain owning this state"
+
+# Reviewed 2026-10-13 against target v0.5.11.9-1.0.0a-0915 (HTML
+# 8482754427...). Every row was observed as a failing combat entry in the
+# 37967037983 / 37960923274 runs or in the local re-attribution reruns; the
+# source line is the read/write that needs the missing state. Rows for the
+# same message are alternatives: one hit is enough.
+DECLARED_FIXTURE_GAPS: tuple[FixtureGapDeclaration, ...] = tuple(
+    FixtureGapDeclaration(anchor, field, line, reason)
+    for anchor, field, line, reason in (
+        # -- NPC instance gap: no generated NPC object for the chain ----------
+        ("actionsman", "penis", 204407, _GAP_NPC),
+        ("generateActionsMan", "penis", 204535, _GAP_NPC),
+        ("leftActionInit", "penis", 204733, _GAP_NPC),
+        ("leftActions", "penis", 204942, _GAP_NPC),
+        ("leftgrabnew", "penis", 194738, _GAP_NPC),
+        ("leftplaynew", "penis", 194761, _GAP_NPC),
+        ("bboy", "description", 321498, _GAP_NPC),
+        ("generate1", "description", 246945, _GAP_NPC),
+        ("generateNPC", "description", 246811, _GAP_NPC),
+        ("npcattribute", "description", 247442, _GAP_NPC),
+        # stateabomination chains into statetentacles -> $tentacles[0].type
+        ("stateabomination", "type", 261703, _GAP_NPC),
+        ("statetentacles", "type", 266865, _GAP_NPC),
+        # _kylarStatus comes from the NPC status chain of the canteen fight
+        ("Canteen Kylar Whitney Intervene Finish", "includes", 809004, _GAP_NPC),
+        # -- area/task state gap: the popup area init never ran ----------------
+        ("avery_current_room_dirty_check", "jobs", 794535, _GAP_AREA),
+        ("avery_housework_check", "jobs", 794562, _GAP_AREA),
+        ("avery_mansion_end_links", "jobs", 794498, _GAP_AREA),
+        ("farm_dogs", "beasts", 476719, _GAP_AREA),
+        ("farm_pigs", "beasts", 476698, _GAP_AREA),
+        ("kennel_intro", "beasts", 468180, _GAP_AREA),
+        ("kennel_intro", "kennel", 468180, _GAP_AREA),
+        ("farm_fence_damage", "wall", 478432, _GAP_AREA),
+        ("farm_gen", "pig", 476738, _GAP_AREA),
+        ("farm_text", "dog", 326245, _GAP_AREA),
+        # damage_farm calls <<clear_plot farm _args[1]>>; the synthetic entry
+        # never set the field index, so clear_plot receives the string "farm".
+        ("damage_farm", "water", 478685, _GAP_AREA),
+        ("flight_hunt_get", "wood", 445100, _GAP_AREA),
+        ("dance_job_text", "interest", 880503, _GAP_AREA),
+        ("dance_job_text", "time", 880503, _GAP_AREA),
+        ("hopelessCycleEffects", "day", 601807, _GAP_AREA),
+        ("hopelessCycleEffects", "punishmentsMissed", 601807, _GAP_AREA),
+        ("photo_evidence_upload", "blackmail", 624259, _GAP_AREA),
+        ("photo_high_description", "forest", 624913, _GAP_AREA),
+        ("photo_high_options", "forest", 624823, _GAP_AREA),
+        ("plinthroom", "key", 419373, _GAP_AREA),
+        ("shopHuntEffects", "context", 402008, _GAP_AREA),
+        ("shopHuntEffects", "locations", 402008, _GAP_AREA),
+        ("shopHuntEffects", "player", 402008, _GAP_AREA),
+        ("undergroundRobinTopic", "robin", 875544, _GAP_AREA),
+        # -- named passage rows (the chain lives directly in the passage) ------
+        ("Bird Hunt Event", "tarp", 429288, _GAP_AREA),
+        ("Farm Kennel Play", "beasts", 468552, _GAP_AREA),
+        ("Farm Kennel Train Strict", "beasts", 468928, _GAP_AREA),
+        # $tempPigTracker, built by the farm forage chain
+        ("Farm Woodland Pigs Rape", "length", 481869, _GAP_AREA),
+        ("Forest Nest Hide", "fox", 359700, _GAP_AREA),
+        ("Forest Nest Hide", "type", 359712, _GAP_AREA),
+        ("Gwylan Forest Run Attacked Finish", "stalked", 383933, _GAP_AREA),
+        ("Gwylan Forest Run Attacked Finish", "distance", 383942, _GAP_AREA),
+        ("Gwylan Ritual Abomination Finish", "forced", 391760, _GAP_AREA),
+        ("Gwylan Ritual Bait Arrival", "purge", 385028, _GAP_AREA),
+        ("Gwylan Ritual Bait Arrival", "purgeDirect", 385028, _GAP_AREA),
+        ("Hopeless Cycle Ending B 5", "forestItem", 608648, _GAP_AREA),
+        ("Hopeless Cycle Ending B 5", "includes", 608631, _GAP_AREA),
+        ("Island", "explore_locations", 586046, _GAP_AREA),
+        ("Island", "home", 585992, _GAP_AREA),
+        ("Lake Ruin Prison", "state", 411752, _GAP_AREA),
+        ("Lake Ruin Prison Intro 2", "rune", 411472, _GAP_AREA),
+        ("Lake Ruin Prison Masturbation Finish", "state", 412380, _GAP_AREA),
+        ("Lake Ruin Prison Masturbation Finish", "timer", 412393, _GAP_AREA),
+        ("Lake Ruin Prison Masturbation Finish 2", "state", 412519, _GAP_AREA),
+        ("Lake Ruin Prison Masturbation Finish 2", "timer", 412518, _GAP_AREA),
+        ("Mansion Dungeon Fight Finish", "tool", 756977, _GAP_AREA),
+        ("Mansion Sleep", "schedule", 772671, _GAP_AREA),
+        ("Photo High Exhibitionism Sneak", "forest", 621890, _GAP_AREA),
+        ("Stall Fight Finish", "replace", 592351, _GAP_AREA),
+        ("Stall Fight Finish", "amount", 592375, _GAP_AREA),
+        ("Underground Cell Resist Finish", "robin", 873623, _GAP_AREA),
+        ("Underground Robin Escape Fight Finish", "water", 877227, _GAP_AREA),
+        ("Wraith Test", "includes", 273536, _GAP_AREA),
+        ("Wren Heist Break Kitchen Fight Finish", "help", 878007, _GAP_AREA),
+    )
+)
+
+
+def declared_fixture_gap(
+    messages: str, declarations: Sequence[FixtureGapDeclaration] | None = None
+) -> FixtureGapDeclaration | None:
+    """Return the reviewed declaration whose anchor and field both appear."""
+    low = str(messages or "").casefold()
+    for declaration in (
+        declarations if declarations is not None else DECLARED_FIXTURE_GAPS
+    ):
+        if declaration.anchor.casefold() in low and declaration.field.casefold() in low:
+            return declaration
+    return None
+
+
+_LINK_TARGET_RES = (
+    re.compile(r"\[\[[^\]|]*\|([^\]|]+)\]\]"),
+    re.compile(r"\[\[([^\]|]+)\]\]"),
+)
+
+
+def broken_outbound_links(
+    passage: Any, passage_bodies: Mapping[str, str] | None
+) -> tuple[int, list[str]]:
+    """Return ``(total_targets, missing_targets)`` for a passage's links."""
+    body = str(passage_bodies.get(str(passage or "")) or "") if passage_bodies else ""
+    if not body:
+        return 0, []
+    targets: list[str] = []
+    for pattern in _LINK_TARGET_RES:
+        for match in pattern.findall(body):
+            target = str(match).strip()
+            if target and target not in targets:
+                targets.append(target)
+    missing = [target for target in targets if target not in (passage_bodies or {})]
+    return len(targets), missing
+
+
+def annotate_landing_links(
+    detail: str,
+    passage: Any,
+    passage_bodies: Mapping[str, str] | None,
+) -> str:
+    """Name every outbound target when a landing passage reports no links.
+
+    The game footer says ``has no usable links`` when no ``[[...]]`` link of
+    the freshly rendered passage registered (``T.link`` stays unset). When the
+    target passage is known and *all* of its outbound targets are missing from
+    the story map, that is a concrete defect rather than a fixture gap, so the
+    exact missing targets are recorded in the detail.
+    """
+    if "no usable links" not in str(detail or "") or not passage_bodies:
+        return detail
+    total, missing = broken_outbound_links(passage, passage_bodies)
+    if total and len(missing) == total:
+        listed = ", ".join(missing[:6])
+        return (
+            f"has no usable links: all {total} outbound link target(s) of "
+            f"{passage} point to missing passages: {listed}"
+        )
+    return detail
+
+
 def classify_entry_errors(
-    errors: Sequence[dict[str, Any]], *, timed_out: bool = False
+    errors: Sequence[dict[str, Any]],
+    *,
+    timed_out: bool = False,
+    passage: Any = None,
+    passage_bodies: Mapping[str, str] | None = None,
 ) -> tuple[str, str, list[str]]:
-    """Classify entry errors into (verdict, detail, missing symbols)."""
+    """Classify entry errors into (verdict, detail, missing symbols).
+
+    Only reviewed declarations (``DECLARED_FIXTURE_GAPS``) downgrade a render
+    error to ``fixture_insufficient``; every other failure stays ``hard_fail``
+    so a plain ``ReferenceError`` can no longer be silently excused. A landing
+    passage whose outbound links all point at missing passages keeps the
+    ``hard_fail`` verdict and records the exact broken targets.
+    """
     if timed_out:
         return "soft_fail", "entry render did not finish within the timeout", []
     messages = " | ".join(str(err.get("message") or "") for err in errors)
     if not messages.strip():
         return "not_applicable", "passage rendered but $combat stayed 0", []
     missing = _missing_symbols(messages)
-    low = messages.lower()
-    fixture_hit = any(marker in low for marker in ps.FIXTURE_MARKERS) or "bad evaluation" in low
-    if not fixture_hit:
-        return "hard_fail", messages[:400], missing[:20]
-    return "fixture_insufficient", messages[:400], missing[:20]
+    gap = declared_fixture_gap(messages)
+    if gap is not None:
+        detail = (
+            f"declared fixture gap [{gap.anchor} / {gap.field}] @ {gap.source}: "
+            f"{messages[:240]}"
+        )
+        return "fixture_insufficient", detail, missing[:20]
+    messages = annotate_landing_links(messages, passage, passage_bodies)
+    return "hard_fail", messages[:400], missing[:20]
 
 
 def _missing_symbols(messages: str) -> list[str]:
@@ -2802,9 +3007,16 @@ def _missing_symbols(messages: str) -> list[str]:
     return missing
 
 
-def classify_round_errors(errors: Sequence[dict[str, Any]]) -> tuple[str, str, list[str]]:
+def classify_round_errors(
+    errors: Sequence[dict[str, Any]],
+    *,
+    passage: Any = None,
+    passage_bodies: Mapping[str, str] | None = None,
+) -> tuple[str, str, list[str]]:
     """Round-level errors: same rules as entry errors, no not_applicable branch."""
-    verdict, detail, missing = classify_entry_errors(errors)
+    verdict, detail, missing = classify_entry_errors(
+        errors, passage=passage, passage_bodies=passage_bodies
+    )
     if verdict == "not_applicable":
         return "ok", "", []
     return verdict, detail, missing
@@ -2826,9 +3038,8 @@ def classify_no_actions(
             return verdict, detail, missing
     if str(actions_probe.get("error") or "") == "no #listContainer":
         return (
-            "fixture_insufficient",
-            "combat active but #listContainer never rendered: action widgets "
-            "produced nothing (fixture data insufficient)",
+            "soft_fail",
+            "combat active but #listContainer never rendered",
             ["#listContainer"],
         )
     return "soft_fail", "no action controls in #listContainer", []
@@ -3699,7 +3910,11 @@ def drive_combat(
             break
         round_errors = state.get("errors") or []
         if round_errors:
-            verdict, detail, missing = classify_round_errors(round_errors)
+            verdict, detail, missing = classify_round_errors(
+                round_errors,
+                passage=state.get("passage"),
+                passage_bodies=passage_bodies,
+            )
             result["errors"].append(
                 {"round": round_no, "verdict": verdict, "detail": detail, "missing": missing}
             )
