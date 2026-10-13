@@ -26,6 +26,8 @@ from tools.artifact_inspection import (
 from lyra.build import (
     MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW,
     MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD,
+    MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MARKER,
+    MAPLEBIRCH_PET_REMOUNT_MARKER,
 )
 
 
@@ -37,6 +39,27 @@ EXPECTED_FACE_VARIANT_MIGRATION_MARKERS = 1
 MAPLEBIRCH_MOD_NAME = "maplebirch"
 MAPLEBIRCH_FACE_PATCH_MEMBER = "dist/inject_early.js"
 POST_I18N_FACE_PATCH_MARKER = "dolxAuFaceVariantAfterI18n"
+AU_CONTRACT_SCHEMA = "dolx.au_contract.v1"
+FRAMEWORK_FACE_STYLE_EXPORT_NEEDLE = "faceStyleSrcFn"
+# AU passes this options object at nine call sites. The inner payload is not
+# readable inside a built artifact, so the count is only obtainable from plaintext
+# material; otherwise the contract records a runtime-query obligation.
+AU_VARIANT_FLAG_RE = re.compile(r"\{\s*variant\s*:\s*true\s*\}")
+AU_PAYLOAD_OPAQUE_SUFFIXES = (".crypt", ".salt", ".nonce")
+AU_PAYLOAD_SCAN_MAX_BYTES = 200_000
+# The outer AU payload boot.json has always claimed 1.1.0 while the inner
+# archive identifies as 1.2.8, so the metadata version is recorded as a clue only.
+AU_PAYLOAD_BOOT_VERSION_CLUE = "1.1.0"
+AU_PAYLOAD_RUNTIME_IDENTITY = "1.2.8"
+# The 2026-10-13 A/B measured the variant-directory shim as a visual no-op under the
+# locked payload set, so the AU layer gap returns to accepted_upstream and carries an
+# explicit visual_incomplete tag.  "fixed" stays reserved for a measured visual
+# improvement, which would also join the query regression set.
+AU_DEFECT_STATUS = "accepted_upstream"
+AU_DEFECT_VISUAL_STATUS = "visual_incomplete"
+AU_FACE_AB_VERDICT = "no_visual_change"
+AU_FACE_AB_EVIDENCE = "docs/CURRENT_PROJECT_STATE.md#au-face-shim-ab-2026-10-13"
+EXPECTED_AU_VARIANT_DIR_SHIM_MARKERS = 1
 AU_MODEL_NAME_BY_VARIANT = {
     "au-f": "【aufemale】model",
     "au-m": "【aumale】model",
@@ -130,6 +153,41 @@ EXPECTED_POST_I18N_EXECUTION = (
 
 
 @dataclass
+class AuContractReport:
+    """Static half of the AU/framework face-source contract.
+
+    The framework side is fully observable from the built artifact. The AU side is
+    not, because the facial-expansion logic ships inside an opaque member, so an
+    unobservable call-site count becomes an explicit ``runtime_query_required``
+    obligation rather than a silent pass.
+    """
+
+    schema: str = AU_CONTRACT_SCHEMA
+    framework_export_required: bool = False
+    framework_face_style_src_fn_export_count: int = 0
+    framework_variant_dir_shim_marker_count: int = 0
+    framework_pet_remount_marker_count: int = 0
+    au_payload_present: bool = False
+    au_payload_boot_version: str = ""
+    au_payload_runtime_identity: str = AU_PAYLOAD_RUNTIME_IDENTITY
+    au_payload_opaque_members: list[str] = field(default_factory=list)
+    au_payload_skipped_members: list[str] = field(default_factory=list)
+    au_payload_scanned_members: list[str] = field(default_factory=list)
+    # True only when the AU call sites themselves are readable. Readable README or
+    # loader text does not count while the logic still sits behind a .crypt member.
+    au_payload_logic_observable: bool = False
+    au_variant_true_site_count: int = 0
+    au_variant_true_sites_unobservable: bool = True
+    runtime_query_required: bool = False
+    legacy_naming_404_count: int | None = None
+    defect_status: str = AU_DEFECT_STATUS
+    defect_visual_status: str = AU_DEFECT_VISUAL_STATUS
+    ab_verdict: str = AU_FACE_AB_VERDICT
+    ab_evidence: str = AU_FACE_AB_EVIDENCE
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
 class AuArtifactResult:
     """Validation result for one built ZIP or APK artifact."""
 
@@ -146,6 +204,7 @@ class AuArtifactResult:
     face_variant_migration_marker_count: int = 0
     post_i18n_patch_marker_count: int = 0
     numbered_nested_blush_layers: list[int] = field(default_factory=list)
+    au_contract: AuContractReport = field(default_factory=AuContractReport)
     errors: list[str] = field(default_factory=list)
 
 
@@ -276,6 +335,154 @@ def _record_payload_identity_errors(
         )
 
 
+def _au_face_payload_probe(html_content: str) -> dict[str, object]:
+    """Read the embedded AU facial-expansion payload as far as it is readable.
+
+    The AU logic ships inside an opaque ``.crypt`` member, so the plaintext call
+    sites that pass ``{ variant: true }`` are normally unobservable from a built
+    artifact. Large binary members (the 5 MB loader wrapper) and unreadable members
+    are recorded as opaque instead of being decoded.
+    """
+    parsed = parse_mod_data_value_zip_list(html_content)
+    if parsed.error_kind:
+        return {
+            "present": False,
+            "error": f"{parsed.error_kind}: {parsed.error or ''}".strip(),
+        }
+
+    for entry in parsed.entries:
+        if not isinstance(entry, str):
+            continue
+        try:
+            payload = decode_base64_payload(entry)
+            with zipfile.ZipFile(io.BytesIO(payload), "r") as payload_zip:
+                if "boot.json" not in payload_zip.namelist():
+                    continue
+                boot_json = parse_boot_json(
+                    payload_zip.read("boot.json").decode("utf-8-sig")
+                )
+                if str(boot_json.get("name") or "").lower() != AU_FACE_MOD_NAME:
+                    continue
+
+                opaque_members: list[str] = []
+                skipped_members: list[str] = []
+                scanned_members: list[str] = []
+                variant_true_sites = 0
+                export_sites = 0
+                for item in payload_zip.infolist():
+                    name = item.filename
+                    if name.lower().endswith(AU_PAYLOAD_OPAQUE_SUFFIXES):
+                        opaque_members.append(name)
+                        continue
+                    if item.file_size > AU_PAYLOAD_SCAN_MAX_BYTES:
+                        skipped_members.append(name)
+                        continue
+                    try:
+                        text = payload_zip.read(name).decode("utf-8")
+                    except UnicodeDecodeError:
+                        opaque_members.append(name)
+                        continue
+                    scanned_members.append(name)
+                    variant_true_sites += len(AU_VARIANT_FLAG_RE.findall(text))
+                    export_sites += text.count(FRAMEWORK_FACE_STYLE_EXPORT_NEEDLE)
+
+                # The call sites are only trustworthy when the payload is fully
+                # readable, or when a readable member actually carries them.
+                logic_observable = (
+                    not opaque_members
+                    and not skipped_members
+                ) or bool(variant_true_sites or export_sites)
+                return {
+                    "present": True,
+                    "boot_version": str(boot_json.get("version") or ""),
+                    "opaque_members": sorted(opaque_members),
+                    "skipped_members": sorted(skipped_members),
+                    "scanned_members": sorted(scanned_members),
+                    "logic_observable": logic_observable,
+                    "variant_true_sites": variant_true_sites,
+                    "export_sites": export_sites,
+                }
+        except Exception:
+            continue
+    return {"present": False}
+
+
+def _record_au_contract(
+    result: AuArtifactResult,
+    html_content: str | None,
+    maplebirch_script: str,
+) -> None:
+    """Cross-assert the framework export against the AU facial-expansion needs.
+
+    The fail-fast case the plan names is "framework side 0 while AU side references
+    more than 0": the AU facial expansion calls ``faceStyleSrcFn`` at nine sites, so
+    a payload that exports it zero times cannot serve an AU build.
+    """
+    contract = result.au_contract
+    contract.framework_export_required = result.is_au
+    contract.framework_face_style_src_fn_export_count = maplebirch_script.count(
+        FRAMEWORK_FACE_STYLE_EXPORT_NEEDLE
+    )
+    contract.framework_variant_dir_shim_marker_count = maplebirch_script.count(
+        MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MARKER
+    )
+    contract.framework_pet_remount_marker_count = maplebirch_script.count(
+        MAPLEBIRCH_PET_REMOUNT_MARKER
+    )
+
+    if html_content is not None:
+        probe = _au_face_payload_probe(html_content)
+        contract.au_payload_present = bool(probe.get("present"))
+        contract.au_payload_boot_version = str(probe.get("boot_version") or "")
+        contract.au_payload_opaque_members = list(
+            probe.get("opaque_members") or ()
+        )
+        contract.au_payload_skipped_members = list(
+            probe.get("skipped_members") or ()
+        )
+        contract.au_payload_scanned_members = list(
+            probe.get("scanned_members") or ()
+        )
+        contract.au_payload_logic_observable = bool(probe.get("logic_observable"))
+        contract.au_variant_true_site_count = int(
+            probe.get("variant_true_sites") or 0
+        )
+        contract.au_variant_true_sites_unobservable = (
+            not contract.au_payload_logic_observable
+        )
+        if probe.get("error"):
+            contract.errors.append(f"AU payload probe failed: {probe['error']}")
+
+    if not result.is_au:
+        return
+
+    if not contract.au_payload_present:
+        contract.errors.append(
+            "AU contract: the artifact carries no readable AU facial-expansion payload"
+        )
+    if contract.framework_face_style_src_fn_export_count == 0:
+        contract.errors.append(
+            "AU contract violation: the Maplebirch payload exports faceStyleSrcFn 0 "
+            "times while the AU facial expansion calls it at nine sites "
+            "(js/faceSelector.js and addon/svr.js); every flagged layer source throws "
+            "'faceStyleSrcFn is not a function'. This is the measured 4.2.9 "
+            "regression that moved the framework pin back to 4.1.14."
+        )
+    if (
+        contract.framework_variant_dir_shim_marker_count
+        != EXPECTED_AU_VARIANT_DIR_SHIM_MARKERS
+    ):
+        contract.errors.append(
+            "AU contract: expected exactly "
+            f"{EXPECTED_AU_VARIANT_DIR_SHIM_MARKERS} variant-directory priority shim "
+            f"marker, found {contract.framework_variant_dir_shim_marker_count}"
+        )
+    contract.runtime_query_required = bool(
+        result.is_au and contract.au_variant_true_sites_unobservable
+    )
+    result.errors.extend(contract.errors)
+
+
 def _record_face_variant_markers(
     result: AuArtifactResult,
     html_name: str | None,
@@ -303,6 +510,8 @@ def _record_face_variant_markers(
             "AU artifact Maplebirch payload does not contain a readable patch member"
         )
         return
+
+    _record_au_contract(result, html_content, maplebirch_script)
 
     result.face_variant_switch_marker_count = maplebirch_script.count(
         FACE_VARIANT_SWITCH_MARKER
@@ -681,6 +890,26 @@ def main() -> int:
         args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+    for result in results:
+        if not result.is_au:
+            continue
+        contract = result.au_contract
+        print(
+            "au-contract "
+            f"framework_faceStyleSrcFn={contract.framework_face_style_src_fn_export_count} "
+            f"variant_dir_shim={contract.framework_variant_dir_shim_marker_count} "
+            f"pet_remount={contract.framework_pet_remount_marker_count} "
+            f"au_payload={'plaintext' if contract.au_payload_logic_observable else 'opaque'} "
+            f"variant_true_sites="
+            f"{'unobservable' if contract.au_variant_true_sites_unobservable else contract.au_variant_true_site_count} "
+            f"runtime_query_required={contract.runtime_query_required} "
+            f"legacy_naming_404={contract.legacy_naming_404_count} "
+            f"defect_status={contract.defect_status} "
+            f"visual_status={contract.defect_visual_status} "
+            f"ab_verdict={contract.ab_verdict}",
+            file=sys.stderr,
+        )
 
     return 0 if all(result.success for result in results) else 1
 
