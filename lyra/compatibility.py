@@ -15,6 +15,7 @@ DOLI_FLOAT_ICON_PATCH_KEY = "doli_float_icon_path"
 MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY = "maplebirch_pet_passage_remount"
 AU_FACE_ALIAS_KEY = "au_face_default_aliases"
 AU_FACE_VARIANT_SELECTION_KEY = "au_face_variant_selection"
+AU_FACE_VARIANT_DIR_PRIORITY_KEY = "au_face_variant_dir_priority"
 APK_CDP_REMOTE_END_RECONNECT_KEY = "apk_cdp_remote_end_reconnect"
 
 PATCH_SUCCESS_STATUSES = frozenset({"patched", "already_patched"})
@@ -226,6 +227,68 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
             "registered variants made all eight pets visible with distinct hashes. "
             "Valid-path eyes/mouth ImageErrors observed in a separate basehead probe are "
             "not repaired or hidden by this state-selection patch."
+        ),
+    ),
+    CompatibilitySurface(
+        key=AU_FACE_VARIANT_DIR_PRIORITY_KEY,
+        target="AU { variant: true } layer-source resolution in the pinned framework",
+        scope="default-path",
+        kind="payload-patch",
+        cache_name="maplebirch",
+        github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+        release_tag="maplebirch-release-v4.1.14",
+        asset_pattern="maplebirch-0.5.10.12-v4.1.14.mod.zip",
+        member=(
+            "dist/inject_early.js faceStyleSrcFn(aD) resolver variant-directory order"
+        ),
+        marker="dolxAuVariantDirPriority",
+        fail_policy="fail-closed",
+        tests=(
+            "tests/test_au_face_variant_dir_priority.py",
+            "tests/test_compatibility_registry.py",
+        ),
+        removal_condition=(
+            "Retire when the pinned framework itself honours the second "
+            "faceStyleSrcFn options argument, or when AU stops passing "
+            "{ variant: true } and the flat-first branch therefore has no caller "
+            "that depends on the prompt."
+        ),
+        notes=(
+            "DEFECT STATUS 2026-10-13: accepted_upstream, visual_incomplete. The AU facial "
+            "expansion calls maplebirch.char.faceStyleSrcFn(name, { variant: true }) at "
+            "nine sites (four in js/faceSelector.js, five in addon/svr.js, incl. eyes, "
+            "ears, iris x2, freckles, blusher and tearN). The v4.1.14 export aD(srcfn) "
+            "declares one parameter, so the options object is dropped and the flag "
+            "never reaches the layer resolver closure; every published maplebirch tag "
+            "from 3.1.8 through 4.1.14 is single-parameter, 4.2.0 removed the export "
+            "outright and 5.1.3 has zero faceStyleSrcFn occurrences. Simple Framework "
+            "and the game body both have zero occurrences of faceStyleSrcFn, so the "
+            "second argument is an AU-side intent, not a framework API that exists "
+            "elsewhere. AU's own non-maplebirch branch in addon/svr.js implements the "
+            "intended order by hand, variant directory first and flat file second, "
+            "which is the same order the flag asks for. The dropped flag only changes "
+            "which branch is taken when the selected facestyle string is literally "
+            "default, and vanilla's img/face/default/freckles.png, blusher.png, "
+            "blush-N.png, tears-N.png, mouth-*.png and lipstick-*.png are upstream's own "
+            "fine line art rather than empty stubs, so the flat-first branch stays a "
+            "visible drawing either way. "
+            "The shim forwards the second argument and disables only the flat-first "
+            "branch for { variant: true }; single-argument calls keep the upstream "
+            "expression byte for byte. "
+            "A/B VERDICT 2026-10-13: no_visual_change. Baseline and shim produced "
+            "byte-identical pet-canvas hashes for none/freckles/tears/all-on across the "
+            "default, catty, sweet and aloof variants, because the embedded community "
+            "plus (Legacy-Art-Mods-Compat) side-hooks the flat path onto the same AU "
+            "art and the AU freckles/blusher/ears/tear-N/blush-N assets are byte "
+            "identical across variants. The shim is therefore kept as a contract-level "
+            "correction of AU's own intent, NOT as a visual fix; the freckles/blusher/"
+            "tears gap stays accepted_upstream with an explicit visual_incomplete tag "
+            "and 'fixed' stays reserved for a measured visual improvement, which would "
+            "also move the case into the query regression set. Recorded coverage gap: "
+            "four of the eight AU face styles, canvas-hash and drawImage-asset evidence "
+            "rather than human visual review; see docs/CURRENT_PROJECT_STATE.md "
+            "(anchor au-face-shim-ab-2026-10-13). No claim of a visual fix is permitted "
+            "while the A/B verdict is no_visual_change."
         ),
     ),
     CompatibilitySurface(

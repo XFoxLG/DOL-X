@@ -21,6 +21,7 @@ from .paths import BuildPaths
 from .version import LyraVersion, VersionRegistry
 from .config import ModCode
 from .compatibility import (
+    AU_FACE_VARIANT_DIR_PRIORITY_KEY,
     AU_FACE_VARIANT_SELECTION_KEY,
     MORE_LOVE_DRAG_PATCH_KEY,
     DOLI_FLOAT_ICON_PATCH_KEY,
@@ -367,6 +368,143 @@ MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_NEW = (
     "n.passageDataItems.back2Array(),"
     "e.modUtils.replaceFollowSC2DataInfo(n,t)}"
 )
+
+
+# AU's runtime-decrypted payload asks the framework for variant-aware layer sources
+# through maplebirch.char.faceStyleSrcFn(name, { variant: true }) at nine call sites
+# (js/faceSelector.js and addon/svr.js). The pinned v4.1.14 export is aD(srcfn): it
+# declares one parameter and the options object is dropped before the layer resolver
+# closure is built, so the flag never reaches the code that picks a candidate path.
+# AU's own non-maplebirch branch in addon/svr.js implements the intended order by hand
+# (variant directory first, flat file second) whenever modUtils.getMod("maplebirch")
+# is false, so the flag is asking for exactly that order.
+#
+# Consequence of the dropped flag: the resolver prefers the FLAT file whenever the
+# selected facestyle string is literally "default" AND the layer name matches
+# /^(freckles|ears|blusher|mouth-|lipstick-|blush-?|tears?-?)/. Vanilla ships those
+# flat names (img/face/default/freckles.png, blusher.png, blush-N.png, tears-N.png,
+# mouth-*.png, lipstick-*.png) as upstream's own fine line art while the AU model's
+# full-size art lives in the variant directories. Every other facestyle value already
+# takes the variant-first branch, so the shim changes nothing outside that single
+# case and cannot regress the vanilla layer tables.
+#
+# A/B VERDICT 2026-10-13: no_visual_change. The shim changes the path the resolver
+# returns but not a single rendered pixel under the locked payload set, because the
+# embedded community plus (Legacy-Art-Mods-Compat) side-hooks the flat path onto the
+# same AU art, and the AU freckles/blusher/ears/tear-N/blush-N assets are byte
+# identical across variants anyway. The shim is therefore kept as a contract-level
+# correction (AU's own stated intent) and NOT as a visual fix: the defect stays
+# accepted_upstream with an explicit visual_incomplete tag. Nothing in this patch
+# repairs freckles/blusher/tears rendering and no visual-fix claim is permitted.
+#
+# The shim forwards the second argument into the resolver closure and disables only
+# the flat-first branch when the caller passes { variant: true }. A single-argument
+# call keeps the upstream expression byte for byte. The needle is the exact v4.1.14
+# bundle text and must hit exactly once, so a framework bump fails the build instead
+# of silently turning this shim into a no-op.
+MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MEMBER = "dist/inject_early.js"
+MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MARKER = "dolxAuVariantDirPriority"
+MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD = (
+    'function aD(e){let t="function"==typeof e?e:()=>e;'
+    'return function(e){let n=[t(e)].flat(),r=e.facestyle||"default",'
+    'a=e.facevariant||"default";return aO(n.flatMap(e=>"default"===r&&'
+)
+MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_NEW = (
+    'function aD(e,i){let t="function"==typeof e?e:()=>e;'
+    'return function(e){let n=[t(e)].flat(),r=e.facestyle||"default",'
+    'a=e.facevariant||"default";return aO(n.flatMap('
+    f"e=>/*{MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MARKER}*/"
+    '"default"===r&&!0!==(i&&i.variant)&&'
+)
+
+
+def patch_maplebirch_au_variant_dir_priority(
+    source_path: Path,
+    target_path: Path,
+) -> dict[str, object]:
+    """Honour AU's ``{ variant: true }`` layer-source request in the pinned framework.
+
+    ``MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD`` documents why the second argument has
+    to be forwarded by hand. This is fail-closed: a needle count other than exactly
+    one is reported as a failure and the caller raises instead of shipping a build
+    whose flagged AU layers silently keep taking the flat-first branch.
+    """
+    result: dict[str, object] = {
+        "applied": False,
+        "member": MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MEMBER,
+        "source": str(source_path),
+        "target": str(target_path),
+    }
+
+    try:
+        with zipfile.ZipFile(source_path, "r") as source_zip:
+            if MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MEMBER not in source_zip.namelist():
+                result["status"] = "missing_patch_member"
+                return result
+
+            original_script = source_zip.read(
+                MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MEMBER
+            ).decode("utf-8", errors="replace")
+            marker_count = original_script.count(
+                MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MARKER
+            )
+            if marker_count:
+                complete_patch_count = original_script.count(
+                    MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_NEW
+                )
+                obsolete_needle_count = original_script.count(
+                    MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD
+                )
+                if (
+                    marker_count == 1
+                    and complete_patch_count == 1
+                    and obsolete_needle_count == 0
+                ):
+                    result["status"] = "already_patched"
+                else:
+                    result["status"] = "partial_patch"
+                    result["marker_count"] = marker_count
+                    result["complete_patch_count"] = complete_patch_count
+                    result["obsolete_needle_count"] = obsolete_needle_count
+                return result
+
+            needle_count = original_script.count(
+                MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD
+            )
+            if needle_count != 1:
+                result["status"] = "patch_needle_not_found"
+                result["needle_count"] = needle_count
+                return result
+
+            patched_script = original_script.replace(
+                MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD,
+                MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_NEW,
+                1,
+            )
+            if (
+                patched_script.count(MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_NEW) != 1
+                or patched_script.count(MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD) != 0
+                or patched_script.count(MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MARKER)
+                != 1
+            ):
+                result["status"] = "patch_verification_failed"
+                return result
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "w") as target_zip:
+                for member in source_zip.infolist():
+                    data = source_zip.read(member)
+                    if member.filename == MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MEMBER:
+                        data = patched_script.encode("utf-8")
+                    target_zip.writestr(member, data)
+    except zipfile.BadZipFile as exc:
+        result["status"] = "not_zip"
+        result["error"] = str(exc)
+        return result
+
+    result["applied"] = True
+    result["status"] = "patched"
+    return result
 
 
 def patch_maplebirch_au_face_variant_selection(
@@ -944,14 +1082,62 @@ class PackageBuilder(ABC):
         status = str(patch_result.get("status") or "unknown")
         if status == "patched":
             logger.info("Maplebirch AU face variant compatibility patch applied")
-            return patched_path
+            return self._patch_maplebirch_au_variant_dir_priority(
+                mod_config,
+                patched_path,
+            )
         if is_patch_success_status(status):
             logger.info(
                 "Maplebirch AU face variant compatibility patch already present"
             )
-            return mod_path
+            return self._patch_maplebirch_au_variant_dir_priority(
+                mod_config,
+                mod_path,
+            )
         raise RuntimeError(
             "Maplebirch AU face variant compatibility patch failed: "
+            f"{status}"
+        )
+
+    def _patch_maplebirch_au_variant_dir_priority(
+        self,
+        mod_config,
+        mod_path: Path,
+    ) -> Path:
+        """Forward AU's ``{ variant: true }`` flag into the pinned framework."""
+        if not self._has_au_feature():
+            return mod_path
+
+        patch_surface = compatibility_surface_by_key(
+            AU_FACE_VARIANT_DIR_PRIORITY_KEY
+        )
+        source_errors = compatibility_source_errors(patch_surface, mod_config)
+        if source_errors:
+            raise RuntimeError(
+                "Maplebirch AU variant directory priority shim source mismatch: "
+                + "; ".join(source_errors)
+            )
+
+        patched_path = (
+            self.paths.temp_dir
+            / f"{MAPLEBIRCH_CACHE_NAME}-{self.pack_type}-{self.task.code_str}"
+            ".au-variant-dir.mod.zip"
+        )
+        patch_result = patch_maplebirch_au_variant_dir_priority(
+            mod_path,
+            patched_path,
+        )
+        status = str(patch_result.get("status") or "unknown")
+        if status == "patched":
+            logger.info("Maplebirch AU variant directory priority shim applied")
+            return patched_path
+        if is_patch_success_status(status):
+            logger.info(
+                "Maplebirch AU variant directory priority shim already present"
+            )
+            return mod_path
+        raise RuntimeError(
+            "Maplebirch AU variant directory priority shim failed: "
             f"{status}"
         )
 
