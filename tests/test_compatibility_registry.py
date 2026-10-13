@@ -5,6 +5,7 @@ import pytest
 from lyra.compatibility import (
     APK_CDP_REMOTE_END_RECONNECT_KEY,
     AU_FACE_ALIAS_KEY,
+    AU_FACE_VARIANT_DIR_PRIORITY_KEY,
     AU_FACE_VARIANT_SELECTION_KEY,
     COMPATIBILITY_SURFACES,
     DOLI_FLOAT_ICON_PATCH_KEY,
@@ -30,6 +31,7 @@ def test_compatibility_surfaces_are_registered_and_classified():
         MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
         AU_FACE_ALIAS_KEY,
         AU_FACE_VARIANT_SELECTION_KEY,
+        AU_FACE_VARIANT_DIR_PRIORITY_KEY,
         APK_CDP_REMOTE_END_RECONNECT_KEY,
     }
     assert surfaces_by_key[MORE_LOVE_DRAG_PATCH_KEY].scope == "default-path"
@@ -54,6 +56,12 @@ def test_compatibility_surfaces_are_registered_and_classified():
     assert surfaces_by_key[AU_FACE_VARIANT_SELECTION_KEY].scope == "default-path"
     assert surfaces_by_key[AU_FACE_VARIANT_SELECTION_KEY].kind == "payload-patch"
     assert surfaces_by_key[AU_FACE_VARIANT_SELECTION_KEY].fail_policy == "fail-closed"
+    assert surfaces_by_key[AU_FACE_VARIANT_DIR_PRIORITY_KEY].scope == "default-path"
+    assert surfaces_by_key[AU_FACE_VARIANT_DIR_PRIORITY_KEY].kind == "payload-patch"
+    assert (
+        surfaces_by_key[AU_FACE_VARIANT_DIR_PRIORITY_KEY].fail_policy
+        == "fail-closed"
+    )
     assert surfaces_by_key[APK_CDP_REMOTE_END_RECONNECT_KEY].scope == "generic-harness"
 
 
@@ -80,6 +88,7 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         DOLI_FLOAT_ICON_PATCH_KEY,
         MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,
         AU_FACE_VARIANT_SELECTION_KEY,
+        AU_FACE_VARIANT_DIR_PRIORITY_KEY,
     ]
     more_love = default_payload_patches[0]
     assert more_love.fail_policy == "fail-closed"
@@ -127,6 +136,20 @@ def test_default_path_payload_patches_are_fail_closed_and_version_scoped():
         == "maplebirch-0.5.10.12-v4.1.14.mod.zip"
     )
     assert au_face_variant.marker == "dolxAuFaceVariantAfterI18n"
+
+    au_variant_dir = default_payload_patches[4]
+    assert au_variant_dir.fail_policy == "fail-closed"
+    assert au_variant_dir.cache_name == "maplebirch"
+    assert (
+        au_variant_dir.github_repo
+        == "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+    )
+    assert au_variant_dir.release_tag == "maplebirch-release-v4.1.14"
+    assert (
+        au_variant_dir.asset_pattern
+        == "maplebirch-0.5.10.12-v4.1.14.mod.zip"
+    )
+    assert au_variant_dir.marker == "dolxAuVariantDirPriority"
 
 
 @pytest.mark.config
