@@ -5,7 +5,8 @@
 - archetype 矩阵构造（28 规格 × 4 路径、入口选择偏好、limit/sample）
 - 路径偏好选择（赢/输/逃/屈服关键词、无匹配 fallback）
 - 卡死判定（连续 3 回合状态摘要无变化）与终局判定
-- fixture_insufficient 错误分类（合成 is not defined / Cannot read properties）
+- 错误分类（已声明 fixture 缺口降级、未声明引用错误保持 hard_fail、
+  no-usable-links 的断链目标登记）
 - initiator 选取（resume 跳过 / limit / sample）
 - JSON+MD 报告写出、基线 diff、CLI 默认值
 """
@@ -716,6 +717,18 @@ def test_terminal_and_route_markers_follow_upstream_semantics() -> None:
     assert combat_sweep.terminal_landing_marker("Scene Finish", None) is None
 
 
+def test_terminal_marker_ignores_comments_and_unreachable_branches() -> None:
+    bodies = {
+        "Comment Only": "/* <<endcombat>> */",
+        "Unreachable": "<<if false>><<endcombat>><</if>>",
+        "Reachable": "/* <<machine_end>> */\n<<endcombat>>",
+    }
+
+    assert combat_sweep.terminal_landing_marker("Comment Only", bodies) is None
+    assert combat_sweep.terminal_landing_marker("Unreachable", bodies) is None
+    assert combat_sweep.terminal_landing_marker("Reachable", bodies) == "endcombat"
+
+
 def test_terminal_landing_preserves_pre_finish_defeat_evidence() -> None:
     terminal_landing = {
         "marker": "endcombat",
@@ -826,23 +839,84 @@ def test_expected_outcome_map_only_asserts_unambiguous_paths() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_classify_entry_errors_marks_missing_variables_as_fixture_insufficient() -> None:
+def test_classify_entry_errors_keeps_missing_variables_as_hard_fail() -> None:
     verdict, detail, missing = classify_entry_errors(
         [{"message": "ReferenceError: $wolfpack is not defined"}]
     )
 
-    assert verdict == "fixture_insufficient"
+    assert verdict == "hard_fail"
     assert any(name.endswith("wolfpack") for name in missing)
     assert "is not defined" in detail
 
 
-def test_classify_entry_errors_marks_null_property_reads_as_fixture_insufficient() -> None:
+def test_classify_entry_errors_keeps_null_property_reads_as_hard_fail() -> None:
     verdict, _detail, missing = classify_entry_errors(
         [{"message": "TypeError: Cannot read properties of null (reading 'type')"}]
     )
 
-    assert verdict == "fixture_insufficient"
+    assert verdict == "hard_fail"
     assert "null.type" in missing
+
+
+def test_classify_entry_errors_downgrades_only_declared_fixture_gaps() -> None:
+    message = (
+        "(:: Farm Kennel Fight Finish): <<farm_dogs>>: error within widget code "
+        "(<<set>>: bad evaluation: TypeError: Cannot read properties of undefined "
+        "(reading 'beasts')"
+    )
+
+    verdict, detail, missing = classify_entry_errors([{"message": message}])
+
+    assert verdict == "fixture_insufficient"
+    assert "declared fixture gap [farm_dogs / beasts]" in detail
+    assert "Degrees of Lewdity.html:" in detail
+    assert any(name.endswith("beasts") for name in missing)
+
+
+def test_declared_fixture_gaps_carry_reviewed_source_rows() -> None:
+    assert combat_sweep.DECLARED_FIXTURE_GAPS
+    for gap in combat_sweep.DECLARED_FIXTURE_GAPS:
+        assert gap.anchor.strip()
+        assert gap.field.strip()
+        assert gap.source_line > 0
+        assert gap.reason.strip()
+        assert gap.source == f"Degrees of Lewdity.html:{gap.source_line}"
+
+
+def test_no_usable_links_records_broken_outbound_targets() -> None:
+    bodies = {
+        "Estate Manor Approach Finish": (
+            "<<link [[Next|Estate Manor Approach Defeat]]>><</link>> "
+            "<<link [[Next|Estate Manor Intro Entrance]]>><</link>>"
+        ),
+    }
+
+    verdict, detail, _missing = combat_sweep.classify_round_errors(
+        [{"message": "The passage Estate Manor Approach Finish has no usable links."}],
+        passage="Estate Manor Approach Finish",
+        passage_bodies=bodies,
+    )
+
+    assert verdict == "hard_fail"
+    assert "has no usable links" in detail
+    assert "Estate Manor Approach Defeat" in detail
+    assert "Estate Manor Intro Entrance" in detail
+
+
+def test_no_usable_links_keeps_detail_when_a_target_exists() -> None:
+    bodies = {
+        "Scene": "<<link [[Next|Bedroom]]>><</link>>",
+        "Bedroom": "ok",
+    }
+
+    verdict, detail, _missing = combat_sweep.classify_round_errors(
+        [{"message": "The passage Scene has no usable links."}],
+        passage="Scene",
+        passage_bodies=bodies,
+    )
+
+    assert verdict == "hard_fail"
+    assert detail == "The passage Scene has no usable links."
 
 
 def test_classify_entry_errors_keeps_real_errors_as_hard_fail() -> None:
@@ -867,7 +941,7 @@ def test_classify_entry_errors_without_errors_is_not_applicable() -> None:
 def test_classify_no_actions_flags_missing_list_container_as_fixture_insufficient() -> None:
     verdict, detail, missing = classify_no_actions({"error": "no #listContainer"}, {"errors": []})
 
-    assert verdict == "fixture_insufficient"
+    assert verdict == "soft_fail"
     assert missing == ["#listContainer"]
     assert "#listContainer" in detail
 
@@ -878,7 +952,7 @@ def test_classify_no_actions_prefers_captured_state_errors() -> None:
         {"errors": [{"message": "ReferenceError: $beast is not defined"}]},
     )
 
-    assert verdict == "fixture_insufficient"
+    assert verdict == "hard_fail"
     assert any(name.endswith("beast") for name in missing)
 
 

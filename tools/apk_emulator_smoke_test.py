@@ -168,14 +168,16 @@ def _discover_cdp_endpoint(
     *,
     cdp_port: int,
     timeout_seconds: int,
+    serial: str | None = None,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
     attempts: list[dict[str, Any]] = []
     last_error: str | None = None
 
+    adb_prefix = [adb, "-s", serial] if serial else [adb]
     while time.monotonic() < deadline:
         try:
-            proc_net = _run_command([adb, "shell", "cat", "/proc/net/unix"], commands, timeout=10).stdout
+            proc_net = _run_command([*adb_prefix, "shell", "cat", "/proc/net/unix"], commands, timeout=10).stdout
             sockets = _parse_devtools_sockets(proc_net)
             socket = _select_devtools_socket(sockets, package_name)
             attempts.append({"sockets": sockets, "selected_socket": socket})
@@ -183,8 +185,8 @@ def _discover_cdp_endpoint(
                 time.sleep(1)
                 continue
 
-            _run_command([adb, "forward", "--remove", f"tcp:{cdp_port}"], commands, check=False, timeout=10)
-            _run_command([adb, "forward", f"tcp:{cdp_port}", f"localabstract:{socket}"], commands, timeout=10)
+            _run_command([*adb_prefix, "forward", "--remove", f"tcp:{cdp_port}"], commands, check=False, timeout=10)
+            _run_command([*adb_prefix, "forward", f"tcp:{cdp_port}", f"localabstract:{socket}"], commands, timeout=10)
             cdp_url = f"http://127.0.0.1:{cdp_port}"
             targets = _fetch_json(f"{cdp_url}/json/list")
             if isinstance(targets, list) and targets:

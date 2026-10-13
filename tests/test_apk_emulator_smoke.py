@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,38 @@ def test_apk_cdp_selects_localhost_page_target_and_resolves_websocket_url():
         apk_emulator_smoke_test._target_websocket_url("http://127.0.0.1:9222", target)
         == "ws://127.0.0.1:9222/devtools/page/game"
     )
+
+
+@pytest.mark.config
+def test_apk_cdp_discovery_targets_selected_serial_when_multiple_devices_exist(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run_command(cmd, commands, *, check: bool = True, timeout: int | None = None):
+        del check, timeout
+        commands.append({"command": cmd})
+        calls.append(cmd)
+        if "cat" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, "@webview_devtools_remote_123\n", "")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(apk_emulator_smoke_test, "_run_command", fake_run_command)
+    monkeypatch.setattr(
+        apk_emulator_smoke_test,
+        "_fetch_json",
+        lambda _url, *, timeout=5.0: [{"url": "https://localhost/index.html"}],
+    )
+
+    diagnostics = apk_emulator_smoke_test._discover_cdp_endpoint(
+        "adb",
+        "com.vrelnir.dol.xfox",
+        [],
+        cdp_port=9334,
+        timeout_seconds=1,
+        serial="127.0.0.1:16416",
+    )
+
+    assert diagnostics["success"] is True
+    assert all(cmd[1:3] == ["-s", "127.0.0.1:16416"] for cmd in calls if cmd[-1] != "9334")
 
 
 @pytest.mark.config
