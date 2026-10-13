@@ -20,6 +20,7 @@ on:
         default: daily
         options:
           - daily
+          - nightly
           - full
           - combat-full
           - env-full
@@ -228,6 +229,27 @@ jobs:
             --tier archetypes --seed "$SWEEP_SEED" --out .local/sweep/daily-combat || STATUS=1
           python tools/env_matrix.py --target "$HTML" --fixture "$FIXTURE" \
             --tier daily --seed "$SWEEP_SEED" --out .local/sweep/daily-env || STATUS=1
+          # 自然轨道是真实 UI smoke，不是全量覆盖率。失败仍保留报告，由下方
+          # exploration summary 显示是 product failure 还是 infrastructure failure。
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/exploration_agent.py "$HTML" \
+            --out .local/sweep/daily-natural \
+            --max-steps 30 --seed "$SWEEP_SEED" \
+            --expect-version "$VERSION" --tag "$TARGET_TAG" || STATUS=1
+          python tools/exploration_summary.py .local/sweep/daily-natural/exploration-report.json \
+            --out .local/sweep/daily-natural/exploration-sweep.json || STATUS=1
+          # Assisted track proves source-index targets render under a valid
+          # fixture. It is not natural reachability and is reported separately.
+          python tools/source_index.py "$HTML" \
+            --source-commit "${GITHUB_SHA}" \
+            --out .local/sweep/daily-assisted/source-index.json || STATUS=1
+          python tools/assisted_explorer.py "$HTML" \
+            --source-index .local/sweep/daily-assisted/source-index.json \
+            --fixture "$FIXTURE" \
+            --out .local/sweep/daily-assisted \
+            --limit 30 --seed "$SWEEP_SEED" \
+            --expect-version "$VERSION" --tag "$TARGET_TAG" || STATUS=1
           if [ "${STATUS}" -ne 0 ]; then
             echo "::error::daily tier reported failures; mod inventory + all four sweep axes still ran for a complete report set"
           fi
@@ -249,6 +271,140 @@ jobs:
         if: always() && steps.export.outcome == 'success'
         with:
           name: sweep-daily
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  nightly:
+    needs: prepare
+    if: inputs.tier == 'nightly'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-package
+          path: prepared/archive
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys; import zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
+      - name: Run natural exploration across seeds
+        run: |
+          set -uo pipefail
+          HTML="${HTML_PATH}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          STATUS=0
+          for SEED in 1719 20261005 31415; do
+            OUT=".local/sweep/nightly-natural-${SEED}"
+            python tools/exploration_agent.py "$HTML" \
+              --out "$OUT" \
+              --max-steps 120 --seed "$SEED" \
+              --checkpoint-every 20 \
+              --shrink-failures \
+              --expect-version "$VERSION" --tag "$TARGET_TAG" || STATUS=1
+            python tools/exploration_summary.py "$OUT/exploration-report.json" \
+              --out "$OUT/exploration-sweep.json" || STATUS=1
+          done
+          python tools/exploration_summary.py \
+            .local/sweep/nightly-natural-*/exploration-sweep.json \
+            --out .local/sweep/nightly-natural-batch.json || STATUS=1
+          if [ -f .local/sweep/nightly-natural-batch.json ]; then
+            python - <<'PY' || STATUS=1
+            import json
+            from pathlib import Path
+            report = json.loads(Path(".local/sweep/nightly-natural-batch.json").read_text(encoding="utf-8"))
+            unattributed = sum(len(item.get("unattributed_hard_failures") or []) for item in report.get("runs", []))
+            if unattributed:
+                print(f"::error::nightly exploration left {unattributed} unattributed hard failure(s)")
+            raise SystemExit(1 if unattributed else 0)
+            PY
+          else
+            echo "::error::nightly natural exploration batch summary missing"
+            STATUS=1
+          fi
+          exit "${STATUS}"
+      - name: Run deeper assisted surface
+        run: |
+          set -uo pipefail
+          HTML="${HTML_PATH}"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/source_index.py "$HTML" \
+            --source-commit "${GITHUB_SHA}" \
+            --out .local/sweep/nightly-assisted/source-index.json
+          python tools/assisted_explorer.py "$HTML" \
+            --source-index .local/sweep/nightly-assisted/source-index.json \
+            --fixture "$FIXTURE" \
+            --out .local/sweep/nightly-assisted \
+            --limit 200 --seed "$SWEEP_SEED" \
+            --expect-version "$VERSION" --tag "$TARGET_TAG"
+      - name: Inventory runtime mod surface
+        run: |
+          set -euo pipefail
+          python tools/mod_passage_inventory.py "$HTML" \
+            --out .local/sweep/nightly-mod-inventory \
+            --json .local/sweep/nightly-mod-inventory/mod-passage-inventory.json \
+            --md .local/sweep/nightly-mod-inventory/mod-passage-inventory.md \
+            --write-list .local/sweep/nightly-mod-inventory/playable-runtime-only.txt \
+            --mod-buttons-limit 12
+          if [ -s .local/sweep/nightly-mod-inventory/playable-runtime-only.txt ]; then
+            python tools/passage_sweep.py "$HTML" \
+              --only-file .local/sweep/nightly-mod-inventory/playable-runtime-only.txt \
+              --allow-runtime-only \
+              --out .local/sweep/nightly-mod-passages
+          else
+            echo "::error::nightly mod inventory produced an empty playable-passage list"
+            exit 1
+          fi
+      - name: Build evidence gate
+        run: |
+          set -euo pipefail
+          python tools/exploration_gate.py \
+            .local/sweep/nightly-natural-*/exploration-report.json \
+            .local/sweep/nightly-assisted/assisted-exploration-report.json \
+            --source-index .local/sweep/nightly-assisted/source-index.json \
+            --mod-inventory .local/sweep/nightly-mod-inventory/mod-passage-inventory.json \
+            --mod-passage-sweep .local/sweep/nightly-mod-passages/passage-sweep.json \
+            --out .local/sweep/nightly-gate
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always() && steps.export.outcome == 'success'
+        with:
+          name: sweep-nightly
           path: sweep-reports
           if-no-files-found: error
           retention-days: 30
@@ -532,6 +688,176 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  assisted-shards:
+    needs: prepare
+    if: inputs.tier == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-package
+          path: prepared/archive
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys; import zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
+      - name: Run assisted source-edge shard
+        run: |
+          set -euo pipefail
+          HTML="${HTML_PATH}"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          python tools/source_index.py "$HTML" \
+            --source-commit "${GITHUB_SHA}" \
+            --out ".local/sweep/assisted-shard-${{ matrix.shard }}/source-index.json"
+          python tools/assisted_explorer.py "$HTML" \
+            --source-index ".local/sweep/assisted-shard-${{ matrix.shard }}/source-index.json" \
+            --fixture "$FIXTURE" \
+            --out ".local/sweep/assisted-shard-${{ matrix.shard }}" \
+            --shard-index "${{ matrix.shard }}" --shard-count 8 \
+            --seed "$SWEEP_SEED" \
+            --expect-version "${TARGET_TAG#v}" --tag "$TARGET_TAG" \
+            --mods-lock config/mods.lock.json \
+            --build-toml config/build.toml \
+            --source-commit "${GITHUB_SHA}"
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-assisted-shard-${{ matrix.shard }}
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  assisted-gate:
+    needs: assisted-shards
+    if: always() && inputs.tier == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-package
+          path: prepared/archive
+      - uses: actions/download-artifact@v6
+        with:
+          name: sweep-fixture
+          path: prepared/fixture
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: sweep-assisted-shard-*
+          path: assisted-shards
+          merge-multiple: true
+      - name: Verify package identity
+        run: |
+          set -euo pipefail
+          ZIP="$(find prepared/archive -maxdepth 2 -name '*.zip' -print -quit)"
+          test -n "${ZIP}"
+          VERSION="${TARGET_TAG#v}"
+          VERSION="${VERSION%%-*}"
+          python tools/target_package_check.py "$ZIP" \
+            --expect "$EXPECT_MODS" --expect-version "$VERSION" --min-mods 30
+          rm -rf prepared/package
+          python -c "import sys; import zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ZIP" prepared/package
+          HTML="$(find prepared/package -name 'Degrees of Lewdity.html' -print -quit)"
+          test -n "${HTML}"
+          echo "HTML_PATH=${HTML}" >> "$GITHUB_ENV"
+      - name: Build assisted full-coverage gate
+        run: |
+          set -euo pipefail
+          HTML="${HTML_PATH}"
+          FIXTURE="$(find prepared/fixture -name 'ci-base.json' -print -quit)"
+          REPORTS="$(find assisted-shards -type f -name 'assisted-exploration-report.json' | sort)"
+          test -n "${REPORTS}"
+          python tools/source_index.py "$HTML" \
+            --source-commit "${GITHUB_SHA}" \
+            --out .local/sweep/full-mod-inventory/source-index.json
+          python tools/mod_passage_inventory.py "$HTML" \
+            --out .local/sweep/full-mod-inventory \
+            --json .local/sweep/full-mod-inventory/mod-passage-inventory.json \
+            --md .local/sweep/full-mod-inventory/mod-passage-inventory.md \
+            --write-list .local/sweep/full-mod-inventory/playable-runtime-only.txt \
+            --mod-buttons-limit 12
+          if [ -s .local/sweep/full-mod-inventory/playable-runtime-only.txt ]; then
+            python tools/passage_sweep.py "$HTML" \
+              --only-file .local/sweep/full-mod-inventory/playable-runtime-only.txt \
+              --allow-runtime-only \
+              --out .local/sweep/full-mod-passages
+          else
+            echo "::error::full mod inventory produced an empty playable-passage list"
+            exit 1
+          fi
+          python tools/exploration_gate.py \
+            ${REPORTS} \
+            --source-index .local/sweep/full-mod-inventory/source-index.json \
+            --mod-inventory .local/sweep/full-mod-inventory/mod-passage-inventory.json \
+            --mod-passage-sweep .local/sweep/full-mod-passages/passage-sweep.json \
+            --target "$ZIP" \
+            --mods-lock config/mods.lock.json \
+            --assisted-full-coverage \
+            --out .local/sweep/assisted-gate || exit 2
+      - name: Export sanitized reports
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p sweep-reports
+          (cd .local/sweep && find . -type f \
+            \( -name '*-sweep.json' -o -name '*-sweep.md' \
+               -o -name '*-report.json' -o -name '*-report.md' \) \
+            -exec cp --parents {} ../../sweep-reports/ \;)
+          python tools/report_sanitize.py sweep-reports
+          python tools/report_sanitize.py --check sweep-reports
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: sweep-assisted-gate
+          path: sweep-reports
+          if-no-files-found: error
+          retention-days: 30
+
   summary:
     needs:
       - prepare
@@ -540,7 +866,7 @@ jobs:
       - scenario
       - env-shards
       - combat-shards
-    if: always()
+    if: always() && inputs.tier != 'nightly'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

@@ -763,6 +763,15 @@ def _launch_browser(pw: Any, headless: bool) -> Any:
             return pw.chromium.launch(headless=headless, **kwargs)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{kwargs or 'bundled'}: {str(exc)[:160]}")
+    from tools import browser_smoke_test
+
+    for executable in browser_smoke_test._candidate_browser_paths():
+        if not executable.exists():
+            continue
+        try:
+            return pw.chromium.launch(headless=headless, executable_path=str(executable))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{executable}: {str(exc)[:160]}")
     raise SystemExit("no usable Chromium found:\n  " + "\n  ".join(errors))
 
 
