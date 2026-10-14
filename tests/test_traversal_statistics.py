@@ -123,3 +123,33 @@ def test_directory_scan_skips_non_reports(tmp_path: Path) -> None:
 def test_empty_input_is_invalid(tmp_path: Path) -> None:
     _write(tmp_path, "target-manifest.json", {"schema": "dolx.target.v1"})
     assert main([str(tmp_path), "--out", str(tmp_path / "out")]) == 2
+
+
+def test_natural_track_reports_the_dayloop_observation(tmp_path: Path) -> None:
+    actions = [
+        {**_action("A", "B"), "time_before": {"days": 5, "minute_of_day": 400, "day_state": "morning"}},
+        {**_action("B", "D"), "time_after": {"days": 6, "minute_of_day": 380, "day_state": "morning"}},
+    ]
+    report_path = _write(tmp_path, "natural.json", _natural(actions))
+    out = tmp_path / "out"
+    assert main([str(report_path), "--out", str(out)]) == 0
+    report = json.loads((out / "traversal-stats.json").read_text(encoding="utf-8"))
+    dayloop = report["tracks"]["natural"]["dayloop"]
+
+    assert dayloop["observed"] is True
+    assert dayloop["samples"] == 2
+    assert dayloop["minute_monotone"] is True
+    assert dayloop["day_rollover"] is True
+    assert dayloop["full_day"] is True
+
+
+def test_track_without_time_samples_keeps_dayloop_unknown(tmp_path: Path) -> None:
+    report_path = _write(tmp_path, "natural.json", _natural([_action("A", "B")]))
+    out = tmp_path / "out"
+    assert main([str(report_path), "--out", str(out)]) == 0
+    report = json.loads((out / "traversal-stats.json").read_text(encoding="utf-8"))
+    dayloop = report["tracks"]["natural"]["dayloop"]
+
+    assert dayloop["observed"] is False
+    assert dayloop["full_day"] is None
+    assert dayloop["minute_monotone"] is None

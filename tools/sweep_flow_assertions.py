@@ -20,6 +20,12 @@ Flows:
                module (widget/passage/mirror hook/eye-colour pipeline step).
                Only identifier-level names are probed; inner payload source text
                stays in the local research cache and never reaches a report.
+    au-face-remount
+               desk-pet remount survival across REAL passage navigation on an
+               AU artifact: the pet canvas must still be connected and still
+               produce pixels after passage hops performed by genuine UI
+               clicks, which is the runtime evidence behind the maplebirch
+               pet-remount needle patch.
     morelove   the More Love "Food Preference" passage renders its DOM
 
 Reuse notes: startup gates, the HTTP server (with the modList.json shim) and
@@ -56,7 +62,7 @@ from tools import passage_sweep as ps  # noqa: E402
 
 
 DEFAULT_OUT = Path(".local/sweep/flows")
-FLOW_ORDER = ("mods", "saveload", "ce-panel", "au-face", "morelove")
+FLOW_ORDER = ("mods", "saveload", "ce-panel", "au-face", "au-face-remount", "morelove")
 
 PASS = "pass"
 FAIL = "fail"
@@ -734,6 +740,40 @@ AU_FACE_SET = r"""
   } catch (e) {
     return { ok: false, error: String(e && (e.message || e)) };
   }
+}
+"""
+
+AU_REMOUNT_MARK_LINKS = r"""
+() => {
+  // Mark real passage-navigation links so the caller can click them through
+  // Playwright (a genuine user gesture), then report where they point.
+  const SC = window.SugarCube;
+  const before = SC && SC.State ? SC.State.passage : null;
+  const links = Array.from(
+    document.querySelectorAll("#passages a[data-passage], #passage a[data-passage]")
+  ).filter((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      style.display !== "none" &&
+      style.visibility !== "hidden"
+    );
+  });
+  links.forEach((el, index) => el.setAttribute("data-dolx-remount-target", String(index)));
+  return {
+    before: before,
+    candidates: links
+      .map((el, index) => ({
+        index: index,
+        target: el.getAttribute("data-passage"),
+        text: String(el.innerText || el.textContent || "").trim().slice(0, 60),
+      }))
+      .filter((row) => row.target && row.target !== before)
+      .slice(0, 4),
+    total: links.length,
+  };
 }
 """
 
@@ -1556,6 +1596,144 @@ def flow_au_face(page: Any, ctx: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def flow_au_face_remount(page: Any, ctx: dict[str, Any]) -> dict[str, Any]:
+    """Desk-pet remount survival across real passage navigation.
+
+    The pet-remount needle patch exists so the maplebirch desk pet is
+    re-mounted after every passage render.  This flow proves it end to end on
+    an AU artifact: enable the pet, confirm the canvas renders pixels, then
+    walk through genuine UI clicks on passage links and re-probe the canvas
+    after each hop.  Navigation never goes through ``Engine.play`` - the click
+    path is the same one a player takes.
+    """
+    variant = ctx.get("artifact_variant")
+    evidence: dict[str, Any] = {"artifact_variant": variant}
+    if variant not in AU_MODEL_NAME_BY_VARIANT:
+        return {
+            "status": NOT_APPLICABLE,
+            "detail": (
+                "target is not an AU artifact (variant="
+                f"{variant!r}); the remount survival flow only applies to "
+                "au-f/au-m/au-a builds"
+            ),
+            "evidence": evidence,
+        }
+
+    se_probe = page.evaluate(AU_SE_PROBE)
+    evidence["au_se"] = se_probe
+    se_gaps = au_se_module_gaps(se_probe)
+    if se_gaps:
+        return {
+            "status": FAIL,
+            "detail": (
+                "AU facial-expansion module is not fully loaded at runtime; "
+                "missing markers: " + ", ".join(se_gaps)
+            ),
+            "evidence": evidence,
+        }
+
+    evidence["enable"] = page.evaluate(AU_PET_ENABLE)
+    page.wait_for_timeout(2500)
+    baseline = page.evaluate(AU_PET_PROBE)
+    evidence["baseline"] = baseline
+    if not (baseline.get("canvas") or {}).get("opaque"):
+        return {
+            "status": NOT_IMPLEMENTED,
+            "detail": (
+                "the desk-pet canvas produced no measurable pixels before "
+                "navigation, so remount survival cannot be attributed; "
+                f"baseline={baseline}"
+            ),
+            "evidence": evidence,
+        }
+
+    hops: list[dict[str, Any]] = []
+    for hop_index in range(2):
+        mark = page.evaluate(AU_REMOUNT_MARK_LINKS)
+        candidates = mark.get("candidates") or []
+        if not candidates:
+            break
+        choice = candidates[0]
+        before_passage = mark.get("before")
+        hop: dict[str, Any] = {
+            "hop": hop_index,
+            "from": before_passage,
+            "link_target": choice.get("target"),
+            "link_text": choice.get("text"),
+        }
+        try:
+            page.click(f"[data-dolx-remount-target='{choice['index']}']")
+        except Exception as exc:  # noqa: BLE001 - report, then stop hopping.
+            hop["click_error"] = f"{type(exc).__name__}: {exc}"
+            hops.append(hop)
+            break
+        try:
+            page.wait_for_function(
+                "(() => window.SugarCube && window.SugarCube.State && "
+                f"window.SugarCube.State.passage !== {json.dumps(before_passage)})()",
+                timeout=8000,
+            )
+        except Exception:  # noqa: BLE001 - the probe below is the evidence.
+            pass
+        page.wait_for_timeout(700)
+        probe = page.evaluate(AU_PET_PROBE)
+        hop["to"] = probe.get("passage")
+        hop["probe"] = probe
+        hops.append(hop)
+        if probe.get("passage") == before_passage:
+            break  # no navigation happened; stop instead of re-clicking
+    evidence["hops"] = hops
+
+    navigated = [
+        hop for hop in hops if hop.get("to") and hop.get("to") != hop.get("from")
+    ]
+    if not navigated:
+        return {
+            "status": NOT_IMPLEMENTED,
+            "detail": (
+                "no passage link performed a navigation from this bootstrap "
+                "passage, so the remount path could not be exercised "
+                f"(hops={hops})"
+            ),
+            "evidence": evidence,
+        }
+    post_opaque = [
+        ((hop.get("probe") or {}).get("canvas") or {}).get("opaque")
+        for hop in navigated
+    ]
+    post_connected = [
+        ((hop.get("probe") or {}).get("liveContainer") or {}).get("connected")
+        for hop in navigated
+    ]
+    evidence["post_nav_opaque"] = post_opaque
+    evidence["post_nav_container_connected"] = post_connected
+    survived = [
+        hop
+        for hop, opaque, connected in zip(navigated, post_opaque, post_connected)
+        if opaque and connected
+    ]
+    route = [f"{hop['from']} -> {hop['to']}" for hop in navigated]
+    if len(survived) == len(navigated):
+        return {
+            "status": PASS,
+            "detail": (
+                f"AU desk-pet canvas survived {len(navigated)} real passage "
+                f"hop(s) ({route}); opaque pixels after navigation: "
+                f"{post_opaque}"
+            ),
+            "evidence": evidence,
+        }
+    return {
+        "status": FAIL,
+        "detail": (
+            "AU desk-pet canvas did not remount after real passage "
+            f"navigation: hops={len(navigated)}, survived={len(survived)}, "
+            f"route={route}, opaque={post_opaque}, connected={post_connected}"
+        ),
+        "evidence": evidence,
+    }
+
+
 def flow_morelove(page: Any, ctx: dict[str, Any]) -> dict[str, Any]:
     embedded = any(
         "morelove" in _normalize(str(mod.get("name") or ""))
@@ -1645,6 +1823,7 @@ FLOW_IMPLS = {
     "saveload": flow_saveload,
     "ce-panel": flow_ce_panel,
     "au-face": flow_au_face,
+    "au-face-remount": flow_au_face_remount,
     "morelove": flow_morelove,
 }
 
@@ -1665,6 +1844,7 @@ def run(
 ) -> dict[str, Any]:
     started = time.strftime("%Y-%m-%dT%H:%M:%S")
     report: dict[str, Any] = {
+        "schema": "dolx.flow-assertions.v1",
         "tool": "sweep_flow_assertions",
         "target": str(target),
         "flows_requested": flows,

@@ -33,6 +33,7 @@ from typing import Any, Iterable, Mapping
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools.exploration_summary import dayloop_observation
 from tools.sweep_ledger import atomic_write_json
 
 
@@ -97,6 +98,10 @@ def _coverage_track() -> dict[str, Any]:
         "unique_coarse_states": 0,
         "failures": 0,
         "coverage_basis": None,
+        "dayloop_observed": False,
+        "dayloop_samples": 0,
+        "dayloop_monotone_all": True,
+        "dayloop_rollover_any": False,
     }
 
 
@@ -140,6 +145,17 @@ def collect(
             fingerprint = action.get("fingerprint_after")
             if fingerprint:
                 stats["unique_fingerprints"].add(str(fingerprint))
+
+        dayloop = dayloop_observation(actions)
+        if dayloop.get("observed"):
+            stats["dayloop_observed"] = True
+            stats["dayloop_samples"] += int(dayloop.get("samples") or 0)
+            stats["dayloop_monotone_all"] = bool(
+                stats["dayloop_monotone_all"] and dayloop.get("minute_monotone")
+            )
+            stats["dayloop_rollover_any"] = bool(
+                stats["dayloop_rollover_any"] or dayloop.get("day_rollover")
+            )
 
         results = report.get("results") or []
         if results and stats["coverage_basis"] is None:
@@ -213,6 +229,25 @@ def collect(
             "unique_coarse_states": stats["unique_coarse_states"],
             "failures": stats["failures"],
             "coverage_basis": stats["coverage_basis"] or "not_observable",
+            "dayloop": {
+                "observed": stats["dayloop_observed"],
+                "samples": stats["dayloop_samples"],
+                "minute_monotone": (
+                    stats["dayloop_monotone_all"] if stats["dayloop_observed"] else None
+                ),
+                "day_rollover": (
+                    stats["dayloop_rollover_any"] if stats["dayloop_observed"] else None
+                ),
+                # full_day 只在「至少一条运行真实跨过一天，且所有观测到的运行
+                # 时钟都单调向前」时为 true；没有时钟样本时保持 None 语义。
+                "full_day": bool(
+                    stats["dayloop_observed"]
+                    and stats["dayloop_monotone_all"]
+                    and stats["dayloop_rollover_any"]
+                )
+                if stats["dayloop_observed"]
+                else None,
+            },
         }
 
     limitations = [

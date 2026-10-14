@@ -23,6 +23,68 @@ VERDICTS = (
 ATTRIBUTION_KEYS = ("attribution", "upstream", "upstream_reference")
 
 
+def dayloop_observation(actions: Iterable[Any]) -> dict[str, Any]:
+    """In-game clock observation for the full-day natural loop invariant.
+
+    Reads the ``time_before`` / ``time_after`` samples the exploration agent
+    attaches to every action.  ``full_day`` is only ever ``True`` when the
+    elapsed-day counter actually rolled over at least once *and* the absolute
+    clock (days * 1440 + minute_of_day) never moved backwards; a run without
+    usable samples reports ``observed: False`` instead of guessing.
+    """
+    samples: list[dict[str, Any]] = []
+    for action in actions:
+        if not isinstance(action, Mapping):
+            continue
+        for key in ("time_before", "time_after"):
+            sample = action.get(key)
+            if not isinstance(sample, Mapping):
+                continue
+            days = sample.get("days")
+            minute = sample.get("minute_of_day")
+            if days is None or minute is None:
+                continue
+            try:
+                samples.append(
+                    {
+                        "days": int(days),
+                        "minute_of_day": int(minute),
+                        "day_state": sample.get("day_state"),
+                    }
+                )
+            except (TypeError, ValueError):
+                continue
+    if not samples:
+        return {
+            "observed": False,
+            "samples": 0,
+            "minute_monotone": None,
+            "day_rollover": None,
+            "full_day": None,
+            "day_states": [],
+            "day_range": None,
+        }
+    absolute = [row["days"] * 1440 + row["minute_of_day"] for row in samples]
+    monotone = all(later >= earlier for earlier, later in zip(absolute, absolute[1:]))
+    day_min = min(row["days"] for row in samples)
+    day_max = max(row["days"] for row in samples)
+    rollover = day_max - day_min >= 1
+    day_states: list[str] = []
+    for row in samples:
+        state = row.get("day_state")
+        if isinstance(state, str) and state and state not in day_states:
+            day_states.append(state)
+    return {
+        "observed": True,
+        "samples": len(samples),
+        "minute_monotone": monotone,
+        "day_rollover": rollover,
+        "full_day": bool(monotone and rollover),
+        "day_states": day_states,
+        "day_range": [day_min, day_max],
+    }
+
+
 def _count(values: Iterable[Any]) -> dict[str, int]:
     counter = Counter(str(value) for value in values)
     return {key: counter[key] for key in sorted(counter)}
@@ -79,6 +141,7 @@ def summarize_report(report: Mapping[str, Any]) -> dict[str, Any]:
             for item in _unattributed_hard_failures(failures)
         ],
         "unique_coarse_states": report.get("unique_coarse_states"),
+        "dayloop": dayloop_observation(actions),
         "coverage": {
             "passage_first_seen": _count(
                 item.get("passage_after") for item in actions if item.get("passage_after")

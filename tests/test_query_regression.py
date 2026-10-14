@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from tools.query_regression import QueryError, load_queries, main, run
+from tools.query_regression import (
+    QueryError,
+    classify_payload,
+    load_queries,
+    main,
+    run,
+)
 
 
 def _query(**overrides) -> dict:
@@ -210,3 +216,64 @@ def test_strict_mode_exit_code(tmp_path: Path) -> None:
         )
         == 0
     )
+
+
+def _flow_report(statuses: dict[str, str]) -> dict:
+    return {
+        "schema": "dolx.flow-assertions.v1",
+        "tool": "sweep_flow_assertions",
+        "flows": [
+            {"flow": name, "status": status} for name, status in statuses.items()
+        ],
+    }
+
+
+def test_classify_payload_recognizes_flow_assertion_reports() -> None:
+    payload = _flow_report({"au-face-remount": "pass"})
+    assert classify_payload(payload) == "flow_assertions"
+    assert classify_payload({"tool": "sweep_flow_assertions"}) is None
+
+
+def test_flow_status_in_operator() -> None:
+    query = {
+        "id": "remount",
+        "kind": "flow_assertions",
+        "severity": "release",
+        "op": "flow_status_in",
+        "flow": "au-face-remount",
+        "allowed": ["pass"],
+    }
+    passed = run(
+        [query], {"flow_assertions": [_flow_report({"au-face-remount": "pass"})]}
+    )
+    assert passed["counts"]["passed"] == 1
+
+    failed = run(
+        [query], {"flow_assertions": [_flow_report({"au-face-remount": "fail"})]}
+    )
+    assert failed["counts"]["failed"] == 1
+    assert failed["release_blocking"] == ["remount"]
+
+    absent = run(
+        [query], {"flow_assertions": [_flow_report({"mods": "pass"})]}
+    )
+    assert absent["counts"]["failed"] == 1
+    assert "not present" in absent["results"][0]["detail"]
+
+
+def test_load_queries_accepts_activated_remount_query(tmp_path: Path) -> None:
+    path = tmp_path / "queries.toml"
+    path.write_text(
+        'schema = "dolx.exploration-queries.v1"\n'
+        "[[query]]\n"
+        'id = "au-pet-remount-survives-reload"\n'
+        'kind = "flow_assertions"\n'
+        'severity = "release"\n'
+        'op = "flow_status_in"\n'
+        'flow = "au-face-remount"\n'
+        'allowed = ["pass"]\n',
+        encoding="utf-8",
+    )
+    queries = load_queries(path)
+    assert queries[0]["kind"] == "flow_assertions"
+    assert queries[0]["allowed"] == ["pass"]
