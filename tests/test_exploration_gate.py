@@ -254,10 +254,12 @@ def test_release_gate_requires_complete_android_semantics(tmp_path) -> None:
         "verdict": "ok",
         "cdp_connected": True,
         "totals": {"planned": 2, "matched": 2, "ambiguous": 0, "unmapped": 0},
+        "apk_sha256": "9" * 64,
     }
     tmp_source = _source_index_file(tmp_path, ["A"])
     manifest = _manifest_for_source_index(tmp_source)
     manifest, target, mods_lock = _identity_files(tmp_path, manifest)
+    manifest["target"]["apk_sha256"] = "9" * 64
     gate = build_gate(
         [_natural(manifest), _assisted(manifest)],
         source_index=tmp_source,
@@ -274,6 +276,101 @@ def test_release_gate_requires_complete_android_semantics(tmp_path) -> None:
     assert gate["gate"]["blocking"] == []
     assert gate["completion_claim"] == "release_gate_ready"
     assert gate["android"]["present"] is True
+
+
+def _android_summary_with_apk(apk_sha256: str | None) -> dict:
+    summary = {
+        "verdict": "ok",
+        "cdp_connected": True,
+        "totals": {"planned": 2, "matched": 2, "ambiguous": 0, "unmapped": 0},
+    }
+    if apk_sha256 is not None:
+        summary["apk_sha256"] = apk_sha256
+    return summary
+
+
+def _release_gate_with_android_apk(
+    tmp_path,
+    *,
+    manifest_apk_sha256: str | None,
+    summary_apk_sha256: str | None,
+    release: bool = True,
+) -> dict:
+    source_index = _source_index_file(tmp_path, ["A"])
+    manifest = _manifest_for_source_index(source_index)
+    manifest, target, mods_lock = _identity_files(tmp_path, manifest)
+    if manifest_apk_sha256 is not None:
+        manifest["target"]["apk_sha256"] = manifest_apk_sha256
+    return build_gate(
+        [_natural(manifest), _assisted(manifest)],
+        android_summary=_android_summary_with_apk(summary_apk_sha256),
+        mod_inventory=_inventory(),
+        mod_passage_sweep=_mod_passage_sweep([("Food Preference", "ok")]),
+        source_index=source_index,
+        release=release,
+        target=target,
+        mods_lock=mods_lock,
+        **_extended_evidence(),
+    )
+
+
+def test_release_gate_android_apk_sha256_match_unblocks(tmp_path) -> None:
+    gate = _release_gate_with_android_apk(
+        tmp_path,
+        manifest_apk_sha256="a" * 64,
+        summary_apk_sha256="a" * 64,
+    )
+
+    assert gate["gate"]["conditions"]["android_apk_sha256_matches"] is True
+    assert gate["gate"]["conditions"]["android_gate_ready"] is True
+    assert gate["gate"]["blocking"] == []
+    assert gate["completion_claim"] == "release_gate_ready"
+
+
+def test_release_gate_android_apk_sha256_missing_on_either_side_blocks(tmp_path) -> None:
+    for manifest_sha, summary_sha in ((None, "a" * 64), ("a" * 64, None), (None, None)):
+        gate = _release_gate_with_android_apk(
+            tmp_path,
+            manifest_apk_sha256=manifest_sha,
+            summary_apk_sha256=summary_sha,
+        )
+
+        assert gate["gate"]["conditions"]["android_apk_sha256_matches"] is False
+        assert gate["gate"]["conditions"]["android_gate_ready"] is False
+        assert {
+            "android_apk_sha256_matches",
+            "android_gate_ready",
+        } <= set(gate["gate"]["blocking"])
+        assert gate["completion_claim"] == "none"
+
+
+def test_release_gate_android_apk_sha256_mismatch_blocks(tmp_path) -> None:
+    gate = _release_gate_with_android_apk(
+        tmp_path,
+        manifest_apk_sha256="a" * 64,
+        summary_apk_sha256="b" * 64,
+    )
+
+    assert gate["gate"]["conditions"]["android_apk_sha256_matches"] is False
+    assert gate["gate"]["conditions"]["android_gate_ready"] is False
+    assert {
+        "android_apk_sha256_matches",
+        "android_gate_ready",
+    } <= set(gate["gate"]["blocking"])
+
+
+def test_non_release_gate_ignores_apk_sha256_pairing(tmp_path) -> None:
+    gate = _release_gate_with_android_apk(
+        tmp_path,
+        manifest_apk_sha256="a" * 64,
+        summary_apk_sha256="b" * 64,
+        release=False,
+    )
+
+    assert gate["gate"]["conditions"]["android_apk_sha256_matches"] is None
+    assert gate["gate"]["conditions"]["android_gate_ready"] is None
+    assert "android_apk_sha256_matches" not in gate["gate"]["blocking"]
+    assert "android_gate_ready" not in gate["gate"]["blocking"]
 
 
 def test_release_gate_requires_actual_target_and_mods_lock(tmp_path) -> None:
@@ -355,12 +452,14 @@ def test_release_gate_requires_source_and_source_index_identity(tmp_path) -> Non
     manifest["mods_lock_sha256"] = None
     manifest["source_index_sha256"] = None
     manifest, target, mods_lock = _identity_files(tmp_path, manifest)
+    manifest["target"]["apk_sha256"] = "5" * 64
     gate = build_gate(
         [_natural(manifest), _assisted(manifest)],
         android_summary={
             "verdict": "ok",
             "cdp_connected": True,
             "totals": {"planned": 1, "matched": 1},
+            "apk_sha256": "5" * 64,
         },
         mod_inventory=_inventory(),
         mod_passage_sweep=_mod_passage_sweep([("Food Preference", "ok")]),
@@ -661,6 +760,7 @@ def test_release_gate_cli_loads_extended_reports(tmp_path) -> None:
     source_index = _source_index_file(tmp_path, ["A"])
     manifest = _manifest_for_source_index(source_index)
     manifest, target, mods_lock = _identity_files(tmp_path, manifest)
+    manifest["target"]["apk_sha256"] = "7" * 64
 
     def _write(name: str, payload) -> str:
         path = tmp_path / name
@@ -680,6 +780,7 @@ def test_release_gate_cli_loads_extended_reports(tmp_path) -> None:
             "verdict": "ok",
             "cdp_connected": True,
             "totals": {"planned": 1, "matched": 1},
+            "apk_sha256": "7" * 64,
         },
     )
     evidence = _extended_evidence()
