@@ -90,11 +90,14 @@ value = "no_visual_change"
 
 [[query]]
 id = "au-pet-remount-survives-reload"
-kind = "au_contract"
+kind = "flow_assertions"
 severity = "release"
-status = "pending"
-description = "Runtime proof that the AU pet remounts after a passage change is not captured"
-reason = "runtime replay pending"
+description = "Runtime proof that the AU desk-pet canvas remounts and keeps rendering pixels after real passage navigation"
+op = "flow_status_in"
+flow = "au-face-remount"
+# ``not_applicable`` is the honest verdict for a non-AU (base) artifact, where
+# the AU desk pet does not exist at all; ``pass`` is required for AU builds.
+allowed = ["pass", "not_applicable"]
 
 # --- mod inventory -------------------------------------------------------
 

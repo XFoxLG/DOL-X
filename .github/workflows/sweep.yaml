@@ -380,6 +380,23 @@ jobs:
             echo "::error::nightly mod inventory produced an empty playable-passage list"
             exit 1
           fi
+      - name: Run functional flow assertions
+        run: |
+          set -uo pipefail
+          STATUS=0
+          # Functional flows (mods / saveload / CE panel / AU face / AU desk-pet
+          # remount / More Love).  The AU flows report ``not_applicable`` on base
+          # artifacts, so a failure here is always a real product failure rather
+          # than a variant mismatch.  ``au-face-remount`` is the runtime proof
+          # behind the release query ``au-pet-remount-survives-reload``.
+          python tools/sweep_flow_assertions.py "$HTML" \
+            --flow all \
+            --out .local/sweep/nightly-flows || STATUS=1
+          if [ -f .local/sweep/nightly-flows/flow-assertions.json ]; then
+            cp .local/sweep/nightly-flows/flow-assertions.json \
+              .local/sweep/nightly-flows/flows-report.json
+          fi
+          exit "${STATUS}"
       - name: Build evidence gate
         run: |
           set -euo pipefail
