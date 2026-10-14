@@ -55,6 +55,7 @@ def build_manifest(
     target: Path,
     *,
     expected_version: str | None = None,
+    apk: Path | None = None,
     mods_lock: Path | None = None,
     build_toml: Path | None = None,
     source_commit: str | None = None,
@@ -75,6 +76,9 @@ def build_manifest(
     lock = _safe_json(mods_lock)
     build = _safe_toml(build_toml)
     source_index_digest = file_sha256(source_index) if source_index and Path(source_index).exists() else None
+    # ``apk_sha256`` is optional: desktop-only evidence predates it, so a
+    # manifest without it stays valid; the release gate binds it fail-closed.
+    apk_sha256 = file_sha256(apk) if apk and Path(apk).exists() else None
     manifest: dict[str, Any] = {
         "schema": SCHEMA,
         "target": {
@@ -82,6 +86,7 @@ def build_manifest(
             "expected_version": expected_version,
             "target_tag": tag,
             "package_sha256": package_sha256,
+            "apk_sha256": apk_sha256,
             "html_member": check.get("html_member"),
             "package_path": str(target),
             "package_type": "base" if "base" in target.stem.casefold() else "derived",
@@ -127,6 +132,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", type=Path)
     parser.add_argument("--expect-version")
+    parser.add_argument("--apk", type=Path)
     parser.add_argument("--mods-lock", type=Path)
     parser.add_argument("--build-toml", type=Path)
     parser.add_argument("--source-commit")
@@ -143,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = build_manifest(
         args.target,
         expected_version=args.expect_version,
+        apk=args.apk,
         mods_lock=args.mods_lock,
         build_toml=args.build_toml,
         source_commit=args.source_commit,

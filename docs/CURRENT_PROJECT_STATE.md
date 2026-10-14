@@ -462,9 +462,11 @@ passage / scenario / combat / environment 扫描，而是给这些静态与辅�
   `query_regression_passed`（24 passed / 0 failed / 2 pending：`au-pet-remount-survives-reload`、
   `dayloop-time-advance-full-day`）。旧证据绑定 shim 前载体 `c5ca5b68…` 与旧索引 `417247f3…`，
   与新载体混用会被 gate 判 identity drift（fail-closed 生效，不是工具 bug）。
-  注意 `android_gate_ready=true` 绑的是 2026-09-30 的 APK（`56dd6491…`），**不是** shim 载体；
-  gate 目前不比对 Android APK 摘要，这条绿灯的含金量要打折（缺口已记在
-  [AUTOMATED_GAMEPLAY_EXPLORER](AUTOMATED_GAMEPLAY_EXPLORER.md) 的 gate 小节）。
+  那次测量里 `android_gate_ready=true` 绑的是 2026-09-30 的 APK（`56dd6491…`），**不是** shim
+  载体。**此缺口已于 2026-10-14 关闭**：`target_manifest.py` 新增 `--apk` 写入
+  `target.apk_sha256`，release 档新增 `android_apk_sha256_matches` 条件，要求 manifest /
+  android summary / 本机文件三方摘要一致，否则 `android_gate_ready` 一并 fail-closed
+  （daily/nightly 不变）。shim 载体的真机验收必须在收紧后的门禁下重跑。
 - 战斗判定收严：`combat_sweep` 只把命中 `DECLARED_FIXTURE_GAPS`（67 条带源码行的已复核
   缺口声明）的渲染错误降为 `fixture_insufficient`，其余一律 `hard_fail`；`has no usable links`
   且全部出口缺失时会列出具体断链目标。CI 运行 `37967037983` 的 33 条 flagged 结果重新
