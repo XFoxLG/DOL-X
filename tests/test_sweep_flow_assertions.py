@@ -147,3 +147,122 @@ def test_flow_au_face_fails_on_missing_markers_with_named_gaps() -> None:
     ):
         assert expected in result["detail"]
     assert result["evidence"]["au_se"]["seWidgetsPassage"] is True
+
+
+class _RemountPage:
+    """Fake Playwright page driving ``flow_au_face_remount`` without a browser."""
+
+    def __init__(
+        self,
+        *,
+        candidates: list[dict[str, Any]],
+        passage: str = "Start2",
+        opaque_after_nav: int = 1200,
+        container_connected: bool = True,
+    ) -> None:
+        self.passage = passage
+        self.canvas_opaque = 1000
+        self.candidates = list(candidates)
+        self.opaque_after_nav = opaque_after_nav
+        self.container_connected = container_connected
+        self.clicked_selectors: list[str] = []
+        self.navigated = False
+
+    def evaluate(self, script: str, *_args: Any) -> Any:  # noqa: ANN401
+        if script is sfa.AU_SE_PROBE:
+            return _full_probe()
+        if script is sfa.AU_PET_ENABLE:
+            return {
+                "enabled": True,
+                "sync": True,
+                "wiki": True,
+                "container": True,
+                "notes": [],
+            }
+        if script is sfa.AU_PET_PROBE:
+            return {
+                "passage": self.passage,
+                "petEnabled": True,
+                "liveContainer": {"children": 2, "connected": self.container_connected},
+                "canvas": {"w": 128, "h": 128, "opaque": self.canvas_opaque},
+            }
+        if script is sfa.AU_REMOUNT_MARK_LINKS:
+            return {
+                "before": self.passage,
+                "candidates": [] if self.navigated else list(self.candidates),
+                "total": len(self.candidates),
+            }
+        raise AssertionError(f"unexpected evaluate: {script[:60]!r}")
+
+    def wait_for_timeout(self, _ms: int) -> None:
+        return None
+
+    def wait_for_function(self, _selector: str, timeout: int | None = None) -> bool:
+        return True
+
+    def click(self, selector: str) -> None:
+        self.clicked_selectors.append(selector)
+        index = int(selector.split("'")[1])
+        self.passage = str(self.candidates[index]["target"])
+        self.navigated = True
+        self.canvas_opaque = self.opaque_after_nav
+
+
+def _remount_candidates() -> list[dict[str, Any]]:
+    return [{"index": 0, "target": "Bedroom", "text": "Go to your room"}]
+
+
+def test_remount_flow_not_applicable_for_non_au_variant() -> None:
+    result = sfa.flow_au_face_remount(_ExplodingPage(), {"artifact_variant": "base"})
+    assert result["status"] == sfa.NOT_APPLICABLE
+    assert "not an AU artifact" in result["detail"]
+
+
+def test_remount_flow_passes_when_canvas_survives_real_navigation() -> None:
+    page = _RemountPage(candidates=_remount_candidates())
+    result = sfa.flow_au_face_remount(page, {"artifact_variant": "au-f"})
+
+    assert result["status"] == sfa.PASS
+    assert page.clicked_selectors == ["[data-dolx-remount-target='0']"]
+    assert result["evidence"]["post_nav_opaque"] == [1200]
+    assert result["evidence"]["post_nav_container_connected"] == [True]
+    assert "Start2 -> Bedroom" in result["detail"]
+
+
+def test_remount_flow_fails_when_canvas_vanishes_after_navigation() -> None:
+    page = _RemountPage(candidates=_remount_candidates(), opaque_after_nav=0)
+    result = sfa.flow_au_face_remount(page, {"artifact_variant": "au-f"})
+
+    assert result["status"] == sfa.FAIL
+    assert "did not remount" in result["detail"]
+    assert result["evidence"]["post_nav_opaque"] == [0]
+
+
+def test_remount_flow_fails_when_container_disconnects_after_navigation() -> None:
+    page = _RemountPage(
+        candidates=_remount_candidates(), container_connected=False
+    )
+    result = sfa.flow_au_face_remount(page, {"artifact_variant": "au-f"})
+
+    assert result["status"] == sfa.FAIL
+    assert result["evidence"]["post_nav_container_connected"] == [False]
+
+
+def test_remount_flow_not_implemented_without_navigation_links() -> None:
+    page = _RemountPage(candidates=[])
+    result = sfa.flow_au_face_remount(page, {"artifact_variant": "au-f"})
+
+    assert result["status"] == sfa.NOT_IMPLEMENTED
+    assert page.clicked_selectors == []
+    assert "could not be exercised" in result["detail"]
+
+
+def test_remount_flow_reports_missing_au_markers() -> None:
+    class _BarePage:
+        def evaluate(self, script: str, *_args: Any) -> Any:  # noqa: ANN401
+            assert script is sfa.AU_SE_PROBE
+            return {"errors": [], "seWidgetsPassage": True}
+
+    result = sfa.flow_au_face_remount(_BarePage(), {"artifact_variant": "au-f"})
+    assert result["status"] == sfa.FAIL
+    assert "AU_facial_expansion widget" in result["detail"]

@@ -9,6 +9,7 @@ kinds are auto-detected from their schema:
 * ``dolx.story-graph-audit.v1``
 * ``dolx.traversal-stats.v1``
 * ``dolx.symbolic-reachability.v1``
+* ``dolx.flow-assertions.v1`` (engine A functional flow reports)
 
 Output schema ``dolx.query-regression.v1``.  ``release``-severity failures,
 missing evidence and pending queries are listed in ``release_blocking``; the
@@ -42,6 +43,7 @@ SPECIAL_OPS = {
     "opaque_requires_runtime_query",
     "no_unreachable_targets",
     "target_verdict_in",
+    "flow_status_in",
 }
 SCOPED_KINDS = {"au_contract"}
 
@@ -63,6 +65,7 @@ def load_queries(path: Path) -> list[dict[str, Any]]:
             raise QueryError(f"{path}: query[{position}] requires an id")
         if query.get("kind") not in {
             "au_contract",
+            "flow_assertions",
             "mod_inventory",
             "source_index",
             "story_graph",
@@ -101,6 +104,11 @@ def classify_payload(payload: Any) -> str | None:
         return mapping[schema]
     if payload.get("tool") == "dol-x-mod-passage-inventory":
         return "mod_inventory"
+    if (
+        payload.get("tool") == "sweep_flow_assertions"
+        and payload.get("schema") == "dolx.flow-assertions.v1"
+    ):
+        return "flow_assertions"
     return None
 
 
@@ -218,6 +226,20 @@ def _evaluate_special(op: str, payload: Any, query: Mapping[str, Any]) -> tuple[
                 verdict = str(item.get("verdict"))
                 return verdict in allowed, f"{target!r} verdict={verdict} allowed={allowed}"
         return False, f"target {target!r} not present in report"
+    if op == "flow_status_in":
+        flow = str(query.get("flow"))
+        allowed = [str(item) for item in query.get("allowed") or []]
+        entries = [
+            item
+            for item in payload.get("flows") or []
+            if isinstance(item, Mapping) and str(item.get("flow")) == flow
+        ]
+        if not entries:
+            return False, f"flow {flow!r} not present in report"
+        statuses = [str(item.get("status")) for item in entries]
+        return all(status in allowed for status in statuses), (
+            f"flow {flow!r} statuses={statuses} allowed={allowed}"
+        )
     raise QueryError(f"unhandled op {op!r}")
 
 
