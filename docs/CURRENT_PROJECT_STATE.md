@@ -293,8 +293,12 @@ Build workflow 现在在构建前执行完整 pytest，在构建后、上传 art
 base/AU-F 当前候选及上一轮 base/AU-F/AU-M/AU-A 全矩阵 ZIP 复验通过。
 
 0802 与 0804 的 GitHub Release 原本由上传 action 自动创建但正文为空，已于 2026-08-05 补齐
-面向玩家的版本说明。后续 tag workflow 从 `docs/release-notes/<tag>.md` 读取正文；对应文件缺失
-时 release job fail-closed，不再允许发布空白说明。
+面向玩家的版本说明；随后在 2026-10-04 的仓库清理中，这两个 Release 连同安装文件一起被删除
+（Actions artifact 已过期，本机无留存）。2026-10-15 按「不让玩家没得选」补建为**纯说明页**
+（无附件，正文顶部如实写明文件已不提供下载）；其余 6 份（0808 / 1014 / 4 个镜像）正文同步为
+玩家向版本，`v0.5.11.9-1.0.0a-1014` 接回 Latest，8 份正文经逐字节比对与仓库文件一致。
+此后的 tag workflow 仍从 `docs/release-notes/<tag>.md` 读取正文；文件缺失或玩家向禁词检查
+（`tools/player_docs_check.py`）不通过时 release job fail-closed，不再允许发布空白或含内部术语的说明。
 
 AU-M 与 AU-A 在此之前从未经 CI 构建过（分支档只含 base + AU-F）。首次全四码干验证由
 run [`30709200905`](https://github.com/XFoxLG/DOL-X/actions/runs/30709200905) 完成，
