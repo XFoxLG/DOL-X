@@ -13,6 +13,31 @@
 
 ## [Unreleased]
 
+### Added
+
+- **玩家向文档分层与机器门禁（2026-10-15）**：新增 `docs/technical/<tag>.md` 技术档案层
+  （0802 / 0804 / 0808 / 1014 各一份 + `mirrors-2026-08.md`）、根目录 `玩家更新日志.md`，
+  以及 `tools/player_docs_check.py`（哈希、CI 编号、commit、内部术语、仓库路径、源码标识符、
+  内部判定状态、调试术语等 12 条规则；正文 URL 豁免）。`build.yaml` 的 release job 在
+  「读取 Release 正文」之后调用该检查器，命中即失败；`tests/test_player_docs_check.py`
+  26 项覆盖必拦样本、必放行样本与 CLI 退出码。`docs/DOCUMENTATION_GUIDE.md` 补齐受众分层表、
+  禁词表正反例、发版检查清单与 AU 用词规则（AU = 含人物 / 服装 / 脸部模型的整体美化体系；
+  `【AUsDoL】facial expansion` 必须写「AU Face / 脸部扩展」）。
+
+### Changed
+
+- **Release 正文全面改为玩家向（2026-10-15）**：4 个整合包版本（0802 / 0804 / 0808 / 1014）
+  与 4 个镜像 Release 的正文按同一标准重写，技术细节迁入 `docs/technical/`；
+  `README.md`、`docs/KNOWN_ISSUES.md`、`docs/CHEAT_EXTENDED_FAQ.md`、`docs/INDEX.md` 同步。
+  0802 / 0804 的「AU Face 缺素材」错误归因保留历史勘误标记（真实根因见 0808）。
+- **眼球发白回归：方案 A 判定无效，转方案 B（2026-10-15）**：「碱性糖改脸」脸型在 0.5.11.9 线
+  （`-0915` 起）眼睛呈纯白。本轮在 0915 产物上做 `Renderer.ImageCaches` 单变量注入实验：
+  阳性对照 `sclera.png` := 纯紫 → 紫 338 / 白 6（证明链路有效、可逆）；A1（补
+  `img/face/碱性糖改脸/base-head.png`）、A2（`eyes.png` := 虹膜画布副本）、A3（两者同时）
+  全部 0 / 119 零变化，方案 A 判定 `no_visual_change`。与「面纹 / 腮红 / 流泪」分开记账；
+  方案 B（修正合成顺序 / 缺图回退规则）需单独设计并重跑 passage / scenario / combat / env 四套。
+  方案 B 出结果前，任何文档不得声明「眼球已修复」。
+
 ### Fixed
 
 - **战斗终局证据被 Finish 状态重置覆盖（2026-10-10）**：以上游
