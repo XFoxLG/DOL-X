@@ -1,17 +1,19 @@
 # DOL-X 文档索引
 
-**最后更新**: 2026-10-13
+**最后更新**: 2026-10-15
 
 ---
 
 ## 用户文档
 
 - [README](../README.md) - 项目简介和快速开始
+- [玩家更新日志](../玩家更新日志.md) - 面向玩家的更新记录（只写玩家能感知的变化）
+- [RELEASE_NOTES](release-notes/) - 各版本 Release 正文（玩家向）
+- [KNOWN_ISSUES](KNOWN_ISSUES.md) - 已知问题与规避方法
+- [CHEAT_EXTENDED_FAQ](CHEAT_EXTENDED_FAQ.md) - Cheat Extended 使用常见问题
 - [QUICK_REFERENCE](../QUICK_REFERENCE.md) - 快速命令参考
 - [CHANGELOG](../CHANGELOG.md) - 完整技术更新日志
 - [CURRENT_PROJECT_STATE](CURRENT_PROJECT_STATE.md) - 当前事实的唯一总入口
-- [CHEAT_EXTENDED_FAQ](CHEAT_EXTENDED_FAQ.md) - Cheat Extended 使用常见问题
-- [RELEASE_NOTES](release-notes/) - 面向玩家的各版本 Release 正文
 
 ## 开发文档
 
@@ -27,6 +29,7 @@
 
 ### 技术参考
 - [DOCUMENTATION_GUIDE](DOCUMENTATION_GUIDE.md) - CHANGELOG、Release 正文与状态文档写作规范
+- [技术档案](technical/) - 各版本的逐字节校验、工具输出与失败归因（只进仓库，不进 Release）
 - [TESTING_GUIDE](TESTING_GUIDE.md) - 当前测试流程与验证边界
 - [AUTOMATED_PASSAGE_SWEEP](AUTOMATED_PASSAGE_SWEEP.md) - Engine A 自动化测试套件总说明：全 passage 扫描 + 剧情场景/日循环 + 战斗 + 环境矩阵 + 夹具阶梯与存档安全 + 云端分片工作流
 - [AUTOMATED_GAMEPLAY_EXPLORER](AUTOMATED_GAMEPLAY_EXPLORER.md) - 自然轨道自动玩家、语义动作轨迹、状态指纹、checkpoint 归因、失败重放缩减、Android semantic replay 的边界
