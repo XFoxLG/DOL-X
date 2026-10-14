@@ -167,6 +167,8 @@ def main() -> int:
         ["node", "--check", str(syntax_path)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if syntax_result.returncode != 0:
         print((syntax_result.stdout or "")[-2000:])
@@ -224,6 +226,8 @@ def main() -> int:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if completed.returncode != 0:
         print((completed.stdout or "")[-3000:])

@@ -669,17 +669,36 @@ def _device_versions(
         pass
     try:
         result = _run_command(
-            [*prefix, "shell", "dumpsys", "package", "com.google.android.webview"],
+            [*prefix, "shell", "dumpsys", "webviewupdate"],
             commands,
             check=False,
             timeout=15,
         )
         if result.returncode == 0 and result.stdout:
-            match = re.search(r"versionName=([0-9][^\s]+)", result.stdout)
+            match = re.search(
+                r"Current WebView package \(name, version\):\s*\(([^,]+),\s*([^\s)]+)\)",
+                result.stdout,
+            )
             if match:
-                webview_version = match.group(1)
+                webview_version = match.group(2) or None
     except (OSError, subprocess.SubprocessError):
         pass
+    if webview_version is None:
+        for package in ("com.google.android.webview", "com.android.webview"):
+            try:
+                result = _run_command(
+                    [*prefix, "shell", "dumpsys", "package", package],
+                    commands,
+                    check=False,
+                    timeout=15,
+                )
+                if result.returncode == 0 and result.stdout:
+                    match = re.search(r"versionName=([0-9][^\s]+)", result.stdout)
+                    if match:
+                        webview_version = match.group(1)
+                        break
+            except (OSError, subprocess.SubprocessError):
+                continue
     return android_version, webview_version
 
 

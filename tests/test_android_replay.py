@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
+from tools import android_replay
 from tools.android_replay import (
     EXECUTION_SCHEMA,
     collect_android_runtime_candidates,
@@ -486,3 +488,42 @@ def test_execute_replay_is_partial_when_some_steps_match(tmp_path: Path) -> None
         "ambiguous": 0,
         "unmapped": 1,
     }
+
+
+def test_device_versions_reads_current_webview_from_webviewupdate(monkeypatch) -> None:
+    def fake_run_command(cmd, commands, *, check=True, timeout=None):
+        if cmd[-2:] == ["getprop", "ro.build.version.release"]:
+            return subprocess.CompletedProcess(cmd, 0, "12\n", "")
+        if cmd[-2:] == ["dumpsys", "webviewupdate"]:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                "Current WebView package (name, version): (com.android.webview, 110.0.5481.154.1)\n",
+                "",
+            )
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(android_replay, "_run_command", fake_run_command)
+    assert android_replay._device_versions("adb", "serial-1", []) == (
+        "12",
+        "110.0.5481.154.1",
+    )
+
+
+def test_device_versions_falls_back_to_vendor_webview_package(monkeypatch) -> None:
+    def fake_run_command(cmd, commands, *, check=True, timeout=None):
+        if cmd[-2:] == ["getprop", "ro.build.version.release"]:
+            return subprocess.CompletedProcess(cmd, 0, "12\n", "")
+        if cmd[-2:] == ["dumpsys", "webviewupdate"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "unknown service")
+        if cmd[-3:] == ["dumpsys", "package", "com.google.android.webview"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "package not found")
+        if cmd[-3:] == ["dumpsys", "package", "com.android.webview"]:
+            return subprocess.CompletedProcess(cmd, 0, "    versionName=110.0.5481.154.1\n", "")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(android_replay, "_run_command", fake_run_command)
+    assert android_replay._device_versions("adb", None, []) == (
+        "12",
+        "110.0.5481.154.1",
+    )

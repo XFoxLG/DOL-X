@@ -804,38 +804,47 @@ AU_SE_PROBE = r"""
     } catch (e) {}
     return null;
   };
-  guard("seWidgetsPassage", () => SC.Story.has("SE Widgets"));
+  // ``[widget]``-tagged passages are stripped from ``Story.has``/``Story.get``
+  // at compile time, so those two APIs report "missing" on every healthy build
+  // (``Story.get`` returns a red placeholder rather than null).  The
+  // authoritative view is ``Story.getAllWidget()``, which lists the merged
+  // widget source after every ModLoader TweeReplacer patch has been applied.
+  const allWidgets = (() => {
+    try {
+      return typeof SC.Story.getAllWidget === "function" ? SC.Story.getAllWidget() : [];
+    } catch (e) {
+      return [];
+    }
+  })();
+  const widgetSource = (name) => {
+    for (const passage of allWidgets) {
+      if (String(passage.title) === name) return String(passage.text || "");
+    }
+    return null;
+  };
+  const auBootPatches = [
+    { passage: "SE Widgets", needle: "AU_facial_expansion", label: "SE Widgets widget definition" },
+    { passage: "Widgets Mirror", needle: "AU_facial_expansion", label: "Widgets Mirror panel hook" },
+    { passage: "Widgets variablesStatic", needle: "setup.SE.Init", label: "Widgets variablesStatic init hook" },
+    { passage: "Widgets Canvas Model Main", needle: "SE_Canvas_add", label: "Widgets Canvas Model Main canvas hook" },
+  ];
+  guard("seWidgetsPassage", () => allWidgets.length > 0);
   guard("widgetRegistry", () => {
-    // ``<<widget "AU_facial_expansion">>`` lives in the AU payload's
-    // ``SE Widgets`` passage, so its registry entry hangs off that passage.
-    // SugarCube stores widget registries as a Map (``.has``/``.get``) while
-    // some loaders expose a plain object, so both shapes are handled.
-    const hasEntry = (container, name) => {
-      if (!container) return false;
-      try {
-        if (typeof container.has === "function") return container.has(name);
-      } catch (e) {}
-      if (Array.isArray(container)) return container.indexOf(name) >= 0;
-      return Object.prototype.hasOwnProperty.call(container, name);
-    };
-    const countOf = (container) => {
-      if (!container) return 0;
-      try {
-        if (typeof container.size === "number") return container.size;
-      } catch (e) {}
-      return Object.keys(container).length;
-    };
-    const passages = ["SE Widgets", "Widgets"];
-    const found = passages.filter((name) => {
-      if (!SC.Story.has(name)) return false;
-      return hasEntry((SC.Story.get(name) || {}).widgets, "AU_facial_expansion");
+    const applied = auBootPatches.map((rule) => {
+      const text = widgetSource(rule.passage);
+      return {
+        passage: rule.passage,
+        label: rule.label,
+        present: text !== null,
+        patched: text !== null && text.indexOf(rule.needle) >= 0,
+      };
     });
     return {
-      passage: SC.Story.has("SE Widgets"),
-      checkedPassages: passages,
-      foundIn: found,
-      hasAuWidget: found.length > 0,
-      total: countOf((SC.Story.get("SE Widgets") || {}).widgets),
+      total: allWidgets.length,
+      checkedPassages: auBootPatches.map((rule) => rule.passage),
+      foundIn: applied.filter((row) => row.patched).map((row) => row.passage),
+      hasAuWidget: applied.every((row) => row.patched),
+      applied: applied,
     };
   });
   guard("macros", () => {
@@ -853,10 +862,10 @@ AU_SE_PROBE = r"""
     return res;
   });
   guard("mirrorHook", () => {
-    if (!SC.Story.has("Widgets Mirror")) {
+    const text = widgetSource("Widgets Mirror");
+    if (text === null) {
       return { passage: false, injectedPanel: false, callCount: 0 };
     }
-    const text = String((SC.Story.get("Widgets Mirror") || {}).text || "");
     return {
       passage: true,
       injectedPanel: text.indexOf("AU_facial_expansion") >= 0,
