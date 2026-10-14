@@ -85,7 +85,18 @@ def _run_command(
     entry: dict[str, Any] = {"command": cmd}
     commands.append(entry)
     try:
-        result = subprocess.run(cmd, capture_output=True, check=check, text=True, timeout=timeout)
+        # Force UTF-8 with replacement so GBK-locale Windows hosts cannot crash the
+        # reader thread (and silently drop the whole stream) on arbitrary device
+        # output such as adb logcat bytes.
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            check=check,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
     except subprocess.CalledProcessError as exc:
         entry.update(
             {

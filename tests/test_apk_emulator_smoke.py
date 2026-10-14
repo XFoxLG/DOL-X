@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -999,3 +1000,22 @@ def test_apk_cdp_downgrades_cordova_pageerror_only_after_ready_passage():
     assert [(issue.severity, issue.kind) for issue in not_ready_report.issues] == [
         ("high", "unexpected_browser_error")
     ]
+
+def test_run_command_survives_non_utf8_device_output() -> None:
+    commands: list[dict[str, Any]] = []
+    result = apk_emulator_smoke_test._run_command(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'logcat-prefix\\x9b\\xfflogcat-tail'); sys.stdout.flush()",
+        ],
+        commands,
+        check=True,
+        timeout=30,
+    )
+    assert result.returncode == 0
+    assert result.stdout is not None
+    assert "logcat-prefix" in result.stdout
+    assert "logcat-tail" in result.stdout
+    assert "\ufffd" in result.stdout
+    assert commands[-1]["returncode"] == 0
