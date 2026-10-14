@@ -467,6 +467,20 @@ passage / scenario / combat / environment 扫描，而是给这些静态与辅�
   `target.apk_sha256`，release 档新增 `android_apk_sha256_matches` 条件，要求 manifest /
   android summary / 本机文件三方摘要一致，否则 `android_gate_ready` 一并 fail-closed
   （daily/nightly 不变）。shim 载体的真机验收必须在收紧后的门禁下重跑。
+- **2026-10-14 上游漂移再确认（身份门禁挡住了）**：`prepare` 不带 `--tag` 会取汉化仓库
+  `releases/latest`——上游当日已是 **0.5.12.13-1.0.1a**，分支 push 构建出的 zip/apk
+  实际是 0.5.12.13 线（run `38516310345` 产物名 `DoL-0.5.12.13-XFox-1.0.1a-*-1014`，
+  APK 已校验完好，留作候选线素材，**不进入 0.5.11.9 发布证据**）。发布线一律用 tag 或
+  新加的 `build.yaml` `game_tag` dispatch 输入钉死；`v0.5.11.9-1.0.0a-1014` 解析为
+  dol=0.5.11.9 / chs=1.0.0a（已实测 `LyraVersion.from_tag`），upstream 取包内容与 0915
+  同源。sweep.yaml 默认 tag 本就钉 0915，本次发布相关 sweep 用 1014 tag 显式传入。
+- **2026-10-14 Phase C 落地（门禁收口件）**：`sweep_flow_assertions` 新增第 6 条流
+  `au-face-remount`（真实点击换 passage 后桌宠 canvas 存活断言，pet-remount needle 的
+  运行时证据）；`exploration_agent` / `exploration_runtime` 记录游戏内时钟样本
+  （`Time.days` + `hour:minute` + `dayState`），`exploration_summary` / `traversal_statistics`
+  输出 `dayloop` 判定（时钟单调 + 跨天才 `full_day=true`）；`query_regression` 新增
+  `flow_assertions` 证据种类与 `flow_status_in` 操作符。两条 pending query 仍保持
+  pending，等 CI 夜间档 / remount flow 在 1014 载体产出真实证据后才允许拉起。
 - 战斗判定收严：`combat_sweep` 只把命中 `DECLARED_FIXTURE_GAPS`（67 条带源码行的已复核
   缺口声明）的渲染错误降为 `fixture_insufficient`，其余一律 `hard_fail`；`has no usable links`
   且全部出口缺失时会列出具体断链目标。CI 运行 `37967037983` 的 33 条 flagged 结果重新

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from tools.exploration_summary import summarize_many, summarize_report
+from tools.exploration_summary import (
+    dayloop_observation,
+    summarize_many,
+    summarize_report,
+)
 
 
 def test_summary_separates_evidence_and_failure_kinds() -> None:
@@ -74,3 +78,71 @@ def test_summary_inherits_run_evidence_track_for_actions() -> None:
         }
     )
     assert summary["coverage"]["action_tracks"] == {"assisted": 1, "natural": 1}
+
+
+def _sample(days: int, minute_of_day: int, state: str) -> dict:
+    return {"days": days, "minute_of_day": minute_of_day, "day_state": state}
+
+
+def test_dayloop_without_time_samples_is_not_observed() -> None:
+    observation = dayloop_observation([{"kind": "click"}, {"kind": "click"}])
+
+    assert observation["observed"] is False
+    assert observation["full_day"] is None
+    assert observation["minute_monotone"] is None
+    assert observation["day_states"] == []
+
+
+def test_dayloop_monotone_rollover_is_a_full_day() -> None:
+    actions = [
+        {"time_before": _sample(3, 6 * 60 + 30, "morning")},
+        {"time_after": _sample(3, 18 * 60, "evening")},
+        {"time_after": _sample(4, 6 * 60 + 10, "morning")},
+    ]
+    observation = dayloop_observation(actions)
+
+    assert observation["observed"] is True
+    assert observation["samples"] == 3
+    assert observation["minute_monotone"] is True
+    assert observation["day_rollover"] is True
+    assert observation["full_day"] is True
+    assert observation["day_range"] == [3, 4]
+    assert observation["day_states"] == ["morning", "evening"]
+
+
+def test_dayloop_backwards_clock_never_claims_a_full_day() -> None:
+    actions = [
+        {"time_before": _sample(4, 20 * 60, "evening")},
+        {"time_after": _sample(4, 8 * 60, "morning")},  # 时钟倒退：异常证据
+    ]
+    observation = dayloop_observation(actions)
+
+    assert observation["minute_monotone"] is False
+    assert observation["day_rollover"] is False
+    assert observation["full_day"] is False
+
+
+def test_dayloop_same_day_advance_is_not_a_full_day() -> None:
+    actions = [
+        {"time_before": _sample(3, 6 * 60, "morning")},
+        {"time_after": _sample(3, 22 * 60, "night")},
+    ]
+    observation = dayloop_observation(actions)
+
+    assert observation["minute_monotone"] is True
+    assert observation["day_rollover"] is False
+    assert observation["full_day"] is False
+
+
+def test_summary_report_carries_the_dayloop_observation() -> None:
+    summary = summarize_report(
+        {
+            "evidence_track": "natural",
+            "actions": [
+                {"verdict": "ok", "time_after": _sample(2, 7 * 60, "morning")},
+                {"verdict": "ok", "time_after": _sample(3, 7 * 60, "morning")},
+            ],
+        }
+    )
+
+    assert summary["dayloop"]["full_day"] is True

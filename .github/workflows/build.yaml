@@ -23,6 +23,10 @@ on:
         options:
           - branch
           - release
+      game_tag:
+        description: "可选：钉死上游版本 tag（如 v0.5.11.9-1.0.0a-1014）；留空 = 上游 latest"
+        type: string
+        default: ""
 
 # 构建和第三方资源处理只需要读权限；只有 tag-only release job 可以写 Release。
 permissions:
@@ -67,6 +71,8 @@ jobs:
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             python main.py prepare --workspace "${{ github.workspace }}" --tag "${{ github.ref_name }}" -v
+          elif [[ -n "${{ inputs.game_tag }}" ]]; then
+            python main.py prepare --workspace "${{ github.workspace }}" --tag "${{ inputs.game_tag }}" -v
           else
             python main.py prepare --workspace "${{ github.workspace }}" -v
           fi
@@ -97,6 +103,8 @@ jobs:
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             python main.py build --workspace "${{ github.workspace }}" --tag "${{ github.ref_name }}" --codes "${{ steps.codes.outputs.value }}" --jobs 2 -v
+          elif [[ -n "${{ inputs.game_tag }}" ]]; then
+            python main.py build --workspace "${{ github.workspace }}" --tag "${{ inputs.game_tag }}" --codes "${{ steps.codes.outputs.value }}" --jobs 2 -v
           else
             python main.py build --workspace "${{ github.workspace }}" --codes "${{ steps.codes.outputs.value }}" --jobs 2 -v
           fi

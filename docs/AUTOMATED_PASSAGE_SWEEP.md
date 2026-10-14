@@ -72,7 +72,7 @@ python tools\passage_sweep.py "workspace/prepare_package/zip/Degrees of Lewdity.
 python tools\passage_sweep.py "workspace/prepare_package/zip/Degrees of Lewdity.html" `
   --out .local/sweep/run --baseline .local/sweep/full/passage-sweep-baseline.json
 
-# 4) 关键功能流断言（mods / saveload / ce-panel / au-face / morelove）
+# 4) 关键功能流断言（mods / saveload / ce-panel / au-face / au-face-remount / morelove）
 python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003.zip" `
   --flow all --out .local/sweep/flows
 ```
@@ -109,7 +109,7 @@ python tools\sweep_flow_assertions.py "output\DoL-0.5.11.9-XFox-1.0.0a-au-f-1003
 | 日循环 | `tools/scenario_sweep.py --suite dayloop` | 1 条真实游玩流程 | 跑 | 跑 |
 | 战斗 | `tools/combat_sweep.py` | 原型矩阵 ~25-30 × 4 路径 + 4 控制模式；全量入口 1,570 | 原型矩阵 | `--tier initiators` |
 | 环境 | `tools/env_matrix.py` | 环境敏感 passage × 8 上下文；全量 × 4 上下文 | daily | full |
-| 关键功能流 | `tools/sweep_flow_assertions.py` | 5 条流（mods/saveload/ce-panel/au-face/morelove） | 跑 | 跑 |
+| 关键功能流 | `tools/sweep_flow_assertions.py` | 6 条流（mods/saveload/ce-panel/au-face/au-face-remount/morelove） | 跑 | 跑 |
 
 ### 4.2 两层跑分（时间预算）
 
@@ -202,7 +202,7 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 
 ## 6. 关键功能流断言（Engine A）
 
-`sweep_flow_assertions.py --flow all` 当前 5 条流（对 AU-F 1003 产物实测 5/5 通过）：
+`sweep_flow_assertions.py --flow all` 当前 6 条流（mods/saveload/ce-panel/au-face/au-face-remount/morelove）：
 
 | flow | 断言 | 实测（0.5.11.9-XFox-1.0.0a AU-F 1003） |
 | --- | --- | --- |
@@ -210,9 +210,19 @@ CI 在"脱敏 → 复核"两步之后才上传 Artifact。
 | `saveload` | 存档写入→改动→读回，passage + 5 个变量一致 | pass（槽位 7，`window.loadSave` 读回） |
 | `ce-panel` | 打开 CE 面板：`CEiconClicked()` → `#customOverlay[data-overlay=CEcheatMenu]` 可见 | pass |
 | `au-face` | 8 种 AU 脸型逐个切换后桌宠 canvas 非空且像素数互异 | pass：基线 17588px、Twinkle 17626px、spread 38px |
+| `au-face-remount` | 真实点击 passage 链接换场景后，桌宠 canvas 仍挂载（`isConnected`）且仍有像素 | 2026-10-14 新增，等 1014 shim 载体首跑 |
 | `morelove` | More Love 食物偏好入口渲染成功 | pass（`Food Preference`，text_len=81） |
 
 非 AU 产物跑 `au-face` 会如实返回 `not_applicable`（不是假通过）。
+`au-face-remount` 只在真实点击产生 passage 跳转时才算执行；没有可点击链接时返回
+`not_implemented`，跳转后画布消失返回 `fail`——这个 flow 是 pet-remount needle 补丁
+的运行时对应证据，单跑命令：`--flow au-face-remount`。
+
+自然玩家轨道同时记录游戏内时钟证据：`exploration_agent` 每条动作带 `time_before` /
+`time_after`（`Time.days` + `hour:minute` + `dayState`），`exploration_summary` 与
+`traversal_statistics` 输出 `dayloop` 判定（时钟单调 + 至少跨一天才 `full_day=true`），
+`dayloop-time-advance-full-day` query 消费 traversal 报告的
+`tracks.natural.dayloop.full_day`。
 
 ---
 

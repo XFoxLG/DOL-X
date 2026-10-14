@@ -141,12 +141,34 @@ RUNTIME_STATE_JS = r"""
       macro_names: SC.Macro && SC.Macro.get ? null : null,
       modloader_present: Boolean(window.ModLoader),
     };
+    // In-game clock evidence for the dayloop invariant.  DoL keeps the clock in
+    // the ``window.Time`` closure (``Time.date.day`` is the calendar day,
+    // ``Time.days`` the elapsed-day counter, ``Time.dayState`` the coarse
+    // bucket); a missing Time module must degrade to null, never throw.
+    let gameTime = null;
+    try {
+      const T = window.Time;
+      if (T && T.date) {
+        gameTime = {
+          year: T.date.year,
+          month: T.date.month,
+          month_day: T.date.day,
+          days: typeof T.days === "number" ? T.days : null,
+          hour: typeof T.hour === "number" ? T.hour : null,
+          minute: typeof T.minute === "number" ? T.minute : null,
+          day_state: typeof T.dayState === "string" ? T.dayState : null,
+        };
+      }
+    } catch (e) {
+      gameTime = null;
+    }
     return JSON.stringify({
       ok: true,
       passage: SC.State.passage,
       variables: variables,
       marshalForSave: state,
       actions: actions,
+      game_time: gameTime,
       storage: {
         local: storage(window.localStorage),
         session: storage(window.sessionStorage),
@@ -195,6 +217,7 @@ class RuntimeSnapshot:
     registry: dict[str, Any]
     marshal_for_save: Any
     observations: list[dict[str, Any]]
+    game_time: dict[str, Any] | None = None
 
 
 def parse_json_response(raw: Any) -> dict[str, Any]:
@@ -213,6 +236,7 @@ def snapshot_runtime(
     if not data.get("ok"):
         raise RuntimeError(str(data.get("error") or "runtime snapshot failed"))
     variables = data.get("variables") or (data.get("marshalForSave") or {}).get("variables") or {}
+    game_time = data.get("game_time") if isinstance(data.get("game_time"), dict) else None
     fingerprint = build_fingerprint(
         {
             "passage": data.get("passage"),
@@ -222,6 +246,11 @@ def snapshot_runtime(
             "mod_registry": data.get("registry") or {},
             "prng": (data.get("marshalForSave") or {}).get("prng"),
             "history": (data.get("marshalForSave") or {}).get("history"),
+            # Coarse-fingerprint time signal: the elapsed-day counter and the
+            # coarse day bucket, so dedup keeps day granularity without
+            # exploding on every minute tick.
+            "day": (game_time or {}).get("days"),
+            "time_bucket": (game_time or {}).get("day_state"),
         }
     )
     return RuntimeSnapshot(
@@ -231,6 +260,7 @@ def snapshot_runtime(
         registry=data.get("registry") or {},
         marshal_for_save=data.get("marshalForSave") or {},
         observations=list(observations or []),
+        game_time=game_time,
     )
 
 

@@ -42,6 +42,36 @@ SCHEMA = "dolx.exploration.v1"
 RUNNER_VERSION = "dol-x-exploration-agent-v1"
 
 
+def _time_sample(snapshot) -> dict[str, Any] | None:
+    """Compact in-game clock sample for the dayloop invariant.
+
+    The snapshot's ``game_time`` comes from ``window.Time``; when the game has
+    no clock module (or the read failed) the sample stays ``None`` so the
+    report honestly carries "no time evidence" instead of fabricating zeros.
+    """
+    game_time = getattr(snapshot, "game_time", None)
+    if not isinstance(game_time, dict) or not game_time:
+        return None
+    days = game_time.get("days")
+    hour = game_time.get("hour")
+    minute = game_time.get("minute")
+    try:
+        minute_of_day = (
+            int(hour) * 60 + int(minute)
+            if hour is not None and minute is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        minute_of_day = None
+    if days is None and minute_of_day is None:
+        return None
+    return {
+        "days": days,
+        "minute_of_day": minute_of_day,
+        "day_state": game_time.get("day_state"),
+    }
+
+
 def _failure_record(
     *,
     step: int,
@@ -418,6 +448,8 @@ def explore(
                 "fingerprint_after": after.fingerprint["exact_hash"],
                 "coarse_before": before.fingerprint["coarse_hash"],
                 "coarse_after": after.fingerprint["coarse_hash"],
+                "time_before": _time_sample(before),
+                "time_after": _time_sample(after),
                 "action_result": action_result,
                 "verdict": verdict,
                 "detail": detail,
