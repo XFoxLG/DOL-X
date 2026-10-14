@@ -97,3 +97,54 @@ def test_sweep_workflow_builds_static_coverage_ledger() -> None:
     assert "HTML_PATH not set" in text
     assert "-o -name 'combat-ledger*.json'" in text
     assert "-o -name 'combat-ledger*.md'" in text
+
+
+def test_sweep_workflow_nightly_heredoc_terminator_is_unindented() -> None:
+    """2026-10-14: the nightly batch check failed with
+    ``here-document at line 21 delimited by end-of-file``.
+
+    Inside a YAML block scalar every line is dedented, so a heredoc terminator
+    written at the surrounding indentation ends up indented in the rendered
+    script and bash never matches it. The terminator must therefore be written
+    at the same indentation as the script body (which dedents to column 0).
+    """
+    import yaml
+
+    workflow = yaml.safe_load(_workflow())
+    nightly = workflow["jobs"]["nightly"]["steps"]
+    step = next(s for s in nightly if s.get("name") == "Run natural exploration across seeds")
+    script = step["run"]
+    assert "python - <<'PY'" in script
+    lines = script.splitlines()
+    openers = [i for i, line in enumerate(lines) if line.strip().startswith("python - <<'PY'")]
+    assert openers, "nightly batch heredoc disappeared"
+    for index in openers:
+        terminator = next(
+            (line for line in lines[index + 1 :] if line.strip() == "PY"),
+            None,
+        )
+        assert terminator is not None, "nightly batch heredoc has no PY terminator"
+        assert terminator == "PY", (
+            "heredoc terminator must dedent to column 0; got "
+            f"{terminator!r} (bash reports 'delimited by end-of-file')"
+        )
+
+
+def test_sweep_workflow_nightly_upload_references_an_existing_step_id() -> None:
+    """2026-10-14: nightly's upload step was gated on ``steps.export`` but the
+    export step had no ``id``, so every nightly report was silently discarded.
+    """
+    import yaml
+
+    workflow = yaml.safe_load(_workflow())
+    for job_name, spec in workflow["jobs"].items():
+        steps = spec.get("steps") or []
+        ids = {s.get("id") for s in steps if s.get("id")}
+        for step in steps:
+            condition = str(step.get("if") or "")
+            for reference in ("steps.export.outcome", "steps.export.conclusion"):
+                if reference in condition:
+                    assert "export" in ids, (
+                        f"job {job_name!r} gates a step on {reference} but no step "
+                        "in that job declares id: export"
+                    )
