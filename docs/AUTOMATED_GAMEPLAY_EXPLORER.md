@@ -158,7 +158,7 @@ checkpoint 保存 `State.marshalForSave()`、storage、Mod registry 和 fingerpr
 
 `sweep.yaml` 现在有 `nightly` 档位：三个固定 seed 各跑 120 步自然探索，打开 `--shrink-failures`，再做 200 目标的 assisted smoke，最后把未归因 `hard_fail` 数量作为失败条件。
 
-`tools/exploration_gate.py` 把这些报告合成一层 fail-closed gate：核对 target identity、跨报告 identity drift、所有 run 是否 complete、未归因 `hard_fail` 是否为 0，并接收 Mod runtime inventory 和 Android summary。`--release` 还要求报告里已有 `source_commit`、`mods_lock_sha256` 和 `source_index_sha256`，并且传入的 source index 文件 SHA-256 与 manifest 一致、source index 自身的 source commit 与报告 source commit 一致。`--target` 和 `--mods-lock` 会让 gate 重新计算实际文件 SHA-256；release 模式必须传入这两个文件并匹配 manifest，非 release 的 assisted-full-coverage gate 只要提供了文件，也会在 digest 漂移时 fail-closed。Mod inventory payload 数与 manifest 一致、无错误、无静态 passage 遗漏、无未分类 mod passage、按钮隔离调用无异常，Android semantic replay 全 matched。release 还会用 source index 计算唯一的静态目标数，并要求 assisted shard 的 unique ok targets 覆盖全部静态目标、没有跨分片重复。这些条件缺一时 `completion_claim` 永远是 `none`。
+`tools/exploration_gate.py` 把这些报告合成一层 fail-closed gate：核对 target identity、跨报告 identity drift、所有 run 是否 complete、未归因 `hard_fail` 是否为 0，并接收 Mod runtime inventory 和 Android summary。`--release` 还要求报告里已有 `source_commit`、`mods_lock_sha256` 和 `source_index_sha256`，并且传入的 source index 文件 SHA-256 与 manifest 一致、source index 自身的 source commit 与报告 source commit 一致。`--target` 和 `--mods-lock` 会让 gate 重新计算实际文件 SHA-256；release 模式必须传入这两个文件并匹配 manifest，非 release 的 assisted-full-coverage gate 只要提供了文件，也会在 digest 漂移时 fail-closed。Mod inventory payload 数与 manifest 一致、无错误、无静态 passage 遗漏、无未分类 mod passage、按钮隔离调用无异常，Android semantic replay 全 matched。release 还会用 source index 计算唯一的静态目标数，并要求 assisted shard 的 unique ok targets 覆盖全部静态目标、没有跨分片重复；2026-10-14 起还要求 android summary 的 `apk_sha256` 与 target manifest 的 `target.apk_sha256` 逐字节一致（`android_apk_sha256_matches`，任一侧缺失即 false）。这些条件缺一时 `completion_claim` 永远是 `none`。
 
 `--assisted-full-coverage` 是独立于 Android release gate 的全量静态覆盖门禁。它允许只验收“14,662 个静态目标是否被 assisted shard 去重后全部 ok”，不要求 Android；full tier workflow 用 8 个 shard 跑这条路径，最后单独生成 `assisted-gate`。
 
@@ -166,7 +166,7 @@ checkpoint 保存 `State.marshalForSave()`、storage、Mod registry 和 fingerpr
 
 2026-10-13（Plan v5）之后，`--release` 还接收 6 份外部方法证据，缺一份即 fail-closed：`--symbolic-reachability`（`static_reachability_solver`，非 `solver_unavailable`）、`--story-graph-audit`（full mode、两类 unclassified 为空）、`--traversal-stats`（natural 轨道有真实动作分母）、`--query-regression`（`release_blocking` 为空）、`--au-contract`（AU 行 schema 正确、无 errors、框架导出 ≥1、变体目录 shim marker = 1）、`--framework-contract`（`verdict == consistent`）。daily/nightly 不传这些参数时条件为 `null`，只产报告。
 
-**已知缺口（2026-10-14 实测）**：`android_gate_ready` 只读 summary 的 `verdict` / `cdp_connected` / `totals`，**不比对 APK SHA-256 与 target manifest**。本轮 release 链里这条是 `true`，但它绑的是 2026-09-30 构建的 APK（`56dd6491…`），不是这次的 shim 载体（ZIP `96939f3f…`）。因此这条绿灯**不能**读成“shim 载体已过真机门禁”。收紧方式：让 target manifest 记录 `apk_sha256`，gate 在提供 android summary 时要求两者一致，不一致即 fail-closed。
+**APK 身份绑定（2026-10-14 已落地）**：此前 `android_gate_ready` 只读 summary 的 `verdict` / `cdp_connected` / `totals`，**不比对 APK SHA-256 与 target manifest**——2026-10-14 的 release 链里这条是 `true`，但它绑的是 2026-09-30 构建的 APK（`56dd6491…`），不是 shim 载体（ZIP `96939f3f…`）。现已收紧：`tools/target_manifest.py` 的 `--apk` 会把 APK 的 SHA-256 写入 `target.apk_sha256`（可选字段，缺失不报错，保持向后兼容）；release 档新增条件 `android_apk_sha256_matches`，要求 manifest、android summary、本机文件三方摘要逐字节一致，任一侧缺失或不等即 fail-closed，`android_gate_ready` 同步收紧，daily/nightly 不受影响。回归测试覆盖匹配 / 任一侧缺失 / 不相符 / 非 release 全四种配对态。历史结论不变：0915 那次绿灯不能读成“shim 载体已过真机门禁”，shim 载体必须重新走一遍绑定后的门禁。
 
 ## Android
 

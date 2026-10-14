@@ -346,6 +346,18 @@ def build_gate(
         and int((android.get("totals") or {}).get("matched") or 0)
         == int((android.get("totals") or {}).get("planned") or 0)
     )
+    manifest_apk_sha256 = (manifest.get("target") or {}).get("apk_sha256")
+    android_summary_apk_sha256 = android.get("apk_sha256")
+    android_apk_sha256_matches = bool(
+        manifest_apk_sha256
+        and android_summary_apk_sha256
+        and manifest_apk_sha256 == android_summary_apk_sha256
+    )
+    if release:
+        # Release binds the accepted APK byte-for-byte: the manifest, the
+        # android summary and the on-disk file must agree.  Missing on either
+        # side or any drift fails closed.
+        android_gate_ready = android_gate_ready and android_apk_sha256_matches
     source_commit_present = bool((manifest.get("target") or {}).get("source_commit"))
     mods_lock_digest_present = bool(manifest.get("mods_lock_sha256"))
     source_index_digest_present = bool(manifest.get("source_index_sha256"))
@@ -419,6 +431,7 @@ def build_gate(
             mod_passage_sweep_no_errors if mod_passage_sweep else None
         ),
         "android_gate_ready": android_gate_ready if release else None,
+        "android_apk_sha256_matches": android_apk_sha256_matches if release else None,
         "story_graph_dead_ends_classified": story_graph_ok if release else None,
         "query_regression_passed": query_ok if release else None,
         "traversal_report_complete": traversal_ok if release else None,
@@ -535,6 +548,8 @@ def build_gate(
             "verdict": android.get("verdict"),
             "totals": android.get("totals") or {},
             "cdp_connected": android.get("cdp_connected"),
+            "apk_sha256": android_summary_apk_sha256,
+            "expected_apk_sha256": manifest_apk_sha256,
         },
         "gate": {
             "conditions": conditions,
