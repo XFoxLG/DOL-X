@@ -176,6 +176,12 @@ jobs:
             echo 'DOLX_RELEASE_NOTES_EOF'
           } >> "${GITHUB_OUTPUT}"
 
+      # 玩家向正文只允许玩家语言；命中内部术语即发版失败。
+      # 规则与正反例见 tools/player_docs_check.py / tests/test_player_docs_check.py。
+      - name: Check player-facing release notes
+        shell: bash
+        run: python3 tools/player_docs_check.py "docs/release-notes/${GITHUB_REF_NAME}.md"
+
       - name: Upload to release
         uses: svenstaro/upload-release-action@v2
         with:

@@ -1,48 +1,34 @@
-# maplebirch Framework v4.1.14 — 灾备镜像（与官方资产逐字节相同）
+# 秋枫白桦框架 v4.1.14 备份副本
 
-这是 [MaplebirchLeaf/SCML-DOL-maplebirchFramework](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)
-官方 release `maplebirch-release-v4.1.14` 中资产 `maplebirch-0.5.10.12-v4.1.14.mod.zip`
-的原样灾备副本。**未做任何修改**，字节数与 sha256 均与官方 Release API 报告的一致。
+这是 DOL-X 构建时使用的「秋枫白桦框架」（maplebirch）v4.1.14 官方文件的原样备份副本。
+**未做任何修改**，与官方发布时的文件逐字节相同。
 
-## 为什么需要这个镜像
+## 这是什么、为什么会有它
 
-上游作者在 2026-09-24 批量删除了 20 多个 release tag（含 4.2.0–4.2.8、4.3.0–4.3.4、4.4.0 等）。
-该仓库的 Release 资产没有不可变性保证，`Pre-release` 之类的固定 tag 已被多次原位换包。
-本镜像是为了让 DOL-X 的构建输入在"官方资产消失或被换包"时仍可复现。
+框架作者会删除旧版本，也会在同一个下载位置悄悄替换文件。为了让 DOL-X 的包在「官方文件
+消失或被替换」之后仍然能被原样复现，这里保存了一份当时的原件。
 
-## 校验
+## 怎么用、和整合包怎么搭配
+
+- 如果你要玩 DOL-X 整合包：**不需要下载这个文件**，最新整合包里已经内置了同一个文件。
+- 如果你要自己按 DOL-X 的流程重新构建：在官方源拿不到这一版时，用这里的压缩包替代即可；
+  它是普通 mod 压缩包，放进 mod 加载列表就能用。
+- 它和整合包内置的框架是同一个文件，重复加载没有意义。
+
+## 为什么钉在 4.1.14
+
+框架更新到 4.2 之后，AU Face 脸部扩展需要的旧接口被删掉或重写，AU 版换脸会直接报错；
+5.x 又重构掉了其它 mod 依赖的部分。4.1.14 是目前经过完整核对与实机验证、这些功能都
+正常工作的最后一个版本。
+
+## 版本与来源
 
 | 项 | 值 |
 |---|---|
-| 资产文件名 | `maplebirch-0.5.10.12-v4.1.14.mod.zip` |
-| 字节数 | 186903 |
-| sha256 | `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4` |
-| boot.json version | `4.1.14` |
-| dependenceInfo GameVersion | `>=0.5.10.12` |
-| 上游发布日 | 2026-08-02 |
-| 上游构建提交 | `cf57f88c` |
-| 许可证 | MIT (Copyright (c) 2026 楓樺葉) |
+| 框架版本 | 4.1.14 |
+| 上游仓库 | [MaplebirchLeaf/SCML-DOL-maplebirchFramework](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework) |
+| 上游发布时间 | 2026-08-02 |
+| 适用游戏版本 | DoL 0.5.10.12 及以上（含 0.5.11.9） |
+| 授权 | MIT（Copyright (c) 2026 楓樺葉） |
 
-## 为什么 DOL-X 钉在 4.1.14 而不是更新的版本
-
-离线浏览器冒烟实测（同一份 0.5.11.9 产物，只替换 maplebirch 载荷）：
-
-| 信号 | v4.2.9 | v4.1.14 |
-|---|---|---|
-| `faceStyleSrcFn is not a function` | 3 | 0 |
-| `whenSC2PassageEnd` 递归栈溢出 | 2 | 0 |
-| `ReferenceError: UIBar is not defined` | 24 | 0 |
-
-- `faceStyleSrcFn` 等四个导出在 4.2.0 被删除，4.2.1 恢复了 faceStyle 渲染但没有恢复该导出；
-  AU Face 的调用方在随包加载的内层载荷里，静态审计看不到，只有运行时能抓到。
-- 4.2.9 引入了一个自递归的 `EventEmitter.error(e){return this.error(e)}`。
-- 4.3.5 / 4.4.x 只面向 0.5.12.11 / 0.5.12.13 本体，而汉化仓库没有 0.5.12.x 发行。
-- 5.x 重构移除了 `ModuleSystem` / `LanguageManager`，LongerCombat / Yanling / DOLI 均不覆盖。
-
-v4.1.14 是目前唯一同时具备 `faceStyleSrcFn` 导出、已验证补丁锚点和通过真机的 4.x 载荷。
-
-## 用法
-
-DOL-X 默认仍从官方源下载（`track_upstream = true`）。本镜像只在官方资产消失或被换包时启用。
-切换方式是把 `config/build.toml` 里 maplebirch 段的 `download_url` 指向本镜像资产，
-并在 `config/mods.lock.json` 里记录同样的 sha256。
+> 逐字节校验值、版本考古与陷阱样本见 [技术档案](https://github.com/XFoxLG/DOL-X/blob/vega/docs/technical/mirrors-2026-08.md)。
