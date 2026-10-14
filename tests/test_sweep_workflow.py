@@ -99,28 +99,68 @@ def test_sweep_workflow_builds_static_coverage_ledger() -> None:
     assert "-o -name 'combat-ledger*.md'" in text
 
 
+def _job_block(text: str, job_name: str) -> list[str]:
+    """Return the raw lines of one top-level job, without a YAML dependency."""
+    lines = text.splitlines()
+    start = next(
+        index for index, line in enumerate(lines) if line == f"  {job_name}:"
+    )
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if lines[index].startswith("  ") and not lines[index].startswith("    ")
+        ),
+        len(lines),
+    )
+    return lines[start:end]
+
+
+def _block_scalar_body(block: list[str], step_name: str) -> list[str]:
+    """Return the dedented ``run: |`` body of one named step."""
+    start = next(
+        index for index, line in enumerate(block) if line.strip() == f"- name: {step_name}"
+    )
+    run_at = next(
+        index
+        for index in range(start, len(block))
+        if block[index].strip().startswith("run:")
+    )
+    assert block[run_at].strip() == "run: |", block[run_at]
+    body: list[str] = []
+    indent: int | None = None
+    for line in block[run_at + 1 :]:
+        if not line.strip():
+            body.append("")
+            continue
+        current = len(line) - len(line.lstrip(" "))
+        if indent is None:
+            indent = current
+        if current < indent:
+            break
+        body.append(line[indent:])
+    return body
+
+
 def test_sweep_workflow_nightly_heredoc_terminator_is_unindented() -> None:
     """2026-10-14: the nightly batch check failed with
     ``here-document at line 21 delimited by end-of-file``.
 
     Inside a YAML block scalar every line is dedented, so a heredoc terminator
-    written at the surrounding indentation ends up indented in the rendered
-    script and bash never matches it. The terminator must therefore be written
-    at the same indentation as the script body (which dedents to column 0).
+    written at the surrounding indentation stays indented in the rendered script
+    and bash never matches it. The terminator must dedent to column 0.
     """
-    import yaml
-
-    workflow = yaml.safe_load(_workflow())
-    nightly = workflow["jobs"]["nightly"]["steps"]
-    step = next(s for s in nightly if s.get("name") == "Run natural exploration across seeds")
-    script = step["run"]
-    assert "python - <<'PY'" in script
-    lines = script.splitlines()
-    openers = [i for i, line in enumerate(lines) if line.strip().startswith("python - <<'PY'")]
+    body = _block_scalar_body(
+        _job_block(_workflow(), "nightly"),
+        "Run natural exploration across seeds",
+    )
+    openers = [
+        i for i, line in enumerate(body) if line.strip().startswith("python - <<'PY'")
+    ]
     assert openers, "nightly batch heredoc disappeared"
     for index in openers:
         terminator = next(
-            (line for line in lines[index + 1 :] if line.strip() == "PY"),
+            (line for line in body[index + 1 :] if line.strip() == "PY"),
             None,
         )
         assert terminator is not None, "nightly batch heredoc has no PY terminator"
@@ -134,17 +174,16 @@ def test_sweep_workflow_nightly_upload_references_an_existing_step_id() -> None:
     """2026-10-14: nightly's upload step was gated on ``steps.export`` but the
     export step had no ``id``, so every nightly report was silently discarded.
     """
-    import yaml
-
-    workflow = yaml.safe_load(_workflow())
-    for job_name, spec in workflow["jobs"].items():
-        steps = spec.get("steps") or []
-        ids = {s.get("id") for s in steps if s.get("id")}
-        for step in steps:
-            condition = str(step.get("if") or "")
-            for reference in ("steps.export.outcome", "steps.export.conclusion"):
-                if reference in condition:
-                    assert "export" in ids, (
-                        f"job {job_name!r} gates a step on {reference} but no step "
-                        "in that job declares id: export"
-                    )
+    for job_name in ("daily", "nightly"):
+        block = _job_block(_workflow(), job_name)
+        ids = {
+            line.strip().split(":", 1)[1].strip()
+            for line in block
+            if line.strip().startswith("id:")
+        }
+        gated = [line for line in block if "steps.export." in line]
+        assert gated, f"job {job_name!r} no longer gates anything on steps.export"
+        assert "export" in ids, (
+            f"job {job_name!r} gates a step on steps.export.* but no step in that "
+            "job declares id: export"
+        )
