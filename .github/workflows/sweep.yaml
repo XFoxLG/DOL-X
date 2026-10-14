@@ -332,15 +332,18 @@ jobs:
             .local/sweep/nightly-natural-*/exploration-sweep.json \
             --out .local/sweep/nightly-natural-batch.json || STATUS=1
           if [ -f .local/sweep/nightly-natural-batch.json ]; then
+            # The heredoc terminator must sit at column 0: inside a YAML block
+            # scalar every line is dedented, so an indented ``PY`` never matches
+            # and bash reports "here-document delimited by end-of-file".
             python - <<'PY' || STATUS=1
-            import json
-            from pathlib import Path
-            report = json.loads(Path(".local/sweep/nightly-natural-batch.json").read_text(encoding="utf-8"))
-            unattributed = sum(len(item.get("unattributed_hard_failures") or []) for item in report.get("runs", []))
-            if unattributed:
-                print(f"::error::nightly exploration left {unattributed} unattributed hard failure(s)")
-            raise SystemExit(1 if unattributed else 0)
-            PY
+          import json
+          from pathlib import Path
+          report = json.loads(Path(".local/sweep/nightly-natural-batch.json").read_text(encoding="utf-8"))
+          unattributed = sum(len(item.get("unattributed_hard_failures") or []) for item in report.get("runs", []))
+          if unattributed:
+              print(f"::error::nightly exploration left {unattributed} unattributed hard failure(s)")
+          raise SystemExit(1 if unattributed else 0)
+          PY
           else
             echo "::error::nightly natural exploration batch summary missing"
             STATUS=1
@@ -408,6 +411,7 @@ jobs:
             --mod-passage-sweep .local/sweep/nightly-mod-passages/passage-sweep.json \
             --out .local/sweep/nightly-gate
       - name: Export sanitized reports
+        id: export
         if: always()
         run: |
           set -euo pipefail
