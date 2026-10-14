@@ -106,6 +106,12 @@
 
 ### Added
 
+- **`docs/release-notes/v0.5.11.9-1.0.0a-1014.md`：0.5.11.9 首个玩家向发布正文（2026-10-14）**。
+  玩家可读版本说明，覆盖本次四项玩家可见变化（本体 0.5.11.9、框架 4.1.14、作弊拓展 v1.20、
+  移除变身兔兔）、AU 变体目录补丁的契约层性质与 `no_visual_change` A/B 结论、
+  真机验收范围（AU-F 装到 MuMu 12、八脸型桌宠像素差异、跨场景存活、CE 面板、存档往返 6/6）、
+  base/AU-M/AU-A 未上机的边界，以及发版包与验收载体的 sha256 关系说明。
+
 - **mod passage 盘点 + `--allow-runtime-only`（2026-10-07 同日第七轮）**：静态
   `extract_passages` 只能看到 HTML 文件里的 15,627 条 vanilla passage，37 个内嵌 mod 的
   twee 是 base64 payload、由 ModLoader 在运行时合并——此前"15,627 全通过"不含任何 mod
