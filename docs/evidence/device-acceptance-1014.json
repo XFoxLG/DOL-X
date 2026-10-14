@@ -1,0 +1,253 @@
+{
+ "schema": "dolx.device-acceptance-evidence.v1",
+ "device": {
+  "emulator": "MuMu 12",
+  "android_version": "12",
+  "adb_serial": "emulator-5554",
+  "package": "com.vrelnir.dol.xfox",
+  "webview_version": "110.0.5481.154.1"
+ },
+ "target": {
+  "apk_name": "DoL-0.5.11.9-XFox-1.0.0a-au-f-1014.apk",
+  "apk_sha256": "280077aaf6a93da46f24cf0272a516267ab8d068a6862dd0c36a6efb2ce97ce3",
+  "apk_size_bytes": 130411621,
+  "device_pulled_apk_sha256_matches": true,
+  "zip_sha256": "672dcb392f8cea2ddb35ef25f13b9b12d03d2e5920c0d16a1139f631bd05746b",
+  "zip_size_bytes": 115012853,
+  "dry_run": "run 38536372032 @ f766eb7, tag v0.5.11.9-1.0.0a-1014"
+ },
+ "flows": {
+  "au-face-remount": {
+   "verdict": "pass",
+   "au_se_gaps": [],
+   "pet_enable": {
+    "enabled": true,
+    "sync": true,
+    "wiki": true,
+    "container": true,
+    "notes": []
+   },
+   "styles_measured": 8,
+   "pet_opaque_values": [
+    17588,
+    17587,
+    17587,
+    17626,
+    17587,
+    17587,
+    17587,
+    17588
+   ],
+   "pet_distinct_opaque_values": [
+    17587,
+    17588,
+    17626
+   ],
+   "pet_spread_px": 39,
+   "navigation_hops": [
+    {
+     "from": "Bedroom",
+     "target": "Bed",
+     "to": "Bed",
+     "canvas": {
+      "w": 256,
+      "h": 256,
+      "opaque": 16908
+     },
+     "container_connected": true,
+     "click_ok": true
+    },
+    {
+     "from": "Bedroom",
+     "target": "Bed",
+     "to": "Bed",
+     "canvas": {
+      "w": 256,
+      "h": 256,
+      "opaque": 16907
+     },
+     "container_connected": true,
+     "click_ok": false
+    }
+   ],
+   "navigation_hops_clean": {
+    "verdict": "pass",
+    "baseline": {
+     "passage": "Bed",
+     "canvas_opaque": 16907
+    },
+    "hops": [
+     {
+      "hop": 0,
+      "from": "Bed",
+      "declared_target": "Sleep",
+      "click": "{\"ok\":true,\"text\":\"(1) 睡8小时\"}",
+      "to": "Sleep",
+      "canvas_opaque": 17218,
+      "container_connected": true
+     },
+     {
+      "hop": 1,
+      "from": "Sleep",
+      "declared_target": "Bedroom",
+      "click": "{\"ok\":true,\"text\":\"(1) 起床\"}",
+      "to": "Bedroom",
+      "canvas_opaque": 17587,
+      "container_connected": true
+     },
+     {
+      "hop": 2,
+      "from": "Bedroom",
+      "declared_target": "Bed",
+      "click": "{\"ok\":true,\"text\":\"(1) 脱光并爬到床上\"}",
+      "to": "Bed",
+      "canvas_opaque": 16908,
+      "container_connected": true
+     }
+    ],
+    "navigated": 3,
+    "survived": 3,
+    "note": "three consecutive real passage hops (Bed -> Sleep -> Bedroom -> Bed); the desk-pet canvas kept rendering pixels and stayed connected after every hop."
+   }
+  },
+  "ce-panel": {
+   "verdict": "pass",
+   "entry": {
+    "ok": true,
+    "via": "window.CEiconClicked()"
+   },
+   "dom_found": true,
+   "settings_div": true,
+   "overlay_data": "CEcheatMenu"
+  },
+  "saveload-core": {
+   "verdict": "pass",
+   "slot": 4,
+   "slot_present": true,
+   "save_ok": true,
+   "before_passage": "Bed",
+   "after_passage": "Bed",
+   "passage_ok": true,
+   "keys": [
+    "money",
+    "awareness",
+    "purity",
+    "trauma",
+    "control",
+    "exhibitionism",
+    "promiscuity",
+    "sadism"
+   ],
+   "matched": [
+    "money",
+    "awareness",
+    "purity",
+    "trauma",
+    "control",
+    "exhibitionism",
+    "promiscuity",
+    "sadism"
+   ],
+   "compared": {
+    "money": {
+     "before": 500,
+     "mutated": 1277,
+     "after": 500,
+     "restored": true,
+     "was_changed": true
+    },
+    "awareness": {
+     "before": 0,
+     "mutated": 777,
+     "after": 0,
+     "restored": true,
+     "was_changed": true
+    },
+    "purity": {
+     "before": 1000,
+     "mutated": 1777,
+     "after": 1000,
+     "restored": true,
+     "was_changed": true
+    },
+    "trauma": {
+     "before": 0,
+     "mutated": 777,
+     "after": 0,
+     "restored": true,
+     "was_changed": true
+    },
+    "control": {
+     "before": 1000,
+     "mutated": 1777,
+     "after": 1000,
+     "restored": true,
+     "was_changed": true
+    },
+    "exhibitionism": {
+     "before": 0,
+     "mutated": 777,
+     "after": 0,
+     "restored": true,
+     "was_changed": true
+    },
+    "promiscuity": {
+     "before": 0,
+     "mutated": 777,
+     "after": 0,
+     "restored": true,
+     "was_changed": true
+    },
+    "sadism": {
+     "before": 0,
+     "mutated": 777,
+     "after": 0,
+     "restored": true,
+     "was_changed": true
+    }
+   }
+  },
+  "saveload-settings": {
+   "verdict": "pass",
+   "slot": 5,
+   "slot_present": true,
+   "save_ok": true,
+   "before_passage": "Bed",
+   "after_passage": "Bed",
+   "passage_ok": true,
+   "keys": [
+    "CE_DeepProxyHook_enable",
+    "CE_RawHook_enable",
+    "CE_VarHook_enable",
+    "CE_allowCustomHookSave",
+    "CE_timePassMultiplier",
+    "CE_timeMultiplier",
+    "purity",
+    "CE_purityControl"
+   ],
+   "matched": [
+    "CE_DeepProxyHook_enable",
+    "CE_RawHook_enable",
+    "CE_VarHook_enable",
+    "CE_allowCustomHookSave",
+    "CE_timePassMultiplier",
+    "CE_timeMultiplier",
+    "purity",
+    "CE_purityControl"
+   ]
+  }
+ },
+ "page_errors": [],
+ "final_passage": "Bed",
+ "method": {
+  "transport": "Android WebView CDP (Runtime.evaluate + Page.captureScreenshot)",
+  "gestures": "DOM .click() on visible elements only; no Engine.play for navigation",
+  "assertion_source": "tools/sweep_flow_assertions.py probe JS (same engine-A assertions)",
+  "navigation": "real passage link clicks (Bedroom -> Bed) observed through SugarCube.State.passage"
+ },
+ "privacy": {
+  "contains_save_blobs": false,
+  "contains_absolute_paths": false,
+  "contains_player_identifiers": false
+ }
+}
