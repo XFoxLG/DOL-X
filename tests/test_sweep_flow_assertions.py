@@ -111,12 +111,18 @@ def test_au_se_probe_is_identifier_level_only() -> None:
 
 def test_au_se_probe_reads_the_se_widgets_registry() -> None:
     source = sfa.AU_SE_PROBE
-    # ``<<widget "AU_facial_expansion">>`` is defined in the payload's own
-    # ``SE Widgets`` passage, and SugarCube exposes a passage's widget registry
-    # as a Map (``.has``), so the probe must not assume a plain object.
+    # ``[widget]``-tagged passages never appear through ``Story.has`` /
+    # ``Story.get`` (the latter returns a red placeholder, not null), so the
+    # probe must read the merged widget source through ``getAllWidget()`` and
+    # assert the payload's own TweeReplacer needles on that source.
     assert "SE Widgets" in source
-    assert 'typeof container.has === "function"' in source
+    assert "SC.Story.getAllWidget" in source
+    assert "setup.SE.Init" in source
+    assert "SE_Canvas_add" in source
     assert "checkedPassages" in source
+    # ``Story.has`` on a widget passage is false on every healthy build; the
+    # probe must not treat that as a missing module again.
+    assert 'SC.Story.has("SE Widgets")' not in source
 
 
 class _ExplodingPage:
