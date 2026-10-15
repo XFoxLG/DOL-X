@@ -331,7 +331,17 @@ run `38623413485` / `38623415970`（均 success），向页面自动上传各 8 
 一致，且重建 AU-F ZIP 与原件 APK 的 36 个内嵌槽位 **36/36 全等**。档案见
 `docs/technical/rebuild-0713-component-faithful-2026-10-15.md` 与
 `docs/technical/rebuild-0707-component-faithful-2026-10-16.md`。
-**仍未决**：0713 / 0707 是否恢复线上条目（需要新建 tag + Release，属公开动作）。
+**2026-10-16 恢复发布（用户拍板）**：0713 与 0707 的条目已恢复。tag 以 annotated 形式重建，
+分别指向当年的构建提交（0713 `99b6c81`、0707 `b4b1c48`——后者为强推断）；Release 附件为本机
+验证过的组件忠实重建件，`gh api` 快照与本地逐件比对 16/16 一致；两份正文与
+`docs/release-notes/` 中的文件逐字相同，`v0.5.11.9-1.0.0a-1014` 保持 Latest。
+**这次的坑（必须记住）**：这两个 tag 指向的 7 月提交里，tag-only release job **没有正文门禁**
+且带 `make_latest: true`——直接推 tag 会让 CI 用今天的上游组件重新构建、`overwrite: true`
+覆盖附件并抢走 Latest（就是 10-14 那次翻车的机制）。本次处置：发布前临时
+`gh workflow disable .github/workflows/build.yaml`，推 tag 后确认没有任何 CI 运行，发布完成再
+`gh workflow enable` 恢复。**将来若要重新推送这两个 tag，必须重复这套停用-发布-恢复流程**；
+现版的正文门禁（缺 `docs/release-notes/<tag>.md` 即 fail-closed）只对 2026-09 之后提交的
+workflow 生效，对这两个 7 月 tag 不适用。
 此后的 tag workflow 仍从 `docs/release-notes/<tag>.md` 读取正文；文件缺失或玩家向禁词检查
 （`tools/player_docs_check.py`）不通过时 release job fail-closed，不再允许发布空白或含内部术语的说明。
 
