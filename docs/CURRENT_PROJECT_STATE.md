@@ -322,8 +322,16 @@ run `38623413485` / `38623415970`（均 success），向页面自动上传各 8 
 `maplebirch-framework-mirror-v4.1.13`；③ 0804 的 AU-F APK 原件从微信文件区找回并归档
 `.local/release-assets-recovery/0804/`。其余 6 份（0808 / 1014 / 5 个镜像）正文为玩家向版本，
 `v0.5.11.9-1.0.0a-1014` 保持 Latest，9 份在线正文均与仓库文件一致。
-**仍待决**：0802/0804 正文仍写「不再提供下载」但页面实际挂着 16 件重建版（文实不符），
-措辞修正方案待拍板（选项 A，本轮未动线上正文）。
+**2026-10-15/16 处置**：0802 与 0804 页面上的 16 件附件已全部替换为**组件忠实重建件**
+（逐件与 `gh api` 快照比对：尺寸与 sha256 均与本地重建件相同），两页正文同时改为如实说明
+（「按当天发布内容重新构建，解包后逐文件一致，仅压缩包内部排列不同，签名相同可覆盖安装」），
+`tools/player_docs_check.py` 通过，此前的文实不符问题消除。
+0713 与 0707 的 Release 与 tag 在线上均不存在，两者的八件产物都已在本机完成组件忠实重建但
+**未发布**：0713 的 AU-F APK 逐条目一致（21,939 条目，含签名块）；0707 的 AU-F APK 同样逐条目
+一致，且重建 AU-F ZIP 与原件 APK 的 36 个内嵌槽位 **36/36 全等**。档案见
+`docs/technical/rebuild-0713-component-faithful-2026-10-15.md` 与
+`docs/technical/rebuild-0707-component-faithful-2026-10-16.md`。
+**仍未决**：0713 / 0707 是否恢复线上条目（需要新建 tag + Release，属公开动作）。
 此后的 tag workflow 仍从 `docs/release-notes/<tag>.md` 读取正文；文件缺失或玩家向禁词检查
 （`tools/player_docs_check.py`）不通过时 release job fail-closed，不再允许发布空白或含内部术语的说明。
 

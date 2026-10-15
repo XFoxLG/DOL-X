@@ -13,7 +13,7 @@ Cheat Extended 1.20 正式版、ModLoaderGui auto-2026-10-03），不是 8 月�
 相关路径：
 
 - 重建驱动（不入库）：`.local/rebuild_0802_pipeline.py`
-- 重建产物：`E:\projects\DOL-X-rebuild-0802\output\`
+- 重建产物：`DOL-X-rebuild-0802\output\`（本机路径，与本仓库同级）
 - 原件清单（尺寸/sha256）：`.local/release-assets-recovery/releases-raw.json`
 
 ## 一、结果速览
