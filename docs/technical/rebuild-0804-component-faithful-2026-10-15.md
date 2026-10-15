@@ -11,7 +11,7 @@
   （sha256 `4370c73f…02f5c5c7`，132,345,566 B）
 - 从对照物提取的输入件：`.local/release-assets-recovery/0804/embedded/`
 - 本机重建驱动（不入库）：`.local/rebuild_0804_pipeline.py`
-- 重建产物：`私人证据区-rebuild-0804\output\`
+- 重建产物：`DOL-X-rebuild-0804\output\`（本机路径，与本仓库同级）
 
 ## 一、结果速览
 
