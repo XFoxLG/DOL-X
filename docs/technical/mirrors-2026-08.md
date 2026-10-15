@@ -1,6 +1,6 @@
 # 技术档案：灾备镜像（2026-08）
 
-> 玩家向正文：`docs/release-notes/` 下的五个 `*-mirror-*` 文件。
+> 玩家向正文：`docs/release-notes/` 下的 `*-mirror-*` 文件（每个镜像 tag 一个）。
 > 本文件是技术证据档，只进仓库，不会成为 GitHub Release 正文。
 
 ## 为什么要做镜像
@@ -87,3 +87,43 @@ DOL-X 默认仍从官方源下载（`track_upstream = true`）。镜像只在官
 回退提示：4.1.13 是文档化的回退候选，不是 0.5.11.9 生产锁定版本。回退前先导出存档备份；
 若存档已写入 4.1.14 引入的孕期名单数据，回退不保证无损——切换前按
 `config/framework-contract-matrix.toml` 的 4.1.13 行备注检查。
+
+## 追加镜像（2026-10-15）：框架 3.1.x / 4.1.x / 4.3.x 共 14 个缺失版本（源码重建）
+
+上游连 release 带 tag 一起删除之后，可达性盘点确认 **14 个版本已经没有任何可用包**
+（release 无、CI artifact 无、本机无、镜像无）。这 14 个版本用 fork 保全的源码 tag
+**按官方 CI 配方重建**，并公开为镜像。
+
+重建能力本身经过对照验证：4.1.13 / 4.1.14 / 4.2.9 / 4.3.5 四个仍有官方原件的版本，
+在本机重建后**整包 sha256 与官方原件逐字节一致**。因此下面这些包可以视为
+「官方当年那份文件的等价重建」，但**不能声称与已丢失的原件逐字节相同**（无法对照）。
+
+完整配方、证据链与校验方式见
+[framework-source-rebuild-2026-10-15.md](framework-source-rebuild-2026-10-15.md)。
+
+| 镜像 tag | 版本 | 字节数 | sha256 | GameVersion 下限 |
+|---|---|---|---|---|
+| `maplebirch-framework-mirror-v3.1.8` | 3.1.8 | 148487 | `593e87a48c86098bc9b670555b35ce44040d3a5a8b965f245be991f992c0cf88` | >=0.5.8.9 |
+| `maplebirch-framework-mirror-v3.1.9` | 3.1.9 | 151381 | `013eff21b553aae25acc0b6662e0afd4befb047aa2defd98c070a415e0492862` | >=0.5.8.9 |
+| `maplebirch-framework-mirror-v3.1.10` | 3.1.10 | 164270 | `c6effdb240641d0f933ede79ee8c4f744cb7e72e4e61f094c165419f812dd890` | >=0.5.8.10 |
+| `maplebirch-framework-mirror-v3.1.11` | 3.1.11 | 164303 | `06d8a849ee259e58826b7f22e3c2a5904715128af6f4183e73c49985d9bd9dfa` | >=0.5.8.10 |
+| `maplebirch-framework-mirror-v3.1.13` | 3.1.13 | 165706 | `1061048d46bc0f02eca8532c487a5ee23041c718377788ab3d664ac326207b57` | >=0.5.8.10 |
+| `maplebirch-framework-mirror-v4.1.0` | 4.1.0 | 179347 | `0b700f85ae4f8bf741ac5b610069c630bfdc27d39e5685498c7444b2034c03b3` | >=0.5.10.8 |
+| `maplebirch-framework-mirror-v4.1.6` | 4.1.6 | 185391 | `19988a2d128f13c34caef703630828e043ce62dbff9e9c6764e9f84c95be56c1` | >=0.5.10.11 |
+| `maplebirch-framework-mirror-v4.1.7` | 4.1.7 | 185389 | `583e98f5a49e16ed2ab90b0219a4464b6c23941110884aedd4731acb2e79e157` | >=0.5.10.11 |
+| `maplebirch-framework-mirror-v4.1.8` | 4.1.8 | 186416 | `39d2a303f7acdf2c901dfb29eccb6704b767cc378e14bd3c12d8d40cef0b9dd3` | >=0.5.10.12 |
+| `maplebirch-framework-mirror-v4.1.9` | 4.1.9 | 185703 | `3a56d67baaca0c54693668b99bbaeba7c9cf9a522ee54550be71443e117f64c3` | >=0.5.10.12 |
+| `maplebirch-framework-mirror-v4.1.10` | 4.1.10 | 185699 | `579b1afb6148da698a098d5a26ed3cf6f80c98d67363909a487b737f686b2965` | >=0.5.10.12 |
+| `maplebirch-framework-mirror-v4.1.12` | 4.1.12 | 185831 | `f7f33b73fb2e5c2dc9ab7b089cfa9fc0211397edf1dd87fee3691cd5bf1b0b05` | >=0.5.10.12 |
+| `maplebirch-framework-mirror-v4.3.0` | 4.3.0 | 174343 | `26dab71167df0b342fb04ebebe00dcc35f1c362c3d8d891227e4b4ce9acad53a` | >=0.5.12.11 |
+| `maplebirch-framework-mirror-v4.3.2` | 4.3.2 | 176506 | `8665496f30e36a33d838e85737526967bdd89473e0ba13fbc0c1b75a9d105f62` | >=0.5.12.11 |
+
+边界：
+
+- 4.1.7 本机曾有一份 `maplebirch-0.5.8.10-v4.1.7.mod.zip`，但它把 GameVersion 下限改成
+  `>=0.5.8.10`（源码声明 `>=0.5.10.11`），属第三方改包，所以 4.1.7 仍按缺失补齐。
+- 4.3.0 / 4.3.2 的官方 CI 在 `Verify framework and generated types` 步骤失败，
+  官方**从未发布过**这两个版本的包；玩家向说明已如实标注。
+- 3.1.x 在 GitHub 上查不到构建记录，压缩包时间戳为本次重建时间。
+- 这些旧版本**没有**做过 0.5.11.9 实机验证（只有 4.1.13 / 4.1.14 做过），
+  不要用它们替换当前整合包内置的框架。
