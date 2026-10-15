@@ -10,7 +10,7 @@
   （sha256 `bf6d155464759a540345321d3c4b5d91d77765f835cb5d9eecd3737374e2c1de`，130,576,094 B）
 - 从对照物提取的输入件：`.local/release-assets-recovery/0713/embedded/`、`.../slots/`
 - 本机重建驱动（不入库）：`.local/rebuild_0713_pipeline.py`
-- 重建产物：`E:\projects\DOL-X-rebuild-0713\output\`
+- 重建产物：`DOL-X-rebuild-0713\output\`（本机路径，与本仓库同级）
 
 ## 一、结果速览
 
@@ -147,6 +147,6 @@ keytool -printcert -jarfile（四个 APK）
   在线上均已不存在。
 - **载体结构性差异**：ZIP 比 APK 多 `CREDITS.md` / `LICENSE` / `README.md`，
   APK 多 Cordova 脚手架文件，属载体固有区别，不是构建错误。
-- **未发布**：本轮全部产物留在本机 `E:\projects\DOL-X-rebuild-0713\output\`
+- **未发布**：本轮全部产物留在本机 `DOL-X-rebuild-0713\output\`（本机路径，与本仓库同级）
   与两个对照 worktree 内，未上传、未创建/修改任何线上 Release 资产或正文；
   任何上线动作需先经用户审阅。
