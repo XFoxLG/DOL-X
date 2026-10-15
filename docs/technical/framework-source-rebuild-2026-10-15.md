@@ -219,16 +219,19 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
 - **Wayback Machine**：v4.1.13 的资产列表快照（`expanded_assets`，快照
   `20260729224306`）里留有官方 `sha256:f5161eed…955`，与本文的逐字节重建完全一致——
   这是重建配方唯一的第三方独立验证点；v4.1.13 / v4.1.14 的 Release 页快照还保下了
-  累积更新日志原文（丢失版本的第一手说明）。4.1.3 / 4.1.5 的页面无快照；4.1.4 的
-  查询当晚返回 Internet Archive 临时离线页，未能判定。
+  累积更新日志原文（丢失版本的第一手说明）。对整个 `releases/` 目录树做穷尽枚举
+  （CDX prefix 查询，2026-10-15 深夜重跑）共 17 条快照记录，**4.1.3 / 4.1.4 / 4.1.5
+  以及 2026-06 期间的任何 release 页面都没有快照**——不是“当晚查询失败”，而是存档站
+  确实没有保下这些页面。
 - **npm**：真正的 types 包名是 `@scml-dol-maplebirch/types`，23 个版本里最早的是
   4.3.1（2026-09-12）——对 4.1.x 无帮助。tarball 里的 `dist/maplebirch.d.ts` 比 zip 内的
   同名文件差 580 字节，原因是引号风格不同（npm 单引号 / zip 双引号），不是内容缺失。
 - **fork 的 tag 快照语义**：`JohnLiao501` fork 创建于 2026-09-15，保下的 34 个 tag 是
   “当天仍存活”的集合——这解释了为什么 4.1.3 / 4.1.4 / 4.1.5 不在其中（作者更早删除），
   而 3.1.11 / 3.1.13 在（未被删）。
-- **Software Heritage** 未归档本仓库（origin 查询 404）；`gh search code` 对 5 组资产
-  文件名（4.1.7 / 4.1.8 / 4.1.9 / 4.1.12 等）零命中；newreleases.io、archive.ph 均无。
+- **Software Heritage** 未归档本仓库：origin 查询 404，`origin/search` 的三个关键词
+  （仓库名、叶子名、账号名）复查也都是 0 条命中；`gh search code` 对 5 组资产文件名
+  （4.1.7 / 4.1.8 / 4.1.9 / 4.1.12 等）零命中；newreleases.io、archive.ph 均无。
 - **4.1.11 本机副本**（`framework.maplebirch-4.1.11.mod.zip`）与按 tag 重建件的四个条目
   （`README.md` / `boot.json` / `dist/inject_early.js` / `dist/maplebirch.d.ts`）sha256 全部
   一致，仅容器时间戳不同：内容级确认原件，无需重建。
