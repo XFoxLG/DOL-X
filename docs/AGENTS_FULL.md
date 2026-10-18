@@ -280,6 +280,8 @@ Upstream also does not recommend BESC+UCB (code=259).
 - `.env`, `credentials.json` (secrets)
 - Restricted mod packages (`AU.mod.zip`, `AU_FACE.mod.zip`) stay in the local cache
 
+### ✅ Safe to Commit
+
 - `config/build.toml` (public mod URLs)
 - `config/mods.lock.json` (version records)
 - `docs/*.md` (documentation)
