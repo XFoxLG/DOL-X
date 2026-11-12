@@ -1,4 +1,4 @@
-"""Verify the two-tier public build code configuration in the CI workflow."""
+"""Verify public build tiers and upload permission gates."""
 
 import re
 from pathlib import Path
@@ -24,15 +24,16 @@ def read_codes_tier(tier_name: str) -> str:
     return tier_line.split(":", 1)[1].strip().strip('"')
 
 
-def test_branch_tier_contains_base_and_au_f():
+def test_branch_tier_contains_only_base_without_au_distribution_permission():
     branch_codes = read_codes_tier("BRANCH_BUILD_CODES").split(",")
 
-    assert branch_codes == ["15704320", "15705344"]
+    assert branch_codes == ["15704320"]
 
 
-def test_branch_tier_excludes_au_m_and_au_a():
+def test_branch_tier_excludes_all_au_models():
     branch_codes = read_codes_tier("BRANCH_BUILD_CODES").split(",")
 
+    assert "15705344" not in branch_codes
     assert "15706368" not in branch_codes
     assert "15708416" not in branch_codes
 
@@ -49,17 +50,16 @@ def test_build_code_tiers_are_comma_separated():
             assert code.isdigit(), f"{tier_name} contains a non-numeric code: {code}"
 
 
-def test_release_tier_contains_all_four_codes():
-    workflow = read_build_workflow()
+def test_release_tier_contains_only_base_without_au_distribution_permission():
+    assert read_codes_tier("RELEASE_BUILD_CODES").split(",") == ["15704320"]
 
-    release_line = [
-        line for line in workflow.splitlines()
-        if "RELEASE_BUILD_CODES" in line and ":" in line
-    ][0]
-    assert "15704320" in release_line
-    assert "15705344" in release_line
-    assert "15706368" in release_line
-    assert "15708416" in release_line
+
+def test_both_public_upload_paths_inspect_actual_payloads():
+    build = read_build_workflow()
+    sweep = (PROJECT_ROOT / ".github/workflows/sweep.yaml").read_text(encoding="utf-8")
+    assert build.index("tools/public_distribution_check.py") < build.index("Upload ZIP artifacts")
+    assert build.index("tools/public_distribution_check.py") < build.index("Upload APK artifacts")
+    assert sweep.index("tools/public_distribution_check.py") < sweep.index("Upload target package")
 
 
 def test_warmup_and_build_use_same_codes_source():
@@ -89,7 +89,7 @@ def test_workflow_selects_tier_by_ref_type():
 
 
 def test_manual_dispatch_can_request_the_release_tier():
-    """A pre-release dry run needs to build all four codes without pushing a tag."""
+    """The public release tier remains selectable without publishing a tag."""
     workflow = read_build_workflow()
 
     assert "build_tier" in workflow, (
