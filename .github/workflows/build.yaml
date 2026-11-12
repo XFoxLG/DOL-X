@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       build_tier:
-        description: "构建档：branch = base + AU-F；release = 全部四码（发版前干验证用）"
+        description: "公共构建仅基础版；AU 保留本地测试，待作者授权后才能公开"
         type: choice
         default: branch
         options:
@@ -33,10 +33,10 @@ permissions:
   contents: read
 
 env:
-  # 分支推送构建 base + AU-F；tag 发版构建全部四个组合。
+  # AU 作者明确禁止二传，公共构建只选基础版；四码本地测试能力保留。
   # 逗号分隔：CLI 的 --codes 按逗号拆分，不拆空格。
-  BRANCH_BUILD_CODES: "15704320,15705344"
-  RELEASE_BUILD_CODES: "15704320,15705344,15706368,15708416"
+  BRANCH_BUILD_CODES: "15704320"
+  RELEASE_BUILD_CODES: "15704320"
 
 jobs:
   build:
@@ -118,6 +118,9 @@ jobs:
         run: |
           python tools/au_artifact_check.py "${{ github.workspace }}/output" --output "${{ github.workspace }}/output/au-artifact-report.json"
           cat "${{ github.workspace }}/output/au-artifact-report.json"
+
+      - name: Check public distribution permission
+        run: python tools/public_distribution_check.py "${{ github.workspace }}/output"
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v6
