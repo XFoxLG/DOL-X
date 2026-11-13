@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject shipped AU payloads at public artifact upload boundaries.
+"""Reject prohibited or unconfirmed shipped mods at public upload boundaries.
 
 Local packaging and compatibility tests stay available. AU's author forbids
 redistribution; the separately authored face extension has no confirmed grant.
@@ -32,6 +32,10 @@ RESTRICTED_MODS = {
     "【auandrogynous】model": "author-prohibits-redistribution",
     "【ausdol】facial expansion": "redistribution-permission-unconfirmed",
     "au面部扩展": "redistribution-permission-unconfirmed",
+    "deadwood-reblooms": "redistribution-permission-unconfirmed",
+    "revelation-the-book-of-return": "redistribution-permission-unconfirmed",
+    "longer-combat": "redistribution-permission-unconfirmed",
+    "yanling-cheat-collection": "redistribution-permission-unconfirmed",
 }
 
 

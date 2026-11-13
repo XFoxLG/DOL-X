@@ -23,6 +23,10 @@ def package_html(mod_name, prefix=""):
     ("【AUandrogynous】model", "AUandrogynous/"),
     ("【AUsDoL】facial expansion", ""),
     ("AU面部扩展", ""),
+    ("deadwood-reblooms", ""),
+    ("revelation-the-book-of-return", ""),
+    ("longer-combat", ""),
+    ("yanling-cheat-collection", ""),
 ])
 @pytest.mark.parametrize("format", ["html", "zip", "apk"])
 def test_restricted_payload_detected_inside_game_even_if_renamed(tmp_path, name, prefix, format):
@@ -36,7 +40,7 @@ def test_restricted_payload_detected_inside_game_even_if_renamed(tmp_path, name,
     findings = check_artifact(path)
     assert len(findings) == 1
     assert findings[0]["mod"] == name
-    assert findings[0]["rule"] == ("redistribution-permission-unconfirmed" if "facial" in name or "面部" in name else "author-prohibits-redistribution")
+    assert findings[0]["rule"] == ("author-prohibits-redistribution" if name.startswith("【AU") and name.endswith("model") else "redistribution-permission-unconfirmed")
 
 
 def test_base_and_independent_compat_source_are_not_au_assets(tmp_path):
