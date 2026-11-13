@@ -1,5 +1,14 @@
 # DOL-X 当前项目状态
 
+**2026-11-13 当前核验摘要**：Latest 保留 `v0.5.11.9-1.0.0a-1014` 版本身份，该版基础与 AU
+整合下载均已暂停。AU 按作者禁止二次分发处理，0802/0804/0808/1014 基础版的 LongerCombat
+和 Yanling 转载许可未确认；0707、0713 基础版下载保留。Build 工作流继续停用。
+三个主私人清单共 160 个完整原文件已保存、下载与恢复核验，源码、社区和测试资料另留完整档案。
+历史隐私扫描与上游命中复核完成，但旧提交页面缓存仍可访问，支持工单尚未发送。
+十一月 5.6.2 私人候选未晋级，AU-A 桥接、旧 4.x 完整回归和低内存覆盖尚未闭环。
+详见[最新保存与整理报告](technical/preservation-privacy-and-distribution-2026-11-13.md)与
+[分发政策](DISTRIBUTION_POLICY.md)。下文日期记录保留历史证据，不代表当前下载或许可状态。
+
 **核验日期**：2026-08-12
 
 **事实基线**：`vega` 的 4.x 公开主线 + `vega-archive-0713` 历史稳定归档
@@ -44,12 +53,12 @@
 Lyra `vega` 停在 `e61352e`（2026-05-18），DOL-X 领先 230、落后 0，当前没有可跟的上游提交。
 因此 maplebirch 5.x 不迁移——判定依据是 Lyra 有没有新动作，不是框架作者发了多少版。框架升级只在
 Lyra 自己升级游戏本体或汉化、从而必须重新对齐时才处理。这条原则写进了
-[UPSTREAM_FRIENDLY_STRATEGY.md](UPSTREAM_FRIENDLY_STRATEGY.md) 第 1 节「被动跟随原则」。
+[UPSTREAM_FRIENDLY_STRATEGY.md](../UPSTREAM_FRIENDLY_STRATEGY.md) 第 1 节「被动跟随原则」。
 
 同时，2026-09-30 的真机 A/B 给出了 5.x 若将来必须迁移时的硬约束：桌宠 remount 补丁仍然必需，
 needle 要迁到 `e.host.sugarcube.require().Macro` 形态，且**不能**改用直接 `pet.sync()`——
 直接同步渲染的是裸模（16316 px），只有宏路径才是带服装的 17587 px。详见
-[docs/SESSION_STATUS_2026-09-30.md](docs/SESSION_STATUS_2026-09-30.md)。
+[SESSION_STATUS_2026-09-30.md](SESSION_STATUS_2026-09-30.md)。
 
 `vega-0511-prep` 这轮实验把框架临时升到 4.2.9 以配对 0.5.11.9 本体，离线浏览器冒烟
 （`tools/browser_smoke_test.py --profile ucb-cheat-extended-maplebirch`，同一份 0915 AU-F

@@ -1,6 +1,6 @@
 # DOL-X 文档索引
 
-**最后更新**: 2026-10-15
+**最后更新**: 2026-11-13
 
 ---
 
@@ -14,6 +14,8 @@
 - [QUICK_REFERENCE](../QUICK_REFERENCE.md) - 快速命令参考
 - [CHANGELOG](../CHANGELOG.md) - 完整技术更新日志
 - [CURRENT_PROJECT_STATE](CURRENT_PROJECT_STATE.md) - 当前事实的唯一总入口
+- [分发政策与免责声明](DISTRIBUTION_POLICY.md) - 作者授权、成品下载与公开镜像边界
+- [保存、隐私与分发整理结果](technical/preservation-privacy-and-distribution-2026-11-13.md) - 完整原件、历史资料及尚未闭环的事项
 
 ## 开发文档
 
