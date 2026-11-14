@@ -2,19 +2,10 @@
 
 本文件记录 `v0.5.10.12-1.0.8a-0802` 的本地重建过程与验证结果。
 
-与 0804 / 0713 不同，**0802 没有任何原件幸存**：
-`.local/release-assets-recovery/0802-rescue/` 里那份 APK 经鉴定是
-2026-10-14 由 CI 用「10 月配置」重新构建并上传的版本（maplebirch 4.1.14、
-Cheat Extended 1.20 正式版、ModLoaderGui auto-2026-10-03），不是 8 月原件。
+0802 没有对应初版原件可作逐字节对照。
 
 因此 0802 只能做**尺寸级 + 组件级 + 跨版本一致性**验证，
 不能做逐字节对照。本文件把每个输入的证据等级写清楚。
-
-相关路径：
-
-- 重建驱动（不入库）：`.local/rebuild_0802_pipeline.py`
-- 重建产物：`DOL-X-rebuild-0802\output\`（本机路径，与本仓库同级）
-- 原件清单（尺寸/sha256）：`.local/release-assets-recovery/releases-raw.json`
 
 ## 一、结果速览
 

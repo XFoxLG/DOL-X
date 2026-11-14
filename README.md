@@ -1,4 +1,4 @@
-# DOL-X / XFox 自用整合包
+# DOL-X / XFox 游戏整合包
 
 [![Build](https://github.com/XFoxLG/DOL-X/actions/workflows/build.yaml/badge.svg)](https://github.com/XFoxLG/DOL-X/actions/workflows/build.yaml)
 
@@ -26,11 +26,9 @@
 
 ## 简介
 
-DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统（直接上游构建流程来源），但不是本仓库的项目身份。
+DOL-X 是由 XFoxLG 维护的游戏整合包，基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统。
 
-本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 Lyra 构建流程整合多种 Mod，并按维护者核验结果跟随游戏和汉化更新。历史正式版提供下载，十一月候选与构建源码继续维护。
-
-**本仓库不是 DoL 或汉化组官方发布渠道**
+本项目使用 [汉化仓库][github-chs] 的正式发行，整合汉化、美化与功能模组。各版本的内容和适用范围见发布说明。
 
 **当前稳定版：[1014](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)**。提供基础版、AU-F、AU-M、AU-A 的 ZIP 与 APK；历史版本见 [Releases](https://github.com/XFoxLG/DOL-X/releases)。十一月候选仍在测试。
 
@@ -40,26 +38,16 @@ DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://
 
 ## 与上游 DoL-Lyra 的关系
 
-DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"**上游友好**"策略：
+DOL-X 跟随 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 的游戏、汉化及通用构建更新，维护自己的模组组合与兼容修复。
 
-- ✅ **选择性同步**：跟随上游通用构建修复，但不声称构建脚本与上游逐文件相同
-- 🎨 **Mod 独立**：维护独立的 Mod 组合策略，针对自用场景优化
-- 📚 **差异可审计**：正式记录项目自治范围、供应链和公共/私有边界
-
-### 主要差异
-
-| 对比项 | 上游 Lyra | DOL-X |
-|--------|-----------|-------|
-| **身份标识** | Lyra | XFox |
-| **基础美化** | BESC 推荐 | UCB 唯一 |
-| **AU 组合** | AU（单独） | AU+UCB |
-| **作弊 Mod** | cheat + CSD | cheatExtended + maplebirch |
-| **发布版本** | 多种模组组合 | 基础版与 AU-F、AU-M、AU-A |
+- **版本组合**：提供基础版及 AU-F、AU-M、AU-A。
+- **基础美化**：采用通用战斗美化（UCB）。
+- **兼容维护**：按游戏、框架与模组版本验证更新。
 
 ### 相关文档
 
-- 📌 [当前项目状态](docs/CURRENT_PROJECT_STATE.md) - 当前事实、验证和发布边界
-- 📖 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 如何同步且不污染上游
+- 📌 [当前项目状态](docs/CURRENT_PROJECT_STATE.md) - 当前版本与测试状态
+- 📖 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 同步流程与项目配置
 - 📋 [上游差异摘要](UPSTREAM_DIFF_SUMMARY.md) - 当前长期维护差异
 - 📖 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md) - 为什么这样选择 Mod 组合？
 
@@ -69,13 +57,13 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 - ✅ **自动化构建**：基于 Lyra 构建与上游检查流程
 - ✅ **多版本支持**：基础版 + 3 个 AU 变体（AU-F、AU-M、AU-A）
-- ✅ **现代框架**：秋枫白桦框架 + cheatExtended 作弊扩展
-- ✅ **完整集成**：ModLoader + 汉化 + 美化包（UCB）
+- ✅ **模组框架**：秋枫白桦框架 + cheatExtended 作弊扩展
+- ✅ **内置组件**：ModLoader + 汉化 + 美化包（UCB）
 - ✅ **双平台**：ZIP（浏览器版）+ APK（Android 版）
 
 ### 包含的 Mod
 
-**4.x 公开主线的基础 Mod**（四个本地构建码共有；名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
+**1014 稳定版的基础 Mod**（四种版本共有；名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
 - ModLoader GUI - 模组管理器
 - ModI18N - 汉化支持
 - 秋枫白桦框架（maplebirch）+ 官方拆分功能包（更长遭遇战、言灵作弊集）
@@ -88,8 +76,8 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended）
 - [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat)（LongerCombat）
 - [言灵作弊集](https://github.com/MaplebirchLeaf/YanlingCheatCollection)（YanlingCheatCollection）
-- [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat)（DOL-X 使用经授权可二改二传的社区 plus）
-- [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence)（AI 对话/战斗文本，需玩家自填 API key）
+- [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat)（社区 plus 版，来源见[附件说明](https://github.com/XFoxLG/DOL-X-Mirrors/releases/tag/legacy-art-compat-plus-v1.1)）
+- [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence)（AI 对话与战斗文本，需自行配置 API 密钥）
 - NeoUI Patch - UI 美化
 
 **可选 AU 系列**：
@@ -97,7 +85,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 > AU（AOKIUTAGE）是一整套大型美化体系，包含人物模型、服装模型、脸部模型；下面列的是其中的
 > 体型模型（各版本三选一），脸部模型由独立的 AU Face 脸部扩展提供。
 
-- AU-F：AU 女性模型 v0.9.3（与上游 Lyra 当前 AU model 对齐）
+- AU-F：AU 女性模型 v0.9.3
 - AU-M：AU 男性模型 v0.4.2
 - AU-A：AU 双性模型 v0.1.1
 
@@ -108,26 +96,26 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 在 [1014 稳定版](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)或 [Releases 页面](https://github.com/XFoxLG/DOL-X/releases)下载对应版本：
 
 - **ZIP**：电脑浏览器直接打开玩
-- **APK**：安卓手机安装玩（推荐用 MuMu 等模拟器或较新手机）
+- **APK**：安卓设备安装使用，兼容性见对应版本说明
 
-| 版本 | 文件名后缀 | 内容 | 公开状态 |
-|------|-----------|------|------|
-| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） | 六个历史正式版均提供 |
-| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | 六个历史正式版均提供 |
-| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | 六个历史正式版均提供 |
-| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | 六个历史正式版均提供 |
+| 版本 | 文件名后缀 | 内容 |
+|------|-----------|------|
+| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） |
+| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 |
+| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 |
+| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 |
 
-> AU Face 脸部扩展仅加入三个 AU 变体；基础版不含 AU 体型模型或 AU Face。Legacy-Art-Mods-Compat plus 进入所有 4.x 构建码。
+> AU Face 脸部扩展仅加入三个 AU 版本；基础版不含 AU 模型或 AU Face。Legacy-Art-Mods-Compat plus 用于四种 4.x 版本。
 
 ## 包含哪些 Mod
 
-**4.x 四个本地构建码都内置以下 Mod**（名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)；0713 稳定包的精确组成以对应 Release 为准）：
+**1014 稳定版内置以下 Mod**（名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)；历史版本的组成以对应 Release 为准）：
 
 | Mod | 作用 |
 |-----|------|
 | ModLoader GUI | 游戏内的模组管理器 |
-| 汉化（ModI18N） | 简体中文，已自带对应游戏版本的最新汉化 |
-| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)（maplebirch） | 其他 Mod 依赖的核心框架；0.5.11.9 线（1014 起）锁定已验证的官方 v4.1.14，0808 及更早为 v4.1.13 |
+| 汉化（ModI18N） | 自带对应游戏版本的简体中文汉化 |
+| [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)（maplebirch） | 其他 Mod 依赖的核心框架；1014 使用 4.1.14，0802、0804、0808 使用 4.1.13，0707、0713 使用 3.1.14 |
 | [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat) | 旧扩展包对应功能的官方独立继任者；4.x 主线使用 v1.0.1 |
 | [言灵作弊集](https://github.com/MaplebirchLeaf/YanlingCheatCollection) | 旧扩展包言灵功能的官方独立继任者；4.x 主线使用 v1.0.1 |
 | [通用战斗美化](https://github.com/site098/mysterious)（UCB） | 战斗画面美化 |
@@ -136,9 +124,9 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 | [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary） | 侧边栏显示 NPC 立绘头像 |
 | [NPC社交栏头像](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod) | 社交界面显示 NPC 头像 |
 | [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe) | 控制 NPC 嘴部动作 |
-| [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能；4.x 主线使用官方 v1.20 Pre-release，头部遮罩相容模式也由它提供 |
-| [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat) | 社区 plus 提供旧/新图片命名兼容；原作者允许二改二传 |
-| [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence) | AI 对话/战斗文本增强，**需要你自己在游戏里填 AI 接口密钥才生效**，不填则不工作、不影响其他功能 |
+| [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能；1014 使用 v1.20，头部遮罩相容模式也由它提供 |
+| [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat) | 社区 plus 提供旧/新图片命名兼容；来源与许可见[附件说明](https://github.com/XFoxLG/DOL-X-Mirrors/releases/tag/legacy-art-compat-plus-v1.1) |
+| [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence) | AI 对话与战斗文本增强，使用 AI 功能需在游戏内自行配置服务和 API 密钥 |
 | NeoUI Patch | 界面美化（侧边栏点击外部关闭等） |
 
 > `maplebirch-v3-layer-compat` 只属于 0713 的 maplebirch 3.x 稳定栈。4.x 升到 4.1.13 后已退役，不再注入；源码仅作为旧版回滚资料保留。
@@ -156,20 +144,20 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 - **游戏版本**：DoL 0.5.11.9（“伟大等同者”）· **汉化**：1.0.0a
 - **Mod 栈**：maplebirch 4.1.14 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1 + Legacy-Art-Mods-Compat plus 1.0.3-plusV1.1
 - **下载**：提供基础版、AU-F、AU-M、AU-A 的浏览器版 ZIP 和安卓版 APK。
-- **测试情况**：AU-F 版已在 MuMu 12（Android 12）上实测换脸 + 桌宠、作弊菜单、存档读写与 37 步开局流程；base / AU-M / AU-A 完成自动构建与打包内容检查，但没有上机。完整边界见 [1014 Release 说明](docs/release-notes/v0.5.11.9-1.0.0a-1014.md)。
-- **框架 4.1.14** 恢复了「每日 NPC 怀孕周期」，并避开更新的框架版本上会让 AU 版换脸直接报错的问题。注意：4.1.14 会向存档写入怀孕名单且没有回滚逻辑，从 1014 退回旧框架后，存档里已写入的怀孕数据将无人处理。
+- **测试情况**：AU-F 版在 MuMu 12（Android 12）上验证了换脸、桌宠、作弊菜单、存读档与开局流程；基础版、AU-M、AU-A 仅完成构建和打包内容检查。详见 [1014 Release 说明](docs/release-notes/v0.5.11.9-1.0.0a-1014.md)。
+- **框架 4.1.14** 恢复了「每日 NPC 怀孕周期」。退回旧框架前请导出存档，新版写入的怀孕数据可能无法由旧版继续处理。
 - 0.5.10.12 线的 `-0808`、`-0804`、`-0802`、`-0713` 与 `-0707` 同样提供四种版本的 ZIP、APK；兼容性以对应版本说明为准。
 - **模组附件**：[DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors) 提供部分版本归档，作者来源与校验值见镜像清单。
-- 各版本玩家可感知的变化见 [玩家更新日志](玩家更新日志.md)；当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
+- 各版本玩家可感知的变化见 [玩家更新日志](玩家更新日志.md)；当前版本与测试状态见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
-> **已知边界（当前 4.x 主线）**：
-> - **同时打开「NPC 侧边栏图像显示」+「PC 模型模式」后，具名剧情 NPC 在动态模型里不显示衣服**：这些角色没有配套的动态服装数据，是 NPC 模型系统本身的机制，不是本整合打包引入的问题。**解决办法**：关闭实验性的「PC 模型模式」，只保留「NPC 侧边栏图像显示」。
-> - **AU Face 脸部扩展的非法仪态组合已在 `-0808` 修复**：原因是切换脸型后仪态被设成了不存在的「默认」，导致角色预览可能靠备用图片显示、桌宠却闭眼或空白。早先把这个根因笼统写成「AU 缺素材」是错的；但这也不等于已经证明 AU Face 每个合法路径的素材都完整。若遇到可见红框或缺图，请保留存档和错误信息继续排查。
-> - **AU Face 脸部扩展的面纹、腮红、流泪三层没有视觉变化**：已确认属于上游机制，不影响其它功能，尚未修复。
-> - **「碱性糖改脸」脸型的眼睛发白（小人 / 桌宠）**：0.5.11.9 线（0915 起）出现，0808 正常；已排除多种原因，正在排查中，**尚未修复**——修复前建议暂时换用其它脸型。
-> - **AU 版桌宠右侧可能露出一条脸部特写**：把「选项 → 模组设置 → 秋枫白桦框架 → 桌宠遮罩分割线」拖到 0px 即可。
-> - **Mod 管理器里 DOLI 显示 `v0.2.2`，但发布页写的是 `v0.2.3`**：作者发布新包时没有同步升级包内显示版本，所以这是正常现象，不代表装了旧版本。同理，NPC Avatars 的发布版本是 `1.4`，游戏里显示 `1.4.1`。
-> - **云存档连不上**：框架没有提供公共云存档服务器，需要自行搭建。本地存档和导出存档不受影响。
+> **已知问题与使用提示（1014 稳定版）**：
+> - 开启「PC 模型模式」后，部分具名 NPC 缺少动态服装数据。可关闭该模式，使用「NPC 侧边栏图像显示」。
+> - AU Face 换脸后仪态不匹配的问题已在 0808 修复。其它脸部报错请保留存档与错误信息反馈。
+> - AU Face 的雀斑、腮红、泪痕显示仍有待验证；1014 的取图兼容调整未观察到视觉改善。
+> - 「碱性糖改脸」的小人和桌宠眼睛发白，尚未修复，可暂时换用其它脸型。
+> - AU 桌宠右侧出现脸部特写边缘时，可将「桌宠遮罩分割线」设为 0px。
+> - DOLI 发布版本为 v0.2.3，包内显示 0.2.2；NPC Avatars 发布版本为 1.4，包内显示 1.4.1。
+> - 云存档需自行配置服务器；本地存档与导出存档可独立使用。
 >
 > 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -187,11 +175,11 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 > [!IMPORTANT]
 >
-> 本仓库无法受理任何打包问题以外的美化问题
+> 本整合中的兼容或显示问题可在 [Issues](https://github.com/XFoxLG/DOL-X/issues) 反馈，请附版本、复现步骤与错误信息。
 
 - APK 版打开之后是英文，左下角也没有 modloader？
 
-  更新系统 `webview`，或尝试使用 `兼容版`，都不行可以使用现代浏览器打开 [在线版](#在线)
+  更新 Android System WebView 后重试；仍无法使用时，可尝试浏览器版 ZIP。
 
 - 为什么用 modloader 加载 zip 会提示 `bootJson文件 [boot.json] 无效`？
 
@@ -199,7 +187,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 - 中英文混杂？
 
-  卸载 `modloader - 旁加载` 中的汉化 mod，整合包已经自带了对应游戏版本的最新汉化
+  卸载 `modloader - 旁加载` 中的汉化 mod，整合包已自带对应游戏版本的汉化
 
 - 明明下载了有美化的包为什么美化没有生效？
 
@@ -209,7 +197,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 - 美化出现了奇怪的错位/黑边/光头？
 
-  所使用的美化未跟进最新的游戏内容
+  请先移除旁加载的图片包并复测；仍有异常时，附截图、版本与复现步骤反馈。
 
 ---
 
@@ -217,7 +205,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 > 以下内容面向想参与构建、测试或二次开发的开发者，普通玩家无需阅读。
 
-### 本地验证（< 2 分钟）
+### 本地验证
 
 修改配置后快速检查：
 

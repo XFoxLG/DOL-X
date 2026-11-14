@@ -9,11 +9,11 @@
 会删除旧 release；34 个源码 tag 由 fork `JohnLiao501/SCML-DOL-maplebirchFramework` 保全，
 但该 fork **Releases = 0、树内无任何 zip**，也就是说它只保存了源码。
 
-2026-10-15 的完整可达性盘点（脚本 `.local/_framework_matrix2.py`）结论：
+2026-10-15 的完整可达性盘点结论：
 
 - 上游 release 端点只剩 10 个包：3.1.14 / 4.0.2 / 4.1.14 / 4.2.9 / 4.3.5 / 4.4.1 /
   5.0.4 / 5.1.3 / 5.4.2 / 5.4.3；
-- 上游 CI 的 45 个未过期 artifact 已全部抢救到 `.local/framework-artifacts-archive/`
+- 上游 CI 的 45 个未过期 artifact 完成内容检查
   （`manifest.json` 记录 artifact id / 时间 / sha256，抽样与 release digest 一致），
   覆盖 4.1.2、4.1.14、4.2.0–4.2.9、4.3.1、4.3.3–4.3.5、4.4.0–4.4.1、5.0.0–5.4.3；
 - **14 个版本没有任何可用包**（上游 release 无、CI artifact 无、本机无、镜像无）：
@@ -46,8 +46,7 @@ DOL-X 自己 6 月的 lockfile 历史（commit `16dd5197ea`）记录的也正是
 setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
 ```
 
-把这套流程搬到本机、并消除两处“环境指纹”之后，**我们手上仍有官方原件的四个版本全部
-复现到逐字节一致**：
+按相同流程固定换行符、构建日期与容器字段后，四个现存官方原件的对照版本得到相同字节：
 
 | 版本 | 官方原件 sha256 | 本机重建 sha256 | 结果 |
 |---|---|---|---|
@@ -59,7 +58,7 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
 四个对照横跨 2026-07-01 → 2026-09-14（rspack 时代 → rolldown 时代），说明配方在整个
 4.x 范围成立；而本次要补的 14 个版本全部落在这个范围内。
 
-### 配方（脚本 `.local/build_framework_from_source.py`）
+### 重建配方
 
 1. **LF 检出**：`core.autocrlf=false`。CI 跑在 ubuntu-latest，检出是 LF；Windows 默认
    检出成 CRLF 会让字符串字面量里混进 `\r\n`，而压缩器的变量命名表是按字符频率排的，
@@ -78,14 +77,9 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
 （`README.md` / `boot.json` / `inject_early.js` / `maplebirch.d.ts`），只剩容器时间戳与
 宿主字节；补上第 4 步后整包 sha256 与官方原件一致。
 
-### 关键核对手段
+### 核对方法
 
-- 条目级比对：`.local/_cmp_zip.py`（窗口化字节 diff，避免对 500 KB 压缩产物做 O(n²) 对比）；
-- 语法级比对：`.local/_canon_ast.mjs`（用 TypeScript 解析器把两份 bundle 规范化为
-  “变量名无关”的语法树再比对，用来确认差异只是重命名，而不是代码内容不同）；
-- 容器字段：`.local/_zip_headers.py`（逐字段打印 local header / central directory）；
-- 时间线标定：`.local/_artifact_lag.py`（用仍有原件的版本量出「zip 写盘时刻 − CI 运行时刻」，
-  样本为 −4…−1 秒；据此推算缺失版本的时间戳，误差约 ±10 秒内）。
+比较条目内容、语法树及 ZIP 容器字段；构建时间戳按已记录来源标明实测或估计。
 
 ## 本次重建的 14 个镜像
 
@@ -116,11 +110,11 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
   步骤失败（构建成功、校验失败），因此上传与 release 步骤被跳过。这里给的是按源码重建的
   版本，玩家向说明里已如实标注「不是当年的官方产物」。
 - **3.1.x 在 GitHub 上查不到任何该 tag 的构建记录**（工作流可能当年还不存在，也可能被删除），
-  因此它们的压缩包时间戳就是本次重建的真实时间，不做伪装。
+  因此它们的压缩包时间戳就是本次重建的真实时间，按重建时间标注。
 
 ### 一致性校验
 
-`.local/verify_framework_mirrors.py` 对 17 个产物（14 个缺失版本 + 4 个对照中的 3 个重建）逐个检查：
+对 17 个产物（14 个缺失版本 + 4 个对照中的 3 个重建）逐个检查：
 
 - `boot.json` 可解析，`version` 与 tag 一致（4.1.x 的四个条目：`boot.json`、
   `dist/inject_early.js`、`dist/maplebirch.d.ts`、`README.md`；3.1.x 是另一套布局，
@@ -167,8 +161,7 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
 ## 变体重建：18 个分支腿 / 推断 tag 腿
 
 用与上文相同的配方、但把“tag”换成**当次 run 实际检出的 commit**，重建了 18 个变体
-（产物与 `build-info.json` 在 `.local/framework-source-mirrors-variants/`，
-汇总在 `summary.json`）。检出 commit 的求法：取该 run 的 build 作业 `started_at` 之前、
+，每个变体记录对应 `build-info.json`。检出 commit 的求法：取该 run 的 build 作业 `started_at` 之前、
 该分支 first-parent 链上最新的提交，并用 `package.json` 版本号与 prepare 的版本筛选
 互相印证。
 
@@ -215,25 +208,6 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
   写盘时刻在 +19 秒（4.1.11）到 +37 秒之间浮动，因此时间戳都属估计值；核对对象是
   **内容**（floor / 版本号 / 条目 sha256），不是容器时间戳。
 
-## 发布状态：旧版游戏构建合集（发布后已按用户要求撤回）
-
-2026-10-15 深夜曾把当年**为旧游戏版本单独打包**的 15 条分支腿（0.5.8.10 线 7 个 +
-0.5.9.8 线 8 个，另含 4.1.3）发布为一个合集条目
-`maplebirch-framework-mirror-legacy-games`。
-
-随后用户澄清：要恢复的是**我们自己旧整合包依赖的框架包**，不是给旧游戏版本用的这批。
-该条目已在同一晚整体撤回——Release 与 tag 一并删除，对应的玩家向说明同步移除。产物
-本身仍完整留档在本机 `.local/framework-source-mirrors-variants/`，发布脚本
-`.local/prepare_legacy_release.py` / `.local/publish_legacy_release.py` 保留，可随时重发。
-
-不受影响的既有事实：
-
-- 我们的旧整合包实际依赖的框架只有两个：`-0713` → 3.1.14（上游仍在架），
-  `-0802` / `-0804` / `-0808` → 4.1.13（已由源码重建 + 原件备份两条腿保住）。
-- 14 个按版本镜像条目与 4.1.13 / 4.1.14 原件备份自始至终未做任何改动。
-- 3 个 tag 腿（4.1.3 / 4.1.4 / 4.1.5；tag 目标为推断）与本机保留的 4.1.4 / 4.1.5
-  0.5.10.11 腿，仍只存在于本机档案；如将来需要，4.1.3 那份须加 `-tag` 后缀区分。
-
 ## 外部佐证与旁支结论
 
 - **Wayback Machine**：v4.1.13 的资产列表快照（`expanded_assets`，快照
@@ -274,30 +248,3 @@ setup-bun(latest) → bun install → bun run build:all → upload package/*.zip
   下限 `>=0.5.10.12`）与上游 CI 抢救件互为印证，无需重建。
 - 更早的 3.0.x / 2.x 系列：fork 只保全到 3.1.8 为止，更早的 tag 连源码都已不存在，
   不在本次范围。
-
-## 复现命令
-
-```powershell
-# 单个版本（以 4.1.9 为例；日期与时间戳取官方 CI 运行时刻）
-python .local/build_framework_from_source.py 4.1.9 --last-update 2026.06.23 `
-    --zip-mtime "2026-06-23 13:02:41"
-
-# 批量（本次 14 个版本的日期表写在脚本顶部）
-python .local/build_framework_batch.py
-
-# 校验
-python .local/verify_framework_mirrors.py
-
-# 变体重建（分支腿 + 推断 tag 腿）
-python .local/_variant_commit_finder.py    # 定位各腿检出的 commit -> research/variant-commits.json
-python .local/build_framework_variants.py  # 18 个变体 -> framework-source-mirrors-variants/
-python .local/_variant_summary.py          # 汇总 summary.json
-```
-
-产物落在 `.local/framework-source-mirrors/v<版本>/`，随后上传为
-`maplebirch-framework-mirror-v<版本>` 的 Release 附件（该 tag 前缀已被 build workflow
-的 `!*-mirror-*` 排除，不会触发构建）。
-
-变体产物落在 `.local/framework-source-mirrors-variants/<变体>/`（每个目录一份
-`build-info.json` 记录提交、floor、sha256 与时间戳来源）；是否把它们作为附件补充到
-同名 Release，属于发布步骤的单独决定，见 README 的“框架旧版本留档”一节。

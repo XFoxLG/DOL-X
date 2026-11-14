@@ -13,7 +13,7 @@ category = "undefined_target"
 target = "Estate Manor Intro Entrance"
 reason = "Vanilla 0.5.11.9 base.zip shows the same reference/definition asymmetry: the two victory branches of Estate Manor Approach Finish link to a passage that does not exist upstream."
 evidence = [
-  "docs/CURRENT_PROJECT_STATE.md:409",
+  "docs/CURRENT_PROJECT_STATE.md#story-graph-05119",
   "docs/AUTOMATED_GAMEPLAY_EXPLORER.md:127",
   "docs/AUTOMATED_PASSAGE_SWEEP.md:909",
   "upstream tag 0.5.11.9 game/overworld-plains/loc-estate/manor.twee:64 and :74 emit [[Next|Estate Manor Intro Entrance]] from \"Estate Manor Approach Finish\" (:54); the file defines only Estate Manor / Approach / Approach Fight / Approach Finish / Approach Convince / Approach Scale, so the target has no definition",
@@ -25,7 +25,7 @@ category = "undefined_target"
 target = "Estate Manor Approach Defeat"
 reason = "Vanilla 0.5.11.9 base.zip shows the same reference/definition asymmetry: the defeat branch of Estate Manor Approach Finish links to a passage that does not exist upstream."
 evidence = [
-  "docs/CURRENT_PROJECT_STATE.md:409",
+  "docs/CURRENT_PROJECT_STATE.md#story-graph-05119",
   "docs/AUTOMATED_GAMEPLAY_EXPLORER.md:127",
   "upstream tag 0.5.11.9 game/overworld-plains/loc-estate/manor.twee:81 emits [[Next|Estate Manor Approach Defeat]] from \"Estate Manor Approach Finish\" (:54); no passage of that name is defined in the pinned source",
 ]
@@ -36,7 +36,7 @@ category = "dead_end"
 passage = "Estate Manor Approach Finish"
 reason = "Dead end caused by the accepted upstream dangling references above; the passage itself is the failing landing recorded in the 0.5.11.9 sweep."
 evidence = [
-  "docs/CURRENT_PROJECT_STATE.md:409",
+  "docs/CURRENT_PROJECT_STATE.md#story-graph-05119",
   "docs/AUTOMATED_PASSAGE_SWEEP.md:909",
   "upstream tag 0.5.11.9 game/overworld-plains/loc-estate/manor.twee:54-84: the passage's 3 exits all point at the two undefined names above, so it is the same dead end upstream",
 ]

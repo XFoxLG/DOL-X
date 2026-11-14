@@ -1,17 +1,9 @@
 # 0707 整合包「组件忠实重建」记录（2026-10-16）
 
 本文件记录 `v0.5.10.12-1.0.8a-0707` 的本地重建过程与对照验证结果。
-0707 的 Release 与 tag 在线上均已不存在，唯一幸存的原件是它的 **AU-F APK**；
+本次对照原件为 0707 的 **AU-F APK**；
 因此本轮的验证强度接近 0713：AU-F 能做到**逐条目 + 签名块**对照，
 base / AU-M / AU-A 三码与全部 ZIP 只能做**组件级 + 交叉一致性**验证。
-
-相关路径：
-
-- 原件对照物：`.local/release-assets-recovery/0707/DoL-0.5.10.12-XFox-1.0.8a-au-f-0707.apk`
-  （sha256 `244ba1a07543f03f4e8753ab7f6b385ca2063ea21bd3f80c6fca7e8bd995dba3`，130,555,614 B）
-- 从对照物提取的输入件：`.local/release-assets-recovery/0707/embedded/`
-- 本机重建驱动（不入库）：`.local/rebuild_0707_pipeline.py`
-- 重建产物：`DOL-X-rebuild-0707\output\`（本机路径，与本仓库同级）
 
 ## 一、结果速览
 

@@ -4,14 +4,6 @@
 0713 与 0802/0804 不同：它的 AU-F APK 原件幸存，因此可以做**逐条目**
 对照，而不是只能做尺寸级核对。
 
-相关路径：
-
-- 原件对照物：`.local/release-assets-recovery/0713/DoL-0.5.10.12-XFox-1.0.8a-au-f-0713.apk`
-  （sha256 `bf6d155464759a540345321d3c4b5d91d77765f835cb5d9eecd3737374e2c1de`，130,576,094 B）
-- 从对照物提取的输入件：`.local/release-assets-recovery/0713/embedded/`、`.../slots/`
-- 本机重建驱动（不入库）：`.local/rebuild_0713_pipeline.py`
-- 重建产物：`DOL-X-rebuild-0713\output\`（本机路径，与本仓库同级）
-
 ## 一、结果速览
 
 | 项目 | 结论 |
@@ -93,7 +85,7 @@ base  09:38:42      au-f  09:38:42      au-m  09:38:56      au-a  09:39:02
 我们的 0713 重建把四码**统一冻结**为从幸存 au-f 原件读到的 `13:31:50`。
 
 为了确认这种偏差足以产生「几字节」的量级，做了一个校准实验
-（`.local/_lyra_stamp_delta_experiment.py`）：对真实 HTML 里的 Lyra 槽
+（元数据对照实验）：对真实 HTML 里的 Lyra 槽
 重新盖时间戳，再用与 `lyra.utils.create_zip` 相同的压缩设置
 （ZIP_DEFLATED、默认 level 6、raw deflate）重新压缩整份 HTML，比较文件体积：
 

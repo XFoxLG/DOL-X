@@ -13,7 +13,7 @@
 - [CHEAT_EXTENDED_FAQ](CHEAT_EXTENDED_FAQ.md) - Cheat Extended 使用常见问题
 - [QUICK_REFERENCE](../QUICK_REFERENCE.md) - 快速命令参考
 - [CHANGELOG](../CHANGELOG.md) - 完整技术更新日志
-- [CURRENT_PROJECT_STATE](CURRENT_PROJECT_STATE.md) - 当前事实的唯一总入口
+- [CURRENT_PROJECT_STATE](CURRENT_PROJECT_STATE.md) - 当前版本与测试状态
 - [第三方资源说明](DISTRIBUTION_POLICY.md) - 作者来源、许可证和反馈入口
 
 ## 开发文档
@@ -30,7 +30,7 @@
 
 ### 技术参考
 - [DOCUMENTATION_GUIDE](DOCUMENTATION_GUIDE.md) - CHANGELOG、Release 正文与状态文档写作规范
-- [技术档案](technical/) - 各版本的逐字节校验、工具输出与失败归因（只进仓库，不进 Release）
+- [技术档案](technical/) - 版本来源、兼容实现与验证范围
 - [TESTING_GUIDE](TESTING_GUIDE.md) - 当前测试流程与验证边界
 - [AUTOMATED_PASSAGE_SWEEP](AUTOMATED_PASSAGE_SWEEP.md) - Engine A 自动化测试套件总说明：全 passage 扫描 + 剧情场景/日循环 + 战斗 + 环境矩阵 + 夹具阶梯与存档安全 + 云端分片工作流
 - [AUTOMATED_GAMEPLAY_EXPLORER](AUTOMATED_GAMEPLAY_EXPLORER.md) - 自然轨道自动玩家、语义动作轨迹、状态指纹、checkpoint 归因、失败重放缩减、Android semantic replay 的边界
@@ -46,32 +46,10 @@
 - [MODLOADER_TROUBLESHOOTING](MODLOADER_TROUBLESHOOTING.md) - ModLoader 排障
 - [SAVE_COMPATIBILITY](SAVE_COMPATIBILITY.md) - 存档兼容性说明
 
-## 本地文档（不上传）
 
-这些文档位于 `.local/`，被 .gitignore 忽略：
-- 临时分析报告
-- 执行总结
-- 项目回顾
-- 自动化脚本
-
----
 
 ## 文档维护原则
 
-1. **用户文档保持简洁**，面向使用者
-2. **内部文档记录决策理由**，面向维护者
-3. **临时文档不上传**，避免泄露敏感信息
-4. **当前有效的核心文档在此索引**，历史研究与会话快照保留在原目录，不逐项列出
-
----
-
-## 文档分类说明
-
-### 用户文档（根目录）
-面向 DOL-X 使用者的文档，包括安装、构建、使用说明。
-
-### 内部文档（docs/）
-面向 DOL-X 维护者的文档，包括技术决策、上游同步、开发指南。
-
-### 临时文档（.local/，不上传）
-临时分析、研究报告、自动化脚本，仅在本地使用。
+- 使用说明简洁明确，保留实际已知问题与操作方法。
+- 技术文档说明适用版本、实现与验证范围。
+- 历史文档按原记录日期理解；当前版本以配置和发布说明为准。
