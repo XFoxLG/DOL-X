@@ -36,7 +36,7 @@
   `img/face/碱性糖改脸/base-head.png`）、A2（`eyes.png` := 虹膜画布副本）、A3（两者同时）
   全部 0 / 119 零变化，方案 A 判定 `no_visual_change`。与「面纹 / 腮红 / 流泪」分开记账；
   方案 B（修正合成顺序 / 缺图回退规则）需单独设计并重跑 passage / scenario / combat / env 四套。
-  方案 B 出结果前，任何文档不得声明「眼球已修复」。
+  方案 B 尚待验证，眼球发白仍记为未修复。
 
 ### Fixed
 
@@ -316,7 +316,7 @@
     渲染九个分类加言靈集面板）；dev2601001 本轮只做了静态差异核对与摘要锁定，**尚未真机复测**，
     因此状态记为 `digest-pinned-awaiting-device-recheck`，不计入已验证。
 
-- **maplebirch 框架升级 v4.1.13 -> v4.1.14（尚未发布）**：官方资产
+- **maplebirch 框架升级 v4.1.13 -> v4.1.14（随 1014 发布）**：官方资产
   `maplebirch-0.5.10.12-v4.1.14.mod.zip`，186903 字节，
   sha256 `e44c9aeda62e8cf9cf76a85907c55b8b651541bccb8c6da0ee1b4eda965923a4`，
   与 GitHub Release digest 逐字一致，上游构建 commit `cf57f88c`。

@@ -1,34 +1,13 @@
-# 秋枫白桦框架 v4.1.14 备份副本
+# 秋枫白桦框架 4.1.14 附件说明
 
-这是 DOL-X 构建时使用的「秋枫白桦框架」（maplebirch）v4.1.14 官方文件的原样备份副本。
-**未做任何修改**，与官方发布时的文件逐字节相同。
+对应版本的原始附件，文件内容未修改。
 
-## 这是什么、为什么会有它
-
-框架作者会删除旧版本，也会在同一个下载位置悄悄替换文件。为了让 DOL-X 的包在「官方文件
-消失或被替换」之后仍然能被原样复现，这里保存了一份当时的原件。
-
-## 怎么用、和整合包怎么搭配
-
-- 如果你要玩 DOL-X 整合包：**不需要下载这个文件**，最新整合包里已经内置了同一个文件。
-- 如果你要自己按 DOL-X 的流程重新构建：在官方源拿不到这一版时，用这里的压缩包替代即可；
-  它是普通 mod 压缩包，放进 mod 加载列表就能用。
-- 它和整合包内置的框架是同一个文件，重复加载没有意义。
-
-## 为什么钉在 4.1.14
-
-框架更新到 4.2 之后，AU Face 脸部扩展需要的旧接口被删掉或重写，AU 版换脸会直接报错；
-5.x 又重构掉了其它 mod 依赖的部分。4.1.14 是目前经过完整核对与实机验证、这些功能都
-正常工作的最后一个版本。
-
-## 版本与来源
-
-| 项 | 值 |
+| 项目 | 内容 |
 |---|---|
 | 框架版本 | 4.1.14 |
-| 上游仓库 | [MaplebirchLeaf/SCML-DOL-maplebirchFramework](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework) |
-| 上游发布时间 | 2026-08-02 |
 | 适用游戏版本 | DoL 0.5.10.12 及以上（含 0.5.11.9） |
 | 授权 | MIT（Copyright (c) 2026 楓樺葉） |
 
-> 逐字节校验值、版本考古与陷阱样本见 [技术档案](https://github.com/XFoxLG/DOL-X/blob/vega/docs/technical/mirrors-2026-08.md)。
+原作者：楓樺葉 / MaplebirchLeaf。来源：[秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)。
+
+选择版本时需同时核对游戏和依赖模组；整合包已内置框架时无需重复安装。附件入口见 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)，内容与来源记录见[技术说明](https://github.com/XFoxLG/DOL-X/blob/vega/docs/technical/mirrors-2026-08.md)。

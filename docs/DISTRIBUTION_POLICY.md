@@ -13,4 +13,4 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建，使用[正式
 
 各版本的模组组成见对应 [Release](https://github.com/XFoxLG/DOL-X/releases)。部分附件的作者来源、版本、校验值与许可文本见 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)。使用或分享资源时请遵守各自许可；CC BY-NC-SA 4.0 要求署名、非商业使用、标明修改及相同方式共享，本仓库的 MIT 许可仅适用于本项目自己的代码。
 
-本项目由 XFoxLG 独立维护，非游戏、汉化组或模组作者的官方发行。兼容性与已知问题以版本说明为准；本整合的问题请在 [DOL-X Issues](https://github.com/XFoxLG/DOL-X/issues) 反馈，原许可证的免责条款继续适用。
+本项目由 XFoxLG 独立维护，非游戏、汉化组或模组作者的官方发行。兼容性与已知问题以版本说明为准。本整合的问题请在 [DOL-X Issues](https://github.com/XFoxLG/DOL-X/issues) 反馈。

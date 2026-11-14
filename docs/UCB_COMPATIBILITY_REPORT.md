@@ -1,14 +1,16 @@
 # UCB 与其他美化包兼容性验证报告
 
+> 历史分析（2026-06-14）：以下为当时的静态路径与文档分析。当前运行结果见 [项目状态](CURRENT_PROJECT_STATE.md)和对应版本说明。
+
 **生成日期**: 2026-06-14  
 **验证方法**: 代码分析 + 官方文档研究  
-**结论**: ✅ UCB 与 AU 系列兼容，无路径冲突
+**结论**: 静态图片应用路径可共存，运行兼容需按具体版本验证
 
 ---
 
 ## 执行摘要
 
-基于对 DOL-X 构建系统代码的深入分析和 DoLModding Wiki 官方文档研究，我们验证了 **UCB（Universal Combat Beautification）与 AU 系列美化包完全兼容**，不存在路径冲突问题。
+当时的代码与文档分析显示 UCB（Universal Combat Beautification）和 AU 采用不同的图片应用路径；这项分析未覆盖全部运行时显示与交互。
 
 **关键发现**:
 1. ✅ UCB 官方设计为"仅替换战斗图片"（官方文档明确说明）
@@ -35,7 +37,7 @@
 
 #### 2.1 Imagepack 应用顺序
 
-**代码位置**: [`lyra/build.py`](lyra/build.py) 第 316-355 行
+**代码位置**: [`lyra/build.py`](../lyra/build.py) 第 316-355 行
 
 ```python
 def _apply_beautify(self) -> list[str]:
@@ -69,7 +71,7 @@ def _apply_beautify(self) -> list[str]:
 
 #### 2.2 AU Mod 的应用方式
 
-**配置位置**: [`config/build.toml`](config/build.toml)
+**配置位置**: [`config/build.toml`](../config/build.toml)
 
 ```toml
 [[modloader_mods]]
@@ -99,7 +101,7 @@ release_tag = "facemod"
 
 #### 2.3 AU Face 兼容性别名
 
-**代码位置**: [`lyra/build.py`](lyra/build.py) 第 360-400 行
+**代码位置**: [`lyra/build.py`](../lyra/build.py) 第 360-400 行
 
 ```python
 def _apply_au_face_compatibility_aliases(self) -> list[str]:
@@ -300,24 +302,24 @@ game/
 
 **需要更新的文档**:
 
-1. **[`MOD_MATRIX_RATIONALE.md`](MOD_MATRIX_RATIONALE.md)**:
+1. **[`MOD_MATRIX_RATIONALE.md`](../MOD_MATRIX_RATIONALE.md)**:
    - 添加"技术验证"章节
    - 引用本报告的关键结论
    - 补充 UCB 与 AU 兼容性说明
 
-2. **[`QUICK_REFERENCE.md`](QUICK_REFERENCE.md)**:
+2. **[`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md)**:
    - 添加"美化兼容性说明"部分
    - 解释 UCB 与 AU 可以共存
    - 说明 BESC 被移除的原因
 
-3. **[`docs/COMMUNITY_TOOLS.md`](docs/COMMUNITY_TOOLS.md)**:
+3. **[`docs/COMMUNITY_TOOLS.md`](COMMUNITY_TOOLS.md)**:
    - 添加"贴吧美化兼容性"章节
    - 说明 DOL-X 官方仅支持 DOLP 美化
    - 提供社区美化的安装指导
 
 ### 建议 3: 创建兼容性测试（可选） 🧪
 
-**测试用例**: [`tests/test_ucb_au_compatibility.py`](tests/test_ucb_au_compatibility.py)
+**拟议测试文件**: `tests/test_ucb_au_compatibility.py`（未创建）
 
 **测试内容**:
 - 验证 AU Face blush 层能正常加载
@@ -380,15 +382,15 @@ game/
 - **DoL-Lyra 下载页面**: https://dol-lyra.github.io/hub/downloads/
 
 ### DOL-X 内部文档
-- [`MOD_MATRIX_RATIONALE.md`](MOD_MATRIX_RATIONALE.md) - Mod 矩阵决策说明
-- [`UPSTREAM_FRIENDLY_STRATEGY.md`](UPSTREAM_FRIENDLY_STRATEGY.md) - 上游友好策略
-- [`UPSTREAM_SYNC_CHECKLIST.md`](UPSTREAM_SYNC_CHECKLIST.md) - 上游同步清单
+- [`MOD_MATRIX_RATIONALE.md`](../MOD_MATRIX_RATIONALE.md) - Mod 矩阵决策说明
+- [`UPSTREAM_FRIENDLY_STRATEGY.md`](../UPSTREAM_FRIENDLY_STRATEGY.md) - 上游友好策略
+- [`UPSTREAM_SYNC_CHECKLIST.md`](../UPSTREAM_SYNC_CHECKLIST.md) - 上游同步清单
 
 ### 代码文件
-- [`lyra/build.py`](lyra/build.py) - 构建系统核心逻辑
-- [`config/build.toml`](config/build.toml) - Imagepack 和 Mod 配置
-- [`config/features.toml`](config/features.toml) - Feature 定义
-- [`config/combinations.toml`](config/combinations.toml) - Mod 组合配置
+- [`lyra/build.py`](../lyra/build.py) - 构建系统核心逻辑
+- [`config/build.toml`](../config/build.toml) - Imagepack 和 Mod 配置
+- [`config/features.toml`](../config/features.toml) - Feature 定义
+- [`config/combinations.toml`](../config/combinations.toml) - Mod 组合配置
 
 ---
 

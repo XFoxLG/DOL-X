@@ -85,7 +85,7 @@ base  09:38:42      au-f  09:38:42      au-m  09:38:56      au-a  09:39:02
 我们的 0713 重建把四码**统一冻结**为从幸存 au-f 原件读到的 `13:31:50`。
 
 为了确认这种偏差足以产生「几字节」的量级，做了一个校准实验
-（`.local/_lyra_stamp_delta_experiment.py`）：对真实 HTML 里的 Lyra 槽
+（元数据对照实验）：对真实 HTML 里的 Lyra 槽
 重新盖时间戳，再用与 `lyra.utils.create_zip` 相同的压缩设置
 （ZIP_DEFLATED、默认 level 6、raw deflate）重新压缩整份 HTML，比较文件体积：
 
