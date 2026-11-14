@@ -20,10 +20,11 @@ DOL-X 只跟随 DoL-Lyra/Lyra，**不自行追第三方框架的大版本**。�
 - 判定是否「需要跟上」只看 Lyra 是否有新提交或新 release，不看框架作者发了多少新版本。
 - 框架确实已领先时，记录其状态与已知阻塞点即可，不把「上游框架有新版」当成 DOL-X 的待办。
 
-当前状态：Lyra `vega` 停在 `e61352e`（2026-05-18），DOL-X 领先 230、落后 0，无新提交可跟。
-maplebirch 已到 5.x，但按本原则暂不迁；已知阻塞点见
-[docs/SESSION_STATUS_2026-09-30.md](docs/SESSION_STATUS_2026-09-30.md) 第二节（5.x 上宏路径
-needle 必须重定，且不能改用直接 pet.sync()，否则桌宠会退化成裸模）。
+2026-11-14 复核：Lyra 默认分支仍停在原提交，但
+[`1004.1`](https://github.com/DoL-Lyra/Lyra/releases/tag/v0.5.12.13-1.0.1a-1004.1) 已发布
+0.5.12.13 预发布包，包含 AU-F、AU-M、AU-A；稳定版
+[`0815`](https://github.com/DoL-Lyra/Lyra/releases/tag/v0.5.11.9-1.0.0a-0815) 也提供 AU 版本。
+同步判断同时检查默认分支与 Release；DOL-X 候选通过自身验收后才替换稳定版。
 
 ## 2. DOL-X 自治范围
 
