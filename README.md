@@ -28,11 +28,11 @@
 
 DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统（直接上游构建流程来源），但不是本仓库的项目身份。
 
-本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 Lyra 构建流程整合多种 Mod，并按维护者核验结果跟随游戏和汉化更新。当前公开成品上传暂停，私人候选与构建源码继续维护。
+本项目使用 [汉化仓库][github-chs] 的汉化产物，通过 Lyra 构建流程整合多种 Mod，并按维护者核验结果跟随游戏和汉化更新。历史正式版提供下载，十一月候选与构建源码继续维护。
 
 **本仓库不是 DoL 或汉化组官方发布渠道**
 
-**2026-11-13 分发状态**：AU 作者禁止二次分发，含 AU 的历史整合附件已撤下。0802、0804、0808 与 1014 的基础版内置更长遭遇战和言灵作弊集，转载许可尚未确认，成品下载也暂停；0707、0713 基础版下载保留。Latest 仍保留 1014 版本身份。AU 请从[原作者发布页](https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod)获取；AU 面部扩展许可未确认，暂停公开。依据和免责声明见[分发说明](docs/DISTRIBUTION_POLICY.md)，完整保存结果见[整理报告](docs/technical/preservation-privacy-and-distribution-2026-11-13.md)。
+**2026-11-14 下载状态**：0707、0713、0802、0804、0808、1014 六个历史正式版均提供基础版、AU-F、AU-M、AU-A 的 ZIP 与 APK，共 48 件原发布文件。Latest 为 [1014](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)。独立模组镜像继续按已核验的许可提供，十一月候选尚未发布。作者来源与免责声明见[分发说明](docs/DISTRIBUTION_POLICY.md)，恢复核验见[整理报告](docs/technical/preservation-privacy-and-distribution-2026-11-13.md)。
 
 **APK 包名**: DoL XFox (`com.vrelnir.dol.xfox`)
 
@@ -95,7 +95,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 **可选 AU 系列**：
 
 > AU（AOKIUTAGE）是一整套大型美化体系，包含人物模型、服装模型、脸部模型；下面列的是其中的
-> 体型模型（本地验证时三选一），脸部模型由独立的 AU Face 脸部扩展提供。未经作者授权不公开内置这些资源的整合附件。
+> 体型模型（各版本三选一），脸部模型由独立的 AU Face 脸部扩展提供。历史整合的下载状态与独立资源分发规则见[分发说明](docs/DISTRIBUTION_POLICY.md)。
 
 - AU-F：AU 女性模型 v0.9.3（与上游 Lyra 当前 AU model 对齐）
 - AU-M：AU 男性模型 v0.4.2
@@ -105,17 +105,17 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ## 下载与版本选择
 
-在 [Releases 页面](https://github.com/XFoxLG/DOL-X/releases) 查看各版本的分发状态。当前 1014 稳定版的整合成品下载暂停；保留下载的历史基础版提供：
+在 [1014 稳定版](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)或 [Releases 页面](https://github.com/XFoxLG/DOL-X/releases)下载对应版本：
 
 - **ZIP**：电脑浏览器直接打开玩
 - **APK**：安卓手机安装玩（推荐用 MuMu 等模拟器或较新手机）
 
 | 版本 | 文件名后缀 | 内容 | 公开状态 |
 |------|-----------|------|------|
-| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） | 0707、0713 保留；0802 及之后暂停 |
-| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | 附件撤下；仅本地测试 |
-| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | 附件撤下；仅本地测试 |
-| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | 附件撤下；仅本地测试 |
+| 基础版 | `-base-` | 不含 AU 体型模型（用游戏原版体型） | 六个历史正式版均提供 |
+| AU-F 版 | `-au-f-` | 基础版 + AU 女性模型 | 六个历史正式版均提供 |
+| AU-M 版 | `-au-m-` | 基础版 + AU 男性模型 | 六个历史正式版均提供 |
+| AU-A 版 | `-au-a-` | 基础版 + AU 双性模型 | 六个历史正式版均提供 |
 
 > AU Face 脸部扩展仅加入三个 AU 变体；基础版不含 AU 体型模型或 AU Face。Legacy-Art-Mods-Compat plus 进入所有 4.x 构建码。
 
@@ -143,7 +143,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 > `maplebirch-v3-layer-compat` 只属于 0713 的 maplebirch 3.x 稳定栈。4.x 升到 4.1.13 后已退役，不再注入；源码仅作为旧版回滚资料保留。
 
-**本地 AU 测试版额外内置的体型模型**（每版只含其中一个；不对外分发）：
+**历史 AU 整合版额外内置的体型模型**（每版只含其中一个）：
 
 - **AU-F 版**：AU 女性模型
 - **AU-M 版**：AU 男性模型
@@ -155,10 +155,10 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 - **游戏版本**：DoL 0.5.11.9（“伟大等同者”）· **汉化**：1.0.0a
 - **Mod 栈**：maplebirch 4.1.14 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1 + Legacy-Art-Mods-Compat plus 1.0.3-plusV1.1
-- **公开下载**：本版基础及 AU 的 8 件整合附件均已暂停，完整原件和恢复校验保存在私人档案；版本标签与原更新说明保留。
+- **公开下载**：本版基础及 AU 的 8 件原 ZIP、APK 均已恢复，内容与原发布一致；版本标签与原更新说明保留。
 - **测试情况**：AU-F 版已在 MuMu 12（Android 12）上实测换脸 + 桌宠、作弊菜单、存档读写与 37 步开局流程；base / AU-M / AU-A 完成自动构建与打包内容检查，但没有上机。完整边界见 [1014 Release 说明](docs/release-notes/v0.5.11.9-1.0.0a-1014.md)。
 - **框架 4.1.14** 恢复了「每日 NPC 怀孕周期」，并避开更新的框架版本上会让 AU 版换脸直接报错的问题。注意：4.1.14 会向存档写入怀孕名单且没有回滚逻辑，从 1014 退回旧框架后，存档里已写入的怀孕数据将无人处理。
-- 0.5.10.12 线的 `-0808`、`-0804`、`-0802` 下载同样暂停；`-0713` 与 `-0707` 的 3.x 基础版保留下载，源码存档在分支 `vega-archive-0713`。历史恢复核验不代表新版游戏兼容性。
+- 0.5.10.12 线的 `-0808`、`-0804`、`-0802`、`-0713` 与 `-0707` 同样提供四种版本的 ZIP、APK；3.x 源码存档在分支 `vega-archive-0713`。历史恢复核验不代表新版游戏兼容性。
 - **框架留档**：第三方附件迁至 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)，私人恢复保留完整原件。当前只公开已有明确分发许可的附件；MapleBirch 5.6.2 已补齐原许可与第三方说明，旧框架仍逐版本核验。原件、重建件、对应游戏版本与摘要见镜像清单。
 - 各版本玩家可感知的变化见 [玩家更新日志](玩家更新日志.md)；当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
@@ -173,7 +173,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 >
 > 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-> **旧版本提示**：2026-06-13 及更早的版本（文件名带 `57346 / 58370 / 59394 / 61442` 等旧编号）配置有误、缺少美化。当前整合下载暂停时，可使用[汉化组正式发行][github-chs]；不要把历史整合包当作新版本兼容性已经通过的替代品。
+> **旧版本提示**：2026-06-13 及更早的版本（文件名带 `57346 / 58370 / 59394 / 61442` 等旧编号）配置有误、缺少美化，建议使用 1014 稳定版或[汉化组正式发行][github-chs]。历史版本的兼容性以对应更新说明为准。
 
 ## 疑难解答
 
