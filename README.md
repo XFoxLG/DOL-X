@@ -49,7 +49,7 @@ DOL-X 跟随 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 的游戏、汉化及�
 - 📌 [当前项目状态](docs/CURRENT_PROJECT_STATE.md) - 当前版本与测试状态
 - 📖 [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md) - 同步流程与项目配置
 - 📋 [上游差异摘要](UPSTREAM_DIFF_SUMMARY.md) - 当前长期维护差异
-- 📖 [Mod 矩阵决策说明](MOD_MATRIX_RATIONALE.md) - 为什么这样选择 Mod 组合？
+- 📖 [Mod 矩阵说明](MOD_MATRIX_RATIONALE.md) - 为什么这样选择 Mod 组合？
 
 ---
 
@@ -60,36 +60,6 @@ DOL-X 跟随 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 的游戏、汉化及�
 - ✅ **模组框架**：秋枫白桦框架 + cheatExtended 作弊扩展
 - ✅ **内置组件**：ModLoader + 汉化 + 美化包（UCB）
 - ✅ **双平台**：ZIP（浏览器版）+ APK（Android 版）
-
-### 包含的 Mod
-
-**1014 稳定版的基础 Mod**（四种版本共有；名称对应汉化 [模组列表 Wiki](https://degreesoflewditycn.miraheze.org/wiki/%E6%A8%A1%E7%BB%84%E5%88%97%E8%A1%A8)）：
-- ModLoader GUI - 模组管理器
-- ModI18N - 汉化支持
-- 秋枫白桦框架（maplebirch）+ 官方拆分功能包（更长遭遇战、言灵作弊集）
-- [通用战斗美化](https://github.com/site098/mysterious)（UCB）
-- [更多恋人](https://github.com/Nephthelana/DoL-More-Love-Interests-Mod)
-- [自定义染发](https://github.com/HiddenCirno/DoL-CustomHair/tree/CustomHair)
-- [NPC侧边栏头像](https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/tree/DOL)（Mae's Picvary）
-- [NPC社交栏头像](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod)
-- [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe)
-- [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended）
-- [更长遭遇战](https://github.com/MaplebirchLeaf/LongerCombat)（LongerCombat）
-- [言灵作弊集](https://github.com/MaplebirchLeaf/YanlingCheatCollection)（YanlingCheatCollection）
-- [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat)（社区 plus 版，来源见[附件说明](https://github.com/XFoxLG/DOL-X-Mirrors/releases/tag/legacy-art-compat-plus-v1.1)）
-- [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence)（AI 对话与战斗文本，需自行配置 API 密钥）
-- NeoUI Patch - UI 美化
-
-**可选 AU 系列**：
-
-> AU（AOKIUTAGE）是一整套大型美化体系，包含人物模型、服装模型、脸部模型；下面列的是其中的
-> 体型模型（各版本三选一），脸部模型由独立的 AU Face 脸部扩展提供。
-
-- AU-F：AU 女性模型 v0.9.3
-- AU-M：AU 男性模型 v0.4.2
-- AU-A：AU 双性模型 v0.1.1
-
-> AU 模型使用 AOKIUTAGE 官方 `mod` 发布页的 ModLoader 直装方式。
 
 ## 下载与版本选择
 
@@ -125,7 +95,7 @@ DOL-X 跟随 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 的游戏、汉化及�
 | [NPC社交栏头像](https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod) | 社交界面显示 NPC 头像 |
 | [控制NPC嘴部](https://github.com/Ayndpa/DOL-GuideToMe) | 控制 NPC 嘴部动作 |
 | [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)（cheatExtended） | 作弊功能；1014 使用 v1.20，头部遮罩相容模式也由它提供 |
-| [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat) | 社区 plus 提供旧/新图片命名兼容；来源与许可见[附件说明](https://github.com/XFoxLG/DOL-X-Mirrors/releases/tag/legacy-art-compat-plus-v1.1) |
+| [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat) | 社区 plus 提供旧/新图片命名兼容；来源与许可见[版本目录](https://github.com/XFoxLG/DOL-X-Mirrors/tree/main/mods/legacy-art-compat) |
 | [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence) | AI 对话与战斗文本增强，使用 AI 功能需在游戏内自行配置服务和 API 密钥 |
 | NeoUI Patch | 界面美化（侧边栏点击外部关闭等） |
 
@@ -234,7 +204,7 @@ python tools/download_latest_build.py --build-code 15704320
 DoL-{原版版本}-XFox-{汉化版本}-{体型}-{日期}.apk
 ```
 
-示例：`DoL-0.5.10.12-XFox-1.0.8a-base-0730.apk`。完整 mod 组成由本页和构建记录承载；稳定 Release 以 tag、体型和日期识别。完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+示例：`DoL-0.5.10.12-XFox-1.0.8a-base-0730.apk`。模组组成见本页与对应版本说明；各版本以标签、体型和日期识别。完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### Mod 开发工具链
 

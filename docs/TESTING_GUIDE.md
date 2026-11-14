@@ -43,8 +43,8 @@ python tools/quick_check.py
 
 ### 代表性测试
 
-**历史模拟器抽查**：AU-F (build_code 15705344)
-- 原因：维护者实际使用和验收的体型
+**历史代表性检查**：AU-F (build_code 15705344)，使用 MuMu 模拟器
+- 该抽查范围不能代替四种候选版本的完整验收。
 - 时间：涉及运行时行为的候选版按需做 15-20 分钟手动测试
 
 **CI 自动化**：
@@ -309,7 +309,7 @@ python tools/download_latest_build.py --build-code 15705344
 
 1. 记录到 `config/mods.lock.json` 的 `notes`
 2. 更新 `docs/CURRENT_PROJECT_STATE.md` 或兼容矩阵中的验证边界
-3. 问题记录注明版本、复现步骤和错误信息。
+问题记录使用仓库 Issues；附版本、复现步骤和必要错误信息。
 
 ---
 

@@ -213,15 +213,7 @@ jQuery(() => {
 
 ### 兼容性
 
-**完全兼容**：
-- 所有原版 SC2 游戏特性
-- 所有 Macro 和 Widget
-- 所有 Passage 和 Story 格式
-
-**增强功能**：
-- Mod 加载不影响原版游戏
-- 可以随时启用/禁用 Mod
-- 安全模式确保游戏可玩
+支持 SugarCube 的 Macro、Widget 与 Passage 加载。具体兼容性取决于游戏、加载器和模组版本；启用、禁用或安全模式后的表现需按组合验证。
 
 ---
 
@@ -305,11 +297,11 @@ zip -r MyMod.mod.zip boot.json my_script.js README.md
 ### 核心文档（本系列）
 
 1. **[MODLOADER_OVERVIEW.md](MODLOADER_OVERVIEW.md)** - 概述（本文档）
-2. **[MODLOADER_ARCHITECTURE.md](MODLOADER_ARCHITECTURE.md)** - 架构原理
+2. **[MODLOADER_ARCHITECTURE.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/wiki)** - 架构原理
 3. **[MODLOADER_BOOT_JSON.md](MODLOADER_BOOT_JSON.md)** - boot.json 规范
-4. **[MODLOADER_API.md](MODLOADER_API.md)** - API 文档
-5. **[MODLOADER_LIFECYCLE.md](MODLOADER_LIFECYCLE.md)** - 生命周期详解
-6. **[MODLOADER_BEST_PRACTICES.md](MODLOADER_BEST_PRACTICES.md)** - 最佳实践
+4. **[MODLOADER_API.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader)** - API 文档
+5. **[MODLOADER_LIFECYCLE.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/wiki)** - 生命周期详解
+6. **[MODLOADER_BEST_PRACTICES.md](MOD_ADDITION_CHECKLIST.md)** - 最佳实践
 7. **[MODLOADER_FAQ.md](MODLOADER_FAQ.md)** - 常见问题
 
 ### 官方文档
@@ -322,7 +314,7 @@ zip -r MyMod.mod.zip boot.json my_script.js README.md
 
 - **Mod 配置**: [`config/build.toml`](../config/build.toml)
 - **扩展提案**: [`MODLOADER_METADATA_EXTENSION.md`](MODLOADER_METADATA_EXTENSION.md)
-- **框架研究**: [`FRAMEWORK_PROVIDER_RESEARCH.md`](../FRAMEWORK_PROVIDER_RESEARCH.md)
+- **框架研究**: [`FRAMEWORK_PROVIDER_RESEARCH.md`](technical/framework-source-rebuild-2026-10-15.md)
 
 ---
 
@@ -362,7 +354,7 @@ ModLoader 是开源项目，欢迎：
 
 ## 下一步
 
-- 了解架构原理 → [MODLOADER_ARCHITECTURE.md](MODLOADER_ARCHITECTURE.md)
+- 了解架构原理 → [MODLOADER_ARCHITECTURE.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/wiki)
 - 学习创建 Mod → [MODLOADER_BOOT_JSON.md](MODLOADER_BOOT_JSON.md)
-- 查看 API 文档 → [MODLOADER_API.md](MODLOADER_API.md)
+- 查看 API 文档 → [MODLOADER_API.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader)
 - 查看实战案例 → [MODLOADER_FAQ.md](MODLOADER_FAQ.md)

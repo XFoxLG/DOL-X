@@ -61,7 +61,6 @@ python tools/quick_check.py
   可解析；内嵌 base64 payload 可解码且通过 ZIP 完整性检查。
 - `test_browser_smoke.py`、`test_apk_emulator_smoke.py`：公开仓库中的浏览器与通用模拟器
   smoke helper。
-
 - `test_embedded_mod_source_scan.py`：内嵌 mod 来源扫描。
 
 ## 相关工具
@@ -79,8 +78,7 @@ python tools/check_mod_updates.py --output output/mod-updates.json
 
 ## GitHub Actions
 
-- `build.yaml`：推送到 `vega` 或打 tag 时构建。分支推送产出 base + AU-F，
-  tag 发版产出全部四码，并上传 ZIP/APK artifact；tag 构建额外创建 Release。
+- `build.yaml`：构建组合由工作流定义，ZIP/APK 上传与 Release 发布均经过对应检查。
 - `mod-update-check.yml`：每周检查上游 mod 更新，结果写入 Step Summary 与
   `mod-update-report` artifact。仓库 Issues 已关闭，不创建 Issue。
 

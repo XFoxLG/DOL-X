@@ -661,9 +661,9 @@ python tools/mod_audit.py --mod-path MyMod.mod.zip
 
 ## 下一步
 
-- 了解生命周期 → [MODLOADER_LIFECYCLE.md](MODLOADER_LIFECYCLE.md)
-- 查看 API 文档 → [MODLOADER_API.md](MODLOADER_API.md)
-- 学习最佳实践 → [MODLOADER_BEST_PRACTICES.md](MODLOADER_BEST_PRACTICES.md)
+- 了解生命周期 → [MODLOADER_LIFECYCLE.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader/wiki)
+- 查看 API 文档 → [MODLOADER_API.md](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader)
+- 学习最佳实践 → [MODLOADER_BEST_PRACTICES.md](MOD_ADDITION_CHECKLIST.md)
 
 ---
 

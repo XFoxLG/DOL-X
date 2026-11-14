@@ -650,7 +650,7 @@
   `Pet.ts` 与 v4.1.13 逐字节相同、同步接线未变，升级无法替代本补丁。补丁 fail-closed，
   只改官方资产的 `dist/inject_early.js`，成员列表与 `boot.json` 均不变。
 - **修复 Maplebirch 桌宠启用时切换改脸，桌宠头脸暂时消失并弹出 `base-head.png` 红框**：
-  该次检查中的主侧边栏模型显示正常；桌宠是独立显示、从 `main` 模型派生图层的固定位置画布，
+  主侧边栏模型在该次检查中显示正常；桌宠是独立显示、从 `main` 模型派生图层的固定位置画布，
   本问题只发生在桌宠自身启用并切换脸型时。Maplebirch 4.1.13 的桌宠模型刷新会请求不存在的
   `img/face/<facestyle>/base-head.png`。上游源码本意是在风格未提供专属头部底图时回退到
   `img/body/base-head.png`，但同步的 `resolveFaceImagePath()` 调用了异步 `loadImage()`，把首次

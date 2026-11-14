@@ -16,7 +16,7 @@
 | `玩家更新日志.md` | 所有玩家 | 每个版本玩家能感知的变化（一句话一条） | 技术细节、判定状态、验证数字 |
 | `docs/technical/<tag>.md` | 追溯者 / 维护者 | 目标身份、逐字节校验、工具输出、归因 | 面向玩家的措辞（不需要） |
 | `docs/CURRENT_PROJECT_STATE.md` | 维护者 | 当前事实的唯一总入口 | 历史沿革 |
-| `docs/archive/`、带日期的会话记录 | 追溯者 | 当时的判断与证据 | 事后回填修正 |
+| 带日期的技术与研究档案 | 维护者 | 当时的版本、来源与可复现结果 | 会话过程和临时待办 |
 | `README.md` | 首次访问的玩家 | 当前稳定版、下载选择、常见问题 | 构建实现细节 |
 | `QUICK_REFERENCE.md` | 构建维护者 | 实际可运行的短命令与当前构建码 | 待实现命令、无证据状态 |
 | `docs/MOD_COMPATIBILITY_MATRIX.md` | 维护者 | 当前版本、验证层级、已知边界 | 把挂载成功写成全功能通过 |
@@ -43,8 +43,8 @@
 **每个条目必须能追到证据：**
 
 - 外部 mod 升级 → 写作者仓库的 issue 号或 README 依据
-- 构建系统改动 → 写 Actions run 号并加链接
-- 真机结论 → 写实测日期，并同时写覆盖边界
+- 构建系统改动 → 记录对应验证；使用自动构建时附运行链接
+- 设备实测结论 → 写实测日期，并同时写覆盖边界
 
 **禁止的表述**：「应该没问题」「预计正常」「理论上兼容」。没验证就写「未验证」，
 不要用推断词掩盖。
@@ -140,11 +140,11 @@ python tools/player_docs_check.py docs/release-notes/<tag>.md   # 只查一份
 
 | status | 含义 | 能说 | 不能说 |
 |--------|------|------|--------|
-| `runtime-validated-base` | 真机全栈零错误零警告 | 已实测通过 | — |
+| `runtime-validated-base` | 指定设备与组合的全栈验证通过 | 已实测通过 | — |
 | `runtime-smoke-passed` | 抽样功能可用 | 抽查的功能正常 | 全部功能通过 |
 | `runtime-mounted` | 挂载成功，未逐功能遍历 | 已装上并加载成功 | 测试通过 |
-| `runtime-empty-state-passed` | 真机只覆盖空列表/空数据状态 | 空态通过 | 完整功能通过 |
-| `required-runtime-validated` | 必选组件已在当前栈真机验证 | 当前栈已实测 | 所有组合都上机通过 |
+| `runtime-empty-state-passed` | 指定设备只覆盖空列表或空数据状态 | 空态通过 | 完整功能通过 |
+| `required-runtime-validated` | 必选组件已在当前栈设备验证 | 当前栈已实测 | 所有组合都上机通过 |
 | `enabled-actions-base-validated` | 已进入构建，Actions base 产物验证通过 | CI 产物通过 | 真机通过 |
 | `...-pending-runtime` | 已启用但未真机验收 | 尚未上机验证 | 可用 |
 | `disabled` | 当前矩阵明确禁用 | 已禁用 | 待验证 |

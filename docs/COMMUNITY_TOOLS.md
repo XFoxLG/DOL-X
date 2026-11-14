@@ -260,8 +260,8 @@ img/face/          # 面部扩展
 ## 相关文档
 
 - [构建系统](../BUILD.md)
-- [游戏逻辑测试](GAME_LOGIC_TESTING.md)（待创建）
-- [Mod 开发指南](MOD_DEVELOPMENT_GUIDE.md)（待创建）
+- [游戏逻辑测试](AUTOMATED_PASSAGE_SWEEP.md)（待创建）
+- [Mod 开发指南](MOD_ADDITION_CHECKLIST.md)（待创建）
 - [上游同步策略](../UPSTREAM_FRIENDLY_STRATEGY.md)
 
 ---

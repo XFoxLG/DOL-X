@@ -97,29 +97,11 @@ assert 57600 in build_codes
 
 ---
 
-## Local Build Attempts
+## 本地构建依赖
 
-### Symptom: Missing Dependencies
+出现缺少解压工具、Java 或签名工具的错误时，按 [BUILD](../BUILD.md) 检查环境，再运行对应构建步骤。签名使用既有项目证书。
 
-```
-Error: unrar: command not found
-Error: jarsigner: command not found
-```
-
-**Cause**: Local environment (Windows 10) lacks required tools
-
-**Fix**: **Do NOT attempt to fix locally**
-
-Instead:
-1. Push to GitHub: `git push origin vega`
-2. Download artifacts from Actions: `gh run list --limit 3`
-
-**Why**:
-- APK signing requires Java runtime
-- Imagepack extraction requires unrar binary
-- Large mod downloads may timeout on home network
-
----
+本地与自动构建采用同一构建入口。构建失败应保留错误信息，不能通过调整版本期望或跳过检查代替修复。
 
 ## Mod Compatibility Issues
 
@@ -174,7 +156,7 @@ gh run view <run-id> --log-failed
 ## Getting Help
 
 1. **Check existing documentation**:
-   - `AGENTS.md` - Agent instructions
+   - `docs/INDEX.md` - 构建与测试参考
    - `.local/CHANGELOG.md` - Historical decisions
    - `MOD_MATRIX_RATIONALE.md` - Mod combination rules
 

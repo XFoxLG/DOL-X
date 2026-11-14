@@ -117,7 +117,7 @@
    - **上游也不推荐 BESC+UCB 组合**（code=259）
 
 4. **整合范围**
-   - 该组合优先采用战斗美化
+   - DOL-X 的当前组合优先采用战斗美化
    - UCB 图片质量稳定，更新活跃
    - 避免冗余下载和构建时间
 
@@ -424,7 +424,7 @@ DOL-X 的选择：
 - 用户配置复杂（LLM 集成通常需要 API key 或本地部署）
 - 维护风险高，项目状态未知
 
-**详细报告**: 见 [docs/DOLI_LLM_RESEARCH.md](docs/DOLI_LLM_RESEARCH.md)
+**详细报告**: 见 [docs/DOLI_LLM_RESEARCH.md](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence)
 
 **后续行动**:
 1. 在 DoL 社区询问 D.O.L.I 项目信息
@@ -516,7 +516,7 @@ DOL-X 的 Mod 矩阵设计遵循以下原则：
 ### DOL-X 文档
 - [上游友好策略](UPSTREAM_FRIENDLY_STRATEGY.md)
 - [上游同步清单](UPSTREAM_SYNC_CHECKLIST.md)
-- [配置文件说明](config/README.md)
+- [配置文件说明](QUICK_REFERENCE.md#配置文件)
 
 ### 技术文档
 - [构建系统实现](lyra/build.py)

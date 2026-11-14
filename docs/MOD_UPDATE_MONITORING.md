@@ -122,7 +122,7 @@ MAIL_TO: recipient@example.com
 5. 本地测试构建
 6. 提交更新并更新 `mods.lock.json`
 
-若更新失败，参考 [回滚指南](docs/MOD_UPDATE_ROLLBACK.md)
+若更新失败，参考 [回滚指南](MOD_UPDATE_ROLLBACK.md)
 ```
 
 ## JSON 输出格式
@@ -247,7 +247,7 @@ python tools/check_mod_updates.py --summary
 
 ### 更新失败回滚
 
-参考 [docs/MOD_UPDATE_ROLLBACK.md](docs/MOD_UPDATE_ROLLBACK.md)
+参考 [docs/MOD_UPDATE_ROLLBACK.md](MOD_UPDATE_ROLLBACK.md)
 
 ## 高级用法
 
@@ -285,6 +285,6 @@ python tools/check_mod_updates.py --include-prerelease --summary
 
 ## 相关文档
 
-- [MOD_UPDATE_ROLLBACK.md](docs/MOD_UPDATE_ROLLBACK.md) - 回滚指南
-- [TESTING.md](TESTING.md) - Mod 兼容性测试
-- [MOD_ADDITION_CHECKLIST.md](docs/MOD_ADDITION_CHECKLIST.md) - 添加新 Mod
+- [MOD_UPDATE_ROLLBACK.md](MOD_UPDATE_ROLLBACK.md) - 回滚指南
+- [TESTING.md](../TESTING.md) - Mod 兼容性测试
+- [MOD_ADDITION_CHECKLIST.md](MOD_ADDITION_CHECKLIST.md) - 添加新 Mod
