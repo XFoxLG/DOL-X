@@ -1,57 +1,16 @@
-# 第三方资源分发与免责声明
+# 第三方资源说明
 
-更新日期：2026-11-14。DOL-X 的整合构建、自研兼容源码与第三方作品分别归属各自作者；本仓库的 MIT 许可证不重新授权第三方模组、图片或附件。
+DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建，使用[正式汉化发行](https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization)。游戏、汉化、模组和美术资源分别归各作者所有，原署名、版权和许可证随作品保留。
 
-## 分发规则
+主要来源：
 
-独立模组镜像和后续新增公开构建只提供已有明确分发许可、且已履行其条件的版本。公开仓库、免费下载、社区附件、作者删库或历史构建成功，都不能代替转载授权。六个历史正式整合版的下载于 2026-11-14 恢复，具体范围见下文；这一恢复不改变原作者许可记录。
+- [Degrees of Lewdity](https://gitgud.io/Vrelnir/degrees-of-lewdity)
+- [秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)
+- [作弊拓展](https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended)
+- [AU 模型图片包](https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod)与 [AU Face 脸部扩展](https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/facemod)
+- [D.O.L.I](https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence)
+- [旧版图片名称适配](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat)
 
-- 明确禁止二次分发的作品：不上传镜像，也不把作品内置在公开 ZIP、APK 或 Actions 产物中。
-- 未确认许可的作品：暂停公开附件，只提供原作者页面和版本信息。
-- 附条件允许的作品：保留作者署名、版权、来源及许可文本；遵守非商业、相同方式共享和修改标记等相应条件。
-- 源码、图片与模型、音频、打包子模组逐项核对；框架代码的许可证不能覆盖包内所有第三方作品。
-- 本地测试和私人恢复资料不对外分发；私人存储不扩大作者授予的权利。
+各版本的模组组成见对应 [Release](https://github.com/XFoxLG/DOL-X/releases)。部分附件的作者来源、版本、校验值与许可文本见 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)。使用或分享资源时请遵守各自许可；CC BY-NC-SA 4.0 要求署名、非商业使用、标明修改及相同方式共享，本仓库的 MIT 许可仅适用于本项目自己的代码。
 
-## AU 的核验结果
-
-[AU 作者 README](https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md) 写明：
-
-> AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！
-
-该说明适用于 AU-F 0.9.3、AU-M 0.4.2、AU-A 0.1.1 模型图片包。核验仍未发现允许整合包内置发布的例外。三者的独立镜像暂停；六个历史正式版的 AU 整合原件已恢复下载，作者说明与原作者[下载页面](https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod)继续保留。
-
-AU 面部扩展 1.2.16 是另一件作品，包内列出 snake、aokiutage 的署名，未给出明确转载许可。其[说明消息](https://discord.com/channels/1103864219620884560/1368992933243654164/1566065930646069270)与[附件消息](https://discord.com/channels/1103864219620884560/1368992933243654164/1566065993858682990)分别记录。来源可定位不代表已授权；该附件暂停公开。
-
-AU 的构建码与兼容测试保留作本地验证。后续新增公开构建目前仅选择基础版；Build、Sweep 的上传入口检查实际内嵌模组，不因文件改名而放行 AU 资源。历史原件恢复不修改这些自动上传规则。
-
-## 尚待确认的内容包
-
-枯木逢春 2.5.8 的对应源码没有整体许可证，可选音频的 CC0 许可不能覆盖本体；启示录 1.4.6 的源码含 MIT 许可证，但加密发布附件的内容对应与第三方资源许可仍未核实。两件附件继续暂停公开镜像；上传检查也拒绝内置这两件作品的整合产物，避免通过基础版间接公开。
-
-LongerCombat 1.0.1、YanlingCheatCollection 1.0.1 的原包与可定位来源仍没有明确独立转载许可，独立镜像与后续自动上传规则保持暂停。0802、0804、0808 与 1014 的 8 件历史基础版 ZIP/APK 已恢复；0707、0713 的 4 件基础版原下载保留。原件均已完整保存并重组核验。
-
-## 历史正式版下载
-
-0707、0713、0802、0804、0808、1014 六个历史正式 Release 均提供基础版、AU-F、AU-M、AU-A 的 ZIP 和 APK，共 48 件原发布文件。其中此前撤下的 44 件从完整原件恢复，另外 4 件基础版保留原下载。文件名、下载路径、内容和原作者归属保持一致；附件标识由 GitHub 重新分配。
-
-现行稳定版本与 Latest 保持 [`v0.5.11.9-1.0.0a-1014`](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)，提供该版全部 8 件下载。Build 工作流继续停用，十一月候选继续测试。独立模组镜像、后续新增公开构建的许可核验规则和上述作者限制记录保留。恢复下载不代表获得新的作者授权。恢复清单、隐私核验和具体限制见[保存与整理报告](technical/preservation-privacy-and-distribution-2026-11-13.md)。
-
-## 允许分发时的条件
-
-[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) 明确允许复制、分享和改编，但要求署名、非商业使用、标明修改，并按规定共享改编贡献，不得添加妨碍许可权利的限制。作弊拓展的各归档原包、DOLI 0.2.3 的包内说明，以及 DoL+ 图片源仓库均有对应许可证据。
-
-[Legacy-Art-Mods-Compat 原作者说明](https://github.com/mirrormirroronwall/Legacy-Art-Mods-Compat/blob/main/README.md)写明“可二改二传”。已归档 Plus V1.1 的代码与 chris81605 历史提交 `93b55b28935fca60c34b93905d03b3e929535a04` 一致，该提交 README 也保留此许可；Plus V3 的现行文本不自动代表 V1.1 或所有后来贡献的许可。
-
-每件附件的判断、依据、条件、子包和公开状态见 [DOL-X-Mirrors 分发清单](https://github.com/XFoxLG/DOL-X-Mirrors/blob/main/sources.json)。许可证缺失的历史包通过随附许可与来源说明补齐，原附件字节不改。
-
-## 免责声明
-
-DOL-X 与 DOL-X-Mirrors 由 XFoxLG 独立维护，不是 Vrelnir、汉化组、DoL-Lyra、框架或模组作者的官方发行，不表示这些作者认可、担保或支持本整合。
-
-请优先使用原作者的官方发行。归档的校验值仅用于辨认文件；未经对照的重建附件不保证与失落原件相同，也不保证旧版本在任意游戏或设备上兼容。维护方保留并遵守原许可证的免责条款；此说明不代替分发授权，也不免除依法应承担的责任。
-
-汉化组关于修改版与整合包的[免责声明](https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/blob/main/README.md#%E5%85%8D%E8%B4%A3%E5%A3%B0%E6%98%8E)继续适用：先判断问题是否由整合引入，再向相应维护者反馈，不将本项目的问题转交原作者承担。
-
-## 权利人反馈
-
-权利人或授权代表可通过 [DOL-X-Mirrors Issues](https://github.com/XFoxLG/DOL-X-Mirrors/issues)提供作品来源、涉及的版本或附件以及授权条款。无需在公开帖子提交私人邮箱或身份文件。收到可核对的禁止分发、许可遗漏或署名错误信息后，维护方暂停相关附件并核查，确认后纠正或下架；本项目也主动核查，不以等待投诉作为许可依据。
+本项目由 XFoxLG 独立维护，非游戏、汉化组或模组作者的官方发行。兼容性与已知问题以版本说明为准；本整合的问题请在 [DOL-X Issues](https://github.com/XFoxLG/DOL-X/issues) 反馈，原许可证的免责条款继续适用。

@@ -32,7 +32,7 @@ DOL-X 是 XFox 自用整合包发布仓库。本项目基于 [DoL-Lyra](https://
 
 **本仓库不是 DoL 或汉化组官方发布渠道**
 
-**2026-11-14 下载状态**：0707、0713、0802、0804、0808、1014 六个历史正式版均提供基础版、AU-F、AU-M、AU-A 的 ZIP 与 APK，共 48 件原发布文件。Latest 为 [1014](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)。独立模组镜像继续按已核验的许可提供，十一月候选尚未发布。作者来源与免责声明见[分发说明](docs/DISTRIBUTION_POLICY.md)，恢复核验见[整理报告](docs/technical/preservation-privacy-and-distribution-2026-11-13.md)。
+**当前稳定版：[1014](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)**。提供基础版、AU-F、AU-M、AU-A 的 ZIP 与 APK；历史版本见 [Releases](https://github.com/XFoxLG/DOL-X/releases)。十一月候选仍在测试。
 
 **APK 包名**: DoL XFox (`com.vrelnir.dol.xfox`)
 
@@ -54,7 +54,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 | **基础美化** | BESC 推荐 | UCB 唯一 |
 | **AU 组合** | AU（单独） | AU+UCB |
 | **作弊 Mod** | cheat + CSD | cheatExtended + maplebirch |
-| **构建矩阵** | 约 10 个 | 本地保留 4 码；公开分支与 tag 均只构建基础版 |
+| **发布版本** | 多种模组组合 | 基础版与 AU-F、AU-M、AU-A |
 
 ### 相关文档
 
@@ -67,8 +67,8 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 ## 特色
 
-- ✅ **自动化构建**：保留构建与上游检查流程；公开 Build 工作流目前停用
-- ✅ **本地多版本支持**：基础版 + 3 个 AU 变体（AU-F、AU-M、AU-A）
+- ✅ **自动化构建**：基于 Lyra 构建与上游检查流程
+- ✅ **多版本支持**：基础版 + 3 个 AU 变体（AU-F、AU-M、AU-A）
 - ✅ **现代框架**：秋枫白桦框架 + cheatExtended 作弊扩展
 - ✅ **完整集成**：ModLoader + 汉化 + 美化包（UCB）
 - ✅ **双平台**：ZIP（浏览器版）+ APK（Android 版）
@@ -95,7 +95,7 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 **可选 AU 系列**：
 
 > AU（AOKIUTAGE）是一整套大型美化体系，包含人物模型、服装模型、脸部模型；下面列的是其中的
-> 体型模型（各版本三选一），脸部模型由独立的 AU Face 脸部扩展提供。历史整合的下载状态与独立资源分发规则见[分发说明](docs/DISTRIBUTION_POLICY.md)。
+> 体型模型（各版本三选一），脸部模型由独立的 AU Face 脸部扩展提供。
 
 - AU-F：AU 女性模型 v0.9.3（与上游 Lyra 当前 AU model 对齐）
 - AU-M：AU 男性模型 v0.4.2
@@ -155,11 +155,11 @@ DOL-X 基于 [DoL-Lyra](https://github.com/DoL-Lyra/Lyra) 构建系统，采用"
 
 - **游戏版本**：DoL 0.5.11.9（“伟大等同者”）· **汉化**：1.0.0a
 - **Mod 栈**：maplebirch 4.1.14 + Cheat Extended 1.20 + LongerCombat 1.0.1 + YanlingCheatCollection 1.0.1 + Legacy-Art-Mods-Compat plus 1.0.3-plusV1.1
-- **公开下载**：本版基础及 AU 的 8 件原 ZIP、APK 均已恢复，内容与原发布一致；版本标签与原更新说明保留。
+- **下载**：提供基础版、AU-F、AU-M、AU-A 的浏览器版 ZIP 和安卓版 APK。
 - **测试情况**：AU-F 版已在 MuMu 12（Android 12）上实测换脸 + 桌宠、作弊菜单、存档读写与 37 步开局流程；base / AU-M / AU-A 完成自动构建与打包内容检查，但没有上机。完整边界见 [1014 Release 说明](docs/release-notes/v0.5.11.9-1.0.0a-1014.md)。
 - **框架 4.1.14** 恢复了「每日 NPC 怀孕周期」，并避开更新的框架版本上会让 AU 版换脸直接报错的问题。注意：4.1.14 会向存档写入怀孕名单且没有回滚逻辑，从 1014 退回旧框架后，存档里已写入的怀孕数据将无人处理。
-- 0.5.10.12 线的 `-0808`、`-0804`、`-0802`、`-0713` 与 `-0707` 同样提供四种版本的 ZIP、APK；3.x 源码存档在分支 `vega-archive-0713`。历史恢复核验不代表新版游戏兼容性。
-- **框架留档**：第三方附件迁至 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)，私人恢复保留完整原件。当前只公开已有明确分发许可的附件；MapleBirch 5.6.2 已补齐原许可与第三方说明，旧框架仍逐版本核验。原件、重建件、对应游戏版本与摘要见镜像清单。
+- 0.5.10.12 线的 `-0808`、`-0804`、`-0802`、`-0713` 与 `-0707` 同样提供四种版本的 ZIP、APK；兼容性以对应版本说明为准。
+- **模组附件**：[DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors) 提供部分版本归档，作者来源与校验值见镜像清单。
 - 各版本玩家可感知的变化见 [玩家更新日志](玩家更新日志.md)；当前事实、来源和发布边界见 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
 > **已知边界（当前 4.x 主线）**：
@@ -367,7 +367,7 @@ DoL-{原版版本}-XFox-{汉化版本}-{体型}-{日期}.apk
 
   在使用本整合包出现问题时在未判断问题是否由本整合包引入之前请勿向汉化仓库反馈
 
-- 第三方资源按各作者的分发许可使用，免责声明不代替转载授权。镜像与整合附件的许可状态、署名要求和权利人反馈入口见[分发与免责声明](docs/DISTRIBUTION_POLICY.md)。
+- 第三方作品归各作者所有，来源与许可证见[资源说明](docs/DISTRIBUTION_POLICY.md)。
 
 ## Credits
 
