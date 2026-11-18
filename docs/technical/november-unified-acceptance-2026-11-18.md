@@ -107,6 +107,12 @@ python tools/candidate_acceptance/android_acceptance.py --repo . --variant base 
 `--variant` 取 `base`、`au-f`、`au-m`、`au-a`。已存在诊断阶段报告时，安卓脚本可加
 `--resume-normal` 只重跑正常包恢复与触摸读档。脚本不清除应用数据，也不修改原始快照。
 
+## 公开发布状态
+
+对八件产物执行公开发布检查，结果为 28 处许可待确认：AU-F/M/A 模型图片包原说明禁止再分发，
+AU 面部扩展与枯木逢春 2.5.8、归途之书 1.4.6 的再分发许可尚未确认。因此本候选保持测试身份，
+不进入公开发布，GitHub Latest 与默认版本继续指向 1014。公开发行前需要确认许可，或替换相应组件。
+
 ## 覆盖限制
 
 - 真实安卓设备、HarmonyOS 与个人长期存档尚未验证。
