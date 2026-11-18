@@ -13,6 +13,8 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, unquote, urlparse
 
+import requests
+
 from .code_validation import parse_build_code
 from .combo import CombinationCalculator
 from .paths import BuildPaths
@@ -480,7 +482,15 @@ class ResourceWarmer:
                     filename=filename,
                 )
             )
-            download_file(mod_config.download_url, dest_path, quiet=True)
+            try:
+                download_file(mod_config.download_url, dest_path, quiet=True)
+            except requests.HTTPError as exc:
+                raise RuntimeError(
+                    f"{display_name}（{mod_config.key or mod_config.cache_name}，"
+                    f"版本 {mod_config.release_tag}）无法从记录的下载地址获取："
+                    f"{mod_config.download_url}。该附件当前不可公开下载，"
+                    f"请确认来源是否仍可用。"
+                ) from exc
             self._validate_locked_au_payload_digest(mod_config, dest_path)
             logger.info(f"  {display_name}: 下载完成 ({mod_config.release_tag})")
             return

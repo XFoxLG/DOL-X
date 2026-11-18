@@ -2,6 +2,9 @@ from types import SimpleNamespace
 import hashlib
 import json
 
+import pytest
+import requests
+
 from lyra.config_loader import get_config_loader
 from lyra.config_loader import ModloaderModConfig
 from lyra.paths import BuildPaths
@@ -36,10 +39,39 @@ def test_explicit_warmup_codes_select_requested_public_resources(tmp_path):
         codes=[PUBLIC_BASE_CODE],
     )
 
+    assert "ucb" in resource_warmer.required_feature_ids
+    assert "besc" not in resource_warmer.required_feature_ids
+
     expected_feature_ids = get_enabled_feature_ids(int(PUBLIC_BASE_CODE))
     assert resource_warmer.required_feature_ids == expected_feature_ids
-    assert "ucb" in expected_feature_ids
-    assert "besc" not in expected_feature_ids
+
+
+def test_unreachable_pinned_payload_names_mod_version_and_source(tmp_path, monkeypatch):
+    resource_warmer = ResourceWarmer(BuildPaths(workspace=tmp_path), codes=[PUBLIC_BASE_CODE])
+    mod_config = ModloaderModConfig(
+        github_repo="MaplebirchLeaf/YanlingCheatCollection",
+        asset_pattern="yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip",
+        key="yanling_cheat",
+        name="言灵作弊集",
+        release_tag="v1.0.1",
+        download_url="https://example.invalid/yanling-cheat-mirror-v1.0.1/payload.mod.zip",
+    )
+
+    def raise_missing(*_args, **_kwargs):
+        response = requests.Response()
+        response.status_code = 404
+        response.url = mod_config.download_url
+        raise requests.HTTPError("404 Client Error", response=response)
+
+    monkeypatch.setattr("lyra.warmup.download_file", raise_missing)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        resource_warmer._download_modloader_mod(mod_config, get_config_loader())
+
+    message = str(excinfo.value)
+    assert "言灵作弊集" in message
+    assert "v1.0.1" in message
+    assert mod_config.download_url in message
 
 
 def test_explicit_warmup_codes_do_not_mutate_default_matrix(tmp_path):
