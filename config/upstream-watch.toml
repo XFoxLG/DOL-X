@@ -1,0 +1,37 @@
+# Observed releases, not installed build inputs. Update after reviewing a
+# release; build.toml and mods.lock.json remain the build authority.
+
+[[sources]]
+key = "lyra"
+name = "Lyra（直接上游）"
+repo = "DoL-Lyra/Lyra"
+observed_tag = "v0.5.12.13-1.0.1a-1004.1"
+include_prerelease = true
+
+[[sources]]
+key = "formal_chs"
+name = "正式汉化完整发行"
+repo = "Eltirosto/Degrees-of-Lewdity-Chinese-Localization"
+observed_tag = "v0.5.12.13-chs-1.0.1a"
+
+[[sources]]
+key = "deadwood"
+name = "枯木逢春（新内容候选）"
+repo = "MaplebirchLeaf/Deadwood-Reblooms"
+observed_tag = "v2.5.8"
+
+[[sources]]
+key = "revelation"
+name = "归途之书（新内容候选）"
+repo = "MaplebirchLeaf/Revelation-The-Book-of-Return"
+observed_tag = "v1.4.6"
+asset_pattern = "revelation-the-book-of-return-v1.4.6.modpack"
+sha256 = "4f4c3c9408b2f3a117fdf3f0dffaa746e74ff309b1f64a243d92258dfe1ebefe"
+
+[[sources]]
+key = "ce_modernization"
+name = "CE Modernization（Fork 候选）"
+repo = "102326/Degrees-of-Lewdity_Cheat_Extended-Modernization"
+observed_tag = "v1.20.3.1-rebuild.30"
+asset_pattern = "*.zip"
+sha256 = "92db93acb221731334d72ef0922adf5c5f777550f621f09cc51b609236b91e89"

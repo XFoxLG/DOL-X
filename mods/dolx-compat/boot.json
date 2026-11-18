@@ -1,0 +1,31 @@
+{
+  "name": "dolx-compat",
+  "version": "1.0.1",
+  "nickName": {
+    "en": "DOL-X Compatibility Pack",
+    "cn": "DOL-X 兼容包"
+  },
+  "scriptFileList": [
+    "au-compat.js"
+  ],
+  "replacePatchList": [
+    "patches/weather-location.json"
+  ],
+  "styleFileList": [],
+  "tweeFileList": [],
+  "imgFileList": [],
+  "dependenceInfo": [
+    {
+      "modName": "GameVersion",
+      "version": "=0.5.12.13"
+    },
+    {
+      "modName": "maplebirch",
+      "version": "=5.6.2"
+    }
+  ],
+  "additionFile": [
+    "README.md",
+    "LICENSE-WEATHER.txt"
+  ]
+}

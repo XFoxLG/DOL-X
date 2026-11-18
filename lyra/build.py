@@ -6,11 +6,13 @@
 """
 
 import html
+import io
 import json
 import logging
 import re
 import shutil
 import zipfile
+import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -34,6 +36,8 @@ from .lyra_mod import build_lyra_mod
 from .combo import CombinationCalculator
 from .config_loader import load_build_config, get_config_loader
 from .prepare import ModInjector
+from .mod_archive import zip_without_empty_directories
+from .candidate_compat import au_pet_default_mask, patch_au_m_body, patch_candidate_payload, validate_weather_location_patch
 from .utils import (
     extract_zip,
     create_zip,
@@ -257,6 +261,12 @@ MAPLEBIRCH_PET_REMOUNT_NEW = (
 )
 
 MAPLEBIRCH_PET_REMOUNT_MARKER = "dolxPetRemountAfterPassageDisplay"
+# 5.6.2 wraps the sidebar macro and also syncs at passageend itself. Recognize
+# this exact published implementation; do not insert the obsolete 4.x patch.
+MAPLEBIRCH_PET_UPSTREAM_562 = (
+    'e.tool.macro.wrap("updatesidebarimg",function(e){let r=e();return t.sync(),r},'
+    '"storyready"),e.on(":passageend",()=>void t.sync())'
+)
 
 # DoL assumes every face style has a variant whose code value is "default".
 # Third-party AU face styles instead register their real image-directory names,
@@ -612,6 +622,11 @@ def patch_maplebirch_pet_passage_remount(
                 "utf-8",
                 errors="replace",
             )
+            if original_script.count(MAPLEBIRCH_PET_UPSTREAM_562) == 1:
+                boot = json.loads(source_zip.read("boot.json"))
+                if boot["version"] == "5.6.2":
+                    result["status"] = "upstream_managed"
+                    return result
             # The replacement keeps the original preInit() text and appends the
             # :passagedisplay subscription, so the marker - not the needle - is
             # what distinguishes an already patched payload.
@@ -866,6 +881,41 @@ class PackageBuilder(ABC):
             & (ModCode.AU_FEMALE | ModCode.AU_MALE | ModCode.AU_ANDROGYNOUS)
         )
 
+    def _uses_modern_au_face(self) -> bool:
+        """Select the reviewed native AU integration by both actual payloads."""
+        if not self._has_au_feature():
+            return False
+        mods = {m.cache_name: m for m in load_build_config().modloader_mods if m.enabled}
+        if "au_face" not in mods or "maplebirch" not in mods:
+            return False
+        if (mods["maplebirch"].release_tag, mods["au_face"].release_tag) != (
+            "maplebirch-release-v5.6.2", "community-v1.2.16"
+        ):
+            return False
+        identities = []
+        for key in ("maplebirch", "au_face"):
+            with zipfile.ZipFile(self.paths.get_mod_cache_path(key)) as archive:
+                boot = json.loads(archive.read("boot.json"))
+            identities.append((boot["name"], boot["version"]))
+        return identities == [("maplebirch", "5.6.2"), ("AU面部扩展", "1.2.16")]
+
+    def _uses_modern_framework(self) -> bool:
+        return any(m.enabled and m.cache_name == "maplebirch"
+                   and m.release_tag == "maplebirch-release-v5.6.2"
+                   for m in load_build_config().modloader_mods)
+
+    def _uses_reviewed_legacy_framework(self) -> bool:
+        """Select the existing 4.1.14 payload before applying shared mod fixes."""
+        if not self.mod_code & ModCode.CHEAT_EXTENDED_MAPLEBIRCH:
+            return False
+        mods = {mod.cache_name: mod for mod in load_build_config().modloader_mods if mod.enabled}
+        framework = mods.get("maplebirch")
+        if framework is None or framework.release_tag != "maplebirch-release-v4.1.14":
+            return False
+        with zipfile.ZipFile(self.paths.get_mod_cache_path("maplebirch")) as archive:
+            boot = json.loads(archive.read("boot.json"))
+        return (boot["name"], boot["version"]) == ("maplebirch", "4.1.14")
+
     def _apply_au_face_compatibility_aliases(self) -> list[str]:
         """
         为运行时请求的嵌套 default face 路径补齐兼容别名。
@@ -920,6 +970,10 @@ class PackageBuilder(ABC):
             result["status"] = "not_applicable"
             return result
 
+        if self._uses_modern_au_face():
+            result["status"] = "upstream_managed"
+            return result
+
         if not self.html_path.exists():
             raise RuntimeError(
                 f"AU face variant source validation failed: missing HTML {self.html_path}"
@@ -963,12 +1017,59 @@ class PackageBuilder(ABC):
 
     def _modloader_mod_path_for_injection(self, mod_config, mod_path: Path) -> Path:
         """Return the payload path to inject, applying build-local hotfixes."""
+        if mod_config.cache_name == "dolx_compat":
+            errors = compatibility_source_errors(compatibility_surface_by_key("dolx_compat_weather_location"), mod_config)
+            if errors or not self._uses_modern_framework():
+                raise RuntimeError("DOL-X weather compatibility source mismatch: " + "; ".join(errors))
+            validate_weather_location_patch(self.html_path.read_text(encoding="utf-8"), mod_path)
+        if mod_config.cache_name == "maplebirch" and self._uses_modern_framework():
+            # The 0.5.12.13 renderer still preloads its published legacy pattern
+            # name. Keep that public name backed by the renamed original image.
+            source = self.img_path / "ui" / "sym-harmony.png"
+            target = self.img_path / "ui" / "wolfharmony.png"
+            if not target.exists():
+                shutil.copy2(source, target)
+            if self._uses_modern_au_face():
+                errors = compatibility_source_errors(compatibility_surface_by_key("au_pet_default_mask"), mod_config)
+                if errors:
+                    raise RuntimeError("AU pet default source mismatch: " + "; ".join(errors))
+                target = self.paths.temp_dir / f"maplebirch-{self.pack_type}-{self.task.code_str}.au-default.mod.zip"
+                with zipfile.ZipFile(mod_path) as source, zipfile.ZipFile(target, 'w') as archive:
+                    source.getinfo('dist/inject_early.js')
+                    for entry in source.infolist():
+                        data = source.read(entry)
+                        if entry.filename == 'dist/inject_early.js':
+                            data = au_pet_default_mask(data.decode('utf-8')).encode('utf-8')
+                        archive.writestr(entry, data)
+                mod_path = target
+        if mod_config.cache_name == "au_m" and self._uses_modern_au_face():
+            target = self.paths.temp_dir / f"au_m-{self.pack_type}-{self.task.code_str}.body-frame.mod.zip"
+            return patch_au_m_body(mod_config, mod_path, target)
+        if mod_config.cache_name == "au_face" and self._uses_modern_au_face():
+            source_errors = compatibility_source_errors(compatibility_surface_by_key("au_face_archive_directories"), mod_config)
+            if source_errors:
+                raise RuntimeError("AU face archive source mismatch: " + "; ".join(source_errors))
+            target = self.paths.temp_dir / f"au_face-{self.pack_type}-{self.task.code_str}.normalized.mod.zip"
+            target.write_bytes(zip_without_empty_directories(mod_path.read_bytes()))
+            return target
         if mod_config.cache_name == MORE_LOVE_CACHE_NAME:
-            return self._patch_more_love_payload(mod_config, mod_path)
+            mod_path = self._patch_more_love_payload(mod_config, mod_path)
         if mod_config.cache_name == DOLI_CACHE_NAME:
-            return self._patch_doli_payload(mod_config, mod_path)
+            mod_path = self._patch_doli_payload(mod_config, mod_path)
         if mod_config.cache_name == MAPLEBIRCH_CACHE_NAME:
             return self._patch_maplebirch_payload(mod_config, mod_path)
+        common_legacy_fix = (
+            mod_config.cache_name in ("custom_hair", "legacy_art_compat", "more_love", "cheat_extended")
+            and self._uses_reviewed_legacy_framework()
+        )
+        if common_legacy_fix or (self._uses_modern_framework() and (mod_config.cache_name in ("custom_hair", "doli", "cheat_extended", "legacy_art_compat") or (
+            mod_config.cache_name == MORE_LOVE_CACHE_NAME
+            and mod_config.release_tag == "More-Love-Interests-Mod-v0.1.8.0"
+        ))):
+            target = self.paths.temp_dir / f"{mod_config.cache_name}-{self.pack_type}-{self.task.code_str}.runtime.mod.zip"
+            base_paths = sorted('img/' + p.relative_to(self.img_path).as_posix()
+                                for p in self.img_path.rglob('*.png')) if mod_config.cache_name == "legacy_art_compat" else ()
+            return patch_candidate_payload(mod_config, mod_path, target, base_paths)
         return mod_path
 
     def _patch_more_love_payload(self, mod_config, mod_path: Path) -> Path:
@@ -1019,7 +1120,13 @@ class PackageBuilder(ABC):
 
     def _patch_maplebirch_payload(self, mod_config, mod_path: Path) -> Path:
         """Apply the Maplebirch compatibility patches that remain justified."""
-        return self._patch_maplebirch_pet_remount(mod_config, mod_path)
+        mod_path = self._patch_maplebirch_pet_remount(mod_config, mod_path)
+        if self._uses_reviewed_legacy_framework():
+            target = self.paths.temp_dir / f"maplebirch-{self.pack_type}-{self.task.code_str}.face-assets.mod.zip"
+            base_paths = sorted('img/' + path.relative_to(self.img_path).as_posix()
+                                for path in self.img_path.rglob('*.png'))
+            return patch_candidate_payload(mod_config, mod_path, target, base_paths)
+        return mod_path
 
     def _patch_maplebirch_pet_remount(self, mod_config, mod_path: Path) -> Path:
         """Re-sync the desktop pet after a passage rebuilds the footer container."""
@@ -1045,6 +1152,9 @@ class PackageBuilder(ABC):
                 mod_config,
                 patched_path,
             )
+        if status == "upstream_managed":
+            logger.info("Maplebirch 5.6.2 provides its own passage-end pet synchronization")
+            return self._patch_maplebirch_au_face_variants(mod_config, mod_path)
         if is_patch_success_status(status):
             logger.info("Maplebirch pet remount compatibility patch already present")
             return self._patch_maplebirch_au_face_variants(mod_config, mod_path)
@@ -1059,6 +1169,10 @@ class PackageBuilder(ABC):
     ) -> Path:
         """Repair AU style/variant pairs after ModI18N translates passages."""
         if not self._has_au_feature():
+            return mod_path
+
+        if self._uses_modern_au_face():
+            logger.info("AU face 1.2.16 handles the MapleBirch 5.6.2 face API locally")
             return mod_path
 
         patch_surface = compatibility_surface_by_key(
@@ -1300,10 +1414,11 @@ class ZipBuilder(PackageBuilder):
             )
 
         except Exception as e:
-            logger.error(f"ZIP构建失败: {e}")
+            error = f"{type(e).__name__}: {e}"
+            logger.error(f"ZIP构建失败: {error}")
             if self.work_dir.exists():
                 safe_remove(self.work_dir)
-            return BuildResult(success=False, error=str(e))
+            return BuildResult(success=False, error=error)
 
 
 class ApkBuilder(PackageBuilder):
@@ -1348,9 +1463,14 @@ class ApkBuilder(PackageBuilder):
 
             # 复制已解包APK目录
             copy_directory(apk_dir, self.work_dir)
+            self._apply_identity()
+            self._ensure_external_mod_manifest()
+            bridge_patched = self._patch_cordova_js_interface()
 
             # 应用美化
             applied_mods = self._apply_beautify()
+            if bridge_patched:
+                applied_mods.append("Cordova JavaScript interface visibility")
 
             if self._apply_au_face_compatibility_aliases():
                 applied_mods.append("AU face compatibility aliases")
@@ -1393,10 +1513,57 @@ class ApkBuilder(PackageBuilder):
             )
 
         except Exception as e:
-            logger.error(f"APK构建失败: {e}")
+            error = f"{type(e).__name__}: {e}"
+            logger.error(f"APK构建失败: {error}")
             if self.work_dir.exists():
                 safe_remove(self.work_dir)
-            return BuildResult(success=False, error=str(e))
+            return BuildResult(success=False, error=error)
+
+    def _ensure_external_mod_manifest(self) -> None:
+        # The embedded APK has no separately hosted mod ZIPs. RemoteLoader still
+        # reads this manifest; absence produces a real Cordova fetch error.
+        manifest = self.work_dir / "assets/www/modList.json"
+        if not manifest.exists():
+            manifest.write_text("[]\n", encoding="utf-8")
+
+    def _patch_cordova_js_interface(self) -> bool:
+        """Keep the published Cordova bridge callable by WebView reflection."""
+        if not self._uses_modern_framework():
+            return False
+        path = self.work_dir / "smali/org/apache/cordova/engine/SystemExposedJsApi.smali"
+        original = ".class Lorg/apache/cordova/engine/SystemExposedJsApi;"
+        public = ".class public Lorg/apache/cordova/engine/SystemExposedJsApi;"
+        text = path.read_text(encoding="utf-8")
+        if public in text:
+            return False
+        if text.count(original) != 1:
+            raise RuntimeError("Cordova JavaScript interface source drift; review the APK bridge declaration")
+        path.write_text(text.replace(original, public, 1), encoding="utf-8")
+        return True
+
+    def _apply_identity(self) -> None:
+        """Apply this build's identity even when prepare used another config."""
+        config = load_build_config()
+        android = "{http://schemas.android.com/apk/res/android}"
+        ET.register_namespace("android", android[1:-1])
+        manifest_path = self.work_dir / "AndroidManifest.xml"
+        manifest = ET.parse(manifest_path)
+        root = manifest.getroot()
+        previous = root.attrib["package"]
+        root.set("package", config.identity_package)
+        # Provider authority belongs to the installed package. Activity class
+        # names belong to the compiled code and must retain their original name.
+        for provider in root.findall("./application/provider"):
+            authority = provider.get(android + "authorities", "")
+            if authority == previous or authority.startswith(previous + "."):
+                provider.set(android + "authorities", config.identity_package + authority[len(previous):])
+        manifest.write(manifest_path, encoding="utf-8", xml_declaration=True)
+        strings_path = self.work_dir / "res/values/strings.xml"
+        strings = ET.parse(strings_path)
+        for item in strings.getroot().findall("string"):
+            if item.get("name") in ("app_name", "activity_name", "launcher_name"):
+                item.text = config.identity_apk_name
+        strings.write(strings_path, encoding="utf-8", xml_declaration=True)
 
     def _recompile(self) -> Path:
         """重新编译APK"""

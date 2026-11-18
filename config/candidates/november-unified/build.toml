@@ -1,0 +1,308 @@
+
+[urls]
+apktool = "https://github.com/iBotPeaches/Apktool/releases/download/v2.12.0/apktool_2.12.0.jar"
+uber_apk_signer = "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
+
+dolp_base = "https://gitgud.io/Frostberg/degrees-of-lewdity-plus/-/archive/master/degrees-of-lewdity-plus-master.tar.gz?path=imagepacks"
+
+[paths]
+workspace = "workspace"
+output = "output/candidate-unified"
+
+extract = "extract"
+temp = "temp"
+signed = "signed"
+base = "base"
+prepare_package = "prepare_package"
+
+[github]
+owner = "XFoxLG"
+repo = "DOL-X"
+
+[identity]
+name = "XFox-Candidate-unified"
+apk_name = "DoL XFox Candidate unified"
+package = "com.vrelnir.dol.xfox.candidate.unified"
+
+[[apk.replacements]]
+file = "AndroidManifest.xml"
+pattern = '"com.vrelnir.dol"'
+replacement = "\"com.vrelnir.dol.xfox.candidate.unified\""
+
+[[apk.replacements]]
+file = "AndroidManifest.xml"
+pattern = '"com.vrelnir.dol_debug"'
+replacement = "\"com.vrelnir.dol.xfox.candidate.unified\""
+
+[[apk.replacements]]
+file = "AndroidManifest.xml"
+pattern = '"com.vrelnir.dol.androidx-startup"'
+replacement = "\"com.vrelnir.dol.xfox.candidate.unified.androidx-startup\""
+
+[[apk.replacements]]
+file = "AndroidManifest.xml"
+pattern = '"com.vrelnir.dol_debug.androidx-startup"'
+replacement = "\"com.vrelnir.dol.xfox.candidate.unified.androidx-startup\""
+
+[[apk.replacements]]
+file = "res/values/strings.xml"
+pattern = "DoL"
+replacement = "DoL XFox Candidate unified"
+
+[[apk.replacements]]
+file = "res/values/strings.xml"
+pattern = "Degrees of Lewdity"
+replacement = "DoL XFox Candidate unified"
+
+[[apk.replacements]]
+file = "assets/www/index.html"
+pattern = "saveAs("
+replacement = "cordova.plugins.saveDialog.saveFile("
+
+
+[imagepacks.besc]
+name = "besc"
+urls = [
+    "{dolp_base}/dolp",
+    "{dolp_base}/b3s",
+    "{dolp_base}/kaervek",
+    "{dolp_base}/dolp_b3s",
+]
+
+[imagepacks.besc.case_fixes]
+"img/hair/fringe/Messy curls" = "img/hair/fringe/messy curls"
+"img/hair/sides/messy ponytail/Shoulder.png" = "img/hair/sides/messy ponytail/shoulder.png"
+
+[imagepacks.hikari]
+name = "hikari"
+urls = ["{dolp_base}/b3s_hikfem", "{dolp_base}/b3s_hikfemsubs"]
+files_to_remove = [
+    "img/hair/fringe/Messy curls",
+    "img/clothes/face/foxmask/Full.png",
+]
+
+[imagepacks.goose]
+name = "goose"
+urls = ["{dolp_base}/dolp", "{dolp_base}/goosefem", "{dolp_base}/goosefemsubs"]
+
+[imagepacks.ucb]
+name = "ucb"
+urls = [
+    "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/imagepack-mirror-v1/degrees-of-lewdity-plus-master-imagepacks-mysterious.tar.gz",
+    "{dolp_base}/mysterious"
+]
+files_to_remove = [
+    "img/sex/missionary/active/virginkiller/chest.png",
+    "img/sex/missionary/active/virginkiller/waist.png",
+]
+
+[[modloader_mods]]
+key = "maplebirch"
+name = "maplebirch"
+enabled = true
+feature_id = "cheat_extended_maplebirch"
+github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+asset_pattern = "maplebirch-0.5.12.13-v5.6.2.mod.zip"
+release_tag = "maplebirch-release-v5.6.2"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/maplebirch-release-v5.6.2/maplebirch-0.5.12.13-v5.6.2.mod.zip"
+track_upstream = false  # 使用已核验原件镜像，来源仓库保留原作者；更新评估独立于候选构建
+
+[[modloader_mods]]
+key = "au_f"
+feature_id = "au-f"
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUfemale.model_v0.9.3.zip"
+download_url = "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUfemale.model_v0.9.3.zip"
+release_tag = "mod"
+track_upstream = false  # 锁定精确 model asset，release tag 恒为 "mod"，无版本可追
+
+[[modloader_mods]]
+key = "au_m"
+feature_id = "au-m"
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUmale.model_v0.4.2.zip"
+download_url = "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUmale.model_v0.4.2.zip"
+release_tag = "mod"
+track_upstream = false  # 锁定精确 model asset，release tag 恒为 "mod"，无版本可追
+
+[[modloader_mods]]
+key = "au_a"
+feature_id = "au-a"
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUandrogynous.model_v0.1.1.zip"
+download_url = "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUandrogynous.model_v0.1.1.zip"
+release_tag = "mod"
+track_upstream = false  # 锁定精确 model asset，release tag 恒为 "mod"，无版本可追
+
+[[modloader_mods]]
+key = "au_face"
+name = "AU面部扩展"
+enabled = true
+feature_ids = ["au-f", "au-m", "au-a"]
+github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
+asset_pattern = "AUsDoL-facial-expansion-v1.2.16.zip"
+local_path = "inputs/AUsDoL-facial-expansion-v1.2.16.zip"
+release_tag = "community-v1.2.16"
+track_upstream = false
+
+[[modloader_mods]]
+key = "dolx_compat"
+name = "DOL-X 兼容包"
+enabled = true
+feature_id = "ucb"
+github_repo = "XFoxLG/DOL-X"
+asset_pattern = "dolx-compat.mod.zip"
+release_tag = "1.0.1"
+source_dir = "../../../mods/dolx-compat"
+track_upstream = false
+
+[[modloader_mods]]
+key = "more_love"
+name = "更多恋人"
+enabled = true
+feature_id = "more_love"
+github_repo = "Nephthelana/DoL-More-Love-Interests-Mod"
+asset_pattern = "More.Love.Interests.Mod.mod.zip"
+release_tag = "More-Love-Interests-Mod-v0.1.8.0"
+download_url = "https://github.com/Nephthelana/DoL-More-Love-Interests-Mod/releases/download/More-Love-Interests-Mod-v0.1.8.0/More.Love.Interests.Mod.mod.zip"
+track_upstream = false  # 锁定 v0.1.8.0，下载地址固定到已核验附件
+
+[[modloader_mods]]
+key = "cheat_extended"
+name = "cheatExtended"
+enabled = true
+feature_id = "cheat_extended_maplebirch"
+github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
+asset_pattern = "cheat_extended.mod.zip"
+release_tag = "1.20.3"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/cheat-extended-v1.20.3.1/cheat_extended.mod.zip"
+track_upstream = false
+include_prerelease_updates = true  # 作者惯用发布渠道承载开发版并原位换包，周检必须读发布列表并比对 asset digest
+
+[[modloader_mods]]
+key = "custom_hair"
+name = "自定义染发"
+enabled = true
+feature_id = "custom_hair"
+github_repo = "HiddenCirno/DoL-CustomHair"
+asset_pattern = "CustomHair.zip"
+release_tag = "CustomHair"
+download_url = "https://github.com/HiddenCirno/DoL-CustomHair/releases/download/CustomHair/CustomHair.zip"
+track_upstream = false  # 锁定固定 tag CustomHair，非语义版本，无 latest 可比
+
+[[modloader_mods]]
+key = "mae_picvary"
+name = "NPC侧边栏头像"
+enabled = true
+feature_id = "mae_picvary"
+github_repo = "Maenoko/Mae-s-Picvary-NPC-mod"
+asset_pattern = "*.zip"
+release_tag = "DOL"
+download_url = "https://github.com/Maenoko/Mae-s-Picvary-NPC-mod/releases/download/DOL/Mea.s.Picvary.NPC.all.mod.1.3.2.zip"
+track_upstream = false  # 锁定固定 tag DOL，download_url 钉死 1.3.2 asset
+
+[[modloader_mods]]
+key = "longer_combat"
+name = "更长遭遇战"
+enabled = false
+feature_id = "maplebirch_expansion"
+github_repo = "MaplebirchLeaf/LongerCombat"  # 上游已删库，仅保留来源标注
+asset_pattern = "longer-combat-0.5.10.12-v1.0.1.mod.zip"
+release_tag = "v1.0.1"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/longer-combat-mirror-v1.0.1/longer-combat-0.5.10.12-v1.0.1.mod.zip"
+track_upstream = false  # 上游仓库已删除，无可追对象
+
+[[modloader_mods]]
+key = "yanling_cheat"
+name = "言灵作弊集"
+enabled = false
+feature_id = "maplebirch_expansion"
+github_repo = "MaplebirchLeaf/YanlingCheatCollection"  # 上游已删库，仅保留来源标注
+asset_pattern = "yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
+release_tag = "v1.0.1"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/yanling-cheat-mirror-v1.0.1/yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
+track_upstream = false  # 上游仓库已删除，无可追对象
+
+[[modloader_mods]]
+key = "guide_to_me"
+name = "控制NPC嘴部"
+enabled = true
+feature_id = "guide_to_me"
+github_repo = "Ayndpa/DOL-GuideToMe"
+asset_pattern = "*.zip"
+release_tag = "1.1.0"
+download_url = "https://github.com/Ayndpa/DOL-GuideToMe/releases/download/1.1.0/GuideToMe.zip"
+track_upstream = false  # 锁定 1.1.0，download_url 钉死具体 asset
+
+[[modloader_mods]]
+key = "neoui_patch"
+name = "NeoUI Patch"
+enabled = true
+feature_id = "neoui_patch"
+github_repo = "RyaraSUKI/dol-neoui-patch"
+asset_pattern = "*.zip"
+release_tag = "release"
+download_url = "https://github.com/RyaraSUKI/dol-neoui-patch/releases/download/release/neoui_patch_1.1.0.zip"
+track_upstream = false  # 已升必选，锁定 tag release，不追上游
+
+[[modloader_mods]]
+key = "npc_social_icon"
+name = "NPC社交栏头像"
+enabled = true
+feature_id = "npc_social_icon"
+github_repo = "Eudemonism00/DOL-NPC-Avatars-Mod"
+asset_pattern = "*.mod.zip"
+release_tag = "1.4"
+download_url = "https://github.com/Eudemonism00/DOL-NPC-Avatars-Mod/releases/download/1.4/NPC.Avatars.Mod.mod.zip"
+track_upstream = false  # 锁定 tag 1.4，download_url 钉死具体 asset
+
+[[modloader_mods]]
+key = "doli"
+name = "D.O.L.I"
+enabled = true
+feature_id = "doli"
+github_repo = "ArsNativa/Degrees-of-Lewdity-Intelligence"
+asset_pattern = "DOLI.mod.zip"
+release_tag = "v0.2.3"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/doli-v0.2.3/DOLI.mod.zip"
+
+[[modloader_mods]]
+key = "legacy_art_compat"
+name = "旧版图片名称适配"
+enabled = true
+feature_ids = ["cheat_extended_maplebirch"]
+github_repo = "XFoxLG/DOL-X"
+asset_pattern = "Legacy-Art-Mods-Compat.zip"
+release_tag = "legacy-art-compat-plus-v1.1"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/legacy-art-compat-plus-v1.1/Legacy-Art-Mods-Compat.zip"
+track_upstream = false  # 社区二改，不走官方源更新检查；SHA-256 由 mods.lock.json 审核
+
+
+[[modloader_mods]]
+key = "deadwood"
+name = "deadwood-reblooms"
+enabled = true
+feature_id = "maplebirch_expansion"
+github_repo = "MaplebirchLeaf/Deadwood-Reblooms"
+release_tag = "v2.5.8"
+asset_pattern = "deadwood-reblooms-0.5.12.13-v2.5.8.modpack"
+download_url = "https://github.com/MaplebirchLeaf/Deadwood-Reblooms/releases/download/v2.5.8/deadwood-reblooms-0.5.12.13-v2.5.8.modpack"
+track_upstream = false
+[[modloader_mods]]
+key = "revelation"
+name = "revelation-the-book-of-return"
+enabled = true
+feature_id = "maplebirch_expansion"
+github_repo = "MaplebirchLeaf/Revelation-The-Book-of-Return"
+release_tag = "v1.4.6"
+asset_pattern = "revelation-the-book-of-return-v1.4.6.modpack"
+download_url = "https://github.com/MaplebirchLeaf/Revelation-The-Book-of-Return/releases/download/v1.4.6/revelation-the-book-of-return-v1.4.6.modpack"
+track_upstream = false
+[[base_mods]]
+key = "modloader_gui"
+github_repo = "DoL-Lyra/sugarcube-2-ModLoaderGui"
+inject = "replace"
+replace_slot = 0                                  # 替换原始 ModLoader (slot 0)
+
+[[base_mods]]
+key = "i18n"

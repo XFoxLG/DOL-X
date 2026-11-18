@@ -1,0 +1,136 @@
+{
+  "public_mirror_repo": "XFoxLG/DOL-X-Mirrors",
+  "assets_verified": 35,
+  "candidate_inputs": {
+    "maplebirch": {
+      "url": "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/maplebirch-release-v5.6.2/maplebirch-0.5.12.13-v5.6.2.mod.zip",
+      "sha256": "d926f6188c4abb950d1f5f4657a1b142613dc5613a47004876f8f26793b99f76",
+      "source": "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/tag/maplebirch-release-v5.6.2"
+    },
+    "au_f": {
+      "sha256": "6c20236bc300d794ef2e77027d0d816d3ef4f2460282a5cac43aacbecc4206a0",
+      "source": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod",
+      "redistribution": {
+        "status": "prohibited",
+        "public": false,
+        "reason": "AU 作者明确禁止二次分发，没有找到整合公开的例外。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "upstream",
+            "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md#L3",
+            "quote": "AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！"
+          }
+        ],
+        "conditions": [
+          "不公开镜像，也不内置于公开整合包或 Actions 下载"
+        ]
+      },
+      "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUfemale.model_v0.9.3.zip"
+    },
+    "au_m": {
+      "sha256": "c46389de100c2b6c681846aa28e054fd09053e3b55d03988b25c7fe93259efae",
+      "source": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod",
+      "redistribution": {
+        "status": "prohibited",
+        "public": false,
+        "reason": "AU 作者明确禁止二次分发，没有找到整合公开的例外。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "upstream",
+            "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md#L3",
+            "quote": "AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！"
+          }
+        ],
+        "conditions": [
+          "不公开镜像，也不内置于公开整合包或 Actions 下载"
+        ]
+      },
+      "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUmale.model_v0.4.2.zip"
+    },
+    "au_a": {
+      "sha256": "e93c82e20fbb8e809d2bc05365209ebb4aafc47fefd50038fcc982454a335cd9",
+      "source": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod",
+      "redistribution": {
+        "status": "prohibited",
+        "public": false,
+        "reason": "AU 作者明确禁止二次分发，没有找到整合公开的例外。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "upstream",
+            "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md#L3",
+            "quote": "AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！"
+          }
+        ],
+        "conditions": [
+          "不公开镜像，也不内置于公开整合包或 Actions 下载"
+        ]
+      },
+      "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUandrogynous.model_v0.1.1.zip"
+    },
+    "au_face": {
+      "sha256": "82425f8c36cd510133f962f21270a031bf6f054517cdfbec4ace9cec4e4c31f5",
+      "source": "https://discord.com/channels/1103864219620884560/1368992933243654164/1566065993858682990",
+      "redistribution": {
+        "status": "unconfirmed",
+        "public": false,
+        "reason": "snake / aokiutage 包内署名没有转载许可；Discord 说明与附件可定位，许可尚未确认。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "archive_member",
+            "path": "README.md",
+            "quote": "原作者：snake；适配二改：aokiutage"
+          },
+          {
+            "kind": "source",
+            "url": "https://discord.com/channels/1103864219620884560/1368992933243654164/1566065993858682990"
+          }
+        ],
+        "conditions": []
+      },
+      "local_path": "inputs/AUsDoL-facial-expansion-v1.2.16.zip"
+    },
+    "cheat_extended": {
+      "url": "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/cheat-extended-v1.20.3.1/cheat_extended.mod.zip",
+      "sha256": "16da93387fc026ef6a5fe402e032bd4fd3794cae6487f959b9b85b701d02ac1e",
+      "source": "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/tag/1.20.3"
+    },
+    "doli": {
+      "url": "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/doli-v0.2.3/DOLI.mod.zip",
+      "sha256": "82785c3d6d8a5f311763190e8429b77dfd1f1130c1dcfd95d2ab77187e356890",
+      "source": "https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence/releases/tag/v0.2.3"
+    },
+    "deadwood": {
+      "url": "https://github.com/MaplebirchLeaf/Deadwood-Reblooms/releases/download/v2.5.8/deadwood-reblooms-0.5.12.13-v2.5.8.modpack",
+      "sha256": "6fcbb46a4267001927f96f7b6241099b4ceb96a8c7006aa86568d22bba1ba246",
+      "source": "https://github.com/MaplebirchLeaf/Deadwood-Reblooms/releases/tag/v2.5.8",
+      "redistribution": {
+        "status": "unconfirmed",
+        "public": false,
+        "reason": "许可尚未逐项确认，暂停公开下载；保留原作者来源。",
+        "checked_at": "2026-11-13",
+        "evidence": [],
+        "conditions": []
+      }
+    },
+    "revelation": {
+      "url": "https://github.com/MaplebirchLeaf/Revelation-The-Book-of-Return/releases/download/v1.4.6/revelation-the-book-of-return-v1.4.6.modpack",
+      "sha256": "4f4c3c9408b2f3a117fdf3f0dffaa746e74ff309b1f64a243d92258dfe1ebefe",
+      "source": "https://github.com/MaplebirchLeaf/Revelation-The-Book-of-Return/releases/tag/v1.4.6",
+      "redistribution": {
+        "status": "unconfirmed",
+        "public": false,
+        "reason": "许可尚未逐项确认，暂停公开下载；保留原作者来源。",
+        "checked_at": "2026-11-13",
+        "evidence": [],
+        "conditions": []
+      }
+    }
+  },
+  "old_links_retained": false,
+  "rights_reviewed_at": "2026-11-13",
+  "source_policy": "禁止或未确认分发的旧镜像已暂停；本地输入不依赖私人服务。"
+}

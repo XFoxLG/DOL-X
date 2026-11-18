@@ -7,16 +7,16 @@ import json
 import os
 import re
 import sys
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 import requests
 from packaging.version import parse as parse_version, InvalidVersion
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lyra.config_loader import load_build_config
+from lyra.config_loader import get_config_loader, load_build_config
 
 
 def github_headers() -> dict[str, str]:
@@ -52,13 +52,7 @@ def select_release_asset(release: dict, asset_pattern: str) -> dict | None:
 
 def load_mods_lock(lock_path: Path) -> dict:
     """Load mods.lock.json for risk assessment."""
-    if not lock_path.exists():
-        return {}
-    try:
-        return json.loads(lock_path.read_text(encoding='utf-8'))
-    except Exception as e:
-        print(f"Warning: Failed to load mods.lock.json: {e}")
-        return {}
+    return json.loads(lock_path.read_text(encoding='utf-8'))
 
 
 def extract_changelog(release_body: str, max_chars: int = 500) -> str:
@@ -105,10 +99,9 @@ def assess_risk(
     """Assess update risk based on version change and lock file notes."""
     risk_notes = []
     
-    # Pre-release always medium risk
+    # A pre-release must not hide a major-version or known compatibility risk.
     if is_prerelease:
         risk_notes.append("Pre-release version (beta/rc)")
-        return "medium", risk_notes
     
     # Check lock file for known issues
     mod_lock = lock_data.get("mods", {}).get(mod_key, {})
@@ -134,13 +127,16 @@ def assess_risk(
         
         # Minor version change
         if current_ver.minor != latest_ver.minor:
+            has_known_issue = any(note.startswith("Known issue:") for note in risk_notes)
             risk_notes.append(f"Minor version change: {current_ver.minor} → {latest_ver.minor}")
-            if risk_notes:  # Has compatibility warnings
+            if has_known_issue:
                 return "high", risk_notes
             return "medium", risk_notes
         
         # Patch version change
-        return "low", risk_notes or ["Patch update"]
+        if any(note.startswith("Known issue:") for note in risk_notes):
+            return "high", risk_notes
+        return ("medium" if is_prerelease else "low"), risk_notes or ["Patch update"]
         
     except (InvalidVersion, AttributeError):
         # Can't parse version, use heuristic
@@ -169,12 +165,16 @@ def check_github_release(
         response_data = response.json()
 
         if include_prerelease:
+            if not isinstance(response_data, list) or any(not isinstance(item, dict) for item in response_data):
+                raise ValueError(f"Expected a release list from {repo}")
             releases = [release for release in response_data if not release.get("draft")]
             if not releases:
                 raise RuntimeError(f"No published releases found for {repo}")
-            latest = releases[0]
+            latest = max(releases, key=lambda release: release.get("published_at") or "")
         else:
             latest = response_data
+        if not isinstance(latest, dict) or not latest.get("tag_name"):
+            raise ValueError(f"Expected release metadata with tag_name from {repo}")
         
         # Check if it's a pre-release
         is_prerelease = latest.get("prerelease", False)
@@ -198,6 +198,8 @@ def check_github_release(
             lock_data.get("mods", {}).get(mod_key, {}).get("last_tested_sha256")
         )
         release_tag_changed = latest["tag_name"] != current_tag
+        if asset_pattern and not latest_asset and not release_tag_changed:
+            raise ValueError(f"Release {current_tag} has no asset matching {asset_pattern!r}")
         release_asset_changed = bool(
             not release_tag_changed
             and latest_asset_digest
@@ -234,6 +236,11 @@ def check_github_release(
             "asset_name": latest_asset.get("name", "") if latest_asset else "",
             "asset_digest": latest_asset_digest,
             "locked_asset_digest": locked_asset_digest,
+            "asset_verification": (
+                "digest_compared" if latest_asset_digest and locked_asset_digest and not release_tag_changed
+                else "not_matched" if asset_pattern and not latest_asset
+                else "tag_only"
+            ),
             "release_tag_changed": release_tag_changed,
             "release_asset_changed": release_asset_changed,
             "changelog_summary": changelog,
@@ -242,10 +249,12 @@ def check_github_release(
             "risk_notes": risk_notes,
             "status": "success",
         }
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError, KeyError, TypeError, RuntimeError) as e:
         error_msg = str(e)
         # Classify error type
-        if "403" in error_msg and "rate limit" in error_msg.lower():
+        if not isinstance(e, requests.RequestException):
+            error_kind = "invalid_release"
+        elif "403" in error_msg and "rate limit" in error_msg.lower():
             error_kind = "rate_limit"
         elif "404" in error_msg:
             error_kind = "not_found"
@@ -261,26 +270,24 @@ def check_github_release(
         }
 
 
-def check_all_mods(include_prerelease: bool = False) -> dict:
+def check_all_mods(include_prerelease: bool = False, *, watch_path: Path | None = None) -> dict:
     """Check all enabled mods for updates."""
     config = load_build_config()
     
     # Load mods.lock.json for risk assessment
-    lock_path = Path(__file__).parent.parent / "config" / "mods.lock.json"
+    lock_path = get_config_loader().config_dir / "mods.lock.json"
     lock_data = load_mods_lock(lock_path)
     
     results = []
-    skipped_pinned = []
+    skipped = []
     
     for mod in config.modloader_mods:
-        if not mod.enabled or not mod.github_repo:
-            continue
-        
-        # 钉死版本（等 v4.x 兼容 / 自建镜像 / 固定 tag）的 mod 不纳入上游追踪，
-        # 避免把"故意不跟的新版"报成待办更新、每周刷无意义 Issue。
-        if not mod.track_upstream:
-            print(f"Skipping {mod.name or mod.key} (pinned, track_upstream=false)")
-            skipped_pinned.append(mod.name or mod.key)
+        reason = (
+            "disabled" if not mod.enabled else "no_repository" if not mod.github_repo
+            else "pinned" if not mod.track_upstream else None
+        )
+        if reason:
+            skipped.append({"mod_key": mod.key, "mod_name": mod.name or mod.key, "reason": reason})
             continue
         
         print(f"Checking {mod.name or mod.key}...")
@@ -296,9 +303,22 @@ def check_all_mods(include_prerelease: bool = False) -> dict:
         result["mod_name"] = mod.name or mod.key
         results.append(result)
     
-    # Build summary report
+    # Observation sources never change the installed build inputs.
+    references = []
+    watch_path = watch_path or Path(__file__).resolve().parents[1] / "config" / "upstream-watch.toml"
+    with watch_path.open("rb") as handle:
+        watch_config = tomllib.load(handle)
+    for source in watch_config.get("sources", []):
+        result = check_github_release(
+            source["repo"], source["observed_tag"], source["key"],
+            source.get("asset_pattern", ""), source.get("include_prerelease", False),
+            {"mods": {source["key"]: {"last_tested_sha256": source.get("sha256", "")}}},
+        )
+        result.update(mod_key=source["key"], mod_name=source["name"], scope="reference")
+        references.append(result)
+
     updates = [r for r in results if r.get("has_update")]
-    errors = [r for r in results if r.get("status") == "error"]
+    errors = [r for r in [*results, *references] if r.get("status") == "error"]
     
     return {
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -309,14 +329,63 @@ def check_all_mods(include_prerelease: bool = False) -> dict:
         "updates": updates,
         "errors": errors,
         "all_results": results,
+        "skipped": skipped,
+        "references": references,
+        "reference_updates": [r for r in references if r.get("has_update")],
+        "check_complete": not errors,
     }
 
 
-def main():
+def render_summary(report: dict) -> str:
+    """One truthful summary shared by local output and Actions, including failures."""
+    lines = ["## Mod 与上游观察报告", "", f"检查时间：{report['timestamp']}", ""]
+    if not report["check_complete"]:
+        lines.append(f"检查未完成：{report['errors_count']} 项失败，不能据此判断这些来源是否有更新。")
+    elif not report["total_checked"]:
+        lines.append("没有检查启用的安装项；请查看下方跳过原因与候选观察结果。")
+    elif report["has_updates"]:
+        lines.append(f"已检查 {report['total_checked']} 个安装项，发现 {report['updates_available']} 项变化。")
+    else:
+        lines.append(f"已检查的 {report['total_checked']} 个安装项未发现版本变化。")
+    lines.extend(["", "锁定、禁用和候选观察项不等于已安装或已验证兼容；本检查不会修改配置。", ""])
+    for title, rows in (("安装项检查", report["all_results"]), ("上游与 Fork 候选观察", report["references"])):
+        details = []
+        lines.extend([f"### {title}", "", "| 项目 | 当前／上次观察 | 上游 | 结果 |", "|---|---|---|---|"])
+        for row in rows:
+            if row["status"] == "error":
+                state = f"检查失败：{row['error_kind']}"
+            else:
+                state = "发现变化" if row["has_update"] else "未发现版本变化"
+                if row.get("is_prerelease"):
+                    state += "；预发布"
+                verification = row.get("asset_verification")
+                if verification == "tag_only":
+                    state += "；仅标签比较"
+                elif verification == "not_matched":
+                    state += "；新版本需重新选择资产"
+                if row.get("release_asset_changed"):
+                    state += "；同标签资产已变化"
+            lines.append(f"| {row['mod_name']} | `{row['current']}` | `{row.get('latest', '未知')}` | {state} |")
+            if row["status"] == "success" and row["has_update"]:
+                details.extend(["", f"[{row['mod_name']} 发布说明]({row['url']})", "", *row["risk_notes"], ""])
+        lines.append("")
+        lines.extend(details)
+    if report["skipped"]:
+        reasons = {"pinned": "主动锁定", "disabled": "已禁用", "no_repository": "未配置仓库"}
+        lines.extend(["### 跳过项", ""])
+        lines.extend(f"- {row['mod_name']}：{reasons[row['reason']]}" for row in report["skipped"])
+    if report["errors"]:
+        lines.extend(["", "### 检查失败", ""])
+        lines.extend(f"- {row['mod_name']}（{row['repo']}）：{row['error']}" for row in report["errors"])
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None):
     parser = argparse.ArgumentParser(
         description="Check mod updates from GitHub releases"
     )
     parser.add_argument("--output", help="Output JSON file")
+    parser.add_argument("--markdown", type=Path, help="Write a Markdown report for Actions or local review")
     parser.add_argument(
         "--summary", action="store_true", help="Print summary only"
     )
@@ -325,7 +394,7 @@ def main():
         action="store_true",
         help="Include pre-release versions",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     
     report = check_all_mods(include_prerelease=args.include_prerelease)
     
@@ -338,6 +407,9 @@ def main():
             encoding='utf-8'
         )
         print(f"\nSaved to {args.output}")
+    if args.markdown:
+        args.markdown.parent.mkdir(parents=True, exist_ok=True)
+        args.markdown.write_text(render_summary(report), encoding="utf-8")
     
     # Print summary
     if args.summary or not args.output:
@@ -369,8 +441,8 @@ def main():
             for r in report["errors"]:
                 print(f"  - {r['mod_name']}: {r['error']}")
     
-    # Exit code: always 0 (success), status conveyed via JSON
-    return 0
+    # Keep the report even when upstream checks fail; CI must expose that failure.
+    return 0 if report["check_complete"] else 1
 
 
 if __name__ == "__main__":

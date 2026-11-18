@@ -13,6 +13,7 @@ from typing import Optional
 from .paths import BuildPaths
 from .version import VersionRegistry
 from .config_loader import load_build_config, load_combinations_config
+from .mod_archive import mod_zip_bytes
 from .utils import (
     run_command,
     extract_zip,
@@ -166,7 +167,7 @@ class ModInjector:
         # 加载新的 mod 文件
         for mod_path in existing_mods:
             with open(mod_path, "rb") as f:
-                base64_data = base64.b64encode(f.read()).decode("utf-8")
+                base64_data = base64.b64encode(mod_zip_bytes(f.read())).decode("utf-8")
                 existing_list.append(base64_data)
                 logger.debug(f"  添加: {mod_path.name}")
 
@@ -216,7 +217,7 @@ class ModInjector:
 
         # 加载新的 mod 文件
         with open(mod_path, "rb") as f:
-            base64_data = base64.b64encode(f.read()).decode("utf-8")
+            base64_data = base64.b64encode(mod_zip_bytes(f.read())).decode("utf-8")
             existing_list[mod_id] = base64_data
 
         # 替换 modDataValueZipList

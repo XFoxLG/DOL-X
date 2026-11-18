@@ -15,12 +15,35 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
 from packaging.version import parse as parse_version
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
+AUTH_QUERY_KEYS = frozenset({
+    "token", "access_token", "auth_token", "api_key", "apikey", "key", "auth",
+    "authorization", "password", "secret", "signature", "sig", "jwt", "hm",
+    "x-amz-signature", "x-amz-credential", "x-amz-security-token",
+    "x-goog-signature", "x-goog-credential", "x-goog-security-token",
+})
+
+
+def redacted_download_url(url: str) -> str:
+    """Retain the host/path and non-auth query values for useful diagnostics."""
+    parts = urlsplit(url)
+    authority = parts.netloc.rsplit("@", 1)[-1]
+    query = urlencode([(key, "<redacted>" if key.casefold() in AUTH_QUERY_KEYS else value)
+                       for key, value in parse_qsl(parts.query, keep_blank_values=True)])
+    return urlunsplit((parts.scheme, authority, parts.path, query, ""))
+
+
+def _validate_download_url(url: str) -> None:
+    parts = urlsplit(url)
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("Download URL contains embedded credentials: " + redacted_download_url(url))
 
 
 class ArchiveExtractionError(RuntimeError):
@@ -100,29 +123,46 @@ def download_file(url: str, dest: Path, quiet: bool = False) -> Path:
     Returns:
         下载的文件路径
     """
+    _validate_download_url(url)
     if dest.exists():
         logger.debug(f"文件已存在，跳过下载: {dest}")
         return dest
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"下载: {url}")
-    response = requests.get(url, stream=True, timeout=30)
-    response.raise_for_status()
-
-    total_size = int(response.headers.get("content-length", 0))
-
-    with open(dest, "wb") as f:
-        if quiet or total_size == 0:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+    logger.info("下载: %s", redacted_download_url(url))
+    current_url = url
+    response = None
+    try:
+        for _ in range(requests.models.DEFAULT_REDIRECT_LIMIT + 1):
+            _validate_download_url(current_url)
+            response = requests.get(current_url, stream=True, timeout=30, allow_redirects=False)
+            if response.status_code in (301, 302, 303, 307, 308) and "location" in response.headers:
+                current_url = urljoin(current_url, response.headers["location"])
+                response.close()
+                response = None
+                continue
+            break
         else:
-            with tqdm(
-                total=total_size, unit="B", unit_scale=True, desc=dest.name
-            ) as pbar:
+            raise RuntimeError("Download exceeded the redirect limit: " + redacted_download_url(url))
+        response.raise_for_status()
+        total_size = int(response.headers.get("content-length", 0))
+        with open(dest, "wb") as f:
+            if quiet or total_size == 0:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-                    pbar.update(len(chunk))
+            else:
+                with tqdm(total=total_size, unit="B", unit_scale=True, desc=dest.name) as pbar:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        pbar.update(len(chunk))
+    except requests.RequestException as exc:
+        dest.unlink(missing_ok=True)
+        status = f"HTTP {response.status_code}; " if response is not None else ""
+        raise RuntimeError(f"Download failed: {redacted_download_url(current_url)} ({status}{type(exc).__name__})") from None
+    finally:
+        if response is not None:
+            response.close()
 
     return dest
 
@@ -455,7 +495,7 @@ def get_github_release_asset(
         if asset_pattern in name:
             download_url = asset.get("browser_download_url")
             version = _extract_version_from_filename(name)
-            logger.debug(f"找到资源: {name} (version={version}) -> {download_url}")
+            logger.debug("找到资源: %s (version=%s) -> %s", name, version, redacted_download_url(download_url))
 
             matched_assets.append(
                 (

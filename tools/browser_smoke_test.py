@@ -421,10 +421,16 @@ class QuietHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         return
 
 
+class AssetHTTPServer(http.server.ThreadingHTTPServer):
+    """Allow the game's parallel image burst without refusing local sockets."""
+
+    request_queue_size = 128
+
+
 @contextlib.contextmanager
 def _serve_directory(directory: Path):
     handler = functools.partial(QuietHTTPRequestHandler, directory=str(directory))
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = AssetHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

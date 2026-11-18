@@ -952,7 +952,7 @@ def test_apk_cdp_page_reconnect_rediscovers_after_stale_target(monkeypatch):
 
 
 @pytest.mark.config
-def test_apk_cdp_downgrades_cordova_pageerror_only_after_ready_passage():
+def test_apk_cdp_cordova_pageerror_remains_blocking_after_game_is_ready():
     ready_report = apk_emulator_smoke_test.BrowserSmokeReport(
         target="apk",
         profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
@@ -965,41 +965,15 @@ def test_apk_cdp_downgrades_cordova_pageerror_only_after_ready_passage():
         apk_emulator_smoke_test.Issue("high", "unexpected_browser_error", "pageerror", message),
     )
 
-    apk_emulator_smoke_test._downgrade_ready_cordova_pageerrors(
-        ready_report,
-        {"ready": True, "passage": "Orphanage Intro"},
-        "Orphanage Intro",
-    )
-
-    assert ready_report.observations["pageerror_context"] == []
-    assert ready_report.observations["apk_cdp_benign_pageerrors"] == [
+    ready_report.observations["game_ready"] = {"ready": True, "passage": "Orphanage Intro"}
+    assert ready_report.observations["pageerror_context"] == [
         {"message": message, "url": "https://localhost/index.html"}
     ]
     assert [(issue.severity, issue.kind) for issue in ready_report.issues] == [
-        ("warning", "cordova_android_exec_after_ready")
-    ]
-
-    not_ready_report = apk_emulator_smoke_test.BrowserSmokeReport(
-        target="apk",
-        profile="ucb-more-love-custom-spellbook-cheat-extended-maplebirch",
-        report_only=False,
-    )
-    not_ready_report.observations["pageerror_context"] = [{"message": message}]
-    apk_emulator_smoke_test._add_issue(
-        not_ready_report,
-        apk_emulator_smoke_test.Issue("high", "unexpected_browser_error", "pageerror", message),
-    )
-
-    apk_emulator_smoke_test._downgrade_ready_cordova_pageerrors(
-        not_ready_report,
-        {"ready": False, "passage": None},
-        "Orphanage Intro",
-    )
-
-    assert not_ready_report.observations["pageerror_context"] == [{"message": message}]
-    assert [(issue.severity, issue.kind) for issue in not_ready_report.issues] == [
         ("high", "unexpected_browser_error")
     ]
+    issue = apk_emulator_smoke_test._classify_apk_cdp_message("pageerror", message)
+    assert issue.severity == "high"
 
 def test_run_command_survives_non_utf8_device_output() -> None:
     commands: list[dict[str, Any]] = []

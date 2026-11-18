@@ -198,7 +198,7 @@ def test_more_love_injection_fails_closed_when_release_tag_drifts(tmp_path):
     version_drifted_config = SimpleNamespace(
         cache_name="more_love",
         github_repo="Nephthelana/DoL-More-Love-Interests-Mod",
-        release_tag="More-Love-Interests-Mod-v0.1.8.0",
+        release_tag="More-Love-Interests-Mod-v0.1.9.0",
         asset_pattern="More.Love.Interests.Mod.mod.zip",
     )
 

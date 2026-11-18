@@ -67,6 +67,48 @@ REAL_MAPLEBIRCH_414 = (
 )
 
 
+def _write_patched_maplebirch_fixture(path) -> None:
+    _write_maplebirch_payload(
+        path,
+        "const rulePayload={map:new Map(["
+        "['Cheats',{content:'setup.faceStyleOptions.length gt'}],"
+        "['clothesTestingImageGenerate',{content:'setup.faceStyleOptions.length gt'}],"
+        "['Widgets Mirror',{content:'setup.faceStyleOptions.length gt'}],"
+        "['Widgets Settings',{content:'setup.faceStyleOptions.length gt'}],"
+        "['Widgets variablesVersionUpdate',{content:"
+        "'/* Code that should not be moved into a check like above */\\n"
+        "<<set $runWardrobeSanityChecker to true>>'}]"
+        "])};"
+        "const modifyFaceStyle=e=>{let t=rulePayload,n=t.cloneSC2DataInfo(),"
+        "r=n.passageDataItems.map;for(let t of['Cheats',"
+        "'clothesTestingImageGenerate','Widgets Mirror','Widgets Settings'])"
+        "{let n=r.get(t);if(!n?.content)continue;"
+        "let a=[[/setup.faceStyleOptions.length gt/g,"
+        "'Object.keys(setup.faceStyleOptions).length gte']];"
+        'n.content=e.replace(n.content,a,"FaceStyle"),r.set(t,n)}'
+        "n.passageDataItems.back2Array(),"
+        "e.modUtils.replaceFollowSC2DataInfo(n,t)}"
+        "\n"
+        + AU_SAMPLE_SCRIPT.replace(
+            "const aI=new Set;function aO(e){let t=e.find(e=>aI.has(e));",
+            "let aI=new Set;function aO(e){let t=e.find(e=>aI.has(e));",
+        ).replace(
+            "function aD(t){return function(e){adjustFaceStyleVariant(e);}}",
+            (
+                'function aD(t){return function(e){let n=[t(e)].flat(),'
+                'r=e.facestyle||"default",a=e.facevariant||"default";'
+                "return aO("
+            ),
+        ).replace(
+            "class Character{",
+            (
+                "class Character{use(t,n,r){return this.layers.push("
+                '{target:n,layers:t}),r?.pet&&this.pet.use(t),this}'
+            ),
+        ),
+    )
+
+
 def _resolver_payload(
     resolver: str,
     face_style: str,
@@ -147,19 +189,16 @@ def _maplebirch_config():
 # The same member is owned by three chained payload patches, so one synthetic
 # payload has to carry every needle. The passage-rewrite needle is parked inside a
 # comment so the whole payload stays valid JavaScript and can be syntax-checked.
-def _au_payload_script(*, shim_needle: bool = True) -> str:
-    resolver = (
-        MAPLEBIRCH_AU_VARIANT_RESOLVER_OLD
-        if shim_needle
-        else "const faceStyleSrcFnShimNeedleIsGone = true;"
-    )
+def _au_payload_script() -> str:
+    resolver = MAPLEBIRCH_AU_VARIANT_RESOLVER_OLD
     return (
-        resolver
+        "const aI=new Set;function aO(e){let t=e.find(e=>aI.has(e));"
+        "if(t)return t;let n='';for(let t of e){let e=no(t);"
+        "if(e===t||!0===e)return t;!1===e||n||(n=t)}return n||e[0]}\n"
+        + resolver
         + "\nclass Character{"
         + MAPLEBIRCH_PET_REMOUNT_OLD
-        + "}\n/*"
-        + MAPLEBIRCH_AU_FACE_VARIANT_INSERTION_OLD
-        + "*/"
+        + "}\nconst adjustFaceStyleVariant = e => e;\n"
     )
 
 
@@ -407,7 +446,7 @@ def test_au_injection_applies_the_variant_dir_priority_shim(tmp_path):
         BuildTask(pack_type="zip", mod_code=AU_FEMALE_MOD_CODE, paths=paths)
     )
     source = paths.get_mod_cache_path("maplebirch")
-    _write_maplebirch_payload(source, AU_SAMPLE_SCRIPT)
+    _write_patched_maplebirch_fixture(source)
 
     injected_path = builder._modloader_mod_path_for_injection(
         _maplebirch_config(),
@@ -431,7 +470,7 @@ def test_base_injection_skips_the_variant_dir_priority_shim(tmp_path):
         BuildTask(pack_type="zip", mod_code=BASE_MOD_CODE, paths=paths)
     )
     source = paths.get_mod_cache_path("maplebirch")
-    _write_maplebirch_payload(source, AU_SAMPLE_SCRIPT)
+    _write_patched_maplebirch_fixture(source)
 
     builder._modloader_mod_path_for_injection(_maplebirch_config(), source)
 
@@ -447,7 +486,20 @@ def test_au_injection_fails_closed_when_the_shim_needle_drifts(tmp_path):
         BuildTask(pack_type="zip", mod_code=AU_FEMALE_MOD_CODE, paths=paths)
     )
     source = paths.get_mod_cache_path("maplebirch")
-    _write_maplebirch_payload(source, _au_payload_script(shim_needle=False))
+    _write_patched_maplebirch_fixture(source)
+    with zipfile.ZipFile(source, "r") as payload:
+        members = {item.filename: (item, payload.read(item)) for item in payload.infolist()}
+    entry, data = members[MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_MEMBER]
+    script = data.decode("utf-8")
+    assert MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD in script
+    members[entry.filename] = entry, script.replace(
+        MAPLEBIRCH_AU_VARIANT_DIR_PRIORITY_OLD,
+        "const faceStyleSrcFnShimNeedleIsGone = true;",
+        1,
+    ).encode("utf-8")
+    with zipfile.ZipFile(source, "w") as payload:
+        for entry, data in members.values():
+            payload.writestr(entry, data)
 
     with pytest.raises(
         RuntimeError,

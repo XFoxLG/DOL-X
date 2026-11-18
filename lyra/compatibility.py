@@ -40,6 +40,7 @@ class CompatibilitySurface:
     removal_condition: str = ""
     stable_matrix_mutation: bool = False
     notes: str = ""
+    compatible_releases: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,126 @@ class TestPolicyRequirement:
 
 COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
     CompatibilitySurface(
+        key="apk_cordova_js_interface_public", target="Cordova 11 JavaScript bridge visibility",
+        scope="candidate-path", kind="apk-patch", fail_policy="fail-closed",
+        member="smali/org/apache/cordova/engine/SystemExposedJsApi.smali",
+        github_repo="apache/cordova-android", release_tag="11.0.0",
+        tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when the selected upstream APK declares the bridge class public and default native calls pass on the tested WebView.",
+        notes="DoL 0.5.12.13 APK, MuMu Android 15/WebView 110: package-private bridge makes all default Java interface calls throw. A one-declaration public-class diagnostic fixes messageChannel/show/clearHistory without changing methods, permissions or JavaScript. Legacy 4.x build path unchanged.",
+    ),
+    CompatibilitySurface(
+        key="au_m_body_frame_alpha", target="AU-M second-frame portrait spill",
+        scope="candidate-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="au_m", github_repo="AOKIUTAGE/UTAGEsDOL3.0",
+        release_tag="mod", asset_pattern="AUmale.model_v0.4.2.zip",
+        member="AUmale/img/body/base-classic.png", tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove after AU-M replaces the stray pixels in model 0.4.2's second body frame.",
+        notes="Only MapleBirch 5.6.2 + AU face 1.2.16. Clears alpha for 213 stray pixels at x256..263/y158..191; preserves RGB and all other pixels, files and the original archive.",
+    ),
+    CompatibilitySurface(
+        key="legacy_art_existing_assets", target="Legacy art concrete asset lookup",
+        scope="candidate-and-legacy-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="legacy_art_compat", github_repo="XFoxLG/DOL-X",
+        release_tag="legacy-art-compat-plus-v1.1", asset_pattern="Legacy-Art-Mods-Compat.zip",
+        member="dolrename.js", tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when legacy art checks concrete native or mapped assets before claiming an image exists or probing it.",
+        notes="The identical Plus V1.1 payload is used by 4.1.14 and 5.6.2. Keeps rename precedence and checks base image inventory, valid ModLoader image entries and BSA active assets before trying an alias. A rule alone no longer claims an image exists; originals stay unchanged.",
+    ),
+    CompatibilitySurface(
+        key="maplebirch_414_concrete_face_assets", target="MapleBirch 4.1.14 synchronous face selection",
+        scope="legacy-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="maplebirch", github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+        release_tag="maplebirch-release-v4.1.14", asset_pattern="maplebirch-0.5.10.12-v4.1.14.mod.zip",
+        member="dist/inject_early.js", marker="dolxAvailableBaseImages",
+        tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove after the 4.1.14 rollback is retired or its resolver chooses declared active and native files before asynchronous probes.",
+        notes="Only the actual published 4.1.14 payload. Preserves candidate-path order within active BSA images, then valid loader/legacy aliases or the build image inventory. AU face 1.2.8's disabled eyes overlay no longer requests a texture; its ten-layer registration synchronizes the pet once using merged base layer properties. Enabled and missing required assets retain original failure behavior. 5.6.2 does not receive this patch.",
+    ),
+    CompatibilitySurface(
+        key="au_pet_default_mask", target="AU pet initial crop",
+        scope="candidate-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="maplebirch", github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+        release_tag="maplebirch-release-v5.6.2", asset_pattern="maplebirch-0.5.12.13-v5.6.2.mod.zip",
+        member="dist/inject_early.js", tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when framework new-game pet crop matches the published AU image layout.",
+        notes="Only the 5.6.2 + AU 1.2.16 candidate; changes new-game character-pet mask 25 to 0. Existing saved preferences and NPC defaults remain intact.",
+    ),
+    CompatibilitySurface(
+        key="game_wolf_pattern_alias", target="Published wolfharmony renderer pattern",
+        scope="candidate-path", kind="resource-shim", fail_policy="create-from-existing-assets",
+        member="img/ui/wolfharmony.png", tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when game 0.5.12.13's registerImagePattern points to sym-harmony.png.",
+        notes="Uses identical original sym-harmony.png bytes; no image processing or placeholders.",
+    ),
+    CompatibilitySurface(
+        key="au_face_archive_directories", target="AU 1.2.16 corrupt empty directory records",
+        scope="candidate-path", kind="archive-normalization", fail_policy="fail-closed",
+        cache_name="au_face", github_repo="AOKIUTAGE/UTAGEsDOL3.0",
+        release_tag="community-v1.2.16", asset_pattern="AUsDoL-facial-expansion-v1.2.16.zip",
+        member="game/", tests=("tests/test_candidate_runtime_patches.py", "tests/test_dolx_compat.py"),
+        removal_condition="Remove when the upstream 1.2.16 archive replaces its corrupt directory records.",
+        notes="Build copy only. Removes four empty-directory records while preserving all ten actual files byte-for-byte.",
+    ),
+    CompatibilitySurface(
+        key="dolx_compat_weather_location", target="Game weather location initialization",
+        scope="candidate-path", kind="runtime-mod", fail_policy="fail-closed",
+        cache_name="dolx_compat", github_repo="XFoxLG/DOL-X",
+        release_tag="1.0.1", asset_pattern="dolx-compat.mod.zip",
+        member="mods/dolx-compat/patches/weather-location.json", marker="dolxLocationObject",
+        tests=("tests/test_weather_location_compat.py", "tests/test_dolx_compat.py"),
+        removal_condition="Remove when the game captures each location initialization's source and superseded image completions cannot change the active animation map.",
+        notes="Game 0.5.12.13 and MapleBirch 5.6.2, all four candidates. ModLoader replacePatchList replaces the reviewed game init before evaluation; original game archive unchanged. Actual startup scope showed bloodmoonTentacles4 iterating a replaced home.base object after await. Required image failures remain reported.",
+    ),
+    CompatibilitySurface(
+        key="dolx_compat_au_face", target="AU 1.2.16 active face assets and optional layers",
+        scope="candidate-path", kind="runtime-mod", fail_policy="fail-closed",
+        cache_name="dolx_compat", github_repo="XFoxLG/DOL-X",
+        release_tag="1.0.1", asset_pattern="dolx-compat.mod.zip",
+        member="mods/dolx-compat/au-compat.js", marker="dolxCompat",
+        tests=("tests/test_dolx_compat.py",),
+        removal_condition="Remove when AU resolves actual selected-pack files, including published tear-N assets, and skips disabled optional layers.",
+        notes="AU module runs only with AU face 1.2.16 on game 0.5.12.13 and MapleBirch 5.6.2. The common compatibility package also supports the base candidate. Resolves BSA active files before the reviewed base inventory; passes pet:true and captures once. AU source scripts remain unchanged.",
+    ),
+    CompatibilitySurface(
+        key="ce_optional_framework", target="CE optional Simple Framework detection",
+        scope="candidate-and-legacy-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="cheat_extended", github_repo="chris81605/Degrees-of-Lewdity_Cheat_Extended",
+        release_tag="1.20.3", asset_pattern="cheat_extended.mod.zip",
+        compatible_releases=(("cheat-extended-mirror-v1.20", "cheat_extended.mod.zip"),),
+        member="scriptEarly/CERegist.js", tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when CE optional-framework checks no longer report missing required mods.",
+        notes="Reviewed original CE 1.20 and 1.20.3.1 preserve full mod-info lookup for version checks when Simple Framework is installed; absent optional framework does not trigger a required-mod error.",
+    ),
+    CompatibilitySurface(
+        key="custom_hair_offline_colors", target="CustomHair color initialization",
+        scope="candidate-and-legacy-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="custom_hair", github_repo="HiddenCirno/DoL-CustomHair",
+        release_tag="CustomHair", asset_pattern="CustomHair.zip", member="main.js",
+        compatible_releases=(("CustomHair", "*.zip"),),
+        tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when upstream initializes colors without a dummy API request.",
+        notes="Published CustomHair 1.0.0 source is identical in the stable 4.1.14 and modern 5.6.2 inputs. Both apply synchronous initialization before the original normal script runs.",
+    ),
+    CompatibilitySurface(
+        key="doli_settings_entry", target="DOLI native settings button and history-aware combat tracking",
+        scope="candidate-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="doli", github_repo="ArsNativa/Degrees-of-Lewdity-Intelligence",
+        release_tag="v0.2.3", asset_pattern="DOLI.mod.zip", member="patches/overlay-replace.json",
+        tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove entry patch when DOLI releases upstream 8e408b55; remove history patch when narrator follows SugarCube rewind/save history.",
+    ),
+    CompatibilitySurface(
+        key="more_love_optional_mods", target="More Love optional collaboration detection",
+        scope="candidate-and-legacy-path", kind="payload-patch", fail_policy="fail-closed",
+        cache_name="more_love", github_repo="Nephthelana/DoL-More-Love-Interests-Mod",
+        release_tag="More-Love-Interests-Mod-v0.1.8.0", asset_pattern="More.Love.Interests.Mod.mod.zip",
+        compatible_releases=(("More-Love-Interests-Mod-v0.1.7.0", "More.Love.Interests.Mod.mod.zip"),),
+        member="game/more_love_interest_main.twee", tests=("tests/test_candidate_runtime_patches.py",),
+        removal_condition="Remove when upstream checks optional mod membership without required-mod lookup errors.",
+        notes="All getMod uses in the three reviewed 0.1.7.0/0.1.8.0 members are existence conditions; the shared collaboration helpers return booleans and never read the mod-info fields.",
+    ),
+    CompatibilitySurface(
         key=MORE_LOVE_DRAG_PATCH_KEY,
         target="More Love drag handlers",
         scope="default-path",
@@ -72,6 +193,7 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         github_repo="Nephthelana/DoL-More-Love-Interests-Mod",
         release_tag="More-Love-Interests-Mod-v0.1.7.0",
         asset_pattern="More.Love.Interests.Mod.mod.zip",
+        compatible_releases=(("More-Love-Interests-Mod-v0.1.8.0", "More.Love.Interests.Mod.mod.zip"),),
         member="game/More_Love_Interest_Mod_Drag.js",
         marker="function preventDefaultMLIM(ev)",
         fail_policy="fail-closed",
@@ -111,6 +233,7 @@ COMPATIBILITY_SURFACES: tuple[CompatibilitySurface, ...] = (
         github_repo="MaplebirchLeaf/SCML-DOL-maplebirchFramework",
         release_tag="maplebirch-release-v4.1.14",
         asset_pattern="maplebirch-0.5.10.12-v4.1.14.mod.zip",
+        compatible_releases=(("maplebirch-release-v5.6.2", "maplebirch-0.5.12.13-v5.6.2.mod.zip"),),
         member="dist/inject_early.js",
         marker="dolxPetRemountAfterPassageDisplay",
         fail_policy="fail-closed",
@@ -374,6 +497,9 @@ def compatibility_source_errors(surface: CompatibilitySurface, source: Any) -> l
         "release_tag": surface.release_tag,
         "asset_pattern": surface.asset_pattern,
     }
+    if (source.release_tag, source.asset_pattern) in surface.compatible_releases:
+        expected_fields.pop("release_tag")
+        expected_fields.pop("asset_pattern")
     for field_name, expected in expected_fields.items():
         if not expected:
             continue

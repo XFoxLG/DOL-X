@@ -240,10 +240,6 @@ def _is_optional_remote_loader_fetch(source: str, message: str, location: dict[s
     return "RemoteLoader.load" in message or "ModZipReader.ts" in message or "ModZipReader.ts" in location_url
 
 
-def _is_cordova_android_exec_exception(message: str) -> bool:
-    return "Java exception was raised during method invocation" in message and "cordova.js" in message
-
-
 def _classify_apk_cdp_message(source: str, message: str, location: dict[str, Any] | None = None) -> Issue:
     if _is_optional_remote_loader_fetch(source, message, location):
         return Issue("warning", "optional_remote_mod_list", source, message)
@@ -284,40 +280,6 @@ def _with_cdp_reconnect(report: BrowserSmokeReport, page: Any, phase: str, opera
             raise
         _reconnect_cdp_page(report, page, phase, exc)
         return operation()
-
-
-def _downgrade_ready_cordova_pageerrors(
-    report: BrowserSmokeReport,
-    final_game_ready: dict[str, Any],
-    expected_passage: str,
-) -> None:
-    if not final_game_ready.get("ready"):
-        return
-    if expected_passage and final_game_ready.get("passage") != expected_passage:
-        return
-
-    pageerror_context = report.observations.get("pageerror_context") or []
-    if not isinstance(pageerror_context, list):
-        return
-
-    benign_context: list[dict[str, Any]] = []
-    retained_context: list[Any] = []
-    for entry in pageerror_context:
-        message = str(entry.get("message") or "") if isinstance(entry, dict) else str(entry)
-        if _is_cordova_android_exec_exception(message):
-            benign_context.append(entry if isinstance(entry, dict) else {"message": message})
-        else:
-            retained_context.append(entry)
-
-    if not benign_context:
-        return
-
-    report.observations["pageerror_context"] = retained_context
-    report.observations.setdefault("apk_cdp_benign_pageerrors", []).extend(benign_context)
-    for issue in report.issues:
-        if issue.source == "pageerror" and _is_cordova_android_exec_exception(issue.message):
-            issue.severity = "warning"
-            issue.kind = "cordova_android_exec_after_ready"
 
 
 def _game_ready_matches_expected(game_ready: dict[str, Any], expected_passage: str) -> bool:
@@ -517,6 +479,7 @@ class _CdpDialog:
         self.message = message
         self.default_value = default_value
         self.accepted = False
+        self.already_closed = False
         self.prompt_text: str | None = None
 
     def accept(self, prompt_text: str | None = None) -> None:
@@ -524,7 +487,14 @@ class _CdpDialog:
         if self.type == "prompt" and prompt_text is not None:
             params["promptText"] = prompt_text
             self.prompt_text = prompt_text
-        self._page._send_command("Page.handleJavaScriptDialog", params)
+        try:
+            self._page._send_command("Page.handleJavaScriptDialog", params)
+        except RuntimeError as exc:
+            # Cordova's native handler can close the dialog before CDP consumes
+            # its queued opening event. Other protocol failures still fail.
+            if "Page.handleJavaScriptDialog failed: No dialog is showing" not in str(exc):
+                raise
+            self.already_closed = True
         self.accepted = True
 
 
@@ -1168,7 +1138,6 @@ def _run_webview_browser_smoke(
             if not _game_ready_matches_expected(final_game_ready, expected_passage):
                 _add_game_ready_issues(report, final_game_ready)
             _check_required_mods(report, profile, embedded_mods)
-            _downgrade_ready_cordova_pageerrors(report, final_game_ready, expected_passage)
 
             observed_passage = final_game_ready.get("passage")
             if expected_passage and observed_passage != expected_passage:

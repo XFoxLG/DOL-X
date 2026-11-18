@@ -1,7 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
-  "last_updated": "2026-09-30T00:00:00Z",  "mods": {
+  "last_updated": "2026-09-30T00:00:00Z",
+  "mods": {
     "maplebirch": {
       "name": "maplebirch Framework",
       "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchFramework",
@@ -323,7 +324,8 @@
         "Re-verify the in-framework entry if the author widens the addonPlugin range to ^4.0.0",
         "License CC BY-NC-SA 4.0; pinned to v0.2.3 and deliberately not tracking latest during the 0.2.x early phase"
       ],
-      "status": "runtime-mounted"
+      "status": "runtime-mounted",
+      "boot_version": "0.2.2"
     },
     "legacy_art_compat": {
       "name": "旧版图片名称适配 (Legacy-Art-Mods-Compat plus)",
@@ -337,7 +339,7 @@
       "status": "enabled-actions-base-validated",
       "notes": [
         "Community plus of mirrormirroronwall/Legacy-Art-Mods-Compat; upstream README explicitly allows modification and redistribution",
-        "Plus author: 鎖鏈蝴蝶 @ 百度貼吧 (acknowledged in bundled readme.md)",
+        "Original author: 鎖鏈蝴蝶 / mirrormirroronwall; Plus maintainer and publisher: 隨風飄逸 / chris81605 (repository and Discord publication verified 2026-11-07)",
         "Difference vs upstream 1.0.3: six AU Face image-name fallback/override rules (blush{n} / tear(s){n}), grayscale-first ordering, clothing path compatibility, clothing-shop widget adjustment",
         "Hook mechanism: window.modImgLoaderHooker.addSideHooker registers checkImageExist + imageGetter; additive, no patch to lyra/ core",
         "Bound to cheat_extended_maplebirch feature (required bit 32768, in all four build codes); does not occupy an independent bit; four codes unchanged",

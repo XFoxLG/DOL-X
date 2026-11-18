@@ -1,0 +1,419 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "DoL-X Mod 锁文件 - 记录已测试的 mod 版本和 sha256",
+  "last_updated": "2026-11-12",
+  "mods": {
+    "maplebirch": {
+      "name": "maplebirch",
+      "github_repo": "MaplebirchLeaf/SCML-DOL-maplebirchFramework",
+      "release_tag": "maplebirch-release-v5.6.2",
+      "asset_pattern": "maplebirch-0.5.12.13-v5.6.2.mod.zip",
+      "last_tested_version": "5.6.2",
+      "last_tested_sha256": "d926f6188c4abb950d1f5f4657a1b142613dc5613a47004876f8f26793b99f76",
+      "last_tested_dol_version": "0.5.12.13",
+      "last_tested_date": "2026-11-08",
+      "status": "identity-verified-candidate",
+      "notes": [
+        "Verified download identity only; runtime acceptance pending."
+      ],
+      "mirror_url": "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/maplebirch-release-v5.6.2/maplebirch-0.5.12.13-v5.6.2.mod.zip",
+      "source_url": "https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework/releases/tag/maplebirch-release-v5.6.2",
+      "mirror_sha256": "d926f6188c4abb950d1f5f4657a1b142613dc5613a47004876f8f26793b99f76"
+    },
+    "longer_combat": {
+      "name": "更长遭遇战",
+      "github_repo": "MaplebirchLeaf/LongerCombat",
+      "asset_pattern": "longer-combat-0.5.10.12-v1.0.1.mod.zip",
+      "release_tag": "v1.0.1",
+      "last_tested_version": "v1.0.1",
+      "last_tested_sha256": "be1421c876f9111371f80548f9061b59135362e5c936f32e4cee0aecd1e2a0d9",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-10-02",
+      "status": "runtime-mounted-mirror-only",
+      "notes": [
+        "UPSTREAM DELETED 2026-10-02: MaplebirchLeaf/LongerCombat returns 404 on both the API and the web UI, and its v1.0.1 release asset is gone. The author folded this feature into MaplebirchLeaf/Deadwood-Reblooms as the LongerCombat module. DOL-X therefore repointed download_url at its own immutable mirror release XFoxLG/DOL-X longer-combat-mirror-v1.0.1 (asset longer-combat-0.5.10.12-v1.0.1.mod.zip, 13764 bytes, sha256 be1421c876f9111371f80548f9061b59135362e5c936f32e4cee0aecd1e2a0d9, byte-identical to this lock entry and to the pre-deletion GitHub asset) and set track_upstream=false because there is no upstream left to track. The digest is now enforced fail-closed through LOCKED_AU_PAYLOAD_CACHE_NAMES, because a self-hosted mirror is only as trustworthy as the digest attached to it. Local cache only; nothing new has been runtime-tested for this repoint, but the payload bytes are unchanged, so the earlier runtime-mounted evidence still applies to this exact file.",
+        "Official standalone successor for the legacy expansion LongerCombat feature",
+        "addonPlugin requires maplebirch ^4.1.0",
+        "User runtime log shows dist/script.js mounted with 0 total errors and 0 total warnings; individual combat multiplier behavior still needs focused gameplay testing",
+        "XFoxLG mirror longer-combat-mirror-v1.0.1 is NOW THE PRIMARY SOURCE (upstream deleted); previously archive-only manual disaster recovery"
+      ]
+    },
+    "yanling_cheat": {
+      "name": "言灵作弊集",
+      "github_repo": "MaplebirchLeaf/YanlingCheatCollection",
+      "asset_pattern": "yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip",
+      "release_tag": "v1.0.1",
+      "last_tested_version": "v1.0.1",
+      "last_tested_sha256": "50e2341ecd6594d354653baa2c797631047de8fb0f443b7d9174728b448e0886",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-10-02",
+      "status": "runtime-mounted-mirror-only",
+      "notes": [
+        "UPSTREAM DELETED 2026-10-02: MaplebirchLeaf/YanlingCheatCollection returns 404 on both the API and the web UI, and its v1.0.1 release asset is gone. The author folded this feature into MaplebirchLeaf/Deadwood-Reblooms as the IncantationCheatCollection module. DOL-X therefore repointed download_url at its own immutable mirror release XFoxLG/DOL-X yanling-cheat-mirror-v1.0.1 (asset yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip, 16302 bytes, sha256 50e2341ecd6594d354653baa2c797631047de8fb0f443b7d9174728b448e0886, byte-identical to this lock entry and to the pre-deletion GitHub asset) and set track_upstream=false because there is no upstream left to track. The digest is now enforced fail-closed through LOCKED_AU_PAYLOAD_CACHE_NAMES. Local cache only; the payload bytes are unchanged, so the earlier runtime-mounted evidence still applies to this exact file.",
+        "Official standalone successor for the legacy expansion Yanling feature",
+        "addonPlugin requires maplebirch ^4.1.0",
+        "User runtime log shows yanlingCheat exposed and dist/script.js mounted with 0 total errors and 0 total warnings; individual command coverage remains partial",
+        "XFoxLG mirror yanling-cheat-mirror-v1.0.1 is NOW THE PRIMARY SOURCE (upstream deleted); previously archive-only manual disaster recovery"
+      ]
+    },
+    "custom_hair": {
+      "name": "自定义染发",
+      "github_repo": "HiddenCirno/DoL-CustomHair",
+      "asset_pattern": "CustomHair.zip",
+      "release_tag": "CustomHair",
+      "last_tested_version": "CustomHair",
+      "last_tested_sha256": "14486f391a4587d9b206ed846f517cdbb879bf98988124039af4aa5d611e6d8b",
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "下载链接已修复 (CustomHair-1.0 → CustomHair)",
+        "兼容性: DoL v0.5.2.7 - v0.5.2.10",
+        "测试通过：Build #27995040396（2026-06-23）",
+        "误报更正：十六进制输入框需先点击自定义染发选项才出现；不再视为缺失 bug",
+        "DIGEST BACKFILLED (2026-08-02): this entry previously had a null sha256, so an in-place upstream asset swap under the same tag would not have been detectable. GitHub reports no digest for this asset because the upload predates that feature, so the recorded value was computed locally from the pinned asset and establishes a baseline for future comparison rather than confirming the author's original bytes."
+      ]
+    },
+    "cheat_extended": {
+      "name": "cheat extended",
+      "github_repo": "chris81605/Degrees-of-Lewdity_Cheat_Extended",
+      "release_tag": "1.20.3",
+      "asset_pattern": "cheat_extended.mod.zip",
+      "last_tested_version": "1.20.3.1",
+      "last_tested_sha256": "16da93387fc026ef6a5fe402e032bd4fd3794cae6487f959b9b85b701d02ac1e",
+      "last_tested_dol_version": "0.5.12.13",
+      "last_tested_date": "2026-11-08",
+      "status": "identity-verified-candidate",
+      "notes": [
+        "Verified download identity only; runtime acceptance pending."
+      ],
+      "mirror_url": "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/cheat-extended-v1.20.3.1/cheat_extended.mod.zip",
+      "source_url": "https://github.com/chris81605/Degrees-of-Lewdity_Cheat_Extended/releases/tag/1.20.3",
+      "mirror_sha256": "16da93387fc026ef6a5fe402e032bd4fd3794cae6487f959b9b85b701d02ac1e"
+    },
+    "mae_picvary": {
+      "name": "Mae's Picvary NPC Mod",
+      "github_repo": "Maenoko/Mae-s-Picvary-NPC-mod",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "DOL",
+      "last_tested_version": "1.3.2",
+      "last_tested_sha256": "43137b34a902cc1287a52f286292d093d96e18c8d3bc6e6cacbfea58a86c2efb",
+      "last_tested_dol_version": "0.5.10.12",
+      "notes": [
+        "Pinned to the fixed tag DOL; the release carries a single 1.3.2 asset and upstream has published nothing newer (checked 2026-08-02)",
+        "Verified coexisting with NPC Avatars Mod on maplebirch 4.1.13: both register through ImageLoaderHook2BeautySelectorAddon as converted mods and the runtime log reports 0 error and 0 warning",
+        "Provides pre-drawn static NPC portraits, so it does not depend on NPC wardrobe data",
+        "DIGEST BACKFILLED (2026-08-02): this entry previously had a null sha256, so an in-place upstream asset swap under the same tag would not have been detectable. GitHub reports no digest for this asset because the upload predates that feature, so the recorded value was computed locally from the pinned asset and establishes a baseline for future comparison rather than confirming the author's original bytes."
+      ],
+      "last_tested_date": "2026-08-02",
+      "status": "runtime-mounted"
+    },
+    "more_love": {
+      "name": "More Love Interests Mod",
+      "github_repo": "Nephthelana/DoL-More-Love-Interests-Mod",
+      "release_tag": "More-Love-Interests-Mod-v0.1.8.0",
+      "asset_pattern": "More.Love.Interests.Mod.mod.zip",
+      "last_tested_version": "0.1.8.0",
+      "last_tested_sha256": "731d36cabb2f532f55130040a9451778607590ec7e097fd75a49c178df36961e",
+      "last_tested_dol_version": "0.5.12.13",
+      "last_tested_date": "2026-11-08",
+      "status": "identity-verified-candidate",
+      "notes": [
+        "Verified download identity only; runtime acceptance pending."
+      ]
+    },
+    "au_f": {
+      "name": "AU Female",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUfemale.model_v0.9.3.zip",
+      "release_tag": "mod",
+      "last_tested_version": "v0.9.3",
+      "last_tested_sha256": "6c20236bc300d794ef2e77027d0d816d3ef4f2460282a5cac43aacbecc4206a0",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "face-style-runtime-validated-other-au-visuals-partial",
+      "notes": [
+        "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
+        "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
+        "DOL-X: restored AU-F to v0.9.3 to align with upstream Lyra and AOKIUTAGE latest model asset",
+        "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
+        "AU assets are downloaded from the author repository at build time",
+        "ROOT CAUSE 2026-08-07 (face style does not sync): DoL 0.5.10.12 hardcodes facevariant='default' in the character creation, mirror and cheats face-style switch UIs, but AU model styles register real image-directory values such as 大眼鼠鼠, 猫猫脸 and Q萌一号 rather than a default variant. Switching only the style therefore creates an invalid pair, delays visual synchronization until another demeanour click and can request missing eye layers. This is an AU model style contract issue, not the separate restricted AU facial expansion selector issue.",
+        "LOCAL PATCH 2026-08-07: all three AU public build codes (15705344/15706368/15708416) preserve ModI18N's original HTML input and apply a byte-exact fail-closed passage patch inside Maplebirch's existing modifyFaceStyle() owner after translation. The three interactive style switches select the first registered setup.faceVariantOptions value, while the unconditional backComp load path repairs only saved pairs that are invalid for a known style; legal values and unknown third-party styles remain unchanged. Base code 15704320 is explicitly excluded. ZIP/APK artifact audit requires the original 3+1 translation inputs plus one complete post-ModI18N payload owner and rejects the retired pre-translation HTML patch.",
+        "RUNTIME VERIFIED 2026-08-07 (AU-F): in an isolated MuMu 12 package, all eight real character-creation style links were clicked without a second demeanour click; 8/8 immediately selected a legal variant, the selected radio label matched facevariant, the character canvas produced eight distinct hashes, and there were 0 reporter, console and page errors. A committed playable save containing kiss改脸/default was then loaded through SugarCube's real slot API and naturally migrated to kiss改脸/大眼鼠鼠 in Orphanage Intro with no reporter and non-empty 49972/17587-pixel canvases. The test slot was deleted. AU-M/A share the same post-ModI18N compatibility behavior but use different model payloads and were not installed for runtime verification.",
+        "2026-11-13: 本地兼容验收输入；模型按作者来源获取，面扩读取私人本地归档。禁止或未确认二次分发的附件不公开镜像或内置公开产物。"
+      ],
+      "source_url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod",
+      "redistribution": {
+        "status": "prohibited",
+        "public": false,
+        "reason": "AU 作者明确禁止二次分发，没有找到整合公开的例外。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "upstream",
+            "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md#L3",
+            "quote": "AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！"
+          }
+        ],
+        "conditions": [
+          "不公开镜像，也不内置于公开整合包或 Actions 下载"
+        ]
+      },
+      "input_sha256": "6c20236bc300d794ef2e77027d0d816d3ef4f2460282a5cac43aacbecc4206a0",
+      "download_url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUfemale.model_v0.9.3.zip"
+    },
+    "au_m": {
+      "name": "AU Male",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUmale.model_v0.4.2.zip",
+      "release_tag": "mod",
+      "last_tested_version": "v0.4.2",
+      "last_tested_sha256": "c46389de100c2b6c681846aa28e054fd09053e3b55d03988b25c7fe93259efae",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "au-face-local-canary-pending-runtime",
+      "notes": [
+        "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
+        "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
+        "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; runtime rendering still requires focused validation",
+        "2026-11-13: 本地兼容验收输入；模型按作者来源获取，面扩读取私人本地归档。禁止或未确认二次分发的附件不公开镜像或内置公开产物。"
+      ],
+      "source_url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod",
+      "redistribution": {
+        "status": "prohibited",
+        "public": false,
+        "reason": "AU 作者明确禁止二次分发，没有找到整合公开的例外。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "upstream",
+            "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md#L3",
+            "quote": "AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！"
+          }
+        ],
+        "conditions": [
+          "不公开镜像，也不内置于公开整合包或 Actions 下载"
+        ]
+      },
+      "input_sha256": "c46389de100c2b6c681846aa28e054fd09053e3b55d03988b25c7fe93259efae",
+      "download_url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUmale.model_v0.4.2.zip"
+    },
+    "au_a": {
+      "name": "AU Androgynous",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUandrogynous.model_v0.1.1.zip",
+      "release_tag": "mod",
+      "last_tested_version": "v0.1.1",
+      "last_tested_sha256": "e93c82e20fbb8e809d2bc05365209ebb4aafc47fefd50038fcc982454a335cd9",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "au-face-local-canary-pending-runtime",
+      "notes": [
+        "DOL-X: pinned to exact model asset to avoid ambiguous release matching",
+        "Uses AOKIUTAGE release tag 'mod' (ModLoader model install), not imgpack and not facemod",
+        "The 4.x local AU matrix adds AU Face v1.1.0 manifest payload; AU-A has stronger upstream incompleteness reports and needs the strictest runtime review",
+        "2026-11-13: 本地兼容验收输入；模型按作者来源获取，面扩读取私人本地归档。禁止或未确认二次分发的附件不公开镜像或内置公开产物。"
+      ],
+      "source_url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/tag/mod",
+      "redistribution": {
+        "status": "prohibited",
+        "public": false,
+        "reason": "AU 作者明确禁止二次分发，没有找到整合公开的例外。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "upstream",
+            "url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/blob/main/README.md#L3",
+            "quote": "AU美化原版部件以及其衍生二创发型，服装以及一切源部件同人部件全部！严禁二传，倒卖，拆包行为！！"
+          }
+        ],
+        "conditions": [
+          "不公开镜像，也不内置于公开整合包或 Actions 下载"
+        ]
+      },
+      "input_sha256": "e93c82e20fbb8e809d2bc05365209ebb4aafc47fefd50038fcc982454a335cd9",
+      "download_url": "https://github.com/AOKIUTAGE/UTAGEsDOL3.0/releases/download/mod/AUandrogynous.model_v0.1.1.zip"
+    },
+    "au_face": {
+      "name": "AU面部扩展",
+      "github_repo": "AOKIUTAGE/UTAGEsDOL3.0",
+      "asset_pattern": "AUsDoL-facial-expansion-v1.2.16.zip",
+      "release_tag": "community-v1.2.16",
+      "last_tested_version": "1.2.16",
+      "last_tested_sha256": "82425f8c36cd510133f962f21270a031bf6f054517cdfbec4ace9cec4e4c31f5",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "candidate-pending-runtime",
+      "notes": [
+        "Original Discord community attachment; preserved unchanged in ../inputs. Runtime acceptance pending.",
+        "2026-11-13: 本地兼容验收输入；模型按作者来源获取，面扩读取私人本地归档。禁止或未确认二次分发的附件不公开镜像或内置公开产物。"
+      ],
+      "source_url": "https://discord.com/channels/1103864219620884560/1368992933243654164/1566065993858682990",
+      "redistribution": {
+        "status": "unconfirmed",
+        "public": false,
+        "reason": "snake / aokiutage 包内署名没有转载许可；Discord 说明与附件可定位，许可尚未确认。",
+        "checked_at": "2026-11-13",
+        "evidence": [
+          {
+            "kind": "archive_member",
+            "path": "README.md",
+            "quote": "原作者：snake；适配二改：aokiutage"
+          },
+          {
+            "kind": "source",
+            "url": "https://discord.com/channels/1103864219620884560/1368992933243654164/1566065993858682990"
+          }
+        ],
+        "conditions": []
+      },
+      "input_sha256": "82425f8c36cd510133f962f21270a031bf6f054517cdfbec4ace9cec4e4c31f5",
+      "local_path": "inputs/AUsDoL-facial-expansion-v1.2.16.zip"
+    },
+    "guide_to_me": {
+      "name": "控制NPC嘴部",
+      "github_repo": "Ayndpa/DOL-GuideToMe",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "1.1.0",
+      "last_tested_version": "v1.1.0",
+      "last_tested_sha256": "928e8d78733b6615da2848b7f4075e62e1da399aace5f2fb8dbdc945b4fdccb8",
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "Added in DOL-X integration (2026-06-23)",
+        "Provides NPC mouth control functionality",
+        "Compatible with all current mod combinations",
+        "DIGEST BACKFILLED (2026-08-02): this entry previously had a null sha256, so an in-place upstream asset swap under the same tag would not have been detectable. GitHub reports no digest for this asset because the upload predates that feature, so the recorded value was computed locally from the pinned asset and establishes a baseline for future comparison rather than confirming the author's original bytes."
+      ]
+    },
+    "neoui_patch": {
+      "name": "NeoUI Patch",
+      "github_repo": "RyaraSUKI/dol-neoui-patch",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "V1.1.0",
+      "last_tested_version": "V1.1.0",
+      "last_tested_sha256": "f615b0c3046b38bebc2041d5ca094a04c4a375082fbeb08124c6acceca070124",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-28",
+      "status": "required-runtime-validated",
+      "notes": [
+        "DOL-X: promoted to a required feature in all four build codes after the AU sidebar comparison closed (2026-07-05)",
+        "Provides click-outside-to-close sidebar behavior when enabled",
+        "Overlay sidebar layout can cover content by design; comparison testing confirmed it was not the AU sprite-misalignment cause",
+        "Included in the 4.x base runtime stack that reported 0 errors and 0 warnings",
+        "DIGEST BACKFILLED (2026-08-02): this entry previously had a null sha256, so an in-place upstream asset swap under the same tag would not have been detectable. The recorded digest was computed from the pinned asset and matches the digest GitHub reports for it."
+      ]
+    },
+    "npc_social_icon": {
+      "name": "NPC社交栏头像",
+      "github_repo": "Eudemonism00/DOL-NPC-Avatars-Mod",
+      "asset_pattern": "*.mod.zip",
+      "release_tag": "1.4",
+      "last_tested_version": "v1.4.1",
+      "last_tested_sha256": "f76a1eabeeed1107b3d2d6fb5b3a9f7a622735fa8824a4354ef0c6825a8d565f",
+      "last_tested_dol_version": "0.5.8.10",
+      "last_tested_date": "2026-06-23",
+      "notes": [
+        "Added in DOL-X integration (2026-06-23)",
+        "NPC social bar avatar display",
+        "Test coexistence with Mae's Picvary (bit 131072)",
+        "Both mods target NPC sidebar - validate no conflict",
+        "DIGEST BACKFILLED (2026-08-02): this entry previously had a null sha256, so an in-place upstream asset swap under the same tag would not have been detectable. The recorded digest was computed from the pinned asset and matches the digest GitHub reports for it."
+      ]
+    },
+    "doli": {
+      "name": "D.O.L.I",
+      "github_repo": "ArsNativa/Degrees-of-Lewdity-Intelligence",
+      "asset_pattern": "DOLI.mod.zip",
+      "release_tag": "v0.2.3",
+      "last_tested_version": "release tag v0.2.3 / boot.json 0.2.2",
+      "last_tested_sha256": "82785c3d6d8a5f311763190e8429b77dfd1f1130c1dcfd95d2ab77187e356890",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-08-02",
+      "notes": [
+        "Added in DOL-X integration (2026-07-01); LLM dialogue and combat text enhancement, player supplies their own OpenAI-compatible API key in game",
+        "DOL-X never embeds an API key; with no key configured the mod still loads and only the AI features stay idle",
+        "VERSION DOUBLE IDENTITY (verified 2026-08-02): the release tag is v0.2.3 but the packaged boot.json declares version 0.2.2 because the author did not bump the manifest. ModLoader reads boot.json, so a runtime listing of DOLI 0.2.2 is correct and does NOT mean the build fetched a stale asset",
+        "CORRECTION (2026-08-02): the earlier note claiming boot.json requires ModLoader ^2.0.0 plus maplebirch ^3.1.0 satisfied by 2.101.1 and 3.1.14 was wrong on two counts. dependenceInfo only requires ModLoader ^2.0.0, and maplebirch appears solely under addonPlugin with range ^3.1.0, which does NOT cover the current 4.1.13",
+        "RUNTIME CORRECTION (2026-08-05): addonPlugin declares maplebirch ^3.1.0, but user runtime evidence confirms DOLI works on the current 4.1.13 stack. Do not infer entry registration solely from the declared range. DOLI's own patches/overlay-replace.json is separate from the DOL-X build-time patch, which only fixes the bottom-right floating assistant icon path.",
+        "Re-verify the in-framework entry if the author widens the addonPlugin range to ^4.0.0",
+        "License CC BY-NC-SA 4.0; pinned to v0.2.3 and deliberately not tracking latest during the 0.2.x early phase"
+      ],
+      "status": "runtime-mounted",
+      "boot_version": "0.2.2",
+      "mirror_url": "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/doli-v0.2.3/DOLI.mod.zip",
+      "source_url": "https://github.com/ArsNativa/Degrees-of-Lewdity-Intelligence/releases/tag/v0.2.3",
+      "mirror_sha256": "82785c3d6d8a5f311763190e8429b77dfd1f1130c1dcfd95d2ab77187e356890"
+    },
+    "legacy_art_compat": {
+      "name": "旧版图片名称适配 (Legacy-Art-Mods-Compat plus)",
+      "github_repo": "XFoxLG/DOL-X",
+      "asset_pattern": "Legacy-Art-Mods-Compat.zip",
+      "release_tag": "legacy-art-compat-plus-v1.1",
+      "last_tested_version": "1.0.3-plusV1.1",
+      "last_tested_sha256": "df1debd4425467c60553a15e090a870b6924c2102614ccab4ff716776d17a727",
+      "last_tested_dol_version": "0.5.10.12",
+      "last_tested_date": "2026-07-31",
+      "status": "enabled-actions-base-validated",
+      "notes": [
+        "Community plus of mirrormirroronwall/Legacy-Art-Mods-Compat; upstream README explicitly allows modification and redistribution",
+        "Original author: 鎖鏈蝴蝶 / mirrormirroronwall; Plus maintainer and publisher: 隨風飄逸 / chris81605 (repository and Discord publication verified 2026-11-07)",
+        "Difference vs upstream 1.0.3: six AU Face image-name fallback/override rules (blush{n} / tear(s){n}), grayscale-first ordering, clothing path compatibility, clothing-shop widget adjustment",
+        "Hook mechanism: window.modImgLoaderHooker.addSideHooker registers checkImageExist + imageGetter; additive, no patch to lyra/ core",
+        "Bound to cheat_extended_maplebirch feature (required bit 32768, in all four build codes); does not occupy an independent bit; four codes unchanged",
+        "User runtime evidence 2026-07-29: AU Face blushN/tearN errors disappeared with plus sideloaded; independent mouth posture confirmed working; face pattern and tear visual effects still unverified but not blocking",
+        "GitHub Actions run 30610401219 built and uploaded the public base ZIP/APK with this compatibility layer enabled"
+      ]
+    },
+    "deadwood": {
+      "name": "deadwood-reblooms",
+      "github_repo": "MaplebirchLeaf/Deadwood-Reblooms",
+      "release_tag": "v2.5.8",
+      "asset_pattern": "deadwood-reblooms-0.5.12.13-v2.5.8.modpack",
+      "last_tested_version": "2.5.8",
+      "last_tested_sha256": "6fcbb46a4267001927f96f7b6241099b4ceb96a8c7006aa86568d22bba1ba246",
+      "last_tested_dol_version": "0.5.12.13",
+      "last_tested_date": "2026-11-08",
+      "status": "identity-verified-candidate",
+      "notes": [
+        "Verified download identity only; runtime acceptance pending."
+      ],
+      "source_url": "https://github.com/MaplebirchLeaf/Deadwood-Reblooms/releases/tag/v2.5.8",
+      "download_url": "https://github.com/MaplebirchLeaf/Deadwood-Reblooms/releases/download/v2.5.8/deadwood-reblooms-0.5.12.13-v2.5.8.modpack",
+      "redistribution": {
+        "status": "unconfirmed",
+        "public": false,
+        "reason": "许可尚未逐项确认，暂停公开下载；保留原作者来源。",
+        "checked_at": "2026-11-13",
+        "evidence": [],
+        "conditions": []
+      },
+      "input_sha256": "6fcbb46a4267001927f96f7b6241099b4ceb96a8c7006aa86568d22bba1ba246"
+    },
+    "revelation": {
+      "name": "revelation-the-book-of-return",
+      "github_repo": "MaplebirchLeaf/Revelation-The-Book-of-Return",
+      "release_tag": "v1.4.6",
+      "asset_pattern": "revelation-the-book-of-return-v1.4.6.modpack",
+      "last_tested_version": "1.4.6",
+      "last_tested_sha256": "4f4c3c9408b2f3a117fdf3f0dffaa746e74ff309b1f64a243d92258dfe1ebefe",
+      "last_tested_dol_version": "0.5.12.13",
+      "last_tested_date": "2026-11-08",
+      "status": "identity-verified-candidate",
+      "notes": [
+        "Verified download identity only; runtime acceptance pending."
+      ],
+      "source_url": "https://github.com/MaplebirchLeaf/Revelation-The-Book-of-Return/releases/tag/v1.4.6",
+      "download_url": "https://github.com/MaplebirchLeaf/Revelation-The-Book-of-Return/releases/download/v1.4.6/revelation-the-book-of-return-v1.4.6.modpack",
+      "redistribution": {
+        "status": "unconfirmed",
+        "public": false,
+        "reason": "许可尚未逐项确认，暂停公开下载；保留原作者来源。",
+        "checked_at": "2026-11-13",
+        "evidence": [],
+        "conditions": []
+      },
+      "input_sha256": "4f4c3c9408b2f3a117fdf3f0dffaa746e74ff309b1f64a243d92258dfe1ebefe"
+    }
+  }
+}

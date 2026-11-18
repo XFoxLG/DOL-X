@@ -5,6 +5,7 @@
 """
 
 import tomllib
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -118,6 +119,11 @@ class ModloaderModConfig:
     asset_pattern: str
     enabled: bool = True
     download_url: str = ""
+    # Archived community attachment, relative to the selected config directory.
+    local_path: str = ""
+    # Local mod source directory, relative to the selected config directory.
+    # The build zips this directory into a ModLoader container before injection.
+    source_dir: str = ""
     feature_id: str = ""
     release_tag: str = "latest"
     feature_ids: list[str] = field(default_factory=list)
@@ -150,10 +156,12 @@ class ModloaderModConfig:
     @classmethod
     def from_dict(cls, data: dict) -> "ModloaderModConfig":
         return cls(
-            github_repo=data["github_repo"],
+            github_repo=data.get("github_repo", "") if data.get("source_dir") else data["github_repo"],
             asset_pattern=data["asset_pattern"],
             enabled=data.get("enabled", True),
             download_url=data.get("download_url", ""),
+            local_path=data.get("local_path", ""),
+            source_dir=data.get("source_dir", ""),
             feature_id=data.get("feature_id", ""),
             release_tag=data.get("release_tag", "latest"),
             feature_ids=data.get("feature_ids", []),
@@ -285,7 +293,7 @@ class ConfigLoader:
     """配置加载器"""
 
     def __init__(self, config_dir: Optional[Path] = None):
-        self.config_dir = config_dir or DEFAULT_CONFIG_DIR
+        self.config_dir = Path(config_dir or os.environ.get("DOLX_CONFIG_DIR") or DEFAULT_CONFIG_DIR)
         self._features: Optional[list[Feature]] = None
         self._combinations: Optional[CombinationsConfig] = None
         self._build: Optional[BuildConfiguration] = None

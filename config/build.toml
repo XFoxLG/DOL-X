@@ -103,7 +103,7 @@ name = "ucb"
 # 优先使用 GitHub Release 镜像（绕过 GitGud.io IP 限制）
 # Fallback 到 GitGud.io（如果镜像失败）
 urls = [
-    "https://github.com/XFoxLG/DOL-X/releases/download/imagepack-mirror-v1/degrees-of-lewdity-plus-master-imagepacks-mysterious.tar.gz",
+    "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/imagepack-mirror-v1/degrees-of-lewdity-plus-master-imagepacks-mysterious.tar.gz",
     "{dolp_base}/mysterious"
 ]
 files_to_remove = [
@@ -244,7 +244,7 @@ feature_id = "cheat_extended_maplebirch"
 github_repo = "chris81605/Degrees-of-Lewdity_Cheat_Extended"
 asset_pattern = "cheat_extended.mod.zip"
 release_tag = "cheat-extended-mirror-v1.20"
-download_url = "https://github.com/XFoxLG/DOL-X/releases/download/cheat-extended-mirror-v1.20/cheat_extended.mod.zip"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/cheat-extended-mirror-v1.20/cheat_extended.mod.zip"
 # MIRRORED 2026-10-03: 上游 V1.20Beta 是可变通道，作者已原位换包五次（最近一次
 # 2026-10-02T18:46Z，dev2601001 -> 1.20 正式号并新增发色自定义）。继续直连上游会让
 # 任何冷启动构建（CI / 换机器 / 清缓存）在换包后 fail-closed 失败。DOL-X 把经过
@@ -325,7 +325,7 @@ feature_id = "maplebirch_expansion"
 github_repo = "MaplebirchLeaf/LongerCombat"  # 上游已删库，仅保留来源标注
 asset_pattern = "longer-combat-0.5.10.12-v1.0.1.mod.zip"
 release_tag = "v1.0.1"
-download_url = "https://github.com/XFoxLG/DOL-X/releases/download/longer-combat-mirror-v1.0.1/longer-combat-0.5.10.12-v1.0.1.mod.zip"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/longer-combat-mirror-v1.0.1/longer-combat-0.5.10.12-v1.0.1.mod.zip"
 track_upstream = false  # 上游仓库已删除，无可追对象
 # MaplebirchLeaf/LongerCombat v1.0.1 (2026-07-25)，旧扩展包 LongerCombat 功能的独立继任者。
 # addonPlugin 声明 maplebirch ^4.1.0；boot.json dependenceInfo 只要 ModLoader>=2.0 + GameVersion>=0.5.10.12。
@@ -339,7 +339,7 @@ feature_id = "maplebirch_expansion"
 github_repo = "MaplebirchLeaf/YanlingCheatCollection"  # 上游已删库，仅保留来源标注
 asset_pattern = "yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
 release_tag = "v1.0.1"
-download_url = "https://github.com/XFoxLG/DOL-X/releases/download/yanling-cheat-mirror-v1.0.1/yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/yanling-cheat-mirror-v1.0.1/yanling-cheat-collection-0.5.10.12-v1.0.1.mod.zip"
 track_upstream = false  # 上游仓库已删除，无可追对象
 # MaplebirchLeaf/YanlingCheatCollection v1.0.1 (2026-07-25)，旧扩展包言灵功能的独立继任者。
 # addonPlugin 声明 maplebirch ^4.1.0；boot.json dependenceInfo 只要 ModLoader>=2.0 + GameVersion>=0.5.10.12。
@@ -422,7 +422,7 @@ feature_ids = ["cheat_extended_maplebirch"]
 github_repo = "XFoxLG/DOL-X"
 asset_pattern = "Legacy-Art-Mods-Compat.zip"
 release_tag = "legacy-art-compat-plus-v1.1"
-download_url = "https://github.com/XFoxLG/DOL-X/releases/download/legacy-art-compat-plus-v1.1/Legacy-Art-Mods-Compat.zip"
+download_url = "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/legacy-art-compat-plus-v1.1/Legacy-Art-Mods-Compat.zip"
 track_upstream = false  # 社区二改，不走官方源更新检查；SHA-256 由 mods.lock.json 审核
 
 # 基础 mod 注入配置（按列表顺序处理）

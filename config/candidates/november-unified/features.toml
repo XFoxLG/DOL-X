@@ -1,0 +1,216 @@
+# MOD 功能定义
+# bit: 位标志值
+# required: 是否必选
+# depends_on: 依赖的功能ID列表
+# conflicts_with: 冲突的功能ID列表
+# skip: 是否跳过此功能（不生成包含此功能的组合）
+
+[[features]]
+id = "au-a"
+name = "AU-A"
+bit = 4096
+required = false
+skip = false
+depends_on = []
+conflicts_with = ["susato", "goose", "au-f", "au-m"]
+
+[[features]]
+id = "au-m"
+name = "AU-M"
+bit = 2048
+required = false
+skip = false
+depends_on = []
+conflicts_with = ["susato", "goose", "au-f", "au-a"]
+
+[[features]]
+id = "au-f"
+name = "AU-F"
+bit = 1024
+required = false
+skip = false
+depends_on = []
+conflicts_with = ["susato", "goose", "au-m", "au-a"]
+
+[[features]]
+id = "goose"
+name = "GOOSE"
+bit = 512
+required = false
+skip = false
+depends_on = []
+conflicts_with = ["besc", "susato", "ucb", "au-f", "au-m", "au-a"]
+
+[[features]]
+id = "ucb"
+name = "UCB"
+bit = 256
+required = false
+skip = false
+depends_on = []
+conflicts_with = ["besc", "goose", "susato"]
+
+[[features]]
+id = "susato"
+name = "SUSATO"
+bit = 128
+required = false
+skip = true                                                # 跳过，不生成包含此功能的组合
+depends_on = []
+conflicts_with = ["besc", "goose", "ucb", "au-f", "au-m", "au-a"]
+
+[[features]]
+id = "wax"
+name = "WAX"
+bit = 64
+required = false
+skip = true           # 跳过
+depends_on = ["besc"]
+conflicts_with = []
+
+[[features]]
+id = "hikari"
+name = "HIKARI"
+bit = 32
+required = false
+skip = true                # 跳过（依赖 besc，且 besc 已跳过）
+depends_on = ["besc"]
+conflicts_with = []
+
+[[features]]
+id = "kr"
+name = "KR特写"
+bit = 16
+required = false
+skip = true             # 跳过
+depends_on = ["besc"]
+conflicts_with = ["bj"]
+
+[[features]]
+id = "bj"
+name = "BJ特写"
+bit = 8
+required = false
+skip = true             # 跳过
+depends_on = ["besc"]
+conflicts_with = ["kr"]
+
+[[features]]
+id = "reserved"
+name = ""
+bit = 4
+required = false
+skip = true         # 保留位，跳过
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "cheat_csd"
+name = "作弊CSD（已废弃）"
+bit = 2
+required = false
+skip = true
+depends_on = []
+conflicts_with = ["cheat_extended_maplebirch"]
+
+[[features]]
+id = "besc"
+name = "BESC"
+bit = 1
+required = false
+skip = true  # DOL-X不使用BESC，使用UCB作为唯一战斗美化
+depends_on = []
+conflicts_with = ["susato", "goose", "ucb"]  # UCB会覆盖BESC图片
+
+[[features]]
+id = "more_love"
+name = "更多恋人"
+bit = 8192
+required = false
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "cheat_extended_maplebirch"
+name = "cheatExtended+maplebirch"
+bit = 32768
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "custom_hair"
+name = "自定义染发"
+bit = 65536
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "mae_picvary"
+name = "NPC侧边栏头像"
+bit = 131072
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "maplebirch_expansion"
+name = "maplebirch扩展包"
+bit = 262144
+required = true
+skip = false
+depends_on = ["cheat_extended_maplebirch"]  # 依赖 maplebirch 框架
+conflicts_with = []
+
+[[features]]
+id = "guide_to_me"
+name = "控制NPC嘴部"
+bit = 524288
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "neoui_patch"
+name = "NeoUI Patch"
+bit = 2097152
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+# DOL-X: Promoted to required (2026-07-05). NeoUI is an independent UI beautify
+# mod and is now the project's standard UI, shipping in every build.
+# The 2026-06-30 diagnostic is closed: NeoUI does NOT cause the AU-F sidebar
+# sprite misplacement (sprites render correctly with or without it). The
+# overlay/drawer sidebar that covers story text is its intended design, not a
+# bug. Root cause of the original sprite issue was the removed v4.x compat shim
+# plus the maplebirch v4.x stack (see commit d3bcd47), not NeoUI or AU version.
+# No-NeoUI variants are no longer built.
+
+[[features]]
+id = "npc_social_icon"
+name = "NPC社交栏头像"
+bit = 4194304
+required = true
+skip = false
+depends_on = []
+conflicts_with = []
+
+[[features]]
+id = "doli"
+name = "D.O.L.I"
+bit = 8388608
+required = true
+skip = false
+depends_on = ["cheat_extended_maplebirch"]  # maplebirch 插件，boot.json 要求 maplebirch ^3.1.0
+conflicts_with = []
+# DOL-X: 集成于 2026-07-01。ArsNativa/Degrees-of-Lewdity-Intelligence，锁定 v0.2.3。
+# LLM AI 对话/战斗文本增强，ReAct 模式，需玩家在游戏内自填 OpenAI 兼容 API key。
+# 构建系统绝不嵌 key；未配后端时 mod 仍能加载，只是 AI 功能不工作。
+# 许可证 CC BY-NC-SA 4.0。0.2.x 早期阶段，按保守策略钉死 v0.2.3 不跟 latest 漂。

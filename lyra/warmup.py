@@ -5,8 +5,10 @@
 """
 
 import hashlib
+import io
 import json
 import logging
+import os
 import re
 import shutil
 import zipfile
@@ -14,6 +16,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .code_validation import parse_build_code
+from .mod_archive import MODPACK_MAGIC, mod_zip_bytes, source_mod_zip_bytes
 from .combo import CombinationCalculator
 from .paths import BuildPaths
 from .version import VersionInfo, VersionRegistry
@@ -25,6 +28,7 @@ from .utils import (
     safe_move,
     get_gitgud_commit_hash,
     get_github_release_asset,
+    redacted_download_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -262,7 +266,7 @@ class ResourceWarmer:
         last_error = None
         for idx, url in enumerate(urls, 1):
             try:
-                logger.info(f"  [{idx}/{len(urls)}] 尝试: {url[:100]}...")
+                logger.info("  [%s/%s] 尝试: %s", idx, len(urls), redacted_download_url(url))
                 download_file(url, tar_path, quiet=True)
                 logger.info(f"  下载成功！")
                 break  # 下载成功，退出循环
@@ -447,7 +451,63 @@ class ResourceWarmer:
         else:
             display_name = mod_config.key or mod_config.asset_pattern
 
-        dest_path = self.paths.get_mod_cache_path(mod_config.cache_name)
+        normalized_path = self.paths.get_mod_cache_path(mod_config.cache_name)
+        is_modpack = mod_config.asset_pattern.endswith(".modpack")
+        dest_path = normalized_path.with_name(f"{mod_config.cache_name}.modpack") if is_modpack else normalized_path
+        if is_modpack:
+            # A failed raw-payload check must not leave a buildable stale ZIP.
+            normalized_path.unlink(missing_ok=True)
+
+        def materialize():
+            if is_modpack:
+                normalized_path.write_bytes(mod_zip_bytes(dest_path.read_bytes()))
+
+        if mod_config.source_dir:
+            if mod_config.local_path or mod_config.download_url:
+                raise ValueError(
+                    f"{display_name}: source_dir, local_path and download_url are mutually exclusive"
+                )
+            source_root = (config_loader.config_dir / mod_config.source_dir).resolve()
+            if not source_root.is_dir():
+                raise FileNotFoundError(
+                    f"{display_name}: source_dir does not exist: {source_root}"
+                )
+            if is_modpack:
+                raise ValueError(f"{display_name}: source_dir produces a .mod.zip, not a .modpack")
+            dest_path.unlink(missing_ok=True)
+            payload = source_mod_zip_bytes(source_root)
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                boot = json.loads(archive.read("boot.json"))
+            if boot["version"] != mod_config.release_tag:
+                raise ValueError(f"{display_name}: source version {boot['version']} differs from configured {mod_config.release_tag}")
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(payload)
+            self.registry.add(VersionInfo(
+                name=display_name, version=boot["version"],
+                source=mod_config.github_repo or f"local-source:{mod_config.cache_name}", filename=dest_path.name,
+            ))
+            logger.info(
+                "  %s: packaged from source dir %s (%s)",
+                display_name, mod_config.source_dir, mod_config.release_tag,
+            )
+            return
+
+        # Read explicit community archives on every warmup. Check the copied
+        # payload so a failed digest check never deletes the archived original.
+        if mod_config.local_path:
+            if mod_config.download_url:
+                raise ValueError(f"{display_name}: local_path and download_url are mutually exclusive")
+            source = (config_loader.config_dir / mod_config.local_path).resolve()
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, dest_path)
+            self._validate_locked_au_payload_digest(mod_config, dest_path)
+            materialize()
+            self.registry.add(VersionInfo(
+                name=display_name, version=mod_config.release_tag,
+                source=mod_config.github_repo or f"archived-input:{mod_config.cache_name}", filename=source.name,
+            ))
+            logger.info("  %s: 已读取归档附件 (%s)", display_name, mod_config.release_tag)
+            return
 
         # 检查是否已存在。缓存命中还必须证明它就是配置钉定的那个版本，
         # 否则上一轮遗留的旧载荷会被静默复用（见文件头 PINNED_VERSION_PATTERN 注释）。
@@ -458,6 +518,7 @@ class ResourceWarmer:
             )
             if cache_mismatch is None:
                 self._validate_locked_au_payload_digest(mod_config, dest_path)
+                materialize()
                 logger.debug(f"  {display_name}: 已缓存")
                 return
 
@@ -482,6 +543,7 @@ class ResourceWarmer:
             )
             download_file(mod_config.download_url, dest_path, quiet=True)
             self._validate_locked_au_payload_digest(mod_config, dest_path)
+            materialize()
             logger.info(f"  {display_name}: 下载完成 ({mod_config.release_tag})")
             return
 
@@ -509,6 +571,7 @@ class ResourceWarmer:
         # 下载 mod 文件
         download_file(asset.url, dest_path, quiet=True)
         self._validate_locked_au_payload_digest(mod_config, dest_path)
+        materialize()
         logger.info(f"  {display_name}: 下载完成 ({asset.version})")
 
     @staticmethod
@@ -538,7 +601,10 @@ class ResourceWarmer:
         healthy payloads on every warmup.
         """
         try:
-            with zipfile.ZipFile(payload_path, "r") as payload_zip:
+            data = payload_path.read_bytes()
+            if data.startswith(MODPACK_MAGIC):
+                data = mod_zip_bytes(data)
+            with zipfile.ZipFile(io.BytesIO(data), "r") as payload_zip:
                 if MOD_BOOT_JSON_MEMBER not in payload_zip.namelist():
                     return None
                 raw_boot_json = payload_zip.read(MOD_BOOT_JSON_MEMBER).decode(
@@ -589,6 +655,19 @@ class ResourceWarmer:
         if expected_version[:compared_length] == cached_version[:compared_length]:
             return None
 
+        # Some published tags intentionally retain the previous boot.json
+        # version. Trust that exception only for the exact reviewed payload,
+        # not merely because its manifest happens to have the old number.
+        lock_dir = Path(os.environ["DOLX_CONFIG_DIR"]) if "DOLX_CONFIG_DIR" in os.environ else self.paths.workspace / "config"
+        lock_path = lock_dir / "mods.lock.json"
+        if lock_path.exists():
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            reviewed = lock.get("mods", {}).get(mod_config.cache_name, {})
+            if (reviewed.get("release_tag") == mod_config.release_tag
+                    and reviewed.get("boot_version") == cached_version_text
+                    and reviewed.get("last_tested_sha256") == hashlib.sha256(payload_path.read_bytes()).hexdigest()):
+                return None
+
         return mod_config.release_tag, cached_version_text
 
     def _validate_locked_au_payload_digest(
@@ -598,10 +677,11 @@ class ResourceWarmer:
     ) -> None:
         """Fail closed if a digest-locked payload differs from its reviewed lock."""
         cache_name = mod_config.cache_name
-        if cache_name not in LOCKED_AU_PAYLOAD_CACHE_NAMES:
+        if cache_name not in LOCKED_AU_PAYLOAD_CACHE_NAMES and not mod_config.asset_pattern.endswith(".modpack"):
             return
 
-        lock_path = self.paths.workspace / "config" / "mods.lock.json"
+        lock_dir = Path(os.environ["DOLX_CONFIG_DIR"]) if "DOLX_CONFIG_DIR" in os.environ else self.paths.workspace / "config"
+        lock_path = lock_dir / "mods.lock.json"
         try:
             lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
             expected_digest = str(

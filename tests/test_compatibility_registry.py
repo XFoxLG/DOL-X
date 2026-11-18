@@ -26,6 +26,9 @@ def test_compatibility_surfaces_are_registered_and_classified():
     surfaces_by_key = {surface.key: surface for surface in COMPATIBILITY_SURFACES}
 
     assert set(surfaces_by_key) == {
+        "apk_cordova_js_interface_public",
+        "au_pet_default_mask", "au_m_body_frame_alpha", "legacy_art_existing_assets", "maplebirch_414_concrete_face_assets",
+        "custom_hair_offline_colors", "doli_settings_entry", "more_love_optional_mods", "ce_optional_framework", "dolx_compat_au_face", "dolx_compat_weather_location", "au_face_archive_directories", "game_wolf_pattern_alias",
         MORE_LOVE_DRAG_PATCH_KEY,
         DOLI_FLOAT_ICON_PATCH_KEY,
         MAPLEBIRCH_PET_PASSAGE_REMOUNT_PATCH_KEY,

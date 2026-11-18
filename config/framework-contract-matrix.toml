@@ -15,6 +15,23 @@ schema = "dolx.framework-contract-matrix.v1"
 game_version_in_use = "0.5.11.9"
 locked_version = "4.1.14"
 
+[[candidates]]
+version = "5.6.2"
+claimed_metadata_version = "5.6.2"
+content_verdict = "consistent"
+release_status = "published; isolated 0.5.12.13 candidate"
+tag_name = "maplebirch-release-v5.6.2"
+game_version_floor = ">=0.5.12.13"
+usable_on_game_version_in_use = false
+face_style_src_fn_export = false
+asset_held = false
+asset_pattern = "maplebirch-0.5.12.13-v5.6.2.mod.zip"
+asset_sha256 = "d926f6188c4abb950d1f5f4657a1b142613dc5613a47004876f8f26793b99f76"
+asset_bytes = 388498
+payload_face_style_src_fn_count = 0
+needle_hits = { maplebirch_au_variant_dir_priority = 0, maplebirch_au_face_variant_insertion = 0, maplebirch_pet_remount = 0 }
+notes = "Candidate only: no legacy AU face export. Native macro wrapper plus passageend pet.sync found; old remount patch is not applicable. Keep default 4.1.14 and validate runtime separately."
+
 
 [archaeology]
 upstream_repo = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"

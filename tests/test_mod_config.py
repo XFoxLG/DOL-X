@@ -187,7 +187,7 @@ class TestModConfig:
         ce = mods_by_key["cheat_extended"]
         assert ce.github_repo == "chris81605/Degrees-of-Lewdity_Cheat_Extended"
         assert ce.download_url.startswith(
-            "https://github.com/XFoxLG/DOL-X/releases/download/"
+            "https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/"
             "cheat-extended-mirror-v1.20/"
         ), "cheat_extended 上游为可变通道，下载必须指向自建不可变镜像"
         assert ce.track_upstream is True
@@ -212,7 +212,7 @@ class TestModConfig:
                 f"{mod_key} 应保留上游来源标注"
             )
             assert mod.download_url.startswith(
-                f"https://github.com/XFoxLG/DOL-X/releases/download/{mirror_tag}/"
+                f"https://github.com/XFoxLG/DOL-X-Mirrors/releases/download/{mirror_tag}/"
             ), f"{mod_key} 上游已删除，下载必须指向自建镜像"
             assert mod.track_upstream is False, (
                 f"{mod_key} 上游已删除，不应再声称跟踪上游"

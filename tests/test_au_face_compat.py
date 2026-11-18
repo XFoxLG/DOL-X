@@ -445,6 +445,12 @@ def _maplebirch_face_patch_script(*, include_chained_needles: bool = False) -> s
         'n.content=e.replace(n.content,a,"FaceStyle"),r.set(t,n)}'
         "n.passageDataItems.back2Array(),"
         "e.modUtils.replaceFollowSC2DataInfo(n,t)}"
+        "let aI=new Set;function aO(e){let t=e.find(e=>aI.has(e));if(t)return t;"
+        "let n='';for(let t of e){let e=no(t);if(e===t||!0===e)return t;"
+        "!1===e||n||(n=t)}return n||e[0]}"
+        "function aD(t){return function(e){adjustFaceStyleVariant(e);}}"
+        "class Character{use(t,n,r){return this.layers.push({target:n,layers:t}),"
+        "r?.pet&&this.pet.use(t),this}}"
     )
     if not include_chained_needles:
         return script

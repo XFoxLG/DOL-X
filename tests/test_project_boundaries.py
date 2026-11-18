@@ -19,21 +19,24 @@ def test_readme_identifies_dolx_as_current_project():
     readme = _read_doc("README.md")
 
     assert readme.startswith("# DOL-X / XFox")
-    assert "DOL-X 是 XFox 自用整合包发布仓库" in readme
-    assert "DoL-Lyra/Lyra" in readme
-    assert "直接上游构建流程来源" in readme
-    assert "不是本仓库的项目身份" in readme
+    assert "DOL-X 是由 XFoxLG 维护的游戏整合包" in readme
+    assert "https://github.com/DoL-Lyra/Lyra" in readme
+    assert "构建系统" in readme
+    assert "当前稳定版" in readme
+    assert "十一月候选仍在测试" in readme
     assert "DoL XFox" in readme
     assert "com.vrelnir.dol.xfox" in readme
 
 
-def test_upstream_sync_doc_keeps_direction_and_self_use_boundary():
+def test_upstream_sync_doc_preserves_upstream_layout_and_project_config():
     checklist = _read_doc("UPSTREAM_SYNC_CHECKLIST.md")
 
     assert "DoL-Lyra/Lyra -> DOL-X" in checklist
-    assert "direct upstream for build and packaging flow reuse" in checklist
-    assert "DOL-X-specific identity, build matrix, and candidate/rollback mod" in checklist
-    assert "do not\n  turn XFox self-use integrations into assumed upstream defaults" in checklist
+    assert "https://github.com/DoL-Lyra/Lyra" in checklist
+    assert "保留上游根目录、`lyra/`、`config/`、`scripts/`" in checklist
+    assert "APK 名称、包名、版本组合及下载源通过配置维护" in checklist
+    assert "保留当前稳定组合" in checklist
+    assert "候选配置验证" in checklist
 
 
 def test_docs_do_not_call_project_local_mods_upstream_legacy():
