@@ -314,8 +314,8 @@ track_upstream = false  # 锁定固定 tag DOL，download_url 钉死 1.3.2 asset
 # MIRRORED 2026-10-02: 作者把这两个仓库也整个删除了（MaplebirchLeaf/LongerCombat、
 # MaplebirchLeaf/YanlingCheatCollection，API 与网页均 404），功能并入枯木逢春
 # （Deadwood-Reblooms）作为 LongerCombat / IncantationCheatCollection 模块。
-# 上游因此不再有任何可下载来源，官方源会 404。DOL-X 把这最后一份 4.x 兼容构建
-# 上传为自建不可变镜像，download_url 改指镜像，track_upstream 关掉（已无可追对象），
+# 上游因此不再有任何可下载来源，官方源会 404。4.x 回退组合继续使用这份 4.x 兼容构建，
+# 来源记录在 config/mods.lock.json，track_upstream 关掉（已无可追对象），
 # 并把两者加入 fail-closed digest 名单。github_repo 保留上游值仅作来源标注。
 [[modloader_mods]]
 key = "longer_combat"
