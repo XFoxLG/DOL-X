@@ -149,6 +149,7 @@ def run_source_edges(
     seed: int = 1719,
     expected_version: str | None = None,
     tag: str | None = None,
+    apk: Path | None = None,
     mods_lock: Path | None = None,
     build_toml: Path | None = None,
     source_commit: str | None = None,
@@ -171,6 +172,7 @@ def run_source_edges(
     manifest = build_manifest(
         target,
         expected_version=expected_version,
+        apk=apk,
         mods_lock=mods_lock,
         build_toml=build_toml,
         source_commit=source_commit,
@@ -381,6 +383,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=1719)
     parser.add_argument("--expect-version")
     parser.add_argument("--tag")
+    parser.add_argument(
+        "--apk",
+        type=Path,
+        help="the APK the device replay installs; its sha256 binds this manifest to "
+        "the android summary in the release gate",
+    )
     parser.add_argument("--mods-lock", type=Path)
     parser.add_argument("--build-toml", type=Path)
     parser.add_argument("--source-commit")
@@ -407,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
         expected_version=args.expect_version,
         tag=args.tag,
+        apk=args.apk,
         mods_lock=args.mods_lock,
         build_toml=args.build_toml,
         source_commit=args.source_commit,

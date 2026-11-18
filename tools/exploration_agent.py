@@ -152,6 +152,7 @@ def explore(
     source_commit: str | None = None,
     source_index: Path | None = None,
     tag: str | None = None,
+    apk: Path | None = None,
     restore_checkpoint: Path | None = None,
     shrink_failures: bool = False,
 ) -> dict[str, Any]:
@@ -160,6 +161,7 @@ def explore(
     manifest = build_manifest(
         target,
         expected_version=expected_version,
+        apk=apk,
         mods_lock=mods_lock,
         build_toml=build_toml,
         source_commit=source_commit,
@@ -573,6 +575,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source-commit")
     parser.add_argument("--source-index", type=Path)
     parser.add_argument("--tag")
+    parser.add_argument(
+        "--apk",
+        type=Path,
+        help="the APK the device replay installs; its sha256 binds this manifest to "
+        "the android summary in the release gate",
+    )
     parser.add_argument("--restore-checkpoint", type=Path)
     parser.add_argument(
         "--shrink-failures",
@@ -598,6 +606,7 @@ def main(argv: list[str] | None = None) -> int:
         source_commit=args.source_commit,
         source_index=args.source_index,
         tag=args.tag,
+        apk=args.apk,
         restore_checkpoint=args.restore_checkpoint,
         shrink_failures=args.shrink_failures,
     )
