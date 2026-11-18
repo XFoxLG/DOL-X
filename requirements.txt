@@ -9,6 +9,13 @@ tqdm>=4.67.1
 # 版本号比较
 packaging>=25.0
 
+# JeremieModLoader .modpack 元数据与容器校验
+pymongo>=4.15.0
+xxhash>=3.5.0
+
+# AU-M 已发布精灵图的无损透明度修复
+Pillow>=12.2.0,<13
+
 # 类型检查（可选）
 typing-extensions>=4.15.0
 

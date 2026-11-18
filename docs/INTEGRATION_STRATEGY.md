@@ -603,7 +603,7 @@ pytest tests/game_logic/ -v
 
 - DoL-Commit2Mod 研究: `docs/COMMIT2MOD_RESEARCH.md`
 - MCH REMOTE_TEST 研究: `docs/MCH_REMOTE_TEST_RESEARCH.md`
-- 完整集成计划: `DOL-X_INTEGRATION_PLAN_FINAL.md`
+- 当前集成范围：[模组矩阵](MOD_COMPATIBILITY_MATRIX.md)
 
 ---
 

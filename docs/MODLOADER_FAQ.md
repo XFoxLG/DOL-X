@@ -170,7 +170,7 @@ window.modUtils.getMod('maplebirch')
 }
 ```
 
-**详细分析**: 见 [AU_FACIAL_DEPENDENCY_REPORT.md](../AU_FACIAL_DEPENDENCY_REPORT.md)
+**详细分析**: 见 [AU_FACIAL_DEPENDENCY_REPORT.md](AU_MODS_INTEGRATION.md)
 
 ### Q9: cheatExtended 为什么报 Simple Frameworks 找不到？
 
@@ -194,7 +194,7 @@ window.modUtils.getMod('maplebirch')
 console.log(window.maplebirchFrameworks);  // 应该是 object
 ```
 
-**详细**: 见 [FRAMEWORK_PROVIDER_RESEARCH.md](../FRAMEWORK_PROVIDER_RESEARCH.md)
+**详细**: 见 [FRAMEWORK_PROVIDER_RESEARCH.md](technical/framework-source-rebuild-2026-10-15.md)
 
 ### Q10: 如何知道我需要哪些依赖？
 
@@ -354,7 +354,7 @@ build_codes = ["24834", "58114", "59138", "61186"]
 - 24834 = 256 + 8192 + 16384 + 2 (UCB + more_love + custom_spellbook + cheat_csd)
 - 58114 = 24834 + 32768 + 1024 (上述 + maplebirch + AU-F)
 
-**详细**: 见 [MIGRATION_NOTICE.md](../MIGRATION_NOTICE.md)
+**详细**: 见 [MIGRATION_NOTICE.md](SAVE_COMPATIBILITY.md)
 
 ### Q16: 如何在 DOL-X 中添加新 Mod？
 
@@ -393,7 +393,7 @@ python tools/mod_audit.py --output-dir output
 build_codes = ["24834", "58114", "59138", "61186"]
 ```
 
-**详细报告**: [AU_FACIAL_DEPENDENCY_REPORT.md](../AU_FACIAL_DEPENDENCY_REPORT.md)
+**详细报告**: [AU_FACIAL_DEPENDENCY_REPORT.md](AU_MODS_INTEGRATION.md)
 
 ### Q18: DOL-X 的测试工具有哪些？
 
@@ -479,8 +479,8 @@ graph TD
 
 - [概述](MODLOADER_OVERVIEW.md) - ModLoader 简介
 - [boot.json 规范](MODLOADER_BOOT_JSON.md) - 配置文件详解
-- [API 文档](MODLOADER_API.md) - 开发者 API
-- [最佳实践](MODLOADER_BEST_PRACTICES.md) - 开发建议
+- [API 文档](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader) - 开发者 API
+- [最佳实践](MOD_ADDITION_CHECKLIST.md) - 开发建议
 
 ---
 

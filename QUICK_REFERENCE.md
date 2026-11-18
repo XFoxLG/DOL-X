@@ -3,9 +3,9 @@
 常用构建、测试和发版命令。当前事实总入口见
 [`docs/CURRENT_PROJECT_STATE.md`](docs/CURRENT_PROJECT_STATE.md)。
 
-**最后更新**：2026-08-08
+**最后更新**：2026-11-14
 
-**当前稳定版本**：`v0.5.10.12-1.0.8a-0808`
+**当前稳定版本**：[1014](https://github.com/XFoxLG/DOL-X/releases/tag/v0.5.11.9-1.0.0a-1014)
 
 **CI Python**：3.12
 
@@ -30,10 +30,10 @@ CI 固定使用 Python 3.12；本地也建议使用同一版本。仓库没有 `
 
 | 构建码 | 产物 | 说明 |
 |--------|------|------|
-| `15704320` | base | 基础版，不含 AU 体型模型与 AU 改脸 |
-| `15705344` | AU-F | AU 女性模型 + AU 改脸 |
-| `15706368` | AU-M | AU 男性模型 + AU 改脸 |
-| `15708416` | AU-A | AU 双性模型 + AU 改脸 |
+| `15704320` | base | 基础版，不含 AU 体型模型与 AU Face 脸部扩展 |
+| `15705344` | AU-F | AU 女性模型 + AU Face 脸部扩展 |
+| `15706368` | AU-M | AU 男性模型 + AU Face 脸部扩展 |
+| `15708416` | AU-A | AU 双性模型 + AU Face 脸部扩展 |
 
 AU Face 不占独立 bit；任一 AU 体型命中时自动注入，base 明确不注入。
 
@@ -62,7 +62,7 @@ WAX、KR/BJ 特写不属于当前公开矩阵。
 python main.py matrix
 
 # 准备当前稳定版本的游戏与 mod 资源
-python main.py prepare --tag v0.5.10.12-1.0.8a-0804 --workspace . -v
+python main.py prepare --tag v0.5.11.9-1.0.0a-1014 --workspace . -v
 
 # 预热四码共用资源
 python main.py warmup --codes 15704320,15705344,15706368,15708416 --workspace . -v
@@ -71,7 +71,7 @@ python main.py warmup --codes 15704320,15705344,15706368,15708416 --workspace . 
 python main.py build --codes 15704320 --workspace . --jobs 2 -v
 
 # 构建全四码并写入构建清单
-python main.py build --tag v0.5.10.12-1.0.8a-0804 \
+python main.py build --tag v0.5.11.9-1.0.0a-1014 \
   --codes 15704320,15705344,15706368,15708416 \
   --workspace . --jobs 2 --manifest output/build-manifest.json -v
 
@@ -110,15 +110,15 @@ python tools/au_artifact_check.py output --output output/au-artifact-report.json
 python tools/check_mod_updates.py --output output/mod-updates.json --include-prerelease
 ```
 
-不同入口的测试计数分别记录。
+测试记录注明命令、版本组合与运行环境；不同测试入口的数量不能直接互换。
 
 ---
 
 ## GitHub Actions 分档
 
-- 推送 `vega`：构建 base + AU-F。
-- 手动运行 `build_tier=release`：在不打 tag 的前提下干跑全四码，release job 必须跳过。
-- 推送普通发版 tag：构建全四码并创建 Release。
+- 当前分支与发版构建码由 `build.yaml` 定义，公开上传须通过实际模组检查。
+- 手动运行 `build_tier=release`：验证配置中的发版构建码，Release 发布步骤跳过。
+- 普通发版标签触发构建和 Release 步骤，仍须通过上传检查。
 - 镜像 tag（`*-mirror-*`）被 workflow 排除。
 
 发版前必须先创建 `docs/release-notes/<tag>.md`。Release job 会把它作为玩家向正文；文件缺失时

@@ -122,6 +122,9 @@ jobs:
             --out .local/fixtures/ci-base.json --label ci-base
           test -s .local/fixtures/ci-base.json
 
+      - name: Check public distribution permission
+        run: python tools/public_distribution_check.py output
+
       - name: Upload target package
         uses: actions/upload-artifact@v6
         with:

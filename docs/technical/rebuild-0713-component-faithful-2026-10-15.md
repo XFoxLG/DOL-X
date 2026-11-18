@@ -85,7 +85,7 @@ base  09:38:42      au-f  09:38:42      au-m  09:38:56      au-a  09:39:02
 我们的 0713 重建把四码**统一冻结**为从幸存 au-f 原件读到的 `13:31:50`。
 
 为了确认这种偏差足以产生「几字节」的量级，做了一个校准实验
-（`.local/_lyra_stamp_delta_experiment.py`）：对真实 HTML 里的 Lyra 槽
+（元数据对照实验）：对真实 HTML 里的 Lyra 槽
 重新盖时间戳，再用与 `lyra.utils.create_zip` 相同的压缩设置
 （ZIP_DEFLATED、默认 level 6、raw deflate）重新压缩整份 HTML，比较文件体积：
 
@@ -130,12 +130,11 @@ keytool -printcert -jarfile（四个 APK）
   SHA256 均为 B2:1C:D1:5B:…:B8:29:EC:E6（正式密钥）
 ```
 
-## 七、边界
+## 七、验证范围
 
 - **逐字节一致仅指逐条目内容**：ZIP 条目的存放顺序与时间戳仍与原件不同，
   所以文件级 sha256 不一致。做过实验（见 0804 档案）：把全部条目时间戳
   改成原件值后哈希仍不同，证明顺序差异独立存在。
-- **AU-A 没有原件**，只有尺寸级与交叉一致性证据；0713 的 Release 与 tag
-  在线上均已不存在。
+- **AU-A 没有对应初版原件**，该版本只有尺寸级与交叉一致性证据。
 - **载体结构性差异**：ZIP 比 APK 多 `CREDITS.md` / `LICENSE` / `README.md`，
   APK 多 Cordova 脚手架文件，属载体固有区别，不是构建错误。

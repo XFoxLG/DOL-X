@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -104,6 +105,7 @@ def _write_build_manifest(
         "pack_types": pack_types,
         "requested_codes": requested_codes,
         "default_build_codes": list(get_config_loader().combinations.build_codes),
+        "config_directory": str(get_config_loader().config_dir.resolve()),
         "default_matrix_mutated": False,
         "validation": validation_results,
         "artifacts": artifacts,
@@ -429,6 +431,7 @@ def main():
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
+    parser.add_argument("--config-dir", type=Path, help="独立构建配置目录（含 features/combinations/build.toml）")
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
 
     # prepare 命令
@@ -536,6 +539,14 @@ def main():
     check_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
     args = parser.parse_args()
+    if args.config_dir:
+        from lyra.config_loader import get_config_loader
+        for filename in ("build.toml", "features.toml", "combinations.toml", "mods.lock.json"):
+            if not (args.config_dir / filename).is_file():
+                parser.error(f"配置目录缺少 {filename}: {args.config_dir}")
+        # Spawned build workers must resolve exactly the same configuration.
+        os.environ["DOLX_CONFIG_DIR"] = str(args.config_dir.resolve())
+        get_config_loader(args.config_dir.resolve())
 
     if not args.command:
         parser.print_help()

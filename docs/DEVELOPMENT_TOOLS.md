@@ -185,7 +185,7 @@ graph LR
 | boot.json 生成 | 🔄 研究完成 | 包含 tweeFileList + addonPlugin |
 | 集成到 main.py | ⏳ 待实现 | Sprint 1 任务 |
 
-**参考实现**: [workspace/research/DoL-Commit2Mod/main.py](../workspace/research/DoL-Commit2Mod/main.py)
+**参考实现**: [DoL-Commit2Mod 源码](https://github.com/Lethivia/DoL-Commit2Mod)
 
 **技术难点与解决方案**:
 
@@ -483,7 +483,7 @@ python tools/analyze_imagepack.py \
 - ⚠️ 需改进：更好的上下文提取
 - ⚠️ 需改进：支持多个 upstream 仓库
 
-**参考代码**: [workspace/research/DoL-Commit2Mod/main.py](../workspace/research/DoL-Commit2Mod/main.py)
+**参考代码**: [DoL-Commit2Mod 源码](https://github.com/Lethivia/DoL-Commit2Mod)
 
 ---
 
@@ -636,10 +636,10 @@ python tools/analyze_imagepack.py \
 ## 相关文档
 
 - [社区工具指南](COMMUNITY_TOOLS.md) - 社区工具完整列表
-- [社区 Mod 调研](COMMUNITY_MOD_RESEARCH.md) - 候选 mod 详细信息
+- [社区 Mod 调研](COMMUNITY_MOD_RESEARCH_2026.md) - 候选 mod 详细信息
 - [Mod 兼容性矩阵](MOD_COMPATIBILITY_MATRIX.md) - 测试结果记录
 - [Mod 添加清单](MOD_ADDITION_CHECKLIST.md) - 集成流程
-- [AGENTS.md](../AGENTS.md) - Agent 工作指南
+- [文档索引](INDEX.md) - 构建与测试参考
 
 ---
 

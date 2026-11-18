@@ -570,7 +570,7 @@ console.log(window.modSC2DataManager.getPassageByName("Start").content);
 - [ModLoader 概览](MODLOADER_OVERVIEW.md)
 - [boot.json 规范](MODLOADER_BOOT_JSON.md)
 - [ModLoader FAQ](MODLOADER_FAQ.md)
-- [ModLoader API](MODLOADER_API.md)（开发者）
+- [ModLoader API](https://github.com/Lyoko-Jeremie/sugarcube-2-ModLoader)（开发者）
 
 ---
 

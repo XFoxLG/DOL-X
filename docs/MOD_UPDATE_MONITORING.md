@@ -1,290 +1,50 @@
-# Mod 更新监控系统使用指南
+# Mod 与上游更新检查
 
-## 功能概览
-
-自动化的 Mod 更新检查系统，包含：
-
-- ✅ 每周自动检查所有启用的 Mod 更新
-- ✅ GitHub Release changelog 自动提取
-- ✅ 基于 semver 和 mods.lock.json 的风险评估
-- ✅ Pre-release 版本监控支持
-- ✅ GitHub Issue 自动创建/更新
-- ✅ 邮件通知（可选）
-- ✅ Rate limit 保护（使用 GITHUB_TOKEN）
-
-## 本地使用
-
-### 基础检查
+检查器报告两类来源：`config/build.toml` 中启用且允许追踪的安装项，以及
+`config/upstream-watch.toml` 中的 Lyra、正式汉化、新内容和 Fork 候选。
+观察清单不会安装 Mod，也不会修改构建配置或锁文件。
 
 ```bash
-# 检查所有启用的 mod
-python tools/check_mod_updates.py --summary
-
-# 输出到文件
-python tools/check_mod_updates.py --output output/mod-updates.json
-
-# 包含 pre-release 版本
+python tools/check_mod_updates.py --output output/mod-updates.json --markdown output/mod-updates.md
 python tools/check_mod_updates.py --include-prerelease --summary
 ```
 
-### 输出示例
+周检在每周日 UTC 00:00（北京时间 08:00）运行，也可通过 Actions 手动触发。
+结果写入 Step Summary 和保留 30 天的 `mod-update-report` artifact。
+工作流只读，不创建 Issue 或发送邮件。
 
-```
-=== Summary ===
-Total mods checked: 9
-Updates available: 2
-Errors: 0
+## 如何理解结果
 
-Mods with updates:
-  🟡 maplebirch: maplebirch-release-v3.1.14 → v3.2.0
-    https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchframework/releases/tag/v3.2.0
-    ⚠️  Minor version change: 1 → 2
+- **发现变化**：发布标签不同，或同标签资产 SHA-256 与记录不同；仍需重新验证兼容性。
+- **未发现版本变化**：只限本次成功检查的来源，不代表所有 Mod 都是最新版。
+- **仅标签比较**：没有进行资产字节身份比较，不能排除同标签附件被替换。
+- **新版本需重新选择资产**：标签有变化，但旧文件名未在新 Release 命中。
+- **主动锁定／已禁用／未配置仓库**：列入跳过项，不能当成检查成功。
+- **检查失败**：保留具体仓库和错误；即使其他来源成功，检查仍以退出码 1 结束。
 
-  🔴 maplebirch扩展包: release-v1.2.4 → v1.3.0
-    https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchExpansion/releases/tag/v1.3.0
-    ⚠️  Major version change: 1.x → 2.x
-    ⚠️  Known issue: 不兼容 maplebirch v4.x（R.use API 变更）
-```
+JSON 保留 `updates`、`errors`、`all_results` 等安装项字段，并增加 `skipped`、
+`references`、`reference_updates` 和 `check_complete`。`errors` 汇总两类来源的失败，
+`total_checked` 与 `updates_available` 仅统计安装项。
 
-### 风险等级说明
+退出码约定已由“总是 0”改为：全部检查成功时为 0，任何来源失败时为 1。
+失败结果仍先写入报告；配置文件损坏则直接报错，不使用空配置掩盖问题。
 
-| 等级 | 标识 | 含义 |
-|------|------|------|
-| Low | 🟢 | Patch 更新（如 v1.2.3 → v1.2.4），通常安全 |
-| Medium | 🟡 | Minor 更新（如 v1.2.0 → v1.3.0）或 pre-release |
-| High | 🔴 | Major 更新（如 v1.x → v2.x）或有已知兼容性问题 |
-| Unknown | ⚪ | 无法解析版本号 |
+## 版本渠道与资产身份
 
-## GitHub Actions 自动化
+普通安装项默认检查正式 Release；`--include-prerelease` 包含安装项预发布。
+单个安装项可设置 `include_prerelease_updates = true`。
+观察清单独立使用 `include_prerelease`：Lyra 包含预发布，正式汉化只看正式发行。
+候选清单的 `observed_tag` 表示已审阅版本，不表示已经安装或通过运行验收。
 
-### 触发条件
+固定标签需要同时记录 `asset_pattern` 与 `sha256` 才能比较附件身份。
+更新检查只用 GitHub 提供的 digest，不额外下载大包；正式构建仍按锁文件验证实际下载字节。
+发布标签、资产名称或依赖有变化后，应在隔离工作区验证，再更新安装配置与验收记录。
 
-- **定时运行**：每周日 UTC 00:00
-- **手动触发**：在 Actions 页面点击 "Run workflow"
+## 风险与后续处理
 
-### 配置邮件通知（可选）
+大版本变化或已知不兼容为 high，小版本变化或预发布通常为 medium；风险等级不是兼容认证。
+预发布标记不会把大版本风险降为 medium。
+候选必须完成准备、预热、构建、产物身份检查与对应运行验收，再考虑替换正式输入。
 
-在 Repository Settings > Secrets and variables > Actions 中配置：
-
-```yaml
-MAIL_USERNAME: your-email@gmail.com
-MAIL_PASSWORD: your-gmail-app-password
-MAIL_TO: recipient@example.com
-```
-
-**注意：**
-- Gmail 需要使用 [App Password](https://support.google.com/accounts/answer/185833)，不是账户密码
-- 如果不配置这些 secrets，邮件步骤会自动跳过（不影响其他功能）
-
-### Workflow 输出
-
-**有更新时：**
-1. 创建/更新 GitHub Issue（标签：`mod-update`, `automation`）
-2. 上传 `mod-updates.json` 到 Artifacts（保留 30 天）
-3. 发送邮件通知（如果配置）
-
-**Issue 内容示例：**
-
-```markdown
-## 🔄 检测到 Mod 更新
-
-**检测时间**: 2026-06-18T12:00:00Z
-**更新数量**: 2 / 9
-
-### 可用更新
-
-#### 🟡 maplebirch
-
-- **当前版本**: `maplebirch-release-v3.1.14`
-- **最新版本**: `v3.2.0`
-- **仓库**: MaplebirchLeaf/SCML-DOL-maplebirchframework
-- **发布时间**: 2026-06-01T10:00:00Z
-- **风险等级**: MEDIUM
-- **风险提示**:
-  - ⚠️ Minor version change: 1 → 2
-
-<details>
-<summary>📝 更新日志摘要</summary>
-
-- Fix R.use path resolution bug
-- Add sanity attribute extension
-...
-
-[查看完整日志](https://github.com/...)
-</details>
-
-### 📋 处理步骤
-
-1. 查看上游 Release Notes 和风险提示
-2. 评估依赖兼容性（参考 `config/mods.lock.json` notes）
-3. 更新 `config/build.toml` 中的版本号
-4. 运行 `python tools/mod_audit.py` 验证
-5. 本地测试构建
-6. 提交更新并更新 `mods.lock.json`
-
-若更新失败，参考 [回滚指南](docs/MOD_UPDATE_ROLLBACK.md)
-```
-
-## JSON 输出格式
-
-```json
-{
-  "timestamp": "2026-06-18T12:00:00Z",
-  "total_checked": 9,
-  "updates_available": 2,
-  "errors_count": 0,
-  "has_updates": true,
-  "updates": [
-    {
-      "mod_key": "maplebirch",
-      "mod_name": "maplebirch Framework",
-      "repo": "MaplebirchLeaf/SCML-DOL-maplebirchframework",
-      "current": "maplebirch-release-v3.1.14",
-      "latest": "v3.2.0",
-      "has_update": true,
-      "url": "https://github.com/.../releases/tag/v3.2.0",
-      "published_at": "2026-06-01T10:00:00Z",
-      "is_prerelease": false,
-      "changelog_summary": "- Fix R.use path resolution...",
-      "changelog_url": "https://github.com/.../releases/tag/v3.2.0",
-      "risk_level": "medium",
-      "risk_notes": ["Minor version change: 1 → 2"],
-      "status": "success"
-    }
-  ],
-  "errors": [],
-  "all_results": [...]
-}
-```
-
-## 更新流程
-
-### 1. 收到通知
-
-通过 GitHub Issue 或邮件收到更新通知。
-
-### 2. 评估风险
-
-查看 Issue 中的风险提示：
-
-- 🟢 Low：通常可以直接更新
-- 🟡 Medium：检查 changelog，本地测试
-- 🔴 High：**必须**查看 `mods.lock.json` 的 notes 和上游文档
-
-### 3. 更新配置
-
-编辑 `config/build.toml`：
-
-```toml
-[[modloader_mods]]
-key = "maplebirch"
-github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchframework"
-release_tag = "v3.2.0"  # 更新此处
-```
-
-### 4. 验证
-
-```bash
-# 验证 mod 资源可访问性
-python tools/mod_audit.py
-
-# 本地构建测试
-python lyra.py build --combo 24834
-```
-
-### 5. 更新 mods.lock.json
-
-记录测试结果：
-
-```json
-{
-  "mods": {
-    "maplebirch": {
-      "release_tag": "v3.2.0",
-      "last_tested_version": "v3.2.0",
-      "last_tested_date": "2026-06-18",
-      "notes": [
-        "v3.2.0 测试通过",
-        "兼容 DoL v0.5.8.10"
-      ]
-    }
-  }
-}
-```
-
-### 6. 提交
-
-```bash
-git add config/build.toml config/mods.lock.json
-git commit -m "chore: 更新 maplebirch 到 v3.2.0"
-```
-
-## 故障排查
-
-### Rate Limit 错误
-
-**症状：** `403 Client Error: rate limit exceeded`
-
-**解决：**
-1. 本地测试时设置 `GITHUB_TOKEN` 环境变量
-2. GitHub Actions 会自动使用 `secrets.GITHUB_TOKEN`
-
-```bash
-# Windows PowerShell
-$env:GITHUB_TOKEN="ghp_your_token_here"
-python tools/check_mod_updates.py --summary
-
-# Linux/Mac
-export GITHUB_TOKEN="ghp_your_token_here"
-python tools/check_mod_updates.py --summary
-```
-
-### 编码错误
-
-**症状：** `'gbk' codec can't decode byte`
-
-**解决：** 已修复，`mods.lock.json` 现在使用 UTF-8 编码读取。
-
-### 更新失败回滚
-
-参考 [docs/MOD_UPDATE_ROLLBACK.md](docs/MOD_UPDATE_ROLLBACK.md)
-
-## 高级用法
-
-### 监控特定 mod 的 pre-release
-
-编辑 `config/build.toml`（未来功能，当前版本未实现 per-mod 配置）：
-
-```toml
-[[modloader_mods]]
-key = "maplebirch"
-track_prerelease = true  # 计划中的功能
-```
-
-当前使用全局参数：
-
-```bash
-python tools/check_mod_updates.py --include-prerelease --summary
-```
-
-### 集成到 CI/CD
-
-在其他 workflow 中引用：
-
-```yaml
-- name: Check mod updates before build
-  run: |
-    python tools/check_mod_updates.py --output mod-status.json
-    
-    # 检查是否有高风险更新
-    HIGH_RISK=$(jq '[.updates[] | select(.risk_level == "high")] | length' mod-status.json)
-    if [ "$HIGH_RISK" -gt 0 ]; then
-      echo "⚠️ 发现 $HIGH_RISK 个高风险更新，建议先更新再构建"
-    fi
-```
-
-## 相关文档
-
-- [MOD_UPDATE_ROLLBACK.md](docs/MOD_UPDATE_ROLLBACK.md) - 回滚指南
-- [TESTING.md](TESTING.md) - Mod 兼容性测试
-- [MOD_ADDITION_CHECKLIST.md](docs/MOD_ADDITION_CHECKLIST.md) - 添加新 Mod
+请求限流时可通过环境变量 `GITHUB_TOKEN` 或 `GH_TOKEN` 提供已有凭据，勿将凭据写入配置。
+更多回退操作见 [MOD_UPDATE_ROLLBACK.md](MOD_UPDATE_ROLLBACK.md)。

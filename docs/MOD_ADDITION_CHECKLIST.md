@@ -352,5 +352,5 @@ git commit -m "revert: remove problematic mod"
 ## References
 
 - [ModLoader API Documentation](https://github.com/DoL-Lyra/sugarcube-2-ModLoader)
-- [DOL-X Architecture](docs/)
-- [Testing Guide](docs/TESTING.md)
+- [DOL-X Architecture](INDEX.md)
+- [Testing Guide](TESTING_GUIDE.md)

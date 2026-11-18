@@ -3,6 +3,8 @@
 **调研日期**: 2026-06-24  
 **调研来源**: https://degreesoflewditycn.miraheze.org/wiki/模组列表
 
+> 本文记录 2026-06-24 的版本调研。当前集成与验证情况见[模组矩阵](MOD_COMPATIBILITY_MATRIX.md)。
+
 ---
 
 ## 调研目标
@@ -47,7 +49,7 @@
   - mod 期望游戏内置狐狸变身系统（当前版本不存在）
   - 导致战斗系统崩溃：`Cannot use 'in' operator to search for 'wings' in undefined`
 - **决策**: 禁用，等待 v0.3.2+ 稳定版
-- **详细分析**: 见 `MOD_INTEGRATION_LOG_2026-06-24.md`
+- 该结论适用于当时测试的游戏和模组版本。
 
 #### 2. NeoUI Patch (依雅莱 V1.1.0) - 已禁用
 
@@ -59,7 +61,7 @@
   - DOL-X 采用推开式布局
   - CSS 固定 `#story { margin-left: 3.5em }`，侧边栏展开时遮挡内容
 - **决策**: 禁用，设计理念不兼容
-- **详细分析**: 见 `MOD_INTEGRATION_LOG_2026-06-24.md` 和 `workspace/temp/neoui_analysis/`
+- 当时记录的是侧边栏布局冲突；后续版本已调整，当前使用范围见模组矩阵。
 
 ---
 
@@ -103,9 +105,9 @@
 - 小规模美化（非全面改造）
 
 **兼容性分析**:
-- 与 AU: ✅ 理论兼容（不同作用域）
-- 与 UCB: ✅ 无冲突（不同图层）
-- 与 maplebirch v3.1.14: ✅ 应该兼容
+- 与 AU：未完成运行时验证。
+- 与 UCB：未完成运行时验证。
+- 与 maplebirch v3.1.14：未完成运行时验证。
 
 **社区集成度**: 低（主流整合包未采用）
 

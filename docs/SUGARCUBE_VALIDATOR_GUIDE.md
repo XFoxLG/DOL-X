@@ -247,6 +247,6 @@ python tools/sugarcube_validator.py output/*.html --strict
 ---
 
 **相关文档**：
-- [Phase 1 测试系统指南](PHASE1_TESTING_GUIDE.md)
+- [Phase 1 测试系统指南](TESTING_GUIDE.md)
 - [手动测试清单](MANUAL_TESTING_CHECKLIST.md)
-- [AGENTS.md](AGENTS.md)
+- [测试指南](TESTING_GUIDE.md)

@@ -2,112 +2,45 @@ name: Mod Update Check
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # 每周日 UTC 00:00 运行
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
 
-# 仓库 Issues 已关闭，更新结果写入 Step Summary 与 artifact，不创建 Issue。
 permissions:
   contents: read
 
 jobs:
   check-updates:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
-
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Check mod updates
-        id: check
+        run: pip install -r requirements.txt
+      - name: Check mod updates and observed upstreams
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python tools/check_mod_updates.py --output output/mod-updates.json --markdown output/mod-updates.md
+      - name: Write summary
+        if: always()
         run: |
-          python tools/check_mod_updates.py --output output/mod-updates.json
-
-          if [ -f output/mod-updates.json ]; then
-            HAS_UPDATES=$(jq -r '.has_updates' output/mod-updates.json)
-            UPDATE_COUNT=$(jq -r '.updates_available' output/mod-updates.json)
-
-            echo "has_updates=$HAS_UPDATES" >> $GITHUB_OUTPUT
-            echo "update_count=$UPDATE_COUNT" >> $GITHUB_OUTPUT
+          if [ -f output/mod-updates.md ]; then
+            cat output/mod-updates.md >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "has_updates=false" >> $GITHUB_OUTPUT
-            echo "update_count=0" >> $GITHUB_OUTPUT
+            echo "更新检查失败：报告未生成，请查看任务日志。" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
-
       - name: Upload update report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mod-update-report
-          path: output/mod-updates.json
+          path: |
+            output/mod-updates.json
+            output/mod-updates.md
+          if-no-files-found: error
           retention-days: 30
-
-      - name: Write update details to summary
-        if: steps.check.outputs.has_updates == 'true'
-        run: |
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
-          from pathlib import Path
-
-          report = json.loads(Path("output/mod-updates.json").read_text(encoding="utf-8"))
-
-          print("## 检测到 Mod 更新\n")
-          print(f"- 检测时间: {report.get('timestamp', 'unknown')}")
-          print(
-              f"- 更新数量: {report.get('updates_available', 0)}"
-              f" / {report.get('total_checked', 0)}\n"
-          )
-
-          for mod in report.get("updates", []):
-              prerelease_marker = " (Pre-release)" if mod.get("is_prerelease") else ""
-              print(f"### {mod.get('mod_name', 'unknown')}\n")
-              print(f"- 当前版本: `{mod.get('current')}`")
-              print(f"- 最新版本: `{mod.get('latest')}`{prerelease_marker}")
-              print(f"- 仓库: {mod.get('repo')}")
-              print(f"- 发布时间: {mod.get('published_at')}")
-              print(f"- 风险等级: {str(mod.get('risk_level', 'unknown')).upper()}")
-
-              risk_notes = mod.get("risk_notes") or []
-              if risk_notes:
-                  print("- 风险提示:")
-                  for note in risk_notes:
-                      print(f"  - {note}")
-
-              changelog_summary = mod.get("changelog_summary")
-              if changelog_summary:
-                  print("\n<details><summary>更新日志摘要</summary>\n")
-                  print(changelog_summary)
-                  changelog_url = mod.get("changelog_url")
-                  if changelog_url:
-                      print(f"\n[查看完整日志]({changelog_url})")
-                  print("\n</details>")
-              print()
-
-          print("### 处理步骤\n")
-          print("1. 查看上游 Release Notes 和风险提示")
-          print("2. 评估依赖兼容性（参考 `config/mods.lock.json` notes）")
-          print("3. 更新 `config/build.toml` 中的版本号")
-          print("4. 运行 `python tools/mod_audit.py` 验证")
-          print("5. 本地测试构建")
-          print("6. 提交更新并更新 `mods.lock.json`")
-          PY
-
-      - name: Summary
-        if: always()
-        run: |
-          if [ "${{ steps.check.outputs.has_updates }}" = "true" ]; then
-            echo "发现 ${{ steps.check.outputs.update_count }} 个可用更新，详情见上方与 mod-update-report artifact。" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "所有 Mod 均为最新版本。" >> $GITHUB_STEP_SUMMARY
-          fi

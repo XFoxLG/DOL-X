@@ -469,5 +469,5 @@ A: 检查 tsconfig.json 配置，确保类型定义正确
 
 - [DOL-X 主仓库](https://github.com/XFoxLG/DOL-X)
 - [TypeScript 模板](https://github.com/XFoxLG/DOL-X-TS-Mod-Template)
-- [ModLoader 文档](MODLOADER_OVERVIEW.md)
+- [ModLoader 文档](../MODLOADER_OVERVIEW.md)
 - [Commit2Mod 使用指南](COMMIT2MOD_USAGE.md)

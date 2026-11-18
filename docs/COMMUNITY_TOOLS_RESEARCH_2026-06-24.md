@@ -254,7 +254,7 @@
   - 手动测试 checklist（27 个步骤）
   - 无自动化覆盖
 - **规划**: 
-  - Playwright + HTML 测试（见 `docs/IMPLEMENTATION_PLAN_2026-06-24.md`）
+  - Playwright + HTML 测试（当前流程见 `docs/TESTING_GUIDE.md`）
   - 目标：80% 手动步骤自动化
 
 **参考价值**: ⭐⭐⭐⭐⭐
@@ -453,7 +453,7 @@ DOL-X 的工具链可以反哺社区：
    - 受益用户：整合包制作者
 
 3. **config/mods.lock.json 规范**
-   - 当前：DOL-X 自定义格式
+   - 当时：DOL-X 自定义格式
    - 潜力：社区标准
    - 受益用户：所有整合包制作者
 
