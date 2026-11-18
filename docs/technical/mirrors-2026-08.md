@@ -1,6 +1,6 @@
 # 技术档案：历史组件来源与内容对照
 
-> 以下为 2026-08 至 10 月的版本记录。当前附件入口见 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)，来源与适用许可见[资源说明](../DISTRIBUTION_POLICY.md)。
+> 以下为 2026-08 至 10 月的版本记录与校验值。现行公开附件入口只保留 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors) 当前列出的版本；本表其余历史包保存在本地与私有归档。来源与适用许可见[资源说明](../DISTRIBUTION_POLICY.md)。
 
 > 玩家向正文：`docs/release-notes/` 下的 `*-mirror-*` 文件（每个镜像 tag 一个）。
 > 本文件是技术证据档，只进仓库，不会成为 GitHub Release 正文。

@@ -10,4 +10,4 @@
 
 原作者：楓樺葉 / MaplebirchLeaf。来源：[秋枫白桦框架](https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework)。
 
-选择版本时需同时核对游戏和依赖模组；整合包已内置框架时无需重复安装。附件入口见 [DOL-X-Mirrors](https://github.com/XFoxLG/DOL-X-Mirrors)，内容与来源记录见[技术说明](https://github.com/XFoxLG/DOL-X/blob/vega/docs/technical/mirrors-2026-08.md)。
+选择版本时需同时核对游戏和依赖模组；整合包已内置框架时无需重复安装。该版本不再单独提供下载，历史附件与来源记录见[技术说明](https://github.com/XFoxLG/DOL-X/blob/vega/docs/technical/mirrors-2026-08.md)。
